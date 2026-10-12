@@ -6,11 +6,12 @@
 	CONTROLS
 		WASD           move
 		Space          jump. HOLD it to bunny hop (you re-jump the instant you
-		               land and keep all your speed). Double jump / wall jump too.
+		               land and keep all your speed). Wall jump too.
 		A/D + mouse    air strafe: hold A and turn the mouse left (or D + right)
 		               while in the air to GAIN speed, like CS / TF2
 		Left Shift     sprint (hold) on the ground / AIR DASH when in the air
-		C or L-Ctrl    slide (hold). Hold it in the air = slide when you land
+		C or L-Ctrl    slide (tap; tap again to stand). Press it in the air =
+		               slide the moment you land. Jump out of a slide any time.
 		E              Grapple Hook (power-up)
 		Q              Decoy (power-up)
 
@@ -71,6 +72,9 @@ local dashesLeft = 0
 
 local sprintHeld, slideHeld, jumpHeld = false, false, false
 local jumpPressedAt = -10 -- for the jump buffer
+local slidePressedAt = -10 -- slide pressed in the air = slide on landing
+local lastGroundedTime = 0 -- for coyote time
+local forceJumpUntil = 0 -- keep re-applying jump velocity for a moment
 
 local now = os.clock
 local lastGroundJumpTime = 0
@@ -310,12 +314,13 @@ local function onLanded()
 		Sfx.Play("Land", { Volume = math.clamp(fallSpeed / 80, 0.3, 1.2) })
 	end
 	Movement.Landed:Fire(fallSpeed)
+	lastGroundedTime = now()
 	-- SHOCKWAVE LANDING power-up
 	if stats().ShockwaveLanding and fell >= PU.ShockwaveLanding.MinFallHeight then
 		Remotes.Get("Ability"):FireServer("Shockwave", {})
 		Controllers.Camera.Shake(2.5)
 	end
-	if slideHeld then
+	if (M.SlideHold and slideHeld) or now() - slidePressedAt < 0.35 then
 		startSlide()
 	end
 end
@@ -328,7 +333,11 @@ local function groundJump()
 	end
 	humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
 	setVerticalVelocity(M.JumpPower)
+	-- the Humanoid can briefly hold us down (e.g. right after landing or
+	-- mid-slide); re-apply the jump velocity for a few frames so jumps never fail
+	forceJumpUntil = now() + 0.08
 	lastGroundJumpTime = now()
+	lastGroundedTime = -10
 	jumpPressedAt = -10
 	mode = "Air"
 	peakY = root.Position.Y
@@ -443,6 +452,8 @@ local function onJumpPressed()
 		wallJump()
 	elseif mode == "Grapple" then
 		endGrapple(true)
+	elseif mode == "Air" and now() - lastGroundedTime < M.CoyoteTime then
+		groundJump() -- just ran or slid off a ledge: still counts as a ground jump
 	elseif mode == "Air" or mode == "Dash" then
 		if now() - lastGroundJumpTime < 0.12 then
 			return -- we only just left the ground
@@ -548,7 +559,7 @@ end
 local function updateSlide(dt, wish)
 	momentum = applyFriction(momentum, M.SlideFriction, dt)
 	momentum = steer(momentum, wish, M.SlideSteer * dt)
-	if momentum.Magnitude < M.SlideEndSpeed or not slideHeld then
+	if momentum.Magnitude < M.SlideEndSpeed or (M.SlideHold and not slideHeld) then
 		mode = "Ground"
 		return
 	end
@@ -691,6 +702,9 @@ local function step(dt)
 	local justLaunched = now() - math.max(lastGroundJumpTime, lastLiftTime) < 0.12
 	local grounded = Movement.IsGrounded() and not justLaunched
 	local wish = wishDirection()
+	if now() < forceJumpUntil and root.AssemblyLinearVelocity.Y < M.JumpPower * 0.75 then
+		setVerticalVelocity(M.JumpPower)
+	end
 	if not grounded then
 		peakY = math.max(peakY, root.Position.Y) -- for Shockwave Landing
 		lowestVelocityY = math.min(lowestVelocityY, velocity.Y)
@@ -707,6 +721,7 @@ local function step(dt)
 	-- JUMP / BUNNY HOP: holding Space (or a buffered press) jumps on the very
 	-- frame we touch the ground, BEFORE friction runs, so no speed is lost.
 	if grounded and (mode == "Ground" or mode == "Slide") then
+		lastGroundedTime = now()
 		local wantsJump = (M.AutoBhop and jumpHeld) or (now() - jumpPressedAt < M.JumpBuffer)
 		if wantsJump then
 			groundJump()
@@ -837,8 +852,14 @@ local function onInputBegan(input, processed)
 		end
 	elseif key == M.SlideKey or key == Enum.KeyCode.LeftControl or key == Enum.KeyCode.ButtonB then
 		slideHeld = true
-		if canMove() and mode == "Ground" then
-			startSlide()
+		if canMove() then
+			if mode == "Ground" then
+				startSlide()
+			elseif mode == "Slide" and not M.SlideHold then
+				mode = "Ground" -- tap again to stand up
+			elseif mode == "Air" then
+				slidePressedAt = now() -- slide as soon as we land
+			end
 		end
 	elseif key == Enum.KeyCode.E then
 		if canMove() then
@@ -849,7 +870,7 @@ local function onInputBegan(input, processed)
 			end
 		end
 	elseif key == Enum.KeyCode.Q then
-		if canMove() and ClientState.IsFighting() then
+		if canMove() and ClientState.CanShoot() then
 			startDecoy()
 		end
 	end

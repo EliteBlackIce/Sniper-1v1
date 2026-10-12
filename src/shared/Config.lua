@@ -176,26 +176,28 @@ Config.Movement = {
 	-- mouse the same way in the air to GAIN speed (air strafing).
 	AutoBhop = true, -- true = holding Space re-jumps on landing
 	JumpBuffer = 0.15, -- a jump pressed this long before landing still counts
+	CoyoteTime = 0.12, -- you can still jump this long after leaving the ground
 	AirAccel = 14, -- air strafe strength (Source uses 10-12)
 	AirSpeedCap = 3.6, -- small cap per frame = the classic strafe gain (Source: 30 units)
 	AirControlSpeed = 30, -- wish speed used in the air
 	MaxSpeed = 120, -- hard limit on horizontal speed
 
 	JumpPower = 52,
-	AirJumps = 1, -- 1 = double jump (Triple Jump power-up adds more)
+	AirJumps = 0, -- no double jump by default (the Double Jump power-up adds one)
 	AirJumpVelocity = 50,
 	AirJumpMinSpeed = 30, -- a double jump re-aims you toward your keys at least this fast
 
 	-- Slide
 	SlideKey = Enum.KeyCode.C, -- LeftControl also works
+	SlideHold = false, -- false = tap C to slide (press again to stop), true = hold C
 	SlideMinSpeed = 18, -- need at least this speed to start a slide
 	SlideBoost = 12, -- speed added when the slide starts...
 	SlideBoostCap = 55, -- ...but only up to this speed (no infinite slide boosting)
 	SlideFriction = 0.55, -- slide friction (much lower than running)
 	SlideEndSpeed = 16, -- slide ends below this speed
 	SlideSteer = 2.2, -- how much you can steer a slide
-	SlideCooldown = 0.6,
-	SlideJumpBoost = 3, -- extra speed for jumping out of a slide
+	SlideCooldown = 0.25,
+	SlideJumpBoost = 4, -- extra speed for jumping out of a slide (up to SlideBoostCap)
 
 	-- Air dash (press Shift in the air)
 	DashSpeed = 82,
@@ -270,7 +272,7 @@ Config.PowerUps = {
 	RocketJump = { Radius = 9, LaunchUp = 88, LaunchAway = 28 },
 	SecondWind = { SpeedMultiplier = 1.35, BoostTime = 3 },
 	HomingRounds = { Radius = 9, TurnDegreesPerStep = 5, StepLength = 18 },
-	TripleJump = { ExtraJumpsPerStack = 1 },
+	DoubleJump = { ExtraJumpsPerStack = 1 },
 	Quickdraw = { SpeedPerStack = 0.4 }, -- 40% faster bolt + scope
 	ThickSkin = { HealthPerStack = 40 },
 	WallhackPulse = { Interval = 10, Duration = 1 },

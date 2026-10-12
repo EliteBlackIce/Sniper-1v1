@@ -51,7 +51,7 @@ local EQUIP_POSE = CFrame.new(0.15, -1.2, 0.45) * CFrame.Angles(rad(-55), rad(25
 -- Hands (gun space)
 local RIGHT_GRIP = CFrame.new(0, -0.22, 0.18) * CFrame.Angles(rad(-18), 0, 0)
 local KNOB_HOLD = CFrame.new(0.3, 0.02, 0.07) -- relative to the animated bolt pivot
-local LEFT_HOLD = CFrame.new(0, -0.21, -1.5)
+local LEFT_HOLD = CFrame.new(0, -0.21, -1.15) -- behind the folded bipod
 -- Arm joints (gun space). Shoulders sit behind the camera, out of view.
 local RIGHT_ELBOW = Vector3.new(0.42, -0.62, 0.78)
 local RIGHT_SHOULDER = Vector3.new(0.95, -1.1, 1.9)

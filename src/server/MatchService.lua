@@ -14,6 +14,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local PowerUps = require(ReplicatedStorage.Shared.PowerUps)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local CharacterService = require(script.Parent.CharacterService)
 local MapBuilder = require(script.Parent.MapBuilder)
@@ -27,6 +28,8 @@ local queue = {} -- ordered list of players waiting
 local matchByPlayer = {} -- [player] = Match
 local arenas = {} -- [index] = arena info (built on first use)
 local arenaInUse = {} -- [index] = true
+local practiceOwned = {} -- [player] = { [powerUpId] = stacks }  (lobby Power-Up Lab)
+local practiceStats = {} -- [player] = cached stats
 
 ----------------------------------------------------------------------------
 -- Helpers
@@ -39,6 +42,16 @@ local function isQueued(player)
 	return table.find(queue, player) ~= nil
 end
 
+-- Power-ups a player is trying out in the lobby (Power-Up Lab).
+function MatchService.GetPracticeStats(player)
+	local stats = practiceStats[player]
+	if not stats then
+		stats = PowerUps.ComputeStats(practiceOwned[player] or {})
+		practiceStats[player] = stats
+	end
+	return stats
+end
+
 local function lobbySnapshot(player)
 	return {
 		InMatch = false,
@@ -46,6 +59,7 @@ local function lobbySnapshot(player)
 		Queued = isQueued(player),
 		QueueCount = #queue,
 		PlayersOnline = #Players:GetPlayers(),
+		PowerUps = table.clone(practiceOwned[player] or {}),
 	}
 end
 
@@ -69,6 +83,7 @@ local function spawnInLobby(player)
 		or Enum.CameraMode.Classic
 	CharacterService.Spawn(player, lobby.SpawnCFrame(), {
 		Color = Config.Palette.LobbyPlayer,
+		MaxHealth = MatchService.GetPracticeStats(player).MaxHealth,
 		KillY = lobby.KillY,
 	})
 	sendLobbyState(player)
@@ -157,6 +172,33 @@ function MatchService.Init()
 
 	Remotes.Get("QueueToggle").OnServerEvent:Connect(onQueueToggle)
 
+	-- POWER-UP LAB: try any power-up in the lobby
+	Remotes.Get("Practice").OnServerEvent:Connect(function(player, action, id)
+		if matchByPlayer[player] then
+			return
+		end
+		local owned = practiceOwned[player] or {}
+		local def = typeof(id) == "string" and PowerUps.Get(id) or nil
+		if action == "Add" and def then
+			owned[id] = math.min((owned[id] or 0) + 1, def.MaxStacks or 1)
+		elseif action == "Remove" and def then
+			owned[id] = (owned[id] or 0) > 1 and owned[id] - 1 or nil
+		elseif action == "Clear" then
+			owned = {}
+		else
+			return
+		end
+		practiceOwned[player] = owned
+		practiceStats[player] = nil
+		-- Thick Skin etc. apply right away
+		local humanoid = CharacterService.GetAliveHumanoid(player)
+		if humanoid then
+			humanoid.MaxHealth = MatchService.GetPracticeStats(player).MaxHealth
+			humanoid.Health = humanoid.MaxHealth
+		end
+		sendLobbyState(player)
+	end)
+
 	Remotes.Get("PickCard").OnServerEvent:Connect(function(player, index)
 		local match = matchByPlayer[player]
 		if match then
@@ -175,6 +217,8 @@ function MatchService.Init()
 	end
 
 	Players.PlayerRemoving:Connect(function(player)
+		practiceOwned[player] = nil
+		practiceStats[player] = nil
 		local index = table.find(queue, player)
 		if index then
 			table.remove(queue, index)

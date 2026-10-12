@@ -38,6 +38,7 @@ local isOpen = false
 local isPicker = false
 local pickedIndex = nil
 local openToken = 0
+local practiceCallback = nil -- set when opened from the Power-Up Lab (solo practice)
 
 ----------------------------------------------------------------------------
 -- Card construction
@@ -371,8 +372,19 @@ local function open(snapshot)
 			end)
 			rec.Button.Activated:Connect(function()
 				if isPicker and not pickedIndex and rec.Flipped then
-					Remotes.Get("PickCard"):FireServer(i)
-					playPickAnimation(i)
+					if practiceCallback then
+						local callback = practiceCallback
+						playPickAnimation(i)
+						callback(id)
+						task.delay(1.6, function()
+							if practiceCallback == callback then
+								PickScreen.Close()
+							end
+						end)
+					else
+						Remotes.Get("PickCard"):FireServer(i)
+						playPickAnimation(i)
+					end
 				end
 			end)
 			flipIn(rec, 0.25 + (i - 1) * 0.22, token)
@@ -384,6 +396,7 @@ local function close()
 	if not isOpen then
 		return
 	end
+	practiceCallback = nil
 	isOpen = false
 	openToken += 1
 	local token = openToken
@@ -401,7 +414,37 @@ local function close()
 	end)
 end
 
+function PickScreen.Close()
+	close()
+end
+
+function PickScreen.IsPracticeOpen()
+	return isOpen and practiceCallback ~= nil
+end
+
+--[[
+	Opens the real pick screen with `cards` for solo practice (from the
+	Power-Up Lab). `onPick(id)` is called with the chosen power-up.
+]]
+function PickScreen.OpenPractice(cards, owned, onPick)
+	open({
+		Cards = cards,
+		PickerUserId = player.UserId,
+		Players = { { UserId = player.UserId, PowerUps = owned or {} } },
+	})
+	practiceCallback = onPick
+	title.Text = "PICK A POWER-UP"
+	title.TextColor3 = Palette.UIText
+	subtitle.Text = "Practice pick - the card gets added to your Power-Up Lab.  (B to close)"
+end
+
 function PickScreen.OnState(snapshot, old)
+	if practiceCallback then
+		if not snapshot.InMatch then
+			return -- practice pick stays open in the lobby
+		end
+		close()
+	end
 	local phase = snapshot.Phase
 	if phase == "Pick" then
 		if not isOpen or old.Phase ~= "Pick" then

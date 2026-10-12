@@ -241,19 +241,30 @@ local function wallhackLoop()
 	local cfg = Config.PowerUps.WallhackPulse
 	while true do
 		task.wait(cfg.Interval)
-		if ClientState.IsFighting() and ClientState.Stats.WallhackPulse then
-			local opponent = ClientState.GetOpponentPlayer()
-			local character = opponent and opponent.Character
-			if character then
+		if ClientState.CanShoot() and ClientState.Stats.WallhackPulse then
+			-- the enemy in a match, the practice dummies in the lobby
+			local targets = {}
+			if ClientState.InMatch() then
+				local opponent = ClientState.GetOpponentPlayer()
+				table.insert(targets, opponent and opponent.Character)
+			else
+				local dummies = workspace:FindFirstChild("Dummies")
+				for _, dummy in ipairs(dummies and dummies:GetChildren() or {}) do
+					table.insert(targets, dummy)
+				end
+			end
+			for _, target in ipairs(targets) do
 				local highlight = Instance.new("Highlight")
 				highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 				highlight.FillColor = Palette.UIDanger
 				highlight.FillTransparency = 0.6
 				highlight.OutlineColor = Color3.new(1, 1, 1)
 				highlight.OutlineTransparency = 0
-				highlight.Adornee = character
+				highlight.Adornee = target
 				highlight.Parent = getFolder()
 				Debris:AddItem(highlight, cfg.Duration)
+			end
+			if #targets > 0 then
 				Sfx.Play("Ability", { Pitch = 1.6, Volume = 0.5 })
 			end
 		end

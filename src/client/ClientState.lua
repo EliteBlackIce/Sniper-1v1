@@ -63,6 +63,25 @@ function ClientState.CanShoot()
 	return not ClientState.Snapshot.InMatch or ClientState.IsFighting()
 end
 
+-- Positions bullets may home in on: the enemy's torso, or the practice dummies.
+function ClientState.GetHomingTargets()
+	if ClientState.Snapshot.InMatch then
+		local opponent = ClientState.GetOpponentPlayer()
+		local character = opponent and opponent.Character
+		local torso = character and (character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso"))
+		return torso and { torso.Position } or {}
+	end
+	local targets = {}
+	local folder = workspace:FindFirstChild("Dummies")
+	for _, dummy in ipairs(folder and folder:GetChildren() or {}) do
+		local torso = dummy:FindFirstChild("UpperTorso")
+		if torso and not dummy:GetAttribute("Down") then
+			table.insert(targets, torso.Position)
+		end
+	end
+	return targets
+end
+
 -- This player's entry in the snapshot's Players list.
 function ClientState.GetMe()
 	for _, entry in ipairs(ClientState.Snapshot.Players or {}) do
@@ -129,8 +148,10 @@ function ClientState.Init()
 	Remotes.Get("MatchState").OnClientEvent:Connect(function(snapshot)
 		local old = ClientState.Snapshot
 		ClientState.Snapshot = snapshot
+		-- in a match: your match power-ups; in the lobby: your Power-Up Lab picks
 		local me = ClientState.GetMe()
-		ClientState.Stats = PowerUps.ComputeStats(me and me.PowerUps or {})
+		local owned = snapshot.InMatch and (me and me.PowerUps) or snapshot.PowerUps
+		ClientState.Stats = PowerUps.ComputeStats(owned or {})
 		ClientState.Changed:Fire(snapshot, old)
 	end)
 

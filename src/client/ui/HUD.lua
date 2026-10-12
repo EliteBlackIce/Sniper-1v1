@@ -593,9 +593,12 @@ function HUD.OnState(snapshot, old)
 	local inMatch = snapshot.InMatch
 	scoreboard.Visible = inMatch
 	healthBar.Visible = inMatch
-	abilityList.Visible = inMatch
+	abilityList.Visible = true -- also shows Power-Up Lab abilities in the lobby
+	rebuildAbilities()
 	if not inMatch then
-		hideBanner()
+		if old.InMatch then
+			hideBanner()
+		end
 		return
 	end
 
@@ -607,7 +610,6 @@ function HUD.OnState(snapshot, old)
 	end
 	roundLabel.Text = ("ROUND %d  -  FIRST TO %d"):format(snapshot.Round or 1, snapshot.RoundsToWin or 4)
 	rebuildIcons(snapshot)
-	rebuildAbilities()
 
 	local phase = snapshot.Phase
 	if phase ~= old.Phase or snapshot.Round ~= old.Round then

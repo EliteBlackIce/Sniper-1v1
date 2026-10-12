@@ -23,8 +23,8 @@ local gui, playButton, statusLabel
 local CONTROLS = {
 	{ "WASD", "Move" },
 	{ "SHIFT", "Sprint  /  Air dash" },
-	{ "C / CTRL", "Slide (keeps momentum)" },
-	{ "SPACE", "Jump  /  Double jump  /  Wall jump" },
+	{ "C / CTRL", "Slide (tap). Jump out of it any time" },
+	{ "SPACE", "Jump  /  Wall jump" },
 	{ "HOLD SPACE", "Bunny hop (keeps all your speed)" },
 	{ "", "Air strafe: hold A or D + turn the mouse that way" },
 	{ "", "Wall run: jump next to a wall and hold W" },
@@ -32,6 +32,7 @@ local CONTROLS = {
 	{ "LMB", "Fire" },
 	{ "E / Q", "Grapple / Decoy (power-ups)" },
 	{ "V", "Inspect rifle" },
+	{ "B", "Power-Up Lab: try any power-up solo" },
 	{ "F", "Find a match" },
 	{ "P", "Settings (frees the mouse)" },
 }

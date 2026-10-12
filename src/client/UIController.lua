@@ -8,6 +8,7 @@
 		VictoryScreen end of match
 		LobbyUI       play / queue button and controls
 		SettingsMenu  sensitivity settings (P)
+		PowerUpLab    try power-ups solo in the lobby (B)
 ]]
 
 local Players = game:GetService("Players")
@@ -20,6 +21,7 @@ local PickScreen = require(ui.PickScreen)
 local VictoryScreen = require(ui.VictoryScreen)
 local LobbyUI = require(ui.LobbyUI)
 local SettingsMenu = require(ui.SettingsMenu)
+local PowerUpLab = require(ui.PowerUpLab)
 
 local UIController = {}
 
@@ -60,6 +62,7 @@ function UIController.Start()
 	VictoryScreen.Start(playerGui)
 	LobbyUI.Start(playerGui)
 	SettingsMenu.Start(playerGui)
+	PowerUpLab.Start(playerGui)
 
 	ClientState.Changed:Connect(function(snapshot, old)
 		HUD.OnState(snapshot, old)

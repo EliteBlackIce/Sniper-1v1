@@ -132,6 +132,29 @@ function DummyService.Damage(model, amount)
 	return false
 end
 
+-- All dummies that can currently be shot.
+function DummyService.GetDummies()
+	local list = {}
+	for _, d in ipairs(dummies) do
+		if d.Model.Parent and not d.Model:GetAttribute("Down") then
+			table.insert(list, d.Model)
+		end
+	end
+	return list
+end
+
+-- Torso positions of live dummies (for Homing Rounds in practice).
+function DummyService.GetTargets()
+	local list = {}
+	for _, model in ipairs(DummyService.GetDummies()) do
+		local torso = model:FindFirstChild("UpperTorso")
+		if torso then
+			table.insert(list, torso.Position)
+		end
+	end
+	return list
+end
+
 --[[
 	spots: list of { Position = Vector3 (feet), Motion = "Static"|"Strafe"|"Bob",
 	                 Amount = studs, Speed = cycles per second }

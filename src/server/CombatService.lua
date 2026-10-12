@@ -32,7 +32,6 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Ballistics = require(ReplicatedStorage.Shared.Ballistics)
 local Util = require(ReplicatedStorage.Shared.Util)
-local PowerUps = require(ReplicatedStorage.Shared.PowerUps)
 local CharacterService = require(script.Parent.CharacterService)
 local MatchService = require(script.Parent.MatchService)
 local DummyService = require(script.Parent.DummyService)
@@ -59,6 +58,30 @@ local function sendToMatch(match, remoteName, ...)
 			remote:FireClient(player, ...)
 		end
 	end
+end
+
+-- Sends an effect to everyone who should see it: the match players, or
+-- everyone in the lobby when `match` is nil (practice).
+local function sendFx(match, data)
+	if match then
+		sendToMatch(match, "Effect", data)
+		return
+	end
+	local remote = Remotes.Get("Effect")
+	for _, other in ipairs(Players:GetPlayers()) do
+		if not MatchService.GetMatch(other) then
+			remote:FireClient(other, data)
+		end
+	end
+end
+
+-- Power-up stats for a player: their match stats, or their Power-Up Lab
+-- picks when practising in the lobby.
+local function getStats(player, match)
+	if match then
+		return match:GetStats(player)
+	end
+	return MatchService.GetPracticeStats(player)
 end
 
 -- Returns true (and starts the cooldown) if the ability is ready.
@@ -103,10 +126,9 @@ end
 
 local function popDecoy(decoy)
 	if decoy.Parent then
-		local match = MatchService.GetMatch(Players:GetPlayerByUserId(decoy:GetAttribute("OwnerUserId") or 0))
-		if match then
-			sendToMatch(match, "Effect", { Type = "DecoyPop", Position = decoy:GetPivot().Position })
-		end
+		local owner = Players:GetPlayerByUserId(decoy:GetAttribute("OwnerUserId") or 0)
+		local match = owner and MatchService.GetMatch(owner)
+		sendFx(match, { Type = "DecoyPop", Position = decoy:GetPivot().Position })
 		decoy:Destroy()
 	end
 end
@@ -192,11 +214,24 @@ local function damageForPart(part)
 end
 
 -- EXPLOSIVE ROUNDS: splash damage + knockback around `position`.
+-- `match` is nil when practising in the lobby (then dummies take the splash).
+-- `directVictim` is the player (or dummy model) the bullet hit directly.
 local function explode(match, attacker, position, directVictim)
 	local cfg = PU.ExplosiveRounds
-	sendToMatch(match, "Effect", { Type = "Explosion", Position = position, Radius = cfg.Radius })
+	sendFx(match, { Type = "Explosion", Position = position, Radius = cfg.Radius })
 
-	for _, player in ipairs(match.Players) do
+	if not match then
+		for _, dummy in ipairs(DummyService.GetDummies()) do
+			local distance = (dummy:GetPivot().Position + Vector3.new(0, 3, 0) - position).Magnitude
+			if dummy ~= directVictim and distance <= cfg.Radius then
+				local damage = cfg.Damage * (1 - (distance / cfg.Radius) * 0.5)
+				local killed = DummyService.Damage(dummy, damage)
+				Remotes.Get("HitConfirm"):FireClient(attacker, { Killed = killed, Damage = damage, Splash = true })
+			end
+		end
+	end
+
+	for _, player in ipairs(match and match.Players or { attacker }) do
 		local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 		if root then
 			local offset = root.Position - position
@@ -258,8 +293,6 @@ local function validateClaim(claim, victimCharacter, worldPath, homing)
 	return part
 end
 
-local PRACTICE_STATS = PowerUps.ComputeStats({}) -- lobby practice: no power-ups
-
 local function onFire(player, origin, direction, claims)
 	-- 1) argument sanity
 	if not Util.isFiniteVector3(origin) or not Util.isFiniteVector3(direction) then
@@ -293,7 +326,7 @@ local function onFire(player, origin, direction, claims)
 	if not head or not root then
 		return
 	end
-	local stats = practice and PRACTICE_STATS or match:GetStats(player)
+	local stats = getStats(player, match)
 
 	-- 3) fire rate
 	local now = os.clock()
@@ -323,6 +356,9 @@ local function onFire(player, origin, direction, claims)
 	local victimCharacter = opponent and opponent.Character
 	local victimTorso = getTorso(victimCharacter)
 	local homingTargets = victimTorso and { victimTorso.Position } or {}
+	if practice then
+		homingTargets = DummyService.GetTargets()
+	end
 	local exclude = buildExclude(player)
 
 	-- what this shooter is allowed to damage
@@ -387,8 +423,8 @@ local function onFire(player, origin, direction, claims)
 				CombatService.Damage(match, player, opponent, damage, { Headshot = headshot })
 			end
 		end
-		if stats.Explosive and match then
-			explode(match, player, hitPos or sim.EndPosition, hitPart and opponent or nil)
+		if stats.Explosive then
+			explode(match, player, hitPos or sim.EndPosition, hitPart and (practice and hitModel or opponent) or nil)
 		end
 
 		table.insert(fx, {
@@ -484,7 +520,9 @@ local function spawnDecoy(player, match, direction)
 	local connection
 	connection = RunService.Heartbeat:Connect(function(dt)
 		alive += dt
-		if not decoy.Parent or alive > cfg.Lifetime or match.Finished or match.Phase ~= "Fight" then
+		local roundOver = match and (match.Finished or match.Phase ~= "Fight")
+		local leftLobby = not match and MatchService.GetMatch(player) ~= nil
+		if not decoy.Parent or alive > cfg.Lifetime or roundOver or leftLobby then
 			connection:Disconnect()
 			popDecoy(decoy)
 			return
@@ -513,8 +551,9 @@ local function onAbility(player, name, data)
 	if typeof(data) ~= "table" then
 		data = {}
 	end
+	-- abilities work in a live round, or in the lobby with Power-Up Lab picks
 	local match = MatchService.GetMatch(player)
-	if not match or not match:IsFighting() then
+	if match and not match:IsFighting() then
 		return
 	end
 	local humanoid, character = CharacterService.GetAliveHumanoid(player)
@@ -522,7 +561,8 @@ local function onAbility(player, name, data)
 		return
 	end
 	local root = character:FindFirstChild("HumanoidRootPart")
-	local stats = match:GetStats(player)
+	local stats = getStats(player, match)
+	local opponent = match and match:GetOpponent(player)
 
 	if name == "PhantomDash" and stats.PhantomDash then
 		if useCooldown(player, name, Config.Movement.DashCooldown * 0.8) then
@@ -539,9 +579,8 @@ local function onAbility(player, name, data)
 	elseif name == "Shockwave" and stats.ShockwaveLanding and root then
 		if useCooldown(player, name, PU.ShockwaveLanding.Cooldown * 0.9) then
 			local cfg = PU.ShockwaveLanding
-			sendToMatch(match, "Effect", { Type = "Shockwave", Position = root.Position, Radius = cfg.Radius })
-			local opponent = match:GetOpponent(player)
-			local oppRoot = opponent.Character and opponent.Character:FindFirstChild("HumanoidRootPart")
+			sendFx(match, { Type = "Shockwave", Position = root.Position, Radius = cfg.Radius })
+			local oppRoot = opponent and opponent.Character and opponent.Character:FindFirstChild("HumanoidRootPart")
 			if oppRoot then
 				local offset = oppRoot.Position - root.Position
 				if offset.Magnitude <= cfg.Radius then
@@ -552,14 +591,12 @@ local function onAbility(player, name, data)
 		end
 	elseif name == "GrappleStart" and stats.Grapple and root then
 		if Util.isFiniteVector3(data.Point) and (data.Point - root.Position).Magnitude < Config.Movement.GrappleRange + 30 then
-			local opponent = match:GetOpponent(player)
-			if opponent.Parent then
+			if opponent and opponent.Parent then
 				Remotes.Get("Effect"):FireClient(opponent, { Type = "Grapple", UserId = player.UserId, Point = data.Point })
 			end
 		end
 	elseif name == "GrappleEnd" then
-		local opponent = match:GetOpponent(player)
-		if opponent.Parent then
+		if opponent and opponent.Parent then
 			Remotes.Get("Effect"):FireClient(opponent, { Type = "GrappleEnd", UserId = player.UserId })
 		end
 	end

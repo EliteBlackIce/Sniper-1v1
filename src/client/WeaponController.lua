@@ -111,9 +111,7 @@ local function fire()
 
 	local opponent = ClientState.GetOpponentPlayer()
 	local opponentCharacter = opponent and opponent.Character
-	local torso = opponentCharacter
-		and (opponentCharacter:FindFirstChild("UpperTorso") or opponentCharacter:FindFirstChild("Torso"))
-	local homingTargets = torso and { torso.Position } or {}
+	local homingTargets = ClientState.GetHomingTargets()
 	local exclude = buildExclude()
 
 	local muzzle = Controllers.Viewmodel.GetMuzzlePosition()

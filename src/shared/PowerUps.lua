@@ -219,22 +219,20 @@ PowerUps.Definitions = {
 		end,
 	},
 	{
-		Id = "TripleJump",
-		Name = "Triple Jump",
-		Description = "One extra mid-air jump.",
+		Id = "DoubleJump",
+		Name = "Double Jump",
+		Description = "Gain a mid-air jump. Stacks for even more jumps.",
 		Rarity = "Common",
 		IconColor = Color3.fromRGB(120, 170, 255),
 		MaxStacks = 3,
 		Icon = {
-			{ "Rect", 0.4, 0.25, 0.08, 0.25, -45 },
-			{ "Rect", 0.6, 0.25, 0.08, 0.25, 45 },
-			{ "Rect", 0.4, 0.5, 0.08, 0.25, -45, A = 0.3 },
-			{ "Rect", 0.6, 0.5, 0.08, 0.25, 45, A = 0.3 },
-			{ "Rect", 0.4, 0.75, 0.08, 0.25, -45, A = 0.6 },
-			{ "Rect", 0.6, 0.75, 0.08, 0.25, 45, A = 0.6 },
+			{ "Rect", 0.4, 0.34, 0.09, 0.28, -45 },
+			{ "Rect", 0.6, 0.34, 0.09, 0.28, 45 },
+			{ "Rect", 0.4, 0.64, 0.09, 0.28, -45, A = 0.4 },
+			{ "Rect", 0.6, 0.64, 0.09, 0.28, 45, A = 0.4 },
 		},
 		Effect = function(s, n)
-			s.AirJumps += P.TripleJump.ExtraJumpsPerStack * n
+			s.AirJumps += P.DoubleJump.ExtraJumpsPerStack * n
 		end,
 	},
 	{

@@ -418,26 +418,28 @@ Config.Movement = {
 	-- mouse the same way in the air to GAIN speed (air strafing).
 	AutoBhop = true, -- true = holding Space re-jumps on landing
 	JumpBuffer = 0.15, -- a jump pressed this long before landing still counts
+	CoyoteTime = 0.12, -- you can still jump this long after leaving the ground
 	AirAccel = 14, -- air strafe strength (Source uses 10-12)
 	AirSpeedCap = 3.6, -- small cap per frame = the classic strafe gain (Source: 30 units)
 	AirControlSpeed = 30, -- wish speed used in the air
 	MaxSpeed = 120, -- hard limit on horizontal speed
 
 	JumpPower = 52,
-	AirJumps = 1, -- 1 = double jump (Triple Jump power-up adds more)
+	AirJumps = 0, -- no double jump by default (the Double Jump power-up adds one)
 	AirJumpVelocity = 50,
 	AirJumpMinSpeed = 30, -- a double jump re-aims you toward your keys at least this fast
 
 	-- Slide
 	SlideKey = Enum.KeyCode.C, -- LeftControl also works
+	SlideHold = false, -- false = tap C to slide (press again to stop), true = hold C
 	SlideMinSpeed = 18, -- need at least this speed to start a slide
 	SlideBoost = 12, -- speed added when the slide starts...
 	SlideBoostCap = 55, -- ...but only up to this speed (no infinite slide boosting)
 	SlideFriction = 0.55, -- slide friction (much lower than running)
 	SlideEndSpeed = 16, -- slide ends below this speed
 	SlideSteer = 2.2, -- how much you can steer a slide
-	SlideCooldown = 0.6,
-	SlideJumpBoost = 3, -- extra speed for jumping out of a slide
+	SlideCooldown = 0.25,
+	SlideJumpBoost = 4, -- extra speed for jumping out of a slide (up to SlideBoostCap)
 
 	-- Air dash (press Shift in the air)
 	DashSpeed = 82,
@@ -512,7 +514,7 @@ Config.PowerUps = {
 	RocketJump = { Radius = 9, LaunchUp = 88, LaunchAway = 28 },
 	SecondWind = { SpeedMultiplier = 1.35, BoostTime = 3 },
 	HomingRounds = { Radius = 9, TurnDegreesPerStep = 5, StepLength = 18 },
-	TripleJump = { ExtraJumpsPerStack = 1 },
+	DoubleJump = { ExtraJumpsPerStack = 1 },
 	Quickdraw = { SpeedPerStack = 0.4 }, -- 40% faster bolt + scope
 	ThickSkin = { HealthPerStack = 40 },
 	WallhackPulse = { Interval = 10, Duration = 1 },
@@ -618,7 +620,8 @@ return Config
 	Each part: { Name, Shape, Size, Position, Rotation(degrees), ColorKey, Group }
 	  Shape     "Block" | "Cylinder" | "Ball" | "Wedge"
 	  Size      for a Cylinder: Vector3(length, diameter, diameter), and the
-	            cylinder runs along Z (forward) unless Rotation says otherwise
+	            cylinder runs along Z (forward) unless Rotation is given
+	            (UP = standing up, X = sideways)
 	  ColorKey  a key in Config.Palette
 	  Group     "Bolt" parts are animated by the viewmodel (Position is
 	            relative to the bolt pivot)
@@ -630,70 +633,112 @@ local GunModel = {}
 
 local V = Vector3.new
 
+local X = V(0, 0, 0) -- "rotation given": a cylinder that stays along X (sideways)
+local UP = V(0, 0, 90) -- a cylinder standing up (along Y)
+
 GunModel.Parts = {
 	-- STOCK
-	{ "StockBody", "Block", V(0.22, 0.3, 0.95), V(0, -0.06, 0.8), nil, "GunFurniture" },
-	{ "StockCheek", "Block", V(0.2, 0.09, 0.6), V(0, 0.135, 0.78), nil, "GunFurniture" },
-	{ "StockUnder", "Wedge", V(0.22, 0.2, 0.55), V(0, -0.31, 0.95), V(0, 0, 180), "GunFurniture" },
-	{ "StockLine", "Block", V(0.226, 0.03, 0.55), V(0, -0.02, 0.86), nil, "GunAccent" },
-	{ "ButtPad", "Block", V(0.24, 0.52, 0.08), V(0, -0.1, 1.31), nil, "GunMetal" },
+	{ "StockBody", "Block", V(0.22, 0.28, 0.9), V(0, -0.07, 0.82), nil, "GunFurniture" },
+	{ "StockComb", "Block", V(0.2, 0.07, 0.5), V(0, 0.12, 0.84), nil, "GunFurniture" },
+	{ "CheekPostA", "Cylinder", V(0.07, 0.04, 0.04), V(0, 0.07, 0.66), UP, "GunMetalLight" },
+	{ "CheekPostB", "Cylinder", V(0.07, 0.04, 0.04), V(0, 0.07, 1.02), UP, "GunMetalLight" },
+	{ "StockUnder", "Wedge", V(0.22, 0.22, 0.5), V(0, -0.32, 0.98), V(0, 0, 180), "GunFurniture" },
+	{ "StockBridge", "Block", V(0.18, 0.1, 0.36), V(0, -0.23, 0.5), nil, "GunFurniture" },
+	{ "StockLine", "Block", V(0.226, 0.03, 0.5), V(0, -0.03, 0.88), nil, "GunAccent" },
+	{ "StockSpacer", "Block", V(0.23, 0.5, 0.04), V(0, -0.1, 1.29), nil, "GunAccent" },
+	{ "ButtPad", "Block", V(0.24, 0.54, 0.09), V(0, -0.1, 1.355), nil, "GunMetal" },
+	{ "SlingLoop", "Block", V(0.03, 0.08, 0.14), V(0, -0.27, 1.12), nil, "GunMetalLight" },
 
 	-- GRIP + TRIGGER
-	{ "Grip", "Block", V(0.15, 0.4, 0.2), V(0, -0.27, 0.16), V(-18, 0, 0), "GunFurniture" },
+	{ "Grip", "Block", V(0.15, 0.38, 0.2), V(0, -0.27, 0.16), V(-18, 0, 0), "GunFurniture" },
+	{ "GripCap", "Block", V(0.16, 0.04, 0.22), V(0, -0.46, 0.22), V(-18, 0, 0), "GunMetal" },
 	{ "TriggerGuard", "Block", V(0.04, 0.03, 0.36), V(0, -0.25, -0.06), nil, "GunMetalLight" },
 	{ "TriggerGuardFront", "Block", V(0.04, 0.14, 0.03), V(0, -0.19, -0.23), nil, "GunMetalLight" },
-	{ "Trigger", "Block", V(0.03, 0.11, 0.03), V(0, -0.17, -0.04), V(15, 0, 0), "GunMetalLight" },
+	{ "Trigger", "Block", V(0.03, 0.11, 0.03), V(0, -0.17, -0.04), V(15, 0, 0), "GunAccent" },
 
 	-- RECEIVER
 	{ "Receiver", "Block", V(0.22, 0.24, 1.1), V(0, 0.02, -0.25), nil, "GunMetal" },
 	{ "ReceiverTop", "Cylinder", V(1.0, 0.2, 0.2), V(0, 0.1, -0.28), nil, "GunMetal" },
-	{ "BoltShroud", "Block", V(0.14, 0.14, 0.16), V(0, 0.08, 0.36), nil, "GunMetalLight" },
-	{ "Rail", "Block", V(0.12, 0.05, 0.95), V(0, 0.215, -0.3), nil, "GunMetalLight" },
+	{ "BoltShroud", "Cylinder", V(0.18, 0.16, 0.16), V(0, 0.08, 0.38), nil, "GunMetalLight" },
+	{ "Rail", "Block", V(0.12, 0.04, 0.95), V(0, 0.22, -0.3), nil, "GunMetalLight" },
 	{ "EjectionPort", "Block", V(0.02, 0.09, 0.32), V(0.115, 0.06, -0.05), nil, "GunAccent" },
+	{ "ScrewA", "Ball", V(0.045, 0.045, 0.045), V(0.112, -0.02, -0.62), nil, "GunMetalLight" },
+	{ "ScrewB", "Ball", V(0.045, 0.045, 0.045), V(0.112, -0.02, 0.12), nil, "GunMetalLight" },
 
 	-- MAGAZINE
 	{ "Magazine", "Block", V(0.15, 0.3, 0.34), V(0, -0.25, -0.52), V(-6, 0, 0), "GunMetalLight" },
 	{ "MagazineBase", "Block", V(0.17, 0.05, 0.38), V(0, -0.41, -0.54), V(-6, 0, 0), "GunMetal" },
+	{ "MagRelease", "Block", V(0.03, 0.06, 0.07), V(0.09, -0.12, -0.3), nil, "GunAccent" },
 
-	-- HANDGUARD + BIPOD
-	{ "Handguard", "Block", V(0.26, 0.26, 1.15), V(0, -0.01, -1.38), nil, "GunFurniture" },
-	{ "HandguardTop", "Block", V(0.2, 0.05, 1.15), V(0, 0.145, -1.38), nil, "GunFurniture" },
-	{ "Vent1", "Block", V(0.266, 0.035, 0.16), V(0, 0.03, -1.02), nil, "GunMetal" },
-	{ "Vent2", "Block", V(0.266, 0.035, 0.16), V(0, 0.03, -1.38), nil, "GunMetal" },
-	{ "Vent3", "Block", V(0.266, 0.035, 0.16), V(0, 0.03, -1.74), nil, "GunMetal" },
-	{ "BipodL", "Block", V(0.04, 0.04, 0.62), V(-0.07, -0.17, -1.55), nil, "GunMetalLight" },
-	{ "BipodR", "Block", V(0.04, 0.04, 0.62), V(0.07, -0.17, -1.55), nil, "GunMetalLight" },
+	-- HANDGUARD (free-float tube with a top rail and M-LOK slots)
+	{ "HandguardNut", "Cylinder", V(0.08, 0.3, 0.3), V(0, 0, -0.8), nil, "GunMetal" },
+	{ "Handguard", "Cylinder", V(1.25, 0.27, 0.27), V(0, 0, -1.45), nil, "GunFurniture" },
+	{ "HandguardRail", "Block", V(0.11, 0.04, 1.25), V(0, 0.15, -1.45), nil, "GunMetalLight" },
+	{ "HandguardSpine", "Block", V(0.12, 0.04, 1.1), V(0, -0.145, -1.48), nil, "GunMetal" },
 
-	-- BARREL
-	{ "BarrelCollar", "Cylinder", V(0.12, 0.17, 0.17), V(0, 0.04, -1.99), nil, "GunMetalLight" },
-	{ "Barrel", "Cylinder", V(1.9, 0.11, 0.11), V(0, 0.04, -2.9), nil, "GunMetal" },
-	{ "Brake", "Block", V(0.18, 0.15, 0.34), V(0, 0.04, -3.9), nil, "GunMetal" },
-	{ "BrakeSlot1", "Block", V(0.19, 0.03, 0.06), V(0, 0.04, -3.84), nil, "GunMetalLight" },
-	{ "BrakeSlot2", "Block", V(0.19, 0.03, 0.06), V(0, 0.04, -3.97), nil, "GunMetalLight" },
+	-- BIPOD (folded)
+	{ "BipodMount", "Block", V(0.12, 0.07, 0.12), V(0, -0.18, -1.98), nil, "GunMetal" },
+	{ "BipodL", "Block", V(0.045, 0.045, 0.6), V(-0.06, -0.21, -1.65), nil, "GunMetalLight" },
+	{ "BipodR", "Block", V(0.045, 0.045, 0.6), V(0.06, -0.21, -1.65), nil, "GunMetalLight" },
+	{ "BipodFootL", "Ball", V(0.07, 0.07, 0.07), V(-0.06, -0.21, -1.34), nil, "GunMetal" },
+	{ "BipodFootR", "Ball", V(0.07, 0.07, 0.07), V(0.06, -0.21, -1.34), nil, "GunMetal" },
+
+	-- BARREL (fluted)
+	{ "BarrelCollar", "Cylinder", V(0.1, 0.16, 0.16), V(0, 0.04, -2.1), nil, "GunMetalLight" },
+	{ "Barrel", "Cylinder", V(1.95, 0.11, 0.11), V(0, 0.04, -3.0), nil, "GunMetal" },
+	{ "FluteL", "Block", V(0.02, 0.022, 1.2), V(-0.055, 0.04, -2.8), nil, "GunMetalLight" },
+	{ "FluteR", "Block", V(0.02, 0.022, 1.2), V(0.055, 0.04, -2.8), nil, "GunMetalLight" },
+	{ "FluteTop", "Block", V(0.022, 0.02, 1.2), V(0, 0.096, -2.8), nil, "GunMetalLight" },
+
+	-- MUZZLE BRAKE (ported)
+	{ "Brake", "Block", V(0.18, 0.16, 0.36), V(0, 0.04, -4.0), nil, "GunMetal" },
+	{ "BrakeTip", "Cylinder", V(0.05, 0.13, 0.13), V(0, 0.04, -4.2), nil, "GunMetalLight" },
 
 	-- SCOPE
 	{ "ScopeRingFront", "Cylinder", V(0.08, 0.16, 0.16), V(0, 0.36, -0.7), nil, "GunMetalLight" },
 	{ "ScopeRingRear", "Cylinder", V(0.08, 0.16, 0.16), V(0, 0.36, -0.02), nil, "GunMetalLight" },
+	{ "ScopeRingCapFront", "Block", V(0.17, 0.035, 0.08), V(0, 0.445, -0.7), nil, "GunMetalLight" },
+	{ "ScopeRingCapRear", "Block", V(0.17, 0.035, 0.08), V(0, 0.445, -0.02), nil, "GunMetalLight" },
 	{ "ScopeMountFront", "Block", V(0.07, 0.12, 0.1), V(0, 0.27, -0.7), nil, "GunMetalLight" },
 	{ "ScopeMountRear", "Block", V(0.07, 0.12, 0.1), V(0, 0.27, -0.02), nil, "GunMetalLight" },
 	{ "ScopeTube", "Cylinder", V(1.0, 0.13, 0.13), V(0, 0.36, -0.35), nil, "GunMetal" },
-	{ "ScopeObjective", "Cylinder", V(0.34, 0.23, 0.23), V(0, 0.36, -1.0), nil, "GunMetal" },
-	{ "ScopeObjectiveRing", "Cylinder", V(0.04, 0.25, 0.25), V(0, 0.36, -1.15), nil, "GunAccent" },
+	{ "ScopeTaper", "Cylinder", V(0.12, 0.18, 0.18), V(0, 0.36, -0.86), nil, "GunMetal" },
+	{ "ScopeObjective", "Cylinder", V(0.34, 0.23, 0.23), V(0, 0.36, -1.03), nil, "GunMetal" },
+	{ "ScopeObjectiveRing", "Cylinder", V(0.04, 0.25, 0.25), V(0, 0.36, -1.18), nil, "GunAccent" },
+	{ "ScopeLensFront", "Cylinder", V(0.02, 0.2, 0.2), V(0, 0.36, -1.205), nil, "ScopeGlass" },
+	{ "ScopeFlipCap", "Block", V(0.24, 0.24, 0.03), V(0, 0.6, -1.23), V(-20, 0, 0), "GunMetal" },
 	{ "ScopeEyepiece", "Cylinder", V(0.26, 0.19, 0.19), V(0, 0.36, 0.25), nil, "GunMetal" },
-	{ "ScopeTurretTop", "Cylinder", V(0.08, 0.11, 0.11), V(0, 0.45, -0.38), V(0, 0, 90), "GunMetalLight" },
-	{ "ScopeTurretSide", "Cylinder", V(0.08, 0.1, 0.1), V(0.1, 0.36, -0.38), V(0, 0, 0), "GunMetalLight" }, -- rotation given = stays along X (sideways)
-	{ "ScopeLensFront", "Cylinder", V(0.02, 0.2, 0.2), V(0, 0.36, -1.175), nil, "ScopeGlass" },
+	{ "ScopeEyepieceRing", "Cylinder", V(0.05, 0.205, 0.205), V(0, 0.36, 0.17), nil, "GunMetalLight" },
 	{ "ScopeLensRear", "Cylinder", V(0.02, 0.16, 0.16), V(0, 0.36, 0.385), nil, "ScopeGlass" },
+	{ "ScopeTurretHousing", "Block", V(0.16, 0.13, 0.16), V(0, 0.36, -0.38), nil, "GunMetal" },
+	{ "ScopeTurretTop", "Cylinder", V(0.09, 0.12, 0.12), V(0, 0.46, -0.38), UP, "GunMetalLight" },
+	{ "ScopeTurretTopCap", "Cylinder", V(0.03, 0.135, 0.135), V(0, 0.515, -0.38), UP, "GunAccent" },
+	{ "ScopeTurretSide", "Cylinder", V(0.09, 0.11, 0.11), V(0.11, 0.36, -0.38), X, "GunMetalLight" },
+	{ "ScopeTurretLeft", "Cylinder", V(0.07, 0.1, 0.1), V(-0.105, 0.36, -0.38), X, "GunMetalLight" },
 
 	-- BOLT (animated; positions are relative to GunModel.BoltPivot)
 	{ "BoltHandle", "Block", V(0.26, 0.05, 0.05), V(0.13, 0, 0), nil, "GunMetalLight", "Bolt" },
-	{ "BoltKnob", "Ball", V(0.11, 0.11, 0.11), V(0.27, 0, 0), nil, "GunMetalLight", "Bolt" },
+	{ "BoltKnob", "Ball", V(0.11, 0.11, 0.11), V(0.27, 0, 0), nil, "GunAccent", "Bolt" },
 }
+
+-- Repeated details generated in loops (rail teeth, M-LOK slots, brake ports)
+for i = 0, 7 do
+	table.insert(GunModel.Parts, { "RailTooth" .. i, "Block", V(0.13, 0.03, 0.05), V(0, 0.25, -0.68 + i * 0.11), nil, "GunMetal" })
+end
+for _, side in ipairs({ -1, 1 }) do
+	for k = 0, 2 do
+		local name = ("MLok%s%d"):format(side < 0 and "L" or "R", k)
+		table.insert(GunModel.Parts, { name, "Block", V(0.02, 0.035, 0.16), V(side * 0.136, 0, -1.08 - k * 0.33), nil, "GunMetal" })
+	end
+end
+for k = 0, 2 do
+	table.insert(GunModel.Parts, { "BrakePort" .. k, "Block", V(0.19, 0.09, 0.045), V(0, 0.04, -3.9 - k * 0.09), nil, "GunMetalLight" })
+end
 
 -- Where the bolt handle rotates/slides from (gun space)
 GunModel.BoltPivot = CFrame.new(0.07, 0.08, 0.1)
 -- Tip of the barrel (gun space)
-GunModel.Muzzle = CFrame.new(0, 0.04, -4.1)
+GunModel.Muzzle = CFrame.new(0, 0.04, -4.23)
 -- Centre of the scope's rear lens (gun space); used to aim down the scope
 GunModel.ScopeEye = Vector3.new(0, 0.36, 0.39)
 
@@ -997,22 +1042,20 @@ PowerUps.Definitions = {
 		end,
 	},
 	{
-		Id = "TripleJump",
-		Name = "Triple Jump",
-		Description = "One extra mid-air jump.",
+		Id = "DoubleJump",
+		Name = "Double Jump",
+		Description = "Gain a mid-air jump. Stacks for even more jumps.",
 		Rarity = "Common",
 		IconColor = Color3.fromRGB(120, 170, 255),
 		MaxStacks = 3,
 		Icon = {
-			{ "Rect", 0.4, 0.25, 0.08, 0.25, -45 },
-			{ "Rect", 0.6, 0.25, 0.08, 0.25, 45 },
-			{ "Rect", 0.4, 0.5, 0.08, 0.25, -45, A = 0.3 },
-			{ "Rect", 0.6, 0.5, 0.08, 0.25, 45, A = 0.3 },
-			{ "Rect", 0.4, 0.75, 0.08, 0.25, -45, A = 0.6 },
-			{ "Rect", 0.6, 0.75, 0.08, 0.25, 45, A = 0.6 },
+			{ "Rect", 0.4, 0.34, 0.09, 0.28, -45 },
+			{ "Rect", 0.6, 0.34, 0.09, 0.28, 45 },
+			{ "Rect", 0.4, 0.64, 0.09, 0.28, -45, A = 0.4 },
+			{ "Rect", 0.6, 0.64, 0.09, 0.28, 45, A = 0.4 },
 		},
 		Effect = function(s, n)
-			s.AirJumps += P.TripleJump.ExtraJumpsPerStack * n
+			s.AirJumps += P.DoubleJump.ExtraJumpsPerStack * n
 		end,
 	},
 	{
@@ -1250,6 +1293,7 @@ Remotes.Names = {
 	"SettingsLoad", -- S->C  saved settings for this player
 	"SettingsSave", -- C->S  save settings
 	"Aim", -- C->S  where you're looking up/down (others see your aim pose)
+	"Practice", -- C->S  lobby power-up lab: add / remove / clear practice power-ups
 }
 
 local FOLDER_NAME = "Remotes"
@@ -1692,7 +1736,6 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Ballistics = require(ReplicatedStorage.Shared.Ballistics)
 local Util = require(ReplicatedStorage.Shared.Util)
-local PowerUps = require(ReplicatedStorage.Shared.PowerUps)
 local CharacterService = require(script.Parent.CharacterService)
 local MatchService = require(script.Parent.MatchService)
 local DummyService = require(script.Parent.DummyService)
@@ -1719,6 +1762,30 @@ local function sendToMatch(match, remoteName, ...)
 			remote:FireClient(player, ...)
 		end
 	end
+end
+
+-- Sends an effect to everyone who should see it: the match players, or
+-- everyone in the lobby when `match` is nil (practice).
+local function sendFx(match, data)
+	if match then
+		sendToMatch(match, "Effect", data)
+		return
+	end
+	local remote = Remotes.Get("Effect")
+	for _, other in ipairs(Players:GetPlayers()) do
+		if not MatchService.GetMatch(other) then
+			remote:FireClient(other, data)
+		end
+	end
+end
+
+-- Power-up stats for a player: their match stats, or their Power-Up Lab
+-- picks when practising in the lobby.
+local function getStats(player, match)
+	if match then
+		return match:GetStats(player)
+	end
+	return MatchService.GetPracticeStats(player)
 end
 
 -- Returns true (and starts the cooldown) if the ability is ready.
@@ -1763,10 +1830,9 @@ end
 
 local function popDecoy(decoy)
 	if decoy.Parent then
-		local match = MatchService.GetMatch(Players:GetPlayerByUserId(decoy:GetAttribute("OwnerUserId") or 0))
-		if match then
-			sendToMatch(match, "Effect", { Type = "DecoyPop", Position = decoy:GetPivot().Position })
-		end
+		local owner = Players:GetPlayerByUserId(decoy:GetAttribute("OwnerUserId") or 0)
+		local match = owner and MatchService.GetMatch(owner)
+		sendFx(match, { Type = "DecoyPop", Position = decoy:GetPivot().Position })
 		decoy:Destroy()
 	end
 end
@@ -1852,11 +1918,24 @@ local function damageForPart(part)
 end
 
 -- EXPLOSIVE ROUNDS: splash damage + knockback around `position`.
+-- `match` is nil when practising in the lobby (then dummies take the splash).
+-- `directVictim` is the player (or dummy model) the bullet hit directly.
 local function explode(match, attacker, position, directVictim)
 	local cfg = PU.ExplosiveRounds
-	sendToMatch(match, "Effect", { Type = "Explosion", Position = position, Radius = cfg.Radius })
+	sendFx(match, { Type = "Explosion", Position = position, Radius = cfg.Radius })
 
-	for _, player in ipairs(match.Players) do
+	if not match then
+		for _, dummy in ipairs(DummyService.GetDummies()) do
+			local distance = (dummy:GetPivot().Position + Vector3.new(0, 3, 0) - position).Magnitude
+			if dummy ~= directVictim and distance <= cfg.Radius then
+				local damage = cfg.Damage * (1 - (distance / cfg.Radius) * 0.5)
+				local killed = DummyService.Damage(dummy, damage)
+				Remotes.Get("HitConfirm"):FireClient(attacker, { Killed = killed, Damage = damage, Splash = true })
+			end
+		end
+	end
+
+	for _, player in ipairs(match and match.Players or { attacker }) do
 		local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 		if root then
 			local offset = root.Position - position
@@ -1918,8 +1997,6 @@ local function validateClaim(claim, victimCharacter, worldPath, homing)
 	return part
 end
 
-local PRACTICE_STATS = PowerUps.ComputeStats({}) -- lobby practice: no power-ups
-
 local function onFire(player, origin, direction, claims)
 	-- 1) argument sanity
 	if not Util.isFiniteVector3(origin) or not Util.isFiniteVector3(direction) then
@@ -1953,7 +2030,7 @@ local function onFire(player, origin, direction, claims)
 	if not head or not root then
 		return
 	end
-	local stats = practice and PRACTICE_STATS or match:GetStats(player)
+	local stats = getStats(player, match)
 
 	-- 3) fire rate
 	local now = os.clock()
@@ -1983,6 +2060,9 @@ local function onFire(player, origin, direction, claims)
 	local victimCharacter = opponent and opponent.Character
 	local victimTorso = getTorso(victimCharacter)
 	local homingTargets = victimTorso and { victimTorso.Position } or {}
+	if practice then
+		homingTargets = DummyService.GetTargets()
+	end
 	local exclude = buildExclude(player)
 
 	-- what this shooter is allowed to damage
@@ -2047,8 +2127,8 @@ local function onFire(player, origin, direction, claims)
 				CombatService.Damage(match, player, opponent, damage, { Headshot = headshot })
 			end
 		end
-		if stats.Explosive and match then
-			explode(match, player, hitPos or sim.EndPosition, hitPart and opponent or nil)
+		if stats.Explosive then
+			explode(match, player, hitPos or sim.EndPosition, hitPart and (practice and hitModel or opponent) or nil)
 		end
 
 		table.insert(fx, {
@@ -2144,7 +2224,9 @@ local function spawnDecoy(player, match, direction)
 	local connection
 	connection = RunService.Heartbeat:Connect(function(dt)
 		alive += dt
-		if not decoy.Parent or alive > cfg.Lifetime or match.Finished or match.Phase ~= "Fight" then
+		local roundOver = match and (match.Finished or match.Phase ~= "Fight")
+		local leftLobby = not match and MatchService.GetMatch(player) ~= nil
+		if not decoy.Parent or alive > cfg.Lifetime or roundOver or leftLobby then
 			connection:Disconnect()
 			popDecoy(decoy)
 			return
@@ -2173,8 +2255,9 @@ local function onAbility(player, name, data)
 	if typeof(data) ~= "table" then
 		data = {}
 	end
+	-- abilities work in a live round, or in the lobby with Power-Up Lab picks
 	local match = MatchService.GetMatch(player)
-	if not match or not match:IsFighting() then
+	if match and not match:IsFighting() then
 		return
 	end
 	local humanoid, character = CharacterService.GetAliveHumanoid(player)
@@ -2182,7 +2265,8 @@ local function onAbility(player, name, data)
 		return
 	end
 	local root = character:FindFirstChild("HumanoidRootPart")
-	local stats = match:GetStats(player)
+	local stats = getStats(player, match)
+	local opponent = match and match:GetOpponent(player)
 
 	if name == "PhantomDash" and stats.PhantomDash then
 		if useCooldown(player, name, Config.Movement.DashCooldown * 0.8) then
@@ -2199,9 +2283,8 @@ local function onAbility(player, name, data)
 	elseif name == "Shockwave" and stats.ShockwaveLanding and root then
 		if useCooldown(player, name, PU.ShockwaveLanding.Cooldown * 0.9) then
 			local cfg = PU.ShockwaveLanding
-			sendToMatch(match, "Effect", { Type = "Shockwave", Position = root.Position, Radius = cfg.Radius })
-			local opponent = match:GetOpponent(player)
-			local oppRoot = opponent.Character and opponent.Character:FindFirstChild("HumanoidRootPart")
+			sendFx(match, { Type = "Shockwave", Position = root.Position, Radius = cfg.Radius })
+			local oppRoot = opponent and opponent.Character and opponent.Character:FindFirstChild("HumanoidRootPart")
 			if oppRoot then
 				local offset = oppRoot.Position - root.Position
 				if offset.Magnitude <= cfg.Radius then
@@ -2212,14 +2295,12 @@ local function onAbility(player, name, data)
 		end
 	elseif name == "GrappleStart" and stats.Grapple and root then
 		if Util.isFiniteVector3(data.Point) and (data.Point - root.Position).Magnitude < Config.Movement.GrappleRange + 30 then
-			local opponent = match:GetOpponent(player)
-			if opponent.Parent then
+			if opponent and opponent.Parent then
 				Remotes.Get("Effect"):FireClient(opponent, { Type = "Grapple", UserId = player.UserId, Point = data.Point })
 			end
 		end
 	elseif name == "GrappleEnd" then
-		local opponent = match:GetOpponent(player)
-		if opponent.Parent then
+		if opponent and opponent.Parent then
 			Remotes.Get("Effect"):FireClient(opponent, { Type = "GrappleEnd", UserId = player.UserId })
 		end
 	end
@@ -2392,6 +2473,29 @@ function DummyService.Damage(model, amount)
 		return true
 	end
 	return false
+end
+
+-- All dummies that can currently be shot.
+function DummyService.GetDummies()
+	local list = {}
+	for _, d in ipairs(dummies) do
+		if d.Model.Parent and not d.Model:GetAttribute("Down") then
+			table.insert(list, d.Model)
+		end
+	end
+	return list
+end
+
+-- Torso positions of live dummies (for Homing Rounds in practice).
+function DummyService.GetTargets()
+	local list = {}
+	for _, model in ipairs(DummyService.GetDummies()) do
+		local torso = model:FindFirstChild("UpperTorso")
+		if torso then
+			table.insert(list, torso.Position)
+		end
+	end
+	return list
 end
 
 --[[
@@ -3201,6 +3305,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local PowerUps = require(ReplicatedStorage.Shared.PowerUps)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local CharacterService = require(script.Parent.CharacterService)
 local MapBuilder = require(script.Parent.MapBuilder)
@@ -3214,6 +3319,8 @@ local queue = {} -- ordered list of players waiting
 local matchByPlayer = {} -- [player] = Match
 local arenas = {} -- [index] = arena info (built on first use)
 local arenaInUse = {} -- [index] = true
+local practiceOwned = {} -- [player] = { [powerUpId] = stacks }  (lobby Power-Up Lab)
+local practiceStats = {} -- [player] = cached stats
 
 ----------------------------------------------------------------------------
 -- Helpers
@@ -3226,6 +3333,16 @@ local function isQueued(player)
 	return table.find(queue, player) ~= nil
 end
 
+-- Power-ups a player is trying out in the lobby (Power-Up Lab).
+function MatchService.GetPracticeStats(player)
+	local stats = practiceStats[player]
+	if not stats then
+		stats = PowerUps.ComputeStats(practiceOwned[player] or {})
+		practiceStats[player] = stats
+	end
+	return stats
+end
+
 local function lobbySnapshot(player)
 	return {
 		InMatch = false,
@@ -3233,6 +3350,7 @@ local function lobbySnapshot(player)
 		Queued = isQueued(player),
 		QueueCount = #queue,
 		PlayersOnline = #Players:GetPlayers(),
+		PowerUps = table.clone(practiceOwned[player] or {}),
 	}
 end
 
@@ -3256,6 +3374,7 @@ local function spawnInLobby(player)
 		or Enum.CameraMode.Classic
 	CharacterService.Spawn(player, lobby.SpawnCFrame(), {
 		Color = Config.Palette.LobbyPlayer,
+		MaxHealth = MatchService.GetPracticeStats(player).MaxHealth,
 		KillY = lobby.KillY,
 	})
 	sendLobbyState(player)
@@ -3344,6 +3463,33 @@ function MatchService.Init()
 
 	Remotes.Get("QueueToggle").OnServerEvent:Connect(onQueueToggle)
 
+	-- POWER-UP LAB: try any power-up in the lobby
+	Remotes.Get("Practice").OnServerEvent:Connect(function(player, action, id)
+		if matchByPlayer[player] then
+			return
+		end
+		local owned = practiceOwned[player] or {}
+		local def = typeof(id) == "string" and PowerUps.Get(id) or nil
+		if action == "Add" and def then
+			owned[id] = math.min((owned[id] or 0) + 1, def.MaxStacks or 1)
+		elseif action == "Remove" and def then
+			owned[id] = (owned[id] or 0) > 1 and owned[id] - 1 or nil
+		elseif action == "Clear" then
+			owned = {}
+		else
+			return
+		end
+		practiceOwned[player] = owned
+		practiceStats[player] = nil
+		-- Thick Skin etc. apply right away
+		local humanoid = CharacterService.GetAliveHumanoid(player)
+		if humanoid then
+			humanoid.MaxHealth = MatchService.GetPracticeStats(player).MaxHealth
+			humanoid.Health = humanoid.MaxHealth
+		end
+		sendLobbyState(player)
+	end)
+
 	Remotes.Get("PickCard").OnServerEvent:Connect(function(player, index)
 		local match = matchByPlayer[player]
 		if match then
@@ -3362,6 +3508,8 @@ function MatchService.Init()
 	end
 
 	Players.PlayerRemoving:Connect(function(player)
+		practiceOwned[player] = nil
+		practiceStats[player] = nil
 		local index = table.find(queue, player)
 		if index then
 			table.remove(queue, index)
@@ -3961,6 +4109,25 @@ function ClientState.CanShoot()
 	return not ClientState.Snapshot.InMatch or ClientState.IsFighting()
 end
 
+-- Positions bullets may home in on: the enemy's torso, or the practice dummies.
+function ClientState.GetHomingTargets()
+	if ClientState.Snapshot.InMatch then
+		local opponent = ClientState.GetOpponentPlayer()
+		local character = opponent and opponent.Character
+		local torso = character and (character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso"))
+		return torso and { torso.Position } or {}
+	end
+	local targets = {}
+	local folder = workspace:FindFirstChild("Dummies")
+	for _, dummy in ipairs(folder and folder:GetChildren() or {}) do
+		local torso = dummy:FindFirstChild("UpperTorso")
+		if torso and not dummy:GetAttribute("Down") then
+			table.insert(targets, torso.Position)
+		end
+	end
+	return targets
+end
+
 -- This player's entry in the snapshot's Players list.
 function ClientState.GetMe()
 	for _, entry in ipairs(ClientState.Snapshot.Players or {}) do
@@ -4027,8 +4194,10 @@ function ClientState.Init()
 	Remotes.Get("MatchState").OnClientEvent:Connect(function(snapshot)
 		local old = ClientState.Snapshot
 		ClientState.Snapshot = snapshot
+		-- in a match: your match power-ups; in the lobby: your Power-Up Lab picks
 		local me = ClientState.GetMe()
-		ClientState.Stats = PowerUps.ComputeStats(me and me.PowerUps or {})
+		local owned = snapshot.InMatch and (me and me.PowerUps) or snapshot.PowerUps
+		ClientState.Stats = PowerUps.ComputeStats(owned or {})
 		ClientState.Changed:Fire(snapshot, old)
 	end)
 
@@ -4290,19 +4459,30 @@ local function wallhackLoop()
 	local cfg = Config.PowerUps.WallhackPulse
 	while true do
 		task.wait(cfg.Interval)
-		if ClientState.IsFighting() and ClientState.Stats.WallhackPulse then
-			local opponent = ClientState.GetOpponentPlayer()
-			local character = opponent and opponent.Character
-			if character then
+		if ClientState.CanShoot() and ClientState.Stats.WallhackPulse then
+			-- the enemy in a match, the practice dummies in the lobby
+			local targets = {}
+			if ClientState.InMatch() then
+				local opponent = ClientState.GetOpponentPlayer()
+				table.insert(targets, opponent and opponent.Character)
+			else
+				local dummies = workspace:FindFirstChild("Dummies")
+				for _, dummy in ipairs(dummies and dummies:GetChildren() or {}) do
+					table.insert(targets, dummy)
+				end
+			end
+			for _, target in ipairs(targets) do
 				local highlight = Instance.new("Highlight")
 				highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 				highlight.FillColor = Palette.UIDanger
 				highlight.FillTransparency = 0.6
 				highlight.OutlineColor = Color3.new(1, 1, 1)
 				highlight.OutlineTransparency = 0
-				highlight.Adornee = character
+				highlight.Adornee = target
 				highlight.Parent = getFolder()
 				Debris:AddItem(highlight, cfg.Duration)
+			end
+			if #targets > 0 then
 				Sfx.Play("Ability", { Pitch = 1.6, Volume = 0.5 })
 			end
 		end
@@ -4455,11 +4635,12 @@ end
 	CONTROLS
 		WASD           move
 		Space          jump. HOLD it to bunny hop (you re-jump the instant you
-		               land and keep all your speed). Double jump / wall jump too.
+		               land and keep all your speed). Wall jump too.
 		A/D + mouse    air strafe: hold A and turn the mouse left (or D + right)
 		               while in the air to GAIN speed, like CS / TF2
 		Left Shift     sprint (hold) on the ground / AIR DASH when in the air
-		C or L-Ctrl    slide (hold). Hold it in the air = slide when you land
+		C or L-Ctrl    slide (tap; tap again to stand). Press it in the air =
+		               slide the moment you land. Jump out of a slide any time.
 		E              Grapple Hook (power-up)
 		Q              Decoy (power-up)
 
@@ -4520,6 +4701,9 @@ local dashesLeft = 0
 
 local sprintHeld, slideHeld, jumpHeld = false, false, false
 local jumpPressedAt = -10 -- for the jump buffer
+local slidePressedAt = -10 -- slide pressed in the air = slide on landing
+local lastGroundedTime = 0 -- for coyote time
+local forceJumpUntil = 0 -- keep re-applying jump velocity for a moment
 
 local now = os.clock
 local lastGroundJumpTime = 0
@@ -4759,12 +4943,13 @@ local function onLanded()
 		Sfx.Play("Land", { Volume = math.clamp(fallSpeed / 80, 0.3, 1.2) })
 	end
 	Movement.Landed:Fire(fallSpeed)
+	lastGroundedTime = now()
 	-- SHOCKWAVE LANDING power-up
 	if stats().ShockwaveLanding and fell >= PU.ShockwaveLanding.MinFallHeight then
 		Remotes.Get("Ability"):FireServer("Shockwave", {})
 		Controllers.Camera.Shake(2.5)
 	end
-	if slideHeld then
+	if (M.SlideHold and slideHeld) or now() - slidePressedAt < 0.35 then
 		startSlide()
 	end
 end
@@ -4777,7 +4962,11 @@ local function groundJump()
 	end
 	humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
 	setVerticalVelocity(M.JumpPower)
+	-- the Humanoid can briefly hold us down (e.g. right after landing or
+	-- mid-slide); re-apply the jump velocity for a few frames so jumps never fail
+	forceJumpUntil = now() + 0.08
 	lastGroundJumpTime = now()
+	lastGroundedTime = -10
 	jumpPressedAt = -10
 	mode = "Air"
 	peakY = root.Position.Y
@@ -4892,6 +5081,8 @@ local function onJumpPressed()
 		wallJump()
 	elseif mode == "Grapple" then
 		endGrapple(true)
+	elseif mode == "Air" and now() - lastGroundedTime < M.CoyoteTime then
+		groundJump() -- just ran or slid off a ledge: still counts as a ground jump
 	elseif mode == "Air" or mode == "Dash" then
 		if now() - lastGroundJumpTime < 0.12 then
 			return -- we only just left the ground
@@ -4997,7 +5188,7 @@ end
 local function updateSlide(dt, wish)
 	momentum = applyFriction(momentum, M.SlideFriction, dt)
 	momentum = steer(momentum, wish, M.SlideSteer * dt)
-	if momentum.Magnitude < M.SlideEndSpeed or not slideHeld then
+	if momentum.Magnitude < M.SlideEndSpeed or (M.SlideHold and not slideHeld) then
 		mode = "Ground"
 		return
 	end
@@ -5140,6 +5331,9 @@ local function step(dt)
 	local justLaunched = now() - math.max(lastGroundJumpTime, lastLiftTime) < 0.12
 	local grounded = Movement.IsGrounded() and not justLaunched
 	local wish = wishDirection()
+	if now() < forceJumpUntil and root.AssemblyLinearVelocity.Y < M.JumpPower * 0.75 then
+		setVerticalVelocity(M.JumpPower)
+	end
 	if not grounded then
 		peakY = math.max(peakY, root.Position.Y) -- for Shockwave Landing
 		lowestVelocityY = math.min(lowestVelocityY, velocity.Y)
@@ -5156,6 +5350,7 @@ local function step(dt)
 	-- JUMP / BUNNY HOP: holding Space (or a buffered press) jumps on the very
 	-- frame we touch the ground, BEFORE friction runs, so no speed is lost.
 	if grounded and (mode == "Ground" or mode == "Slide") then
+		lastGroundedTime = now()
 		local wantsJump = (M.AutoBhop and jumpHeld) or (now() - jumpPressedAt < M.JumpBuffer)
 		if wantsJump then
 			groundJump()
@@ -5286,8 +5481,14 @@ local function onInputBegan(input, processed)
 		end
 	elseif key == M.SlideKey or key == Enum.KeyCode.LeftControl or key == Enum.KeyCode.ButtonB then
 		slideHeld = true
-		if canMove() and mode == "Ground" then
-			startSlide()
+		if canMove() then
+			if mode == "Ground" then
+				startSlide()
+			elseif mode == "Slide" and not M.SlideHold then
+				mode = "Ground" -- tap again to stand up
+			elseif mode == "Air" then
+				slidePressedAt = now() -- slide as soon as we land
+			end
 		end
 	elseif key == Enum.KeyCode.E then
 		if canMove() then
@@ -5298,7 +5499,7 @@ local function onInputBegan(input, processed)
 			end
 		end
 	elseif key == Enum.KeyCode.Q then
-		if canMove() and ClientState.IsFighting() then
+		if canMove() and ClientState.CanShoot() then
 			startDecoy()
 		end
 	end
@@ -5467,6 +5668,7 @@ return Spring
 		VictoryScreen end of match
 		LobbyUI       play / queue button and controls
 		SettingsMenu  sensitivity settings (P)
+		PowerUpLab    try power-ups solo in the lobby (B)
 ]]
 
 local Players = game:GetService("Players")
@@ -5479,6 +5681,7 @@ local PickScreen = require(ui.PickScreen)
 local VictoryScreen = require(ui.VictoryScreen)
 local LobbyUI = require(ui.LobbyUI)
 local SettingsMenu = require(ui.SettingsMenu)
+local PowerUpLab = require(ui.PowerUpLab)
 
 local UIController = {}
 
@@ -5519,6 +5722,7 @@ function UIController.Start()
 	VictoryScreen.Start(playerGui)
 	LobbyUI.Start(playerGui)
 	SettingsMenu.Start(playerGui)
+	PowerUpLab.Start(playerGui)
 
 	ClientState.Changed:Connect(function(snapshot, old)
 		HUD.OnState(snapshot, old)
@@ -5588,7 +5792,7 @@ local EQUIP_POSE = CFrame.new(0.15, -1.2, 0.45) * CFrame.Angles(rad(-55), rad(25
 -- Hands (gun space)
 local RIGHT_GRIP = CFrame.new(0, -0.22, 0.18) * CFrame.Angles(rad(-18), 0, 0)
 local KNOB_HOLD = CFrame.new(0.3, 0.02, 0.07) -- relative to the animated bolt pivot
-local LEFT_HOLD = CFrame.new(0, -0.21, -1.5)
+local LEFT_HOLD = CFrame.new(0, -0.21, -1.15) -- behind the folded bipod
 -- Arm joints (gun space). Shoulders sit behind the camera, out of view.
 local RIGHT_ELBOW = Vector3.new(0.42, -0.62, 0.78)
 local RIGHT_SHOULDER = Vector3.new(0.95, -1.1, 1.9)
@@ -6083,9 +6287,7 @@ local function fire()
 
 	local opponent = ClientState.GetOpponentPlayer()
 	local opponentCharacter = opponent and opponent.Character
-	local torso = opponentCharacter
-		and (opponentCharacter:FindFirstChild("UpperTorso") or opponentCharacter:FindFirstChild("Torso"))
-	local homingTargets = torso and { torso.Position } or {}
+	local homingTargets = ClientState.GetHomingTargets()
 	local exclude = buildExclude()
 
 	local muzzle = Controllers.Viewmodel.GetMuzzlePosition()
@@ -6808,9 +7010,12 @@ function HUD.OnState(snapshot, old)
 	local inMatch = snapshot.InMatch
 	scoreboard.Visible = inMatch
 	healthBar.Visible = inMatch
-	abilityList.Visible = inMatch
+	abilityList.Visible = true -- also shows Power-Up Lab abilities in the lobby
+	rebuildAbilities()
 	if not inMatch then
-		hideBanner()
+		if old.InMatch then
+			hideBanner()
+		end
 		return
 	end
 
@@ -6822,7 +7027,6 @@ function HUD.OnState(snapshot, old)
 	end
 	roundLabel.Text = ("ROUND %d  -  FIRST TO %d"):format(snapshot.Round or 1, snapshot.RoundsToWin or 4)
 	rebuildIcons(snapshot)
-	rebuildAbilities()
 
 	local phase = snapshot.Phase
 	if phase ~= old.Phase or snapshot.Round ~= old.Round then
@@ -7030,8 +7234,8 @@ local gui, playButton, statusLabel
 local CONTROLS = {
 	{ "WASD", "Move" },
 	{ "SHIFT", "Sprint  /  Air dash" },
-	{ "C / CTRL", "Slide (keeps momentum)" },
-	{ "SPACE", "Jump  /  Double jump  /  Wall jump" },
+	{ "C / CTRL", "Slide (tap). Jump out of it any time" },
+	{ "SPACE", "Jump  /  Wall jump" },
 	{ "HOLD SPACE", "Bunny hop (keeps all your speed)" },
 	{ "", "Air strafe: hold A or D + turn the mouse that way" },
 	{ "", "Wall run: jump next to a wall and hold W" },
@@ -7039,6 +7243,7 @@ local CONTROLS = {
 	{ "LMB", "Fire" },
 	{ "E / Q", "Grapple / Decoy (power-ups)" },
 	{ "V", "Inspect rifle" },
+	{ "B", "Power-Up Lab: try any power-up solo" },
 	{ "F", "Find a match" },
 	{ "P", "Settings (frees the mouse)" },
 }
@@ -7226,6 +7431,7 @@ local isOpen = false
 local isPicker = false
 local pickedIndex = nil
 local openToken = 0
+local practiceCallback = nil -- set when opened from the Power-Up Lab (solo practice)
 
 ----------------------------------------------------------------------------
 -- Card construction
@@ -7559,8 +7765,19 @@ local function open(snapshot)
 			end)
 			rec.Button.Activated:Connect(function()
 				if isPicker and not pickedIndex and rec.Flipped then
-					Remotes.Get("PickCard"):FireServer(i)
-					playPickAnimation(i)
+					if practiceCallback then
+						local callback = practiceCallback
+						playPickAnimation(i)
+						callback(id)
+						task.delay(1.6, function()
+							if practiceCallback == callback then
+								PickScreen.Close()
+							end
+						end)
+					else
+						Remotes.Get("PickCard"):FireServer(i)
+						playPickAnimation(i)
+					end
 				end
 			end)
 			flipIn(rec, 0.25 + (i - 1) * 0.22, token)
@@ -7572,6 +7789,7 @@ local function close()
 	if not isOpen then
 		return
 	end
+	practiceCallback = nil
 	isOpen = false
 	openToken += 1
 	local token = openToken
@@ -7589,7 +7807,37 @@ local function close()
 	end)
 end
 
+function PickScreen.Close()
+	close()
+end
+
+function PickScreen.IsPracticeOpen()
+	return isOpen and practiceCallback ~= nil
+end
+
+--[[
+	Opens the real pick screen with `cards` for solo practice (from the
+	Power-Up Lab). `onPick(id)` is called with the chosen power-up.
+]]
+function PickScreen.OpenPractice(cards, owned, onPick)
+	open({
+		Cards = cards,
+		PickerUserId = player.UserId,
+		Players = { { UserId = player.UserId, PowerUps = owned or {} } },
+	})
+	practiceCallback = onPick
+	title.Text = "PICK A POWER-UP"
+	title.TextColor3 = Palette.UIText
+	subtitle.Text = "Practice pick - the card gets added to your Power-Up Lab.  (B to close)"
+end
+
 function PickScreen.OnState(snapshot, old)
+	if practiceCallback then
+		if not snapshot.InMatch then
+			return -- practice pick stays open in the lobby
+		end
+		close()
+	end
 	local phase = snapshot.Phase
 	if phase == "Pick" then
 		if not isOpen or old.Phase ~= "Pick" then
@@ -7713,6 +7961,296 @@ return PickScreen
             </Properties>
           </Item>
           <Item class="ModuleScript" referent="43">
+            <Properties>
+              <string name="Name">PowerUpLab</string>
+              <string name="Source"><![CDATA[--[[
+	PowerUpLab.lua  (Client.ui.PowerUpLab)
+
+	Solo testing for power-ups. In the lobby, press B to open the lab:
+		* left click a power-up to add a stack, right click to remove one
+		* DRAW 5 CARDS opens the real pick screen with random cards
+		* CLEAR ALL removes everything
+	Then close the lab and try them on the shooting range dummies.
+
+	The server keeps your lab picks, so server-checked effects like Explosive
+	Rounds, Ricochet, Decoy and Phantom Dash really work. Lab picks never
+	carry into a match (matches always start with no power-ups).
+]]
+
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Config = require(Shared.Config)
+local PowerUps = require(Shared.PowerUps)
+local Remotes = require(Shared.Remotes)
+local ClientState = require(script.Parent.Parent.ClientState)
+local Sfx = require(script.Parent.Parent.Sfx)
+local Theme = require(script.Parent.Theme)
+local Icons = require(script.Parent.Icons)
+local PickScreen = require(script.Parent.PickScreen)
+
+local Palette = Config.Palette
+local LAB_KEY = Enum.KeyCode.B
+
+local PowerUpLab = {}
+
+local gui, panel, grid, unlocker
+local tiles = {} -- [id] = { Stacks = TextLabel, Stroke = UIStroke }
+local isOpen = false
+
+local function owned()
+	return ClientState.Snapshot.PowerUps or {}
+end
+
+local function send(action, id)
+	Remotes.Get("Practice"):FireServer(action, id)
+end
+
+local function refresh()
+	local current = owned()
+	for id, tile in pairs(tiles) do
+		local stacks = current[id] or 0
+		local def = PowerUps.Get(id)
+		tile.Stacks.Text = stacks > 0 and ("x%d / %d"):format(stacks, def.MaxStacks or 1) or ""
+		tile.Stroke.Thickness = stacks > 0 and 3 or 1
+		tile.Stroke.Transparency = stacks > 0 and 0 or 0.6
+		tile.Frame.BackgroundColor3 = stacks > 0 and Palette.UIPanelLight or Palette.UIPanel
+	end
+end
+
+function PowerUpLab.Open()
+	if isOpen or ClientState.InMatch() then
+		return
+	end
+	isOpen = true
+	gui.Enabled = true
+	unlocker.Visible = true
+	ClientState.SetMenu("Lab", true)
+	refresh()
+	panel.Size = UDim2.fromOffset(820, 520)
+	Theme.tween(panel, 0.2, { Size = UDim2.fromOffset(860, 560) }, Enum.EasingStyle.Back)
+end
+
+function PowerUpLab.Close()
+	if not isOpen then
+		return
+	end
+	isOpen = false
+	gui.Enabled = false
+	unlocker.Visible = false
+	ClientState.SetMenu("Lab", false)
+end
+
+local function drawCards()
+	local cards = PowerUps.DrawCards(owned(), Config.Match.CardsPerPick)
+	if #cards == 0 then
+		return
+	end
+	PowerUpLab.Close()
+	PickScreen.OpenPractice(cards, owned(), function(id)
+		send("Add", id)
+	end)
+end
+
+local function makeTile(def, order)
+	local rarity = Config.Rarity[def.Rarity]
+	local frame = Theme.new("TextButton", {
+		Name = def.Id,
+		Text = "",
+		AutoButtonColor = true,
+		BackgroundColor3 = Palette.UIPanel,
+		LayoutOrder = rarity.Order * 100 + order,
+		Parent = grid,
+	})
+	Theme.corner(frame, 10)
+	local stroke = Theme.stroke(frame, rarity.Color, 1, 0.6)
+
+	local icon = Icons.Create(def, 40)
+	icon.Position = UDim2.fromOffset(8, 8)
+	icon.Parent = frame
+	Theme.label({
+		Position = UDim2.fromOffset(56, 6),
+		Size = UDim2.new(1, -60, 0, 20),
+		Text = def.Name,
+		TextSize = 14,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		Parent = frame,
+	})
+	Theme.label({
+		Position = UDim2.fromOffset(56, 26),
+		Size = UDim2.new(1, -60, 0, 16),
+		Text = string.upper(def.Rarity),
+		TextSize = 10,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextColor3 = rarity.Color,
+		Parent = frame,
+	})
+	local stacks = Theme.label({
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.new(1, -8, 1, -4),
+		Size = UDim2.fromOffset(60, 16),
+		TextSize = 12,
+		TextXAlignment = Enum.TextXAlignment.Right,
+		TextColor3 = Palette.UIAccent,
+		Parent = frame,
+	})
+	-- description on hover
+	frame.MouseEnter:Connect(function()
+		panel.Description.Text = def.Name .. ":  " .. def.Description
+	end)
+	frame.Activated:Connect(function()
+		Sfx.Play("CardHover")
+		send("Add", def.Id)
+	end)
+	frame.MouseButton2Click:Connect(function()
+		Sfx.Play("CardHover", { Pitch = 0.8 })
+		send("Remove", def.Id)
+	end)
+	tiles[def.Id] = { Frame = frame, Stacks = stacks, Stroke = stroke }
+end
+
+function PowerUpLab.Init() end
+
+function PowerUpLab.Start(playerGui)
+	gui = Theme.screen("PowerUpLab", 9, playerGui)
+	gui.Enabled = false
+	Theme.new("Frame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Palette.UIBackground,
+		BackgroundTransparency = 0.4,
+		Parent = gui,
+	})
+	unlocker = Theme.mouseUnlocker(gui)
+
+	panel = Theme.panel({
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(860, 560),
+		BackgroundTransparency = 0,
+		Parent = gui,
+	})
+	Theme.padding(panel, 20)
+	-- shrink on small screens
+	local scale = Theme.new("UIScale", { Parent = panel })
+	local function fit()
+		local viewport = workspace.CurrentCamera.ViewportSize
+		scale.Scale = math.min(1, (viewport.X - 40) / 860, (viewport.Y - 40) / 560)
+	end
+	fit()
+	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(fit)
+
+	Theme.label({
+		Size = UDim2.new(1, 0, 0, 34),
+		Text = "POWER-UP LAB",
+		TextSize = 30,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		FontFace = Theme.Font(Enum.FontWeight.Heavy),
+		Parent = panel,
+	})
+	Theme.label({
+		Position = UDim2.fromOffset(0, 36),
+		Size = UDim2.new(1, 0, 0, 20),
+		Text = "Try any power-up on the range.  Left click: add  -  Right click: remove  -  B: close",
+		TextSize = 14,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextColor3 = Palette.UISubText,
+		FontFace = Theme.Font(Enum.FontWeight.Medium),
+		Parent = panel,
+	})
+
+	grid = Theme.new("Frame", {
+		Position = UDim2.fromOffset(0, 68),
+		Size = UDim2.new(1, 0, 1, -150),
+		BackgroundTransparency = 1,
+		Parent = panel,
+	}, {
+		Theme.new("UIGridLayout", {
+			CellSize = UDim2.fromOffset(196, 56),
+			CellPadding = UDim2.fromOffset(8, 8),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+		}),
+	})
+	for i, def in ipairs(PowerUps.Definitions) do
+		makeTile(def, i)
+	end
+
+	local description = Theme.label({
+		Name = "Description",
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, 0, 1, -52),
+		Size = UDim2.new(1, 0, 0, 22),
+		Text = "Hover a power-up to read what it does.",
+		TextSize = 14,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextColor3 = Palette.UIText,
+		FontFace = Theme.Font(Enum.FontWeight.Medium),
+		Parent = panel,
+	})
+	description.Name = "Description"
+
+	local draw = Theme.button({
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.fromScale(0, 1),
+		Size = UDim2.fromOffset(240, 42),
+		Text = "DRAW 5 CARDS",
+		TextSize = 18,
+		Parent = panel,
+	})
+	draw.Activated:Connect(drawCards)
+	local clear = Theme.button({
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, 252, 1, 0),
+		Size = UDim2.fromOffset(160, 42),
+		Text = "CLEAR ALL",
+		TextSize = 18,
+		BackgroundColor3 = Palette.UIPanelLight,
+		TextColor3 = Palette.UIText,
+		Parent = panel,
+	})
+	clear.Activated:Connect(function()
+		send("Clear")
+	end)
+	local done = Theme.button({
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.fromScale(1, 1),
+		Size = UDim2.fromOffset(160, 42),
+		Text = "DONE",
+		TextSize = 18,
+		Parent = panel,
+	})
+	done.Activated:Connect(PowerUpLab.Close)
+
+	ClientState.Changed:Connect(function(snapshot)
+		if snapshot.InMatch then
+			PowerUpLab.Close()
+		else
+			refresh()
+		end
+	end)
+
+	UserInputService.InputBegan:Connect(function(input, processed)
+		if processed and UserInputService:GetFocusedTextBox() then
+			return
+		end
+		if input.KeyCode == LAB_KEY then
+			if PickScreen.IsPracticeOpen() then
+				PickScreen.Close()
+			elseif isOpen then
+				PowerUpLab.Close()
+			elseif not ClientState.InMatch() then
+				PowerUpLab.Open()
+			end
+		end
+	end)
+end
+
+return PowerUpLab
+]]></string>
+            </Properties>
+          </Item>
+          <Item class="ModuleScript" referent="44">
             <Properties>
               <string name="Name">SettingsMenu</string>
               <string name="Source"><![CDATA[--[[
@@ -7956,7 +8494,7 @@ return SettingsMenu
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="44">
+          <Item class="ModuleScript" referent="45">
             <Properties>
               <string name="Name">Theme</string>
               <string name="Source"><![CDATA[--[[
@@ -8109,7 +8647,7 @@ return Theme
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="45">
+          <Item class="ModuleScript" referent="46">
             <Properties>
               <string name="Name">VictoryScreen</string>
               <string name="Source"><![CDATA[--[[

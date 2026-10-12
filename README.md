@@ -38,7 +38,7 @@ src/client/                -> StarterPlayerScripts.Client
   Main.client.lua             entry point, starts every controller
   ClientState.lua             latest match snapshot, my power-up stats, settings
   CameraController.lua        first-person lock, FOV kicks, tilt, recoil, sensitivity
-  MovementController.lua      sprint, slide, double jump, air dash, wall run, grapple...
+  MovementController.lua      bhop, sprint, slide, air dash, wall run, grapple...
   ViewmodelController.lua     arms + sniper on the camera (sway, bob, recoil, bolt)
   WeaponController.lua        scope + fire, local tracers, sends shots to the server
   EffectsController.lua       tracers, explosions, ropes, wallhack pulse, screen tints
@@ -155,8 +155,8 @@ the sniper on your own. You need a second player to start a match.
 | Hold Space | **Bunny hop**: re-jump the instant you land, keeping all your speed |
 | A or D + mouse | **Air strafe**: in the air, hold A and turn left (or D and right) to gain speed |
 | Left Shift | Sprint (hold) / **Air dash** (press in the air) |
-| C or Left Ctrl | Slide (hold). Press in the air to slide on landing |
-| Space | Jump / double jump / wall jump |
+| C or Left Ctrl | Slide (tap, tap again to stand). Press in the air to slide on landing. Jump out of a slide any time |
+| Space | Jump / wall jump (no double jump unless you pick the Double Jump power-up) |
 | (automatic) | Wall run: jump next to a wall while moving and holding W |
 | Right mouse | Scope (hold, or toggle in settings) |
 | Left mouse | Fire |
@@ -164,6 +164,7 @@ the sniper on your own. You need a second player to start a match.
 | Q | Decoy (power-up) |
 | Space (hold) | Ceiling run under a ceiling (Magnetic Boots) |
 | V | Inspect your rifle |
+| B | **Power-Up Lab** (lobby): try any power-up solo |
 | F | Find a match / leave the queue (lobby) |
 | P | Settings (frees the mouse) |
 
@@ -182,14 +183,13 @@ Files: `Config`, `CameraController`, `MovementController`, `CharacterService`, `
 - [ ] Hold Space: you bunny hop. Hold A and turn the mouse left in the air: the
       speedometer climbs.
 - [ ] Shift sprint is faster and the FOV widens slightly.
-- [ ] Sprint, then C: you slide, the camera drops and tilts, and the FOV kicks out.
-      Speed bleeds off and the slide ends on its own.
-- [ ] Slide, then Space: you jump and keep the slide speed.
-- [ ] Space in the air: double jump.
+- [ ] Sprint, then tap C: you slide, the camera drops and tilts, and the FOV kicks out.
+      Speed bleeds off and the slide ends on its own (or tap C again).
+- [ ] Slide, then Space: you jump straight away and keep the slide speed.
+- [ ] Space in the air does nothing (no double jump by default).
 - [ ] Shift in the air: a fast flat dash (one per jump, refills on landing or wall run).
 - [ ] Jump next to the long lobby wall holding W: you wall run, the camera
-      tilts away from the wall, and you slowly sink. Space jumps off the wall
-      and refreshes your double jump.
+      tilts away from the wall, and you slowly sink. Space jumps off the wall.
 - [ ] Wall run, then Shift: you dash off the wall with the speed carried.
 - [ ] Walking into walls doesn't stick or jitter, and you stop quickly when you let go of WASD.
 - [ ] Tune feel in `Config.Movement` / `Config.Camera` while Rojo is connected.
@@ -238,9 +238,11 @@ Files: `PowerUps`, `PickScreen`, `Icons`, plus power-up code in Movement/Weapon/
       then sees which one was picked.
 - [ ] Let the 15s timer run out: a random card is picked.
 - [ ] Collected power-ups show as small icons under each name on the scoreboard.
-- [ ] Each power-up does what its card says. Quick ways to test one:
-      temporarily raise its `Weight` in `Config.Rarity`, or reduce the
-      `Definitions` list in `PowerUps.lua` to just the cards you want to test.
+- [ ] Each power-up does what its card says. Test them **solo** in the lobby:
+      press **B** to open the Power-Up Lab, left click power-ups to add them
+      (right click removes), close it and try them on the range dummies.
+      **DRAW 5 CARDS** opens the real pick screen with random cards.
+      (Second Wind and Vampire need a real opponent: use a 2-player Studio test.)
 
 ### Stage 5: map and visuals
 Files: `MapBuilder` (arena), `LightingSetup`, `Config.Palette`, `Config.Lighting`

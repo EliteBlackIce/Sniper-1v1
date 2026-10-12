@@ -1,0 +1,43 @@
+{
+  "name": "Sniper1v1",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "Shared": {
+        "$path": "src/shared"
+      }
+    },
+    "ServerScriptService": {
+      "Server": {
+        "$path": "src/server"
+      }
+    },
+    "StarterPlayer": {
+      "$properties": {
+        "LoadCharacterAppearance": false,
+        "CameraMaxZoomDistance": 18,
+        "CameraMinZoomDistance": 0.5,
+        "EnableMouseLockOption": false
+      },
+      "StarterPlayerScripts": {
+        "Client": {
+          "$path": "src/client"
+        }
+      },
+      "StarterCharacterScripts": {
+        "$path": "src/character"
+      }
+    },
+    "Lighting": {
+      "$properties": {
+        "Technology": "Future",
+        "GlobalShadows": true
+      }
+    },
+    "SoundService": {
+      "$properties": {
+        "RespectFilteringEnabled": true
+      }
+    }
+  }
+}

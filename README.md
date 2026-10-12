@@ -59,6 +59,18 @@ src/character/             -> StarterPlayer.StarterCharacterScripts
 
 ---
 
+## Quick start (no Rojo needed)
+
+1. Download **`dist/SniperDuel.rbxlx`** (on GitHub: open the file, then click the
+   download button).
+2. Double-click it, or in Roblox Studio use **File > Open from File** and pick it.
+3. **Test** tab > **Clients and Servers** > **2 Players** > **Start**, then press
+   **PLAY** in both windows.
+4. **File > Publish to Roblox** if you want it on your account.
+
+This file is a snapshot of the code. If you edit the `src/` files, rebuild it with
+`rojo build -o dist/SniperDuel.rbxlx`, or use the live Rojo setup below.
+
 ## Setup: Rojo + Roblox Studio
 
 ### 1. Install Rojo (the command-line tool)

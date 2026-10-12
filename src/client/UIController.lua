@@ -1,0 +1,72 @@
+--[[
+	UIController.lua  (Client.UIController)
+	Creates every screen and forwards match-state changes to them.
+
+	Screens (Client/ui):
+		HUD           crosshair, scope, scoreboard, health, banners, hitmarkers
+		PickScreen    power-up cards between rounds
+		VictoryScreen end of match
+		LobbyUI       play / queue button and controls
+		SettingsMenu  sensitivity settings (P)
+]]
+
+local Players = game:GetService("Players")
+local StarterGui = game:GetService("StarterGui")
+
+local ClientState = require(script.Parent.ClientState)
+local ui = script.Parent:WaitForChild("ui")
+local HUD = require(ui.HUD)
+local PickScreen = require(ui.PickScreen)
+local VictoryScreen = require(ui.VictoryScreen)
+local LobbyUI = require(ui.LobbyUI)
+local SettingsMenu = require(ui.SettingsMenu)
+
+local UIController = {}
+
+UIController.HUD = HUD
+UIController.Settings = SettingsMenu
+
+function UIController.Init(controllers)
+	controllers.HUD = HUD
+	controllers.Settings = SettingsMenu
+	HUD.Init(controllers)
+	LobbyUI.Init(controllers)
+	SettingsMenu.Init(controllers)
+	VictoryScreen.Init(controllers)
+end
+
+function UIController.Start()
+	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+
+	-- No reset button (dying on purpose would skip rounds) and a clean screen
+	task.spawn(function()
+		for _ = 1, 10 do
+			local ok = pcall(function()
+				StarterGui:SetCore("ResetButtonCallback", false)
+			end)
+			if ok then
+				break
+			end
+			task.wait(1)
+		end
+	end)
+	pcall(function()
+		StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Health, false)
+		StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
+	end)
+
+	HUD.Start(playerGui)
+	PickScreen.Start(playerGui)
+	VictoryScreen.Start(playerGui)
+	LobbyUI.Start(playerGui)
+	SettingsMenu.Start(playerGui)
+
+	ClientState.Changed:Connect(function(snapshot, old)
+		HUD.OnState(snapshot, old)
+		PickScreen.OnState(snapshot, old)
+		VictoryScreen.OnState(snapshot, old)
+		LobbyUI.OnState(snapshot, old)
+	end)
+end
+
+return UIController

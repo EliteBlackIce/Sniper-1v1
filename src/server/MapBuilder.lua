@@ -210,8 +210,8 @@ function MapBuilder.BuildLobby()
 	b.block(V(140, 4, 140), V(0, -2, 0), Palette.Snow)
 	b.block(V(140, 3, 2), V(0, 1.5, 69), Palette.Mid, "Z")
 	b.block(V(2, 3, 140), V(69, 1.5, 0), Palette.Mid, "X")
-	-- Practice wall-run walls, ramp and boxes
-	b.runWall(V(50, 20, 2), V(-30, 10, -40), "X")
+	-- Practice wall-run walls (along the sides so the range stays visible), ramp and boxes
+	b.runWall(V(2, 20, 50), V(-44, 10, -20), "X")
 	b.ramp(V(-10, 0, 30), V(-1, 0, 0), 20, 8, 12, Palette.AccentB)
 	b.block(V(16, 8, 16), V(-38, 4, 30), Palette.Mid)
 	b.block(V(10, 16, 10), V(-38, 8, 48), Palette.Light)
@@ -220,10 +220,22 @@ function MapBuilder.BuildLobby()
 	b.block(V(30, 2, 20), V(30, 24, 0), Palette.Mid) -- a ceiling for Magnetic Boots fans
 	b.block(V(2, 23, 2), V(16, 11.5, -9), Palette.Dark, "Z")
 
-	-- Title sign
-	local sign = newPart("Part", V(44, 12, 1), CFrame.new(0, 14, -66), Palette.UIPanel, model)
+	-- SHOOTING RANGE (north of the lobby, along -Z) ------------------------
+	b.block(V(64, 4, 344), V(0, -2, -242), Palette.Snow)
+	b.block(V(2, 8, 344), V(32, 4, -242), Palette.Light, "X") -- side walls
+	b.block(V(64, 46, 4), V(0, 23, -416), Palette.Light) -- back wall
+	for _, z in ipairs({ -120, -170, -270, -370 }) do
+		b.block(V(60, 0.1, 1), V(0, 0.05, z), Palette.Mid) -- distance lines
+	end
+	b.block(V(16, 20, 10), V(12, 10, -300), Palette.AccentA) -- sniper's nest dummy platform
+	b.block(V(8, 5, 3), V(-8, 2.5, -150), Palette.AccentA)
+	b.block(V(6, 8, 3), V(14, 4, -215), Palette.Mid)
+	b.block(V(10, 4, 3), V(-6, 2, -330), Palette.AccentA)
+
+	-- Title sign (behind spawn, facing the lobby)
+	local sign = newPart("Part", V(44, 12, 1), CFrame.new(0, 14, 66), Palette.UIPanel, model)
 	local gui = Instance.new("SurfaceGui")
-	gui.Face = Enum.NormalId.Back
+	gui.Face = Enum.NormalId.Front
 	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
 	gui.PixelsPerStud = 40
 	gui.Parent = sign
@@ -251,6 +263,16 @@ function MapBuilder.BuildLobby()
 			return CFrame.lookAt(offset, Vector3.new(0, 3.5, -60))
 		end,
 		KillY = -60,
+		-- practice dummies on the range (see DummyService)
+		DummySpots = {
+			{ Position = V(-10, 0, -110), Motion = "Static" },
+			{ Position = V(8, 0, -135), Motion = "Strafe", Amount = 8, Speed = 0.35 },
+			{ Position = V(0, 0, -185), Motion = "Strafe", Amount = 14, Speed = 0.25 },
+			{ Position = V(-14, 0, -235), Motion = "Static" },
+			{ Position = V(-12, 4, -260), Motion = "Bob", Amount = 10, Speed = 0.6 },
+			{ Position = V(12, 20, -300), Motion = "Static" },
+			{ Position = V(0, 0, -370), Motion = "Strafe", Amount = 18, Speed = 0.2 },
+		},
 	}
 end
 

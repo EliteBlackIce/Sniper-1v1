@@ -28,15 +28,19 @@ local Ballistics = {}
 local MAX_ITERATIONS = 64
 
 -- Is this instance something a bullet should "hit" (stop on and report)?
--- Characters (have a Humanoid) and decoys (Model with attribute Decoy=true).
+-- Characters (have a Humanoid), decoys (Decoy=true) and practice dummies (Dummy=true).
 local function findTargetModel(part)
 	local character = Util.getCharacterFromPart(part)
 	if character then
 		return character
 	end
+	-- decoys and lobby practice dummies are models with an attribute
 	local model = part:FindFirstAncestorOfClass("Model")
-	if model and model:GetAttribute("Decoy") then
-		return model
+	while model do
+		if model:GetAttribute("Decoy") or model:GetAttribute("Dummy") then
+			return model
+		end
+		model = model:FindFirstAncestorOfClass("Model")
 	end
 	return nil
 end

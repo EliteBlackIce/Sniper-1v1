@@ -60,7 +60,7 @@ end
 local function canShoot()
 	local character = player.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-	return ClientState.IsFighting()
+	return ClientState.CanShoot()
 		and not ClientState.MenuOpen
 		and humanoid
 		and humanoid.Health > 0
@@ -135,9 +135,12 @@ local function fire()
 			Exclude = exclude,
 			HomingTargets = homingTargets,
 		})
-		local hitEnemy = sim.Hit ~= nil and sim.Hit.Model == opponentCharacter
+		-- the enemy in a match, or a practice dummy in the lobby
+		local hitModel = sim.Hit and sim.Hit.Model
+		local hitEnemy = hitModel ~= nil
+			and ((opponentCharacter ~= nil and hitModel == opponentCharacter) or hitModel:GetAttribute("Dummy") == true)
 		if hitEnemy then
-			table.insert(claims, { Index = i, Part = sim.Hit.Part.Name, Point = sim.Hit.Position })
+			table.insert(claims, { Index = i, Model = hitModel, Part = sim.Hit.Part.Name, Point = sim.Hit.Position })
 		end
 		Controllers.Effects.DrawShot(sim.Segments, sim.Passes, sim.EndPosition, sim.EndNormal, muzzle, {
 			Explosive = stats.Explosive,
@@ -208,7 +211,7 @@ end
 local function update(dt)
 	local character = player.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-	local allowed = ClientState.IsInArena() and not ClientState.MenuOpen and humanoid and humanoid.Health > 0
+	local allowed = ClientState.HasGun() and not ClientState.MenuOpen and humanoid and humanoid.Health > 0
 	if not allowed then
 		scopeHeld = false
 	end

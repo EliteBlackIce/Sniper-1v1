@@ -42,6 +42,7 @@ local banner, bannerTitle, bannerSub
 local vignette, indicator
 local lastCountdownNumber
 local bannerToken = 0
+local speedLabel
 
 ----------------------------------------------------------------------------
 -- Building
@@ -324,6 +325,21 @@ local function buildBanner()
 		TextColor3 = Palette.UISubText,
 		Parent = banner,
 	})
+end
+
+-- Speedometer (bottom centre): your horizontal speed, handy for bunny hopping.
+local function buildSpeedometer()
+	speedLabel = Theme.label({
+		Name = "Speed",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -110),
+		Size = UDim2.fromOffset(160, 24),
+		TextSize = 20,
+		FontFace = Theme.Font(Enum.FontWeight.Heavy),
+		TextTransparency = 0.15,
+		Parent = gui,
+	})
+	Theme.new("UIStroke", { Thickness = 1.5, Transparency = 0.6, Color = Palette.UIBackground, Parent = speedLabel })
 end
 
 local function buildDamage()
@@ -623,7 +639,7 @@ local function formatTime(seconds)
 end
 
 local function update()
-	local inArena = ClientState.IsInArena()
+	local inArena = ClientState.HasGun() -- lobby practice range or a live round
 	local scopeAlpha = Controllers.Weapon.GetScopeAlpha()
 	local firstPerson = Controllers.Camera.IsFirstPerson()
 
@@ -632,6 +648,12 @@ local function update()
 	local bolt = Controllers.Weapon.GetBoltProgress()
 	boltBar.Visible = inArena and bolt > 0
 	boltFill.Size = UDim2.fromScale(1 - bolt, 1)
+
+	-- speedometer: white at normal speed, teal when bunny hopping fast
+	local speed = Controllers.Movement.GetSpeed()
+	speedLabel.Visible = inArena and scopeAlpha < 0.85 and not ClientState.MenuOpen
+	speedLabel.Text = tostring(math.floor(speed + 0.5)) .. " u/s"
+	speedLabel.TextColor3 = speed > Config.Movement.SprintSpeed + 6 and Palette.UIAccent or Palette.UIText
 
 	-- health
 	local character = player.Character
@@ -692,6 +714,7 @@ function HUD.Start(playerGui)
 	buildAbilities()
 	buildBanner()
 	buildDamage()
+	buildSpeedometer()
 
 	Remotes.Get("HitConfirm").OnClientEvent:Connect(onHitConfirm)
 	Remotes.Get("Damaged").OnClientEvent:Connect(onDamaged)

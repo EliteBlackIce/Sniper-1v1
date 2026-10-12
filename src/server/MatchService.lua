@@ -17,6 +17,7 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local CharacterService = require(script.Parent.CharacterService)
 local MapBuilder = require(script.Parent.MapBuilder)
+local DummyService = require(script.Parent.DummyService)
 local Match = require(script.Parent.Match)
 
 local MatchService = {}
@@ -64,7 +65,8 @@ local function spawnInLobby(player)
 	if not player.Parent or matchByPlayer[player] then
 		return
 	end
-	player.CameraMode = Enum.CameraMode.Classic
+	player.CameraMode = Config.Camera.FirstPersonInLobby and Enum.CameraMode.LockFirstPerson
+		or Enum.CameraMode.Classic
 	CharacterService.Spawn(player, lobby.SpawnCFrame(), {
 		Color = Config.Palette.LobbyPlayer,
 		KillY = lobby.KillY,
@@ -141,6 +143,7 @@ end
 ----------------------------------------------------------------------------
 function MatchService.Init()
 	lobby = MapBuilder.BuildLobby()
+	DummyService.Init(lobby.DummySpots)
 
 	CharacterService.OnDied = function(player)
 		local match = matchByPlayer[player]

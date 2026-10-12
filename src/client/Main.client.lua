@@ -13,6 +13,7 @@
 		WeaponController     scope + fire (sends shots to the server)
 		EffectsController    tracers, explosions, ropes, screen tints
 		UIController         all screens (ui/ folder)
+		CharacterPoser       third-person rifle-holding pose for other players
 ]]
 
 local Client = script.Parent
@@ -24,6 +25,7 @@ local ViewmodelController = require(Client.ViewmodelController)
 local WeaponController = require(Client.WeaponController)
 local EffectsController = require(Client.EffectsController)
 local UIController = require(Client.UIController)
+local CharacterPoser = require(Client.CharacterPoser)
 
 local controllers = {
 	Camera = CameraController,
@@ -32,6 +34,7 @@ local controllers = {
 	Weapon = WeaponController,
 	Effects = EffectsController,
 	UI = UIController,
+	Poser = CharacterPoser,
 }
 
 ClientState.Init()
@@ -43,6 +46,7 @@ local order = {
 	WeaponController,
 	EffectsController,
 	UIController,
+	CharacterPoser,
 }
 for _, controller in ipairs(order) do
 	controller.Init(controllers)

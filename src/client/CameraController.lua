@@ -37,6 +37,10 @@ local currentDrop = 0
 local recoilLeft = 0 -- degrees of pitch still to apply
 local fovPunch = 0
 local shake = 0
+local bobTime = 0
+local bobAmount = 0
+local landDip = 0 -- current camera dip from landing (studs)
+local landDipVelocity = 0
 local hiddenParts = {}
 local firstPerson = false
 
@@ -53,6 +57,13 @@ end
 
 function CameraController.Shake(amount)
 	shake = math.max(shake, amount)
+end
+
+-- Camera dips down on landing (bigger fall = bigger dip), then springs back.
+function CameraController.LandingDip(fallSpeed)
+	-- normal jumps / bunny hops land at ~50 u/s and only get a tiny dip
+	local dip = math.min(0.04 + math.max(fallSpeed - 45, 0) * C.LandingDip, C.MaxLandingDip)
+	landDipVelocity -= dip * 14
 end
 
 function CameraController.IsFirstPerson()
@@ -99,7 +110,7 @@ end
 -- Camera mode
 ----------------------------------------------------------------------------
 local function wantsFirstPerson()
-	return ClientState.InMatch() or Config.Debug.FirstPersonInLobby
+	return ClientState.InMatch() or C.FirstPersonInLobby
 end
 
 local function applyCameraMode()
@@ -154,10 +165,19 @@ local function update(dt)
 	end
 	UserInputService.MouseDeltaSensitivity = sensitivity
 
-	-- CAMERA DROP while sliding (CameraOffset is used by the default camera next frame)
+	-- CAMERA OFFSET: slide drop + running head bob + landing dip
+	-- (CameraOffset is used by the default camera next frame)
 	currentDrop = Util.lerp(currentDrop, hints.Drop, Util.smooth(C.CameraDropLerpSpeed, dt))
+	local speed = movement.GetSpeed()
+	local running = movement.IsGrounded() and movement.GetMode() == "Ground" and speed > 4
+	bobAmount = Util.lerp(bobAmount, running and math.clamp(speed / Config.Movement.RunSpeed, 0, 1.3) or 0, Util.smooth(10, dt))
+	bobTime += dt * (7 + speed * 0.18)
+	local bobY = math.sin(bobTime * 2) * C.HeadBob * bobAmount * (1 - scopeAlpha)
+	-- landing dip spring
+	landDipVelocity += (-landDip * 180 - landDipVelocity * 18) * dt
+	landDip += landDipVelocity * dt
 	if humanoid then
-		humanoid.CameraOffset = Vector3.new(0, -currentDrop, 0)
+		humanoid.CameraOffset = Vector3.new(0, -currentDrop + bobY + landDip, 0)
 	end
 
 	if firstPerson then
@@ -215,6 +235,8 @@ function CameraController.Start()
 			task.delay(0.05, CameraController.FaceCharacterForward)
 		end
 	end)
+
+	Controllers.Movement.Landed:Connect(CameraController.LandingDip)
 
 	RunService:BindToRenderStep("SniperCamera", Enum.RenderPriority.Camera.Value + 1, update)
 end

@@ -5,6 +5,7 @@
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
@@ -24,11 +25,15 @@ local CONTROLS = {
 	{ "SHIFT", "Sprint  /  Air dash" },
 	{ "C / CTRL", "Slide (keeps momentum)" },
 	{ "SPACE", "Jump  /  Double jump  /  Wall jump" },
+	{ "HOLD SPACE", "Bunny hop (keeps all your speed)" },
+	{ "", "Air strafe: hold A or D + turn the mouse that way" },
 	{ "", "Wall run: jump next to a wall and hold W" },
 	{ "RMB", "Scope" },
 	{ "LMB", "Fire" },
 	{ "E / Q", "Grapple / Decoy (power-ups)" },
-	{ "P", "Settings" },
+	{ "V", "Inspect rifle" },
+	{ "F", "Find a match" },
+	{ "P", "Settings (frees the mouse)" },
 }
 
 function LobbyUI.OnState(snapshot)
@@ -37,17 +42,17 @@ function LobbyUI.OnState(snapshot)
 		return
 	end
 	if snapshot.Queued then
-		playButton.Text = "IN QUEUE  -  CANCEL"
+		playButton.Text = "IN QUEUE  -  [F] CANCEL"
 		playButton.BackgroundColor3 = Palette.UIPanelLight
 		playButton.TextColor3 = Palette.UIText
 		statusLabel.Text = "Waiting for an opponent...  (" .. tostring(snapshot.QueueCount or 1) .. " in queue)"
 	else
-		playButton.Text = "PLAY"
+		playButton.Text = "[F]  FIND MATCH"
 		playButton.BackgroundColor3 = Palette.UIAccent
 		playButton.TextColor3 = Palette.UIBackground
 		local queued = snapshot.QueueCount or 0
 		statusLabel.Text = queued > 0 and (tostring(queued) .. " player(s) waiting - press PLAY to duel")
-			or "1v1 sniper duel  -  first to 4 rounds"
+			or "Practise on the range while you wait  -  first to 4 rounds"
 	end
 end
 
@@ -83,7 +88,7 @@ function LobbyUI.Start(playerGui)
 	local controls = Theme.panel({
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = UDim2.new(0, 24, 0.5, 20),
-		Size = UDim2.fromOffset(340, 28 + #CONTROLS * 26),
+		Size = UDim2.fromOffset(390, 28 + #CONTROLS * 26),
 		Parent = gui,
 	}, nil)
 	Theme.padding(controls, 14)
@@ -120,14 +125,24 @@ function LobbyUI.Start(playerGui)
 	playButton = Theme.button({
 		AnchorPoint = Vector2.new(0.5, 1),
 		Position = UDim2.new(0.5, 0, 1, -64),
-		Size = UDim2.fromOffset(320, 64),
-		Text = "PLAY",
+		Size = UDim2.fromOffset(340, 64),
+		Text = "[F]  FIND MATCH",
 		TextSize = 28,
 		Parent = gui,
 	})
-	playButton.Activated:Connect(function()
+	local function toggleQueue()
 		Sfx.Play("CardPick", { Volume = 0.6 })
 		Remotes.Get("QueueToggle"):FireServer()
+	end
+	playButton.Activated:Connect(toggleQueue)
+	-- the mouse is locked in first person, so the queue is on a key
+	UserInputService.InputBegan:Connect(function(input, processed)
+		if processed and UserInputService:GetFocusedTextBox() then
+			return
+		end
+		if input.KeyCode == Config.Lobby.QueueKey and gui.Enabled then
+			toggleQueue()
+		end
 	end)
 	statusLabel = Theme.label({
 		AnchorPoint = Vector2.new(0.5, 1),

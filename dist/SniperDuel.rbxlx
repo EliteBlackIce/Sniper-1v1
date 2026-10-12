@@ -47,15 +47,19 @@ local Ballistics = {}
 local MAX_ITERATIONS = 64
 
 -- Is this instance something a bullet should "hit" (stop on and report)?
--- Characters (have a Humanoid) and decoys (Model with attribute Decoy=true).
+-- Characters (have a Humanoid), decoys (Decoy=true) and practice dummies (Dummy=true).
 local function findTargetModel(part)
 	local character = Util.getCharacterFromPart(part)
 	if character then
 		return character
 	end
+	-- decoys and lobby practice dummies are models with an attribute
 	local model = part:FindFirstAncestorOfClass("Model")
-	if model and model:GetAttribute("Decoy") then
-		return model
+	while model do
+		if model:GetAttribute("Decoy") or model:GetAttribute("Dummy") then
+			return model
+		end
+		model = model:FindFirstAncestorOfClass("Model")
 	end
 	return nil
 end
@@ -269,12 +273,16 @@ Config.Palette = {
 	PlayerB = Color3.fromRGB(255, 94, 112), -- red
 	LobbyPlayer = Color3.fromRGB(205, 210, 220),
 
-	-- Viewmodel
-	Skin = Color3.fromRGB(238, 200, 170),
-	Sleeve = Color3.fromRGB(52, 57, 70),
-	GunBody = Color3.fromRGB(44, 48, 58),
-	GunTrim = Color3.fromRGB(120, 126, 140),
+	-- Sniper + arms (viewmodel and the gun other players see)
+	GunMetal = Color3.fromRGB(38, 41, 49), -- barrel, receiver, scope
+	GunMetalLight = Color3.fromRGB(70, 75, 88), -- rails, bolt, small metal bits
+	GunFurniture = Color3.fromRGB(84, 104, 78), -- stock + handguard (classic olive)
+	GunAccent = Color3.fromRGB(56, 199, 182), -- tiny highlights (matches AccentA)
 	ScopeGlass = Color3.fromRGB(120, 220, 255),
+	Glove = Color3.fromRGB(36, 38, 44),
+	Sleeve = Color3.fromRGB(62, 70, 86),
+	SleeveCuff = Color3.fromRGB(48, 54, 68),
+	MuzzleFlash = Color3.fromRGB(255, 236, 170),
 
 	-- Effects
 	Tracer = Color3.fromRGB(255, 244, 214),
@@ -324,6 +332,15 @@ Config.Match = {
 }
 
 ----------------------------------------------------------------------------
+-- LOBBY PRACTICE RANGE
+----------------------------------------------------------------------------
+Config.Lobby = {
+	QueueKey = Enum.KeyCode.F, -- press in the lobby to find a match
+	DummyHealth = 100,
+	DummyRespawnTime = 1.2,
+}
+
+----------------------------------------------------------------------------
 -- PLAYER / HEALTH
 ----------------------------------------------------------------------------
 Config.Player = {
@@ -354,6 +371,19 @@ Config.Camera = {
 
 	RecoilPitch = 2.4, -- degrees the aim kicks up per shot (hipfire)
 	ScopedRecoilPitch = 1.2,
+
+	FirstPersonInLobby = true, -- lobby is first person too (you can practise there)
+	HeadBob = 0.07, -- studs of camera bob while running (0 = off)
+	LandingDip = 0.012, -- camera dip per stud/s of landing speed
+	MaxLandingDip = 0.9,
+}
+
+-- Viewmodel (first-person arms + gun) animation
+Config.Viewmodel = {
+	EquipTime = 0.45, -- gun raise animation when you spawn
+	SwayAmount = 0.06, -- how much the gun lags behind the mouse
+	BobAmount = 1.0, -- walk bob strength
+	InspectKey = Enum.KeyCode.V, -- admire your rifle
 }
 
 -- Defaults for the settings menu (players can change and save these).
@@ -373,31 +403,41 @@ Config.SettingsLimits = {
 Config.Movement = {
 	Gravity = 170, -- workspace gravity (default Roblox is 196.2)
 
-	WalkSpeed = 22,
-	SprintSpeed = 32,
-	GroundAccel = 160, -- how fast you reach target speed on the ground
-	GroundFriction = 140, -- how fast you stop with no input
-	ExcessFriction = 55, -- how fast speed ABOVE sprint speed bleeds off on the ground
-	BhopGrace = 0.12, -- seconds after landing with no friction (slide/dash -> jump chains)
+	-- Movement uses the same model as Source games (CS / TF2 / Titanfall):
+	-- ground friction + acceleration, and "air strafing" in the air, which is
+	-- what makes bunny hopping work.
+	RunSpeed = 30, -- normal top speed on the ground
+	SprintSpeed = 38, -- top speed while holding Shift on the ground
+	GroundAccel = 11, -- how quickly you reach top speed (higher = snappier)
+	Friction = 6, -- ground friction (higher = stop faster)
+	StopSpeed = 10, -- below this speed friction acts as if you were going this fast
+
+	-- BUNNY HOPPING
+	-- Hold Space: you jump again the instant you land, and the landing frame
+	-- skips friction, so you keep all your speed. Hold A or D and turn the
+	-- mouse the same way in the air to GAIN speed (air strafing).
+	AutoBhop = true, -- true = holding Space re-jumps on landing
+	JumpBuffer = 0.15, -- a jump pressed this long before landing still counts
+	AirAccel = 14, -- air strafe strength (Source uses 10-12)
+	AirSpeedCap = 3.6, -- small cap per frame = the classic strafe gain (Source: 30 units)
+	AirControlSpeed = 30, -- wish speed used in the air
+	MaxSpeed = 120, -- hard limit on horizontal speed
 
 	JumpPower = 52,
 	AirJumps = 1, -- 1 = double jump (Triple Jump power-up adds more)
-	AirJumpVelocity = 52,
-	AirAccel = 70, -- air steering acceleration
-	AirMaxInputSpeed = 32, -- input alone can't push you faster than this in the air
-	AirTurnRate = 2.2, -- how strongly air input re-aims existing momentum (per second)
-	AirDrag = 0.35, -- fraction of excess momentum lost per second in the air
+	AirJumpVelocity = 50,
+	AirJumpMinSpeed = 30, -- a double jump re-aims you toward your keys at least this fast
 
 	-- Slide
 	SlideKey = Enum.KeyCode.C, -- LeftControl also works
 	SlideMinSpeed = 18, -- need at least this speed to start a slide
-	SlideBoost = 14, -- speed added when the slide starts
-	SlideMaxSpeed = 62,
-	SlideFriction = 22, -- speed lost per second while sliding
-	SlideEndSpeed = 14, -- slide ends below this speed
-	SlideSteer = 1.6, -- how much you can steer a slide
-	SlideCooldown = 0.35,
-	SlideJumpBoost = 4, -- extra speed for jumping out of a slide
+	SlideBoost = 12, -- speed added when the slide starts...
+	SlideBoostCap = 55, -- ...but only up to this speed (no infinite slide boosting)
+	SlideFriction = 0.55, -- slide friction (much lower than running)
+	SlideEndSpeed = 16, -- slide ends below this speed
+	SlideSteer = 2.2, -- how much you can steer a slide
+	SlideCooldown = 0.6,
+	SlideJumpBoost = 3, -- extra speed for jumping out of a slide
 
 	-- Air dash (press Shift in the air)
 	DashSpeed = 82,
@@ -554,7 +594,6 @@ Config.UI = {
 -- DEBUG
 ----------------------------------------------------------------------------
 Config.Debug = {
-	FirstPersonInLobby = false, -- true = lobby also uses the locked first-person camera
 	LogRejectedShots = true, -- print a warning when the server rejects a shot
 }
 
@@ -563,6 +602,178 @@ return Config
         </Properties>
       </Item>
       <Item class="ModuleScript" referent="5">
+        <Properties>
+          <string name="Name">GunModel</string>
+          <string name="Source"><![CDATA[--[[
+	GunModel.lua  (ReplicatedStorage.Shared.GunModel)
+
+	The sniper rifle, described once as a list of flat-coloured parts and
+	built twice:
+	  * the first-person viewmodel (ViewmodelController, scale 1)
+	  * the rifle other players see in your hands (CharacterService, smaller)
+
+	Gun space: the origin is where the right hand holds the pistol grip.
+	+X = right, +Y = up, -Z = forward (down the barrel).
+
+	Each part: { Name, Shape, Size, Position, Rotation(degrees), ColorKey, Group }
+	  Shape     "Block" | "Cylinder" | "Ball" | "Wedge"
+	  Size      for a Cylinder: Vector3(length, diameter, diameter), and the
+	            cylinder runs along Z (forward) unless Rotation says otherwise
+	  ColorKey  a key in Config.Palette
+	  Group     "Bolt" parts are animated by the viewmodel (Position is
+	            relative to the bolt pivot)
+]]
+
+local Config = require(script.Parent.Config)
+
+local GunModel = {}
+
+local V = Vector3.new
+
+GunModel.Parts = {
+	-- STOCK
+	{ "StockBody", "Block", V(0.22, 0.3, 0.95), V(0, -0.06, 0.8), nil, "GunFurniture" },
+	{ "StockCheek", "Block", V(0.2, 0.09, 0.6), V(0, 0.135, 0.78), nil, "GunFurniture" },
+	{ "StockUnder", "Wedge", V(0.22, 0.2, 0.55), V(0, -0.31, 0.95), V(0, 0, 180), "GunFurniture" },
+	{ "StockLine", "Block", V(0.226, 0.03, 0.55), V(0, -0.02, 0.86), nil, "GunAccent" },
+	{ "ButtPad", "Block", V(0.24, 0.52, 0.08), V(0, -0.1, 1.31), nil, "GunMetal" },
+
+	-- GRIP + TRIGGER
+	{ "Grip", "Block", V(0.15, 0.4, 0.2), V(0, -0.27, 0.16), V(-18, 0, 0), "GunFurniture" },
+	{ "TriggerGuard", "Block", V(0.04, 0.03, 0.36), V(0, -0.25, -0.06), nil, "GunMetalLight" },
+	{ "TriggerGuardFront", "Block", V(0.04, 0.14, 0.03), V(0, -0.19, -0.23), nil, "GunMetalLight" },
+	{ "Trigger", "Block", V(0.03, 0.11, 0.03), V(0, -0.17, -0.04), V(15, 0, 0), "GunMetalLight" },
+
+	-- RECEIVER
+	{ "Receiver", "Block", V(0.22, 0.24, 1.1), V(0, 0.02, -0.25), nil, "GunMetal" },
+	{ "ReceiverTop", "Cylinder", V(1.0, 0.2, 0.2), V(0, 0.1, -0.28), nil, "GunMetal" },
+	{ "BoltShroud", "Block", V(0.14, 0.14, 0.16), V(0, 0.08, 0.36), nil, "GunMetalLight" },
+	{ "Rail", "Block", V(0.12, 0.05, 0.95), V(0, 0.215, -0.3), nil, "GunMetalLight" },
+	{ "EjectionPort", "Block", V(0.02, 0.09, 0.32), V(0.115, 0.06, -0.05), nil, "GunAccent" },
+
+	-- MAGAZINE
+	{ "Magazine", "Block", V(0.15, 0.3, 0.34), V(0, -0.25, -0.52), V(-6, 0, 0), "GunMetalLight" },
+	{ "MagazineBase", "Block", V(0.17, 0.05, 0.38), V(0, -0.41, -0.54), V(-6, 0, 0), "GunMetal" },
+
+	-- HANDGUARD + BIPOD
+	{ "Handguard", "Block", V(0.26, 0.26, 1.15), V(0, -0.01, -1.38), nil, "GunFurniture" },
+	{ "HandguardTop", "Block", V(0.2, 0.05, 1.15), V(0, 0.145, -1.38), nil, "GunFurniture" },
+	{ "Vent1", "Block", V(0.266, 0.035, 0.16), V(0, 0.03, -1.02), nil, "GunMetal" },
+	{ "Vent2", "Block", V(0.266, 0.035, 0.16), V(0, 0.03, -1.38), nil, "GunMetal" },
+	{ "Vent3", "Block", V(0.266, 0.035, 0.16), V(0, 0.03, -1.74), nil, "GunMetal" },
+	{ "BipodL", "Block", V(0.04, 0.04, 0.62), V(-0.07, -0.17, -1.55), nil, "GunMetalLight" },
+	{ "BipodR", "Block", V(0.04, 0.04, 0.62), V(0.07, -0.17, -1.55), nil, "GunMetalLight" },
+
+	-- BARREL
+	{ "BarrelCollar", "Cylinder", V(0.12, 0.17, 0.17), V(0, 0.04, -1.99), nil, "GunMetalLight" },
+	{ "Barrel", "Cylinder", V(1.9, 0.11, 0.11), V(0, 0.04, -2.9), nil, "GunMetal" },
+	{ "Brake", "Block", V(0.18, 0.15, 0.34), V(0, 0.04, -3.9), nil, "GunMetal" },
+	{ "BrakeSlot1", "Block", V(0.19, 0.03, 0.06), V(0, 0.04, -3.84), nil, "GunMetalLight" },
+	{ "BrakeSlot2", "Block", V(0.19, 0.03, 0.06), V(0, 0.04, -3.97), nil, "GunMetalLight" },
+
+	-- SCOPE
+	{ "ScopeRingFront", "Cylinder", V(0.08, 0.16, 0.16), V(0, 0.36, -0.7), nil, "GunMetalLight" },
+	{ "ScopeRingRear", "Cylinder", V(0.08, 0.16, 0.16), V(0, 0.36, -0.02), nil, "GunMetalLight" },
+	{ "ScopeMountFront", "Block", V(0.07, 0.12, 0.1), V(0, 0.27, -0.7), nil, "GunMetalLight" },
+	{ "ScopeMountRear", "Block", V(0.07, 0.12, 0.1), V(0, 0.27, -0.02), nil, "GunMetalLight" },
+	{ "ScopeTube", "Cylinder", V(1.0, 0.13, 0.13), V(0, 0.36, -0.35), nil, "GunMetal" },
+	{ "ScopeObjective", "Cylinder", V(0.34, 0.23, 0.23), V(0, 0.36, -1.0), nil, "GunMetal" },
+	{ "ScopeObjectiveRing", "Cylinder", V(0.04, 0.25, 0.25), V(0, 0.36, -1.15), nil, "GunAccent" },
+	{ "ScopeEyepiece", "Cylinder", V(0.26, 0.19, 0.19), V(0, 0.36, 0.25), nil, "GunMetal" },
+	{ "ScopeTurretTop", "Cylinder", V(0.08, 0.11, 0.11), V(0, 0.45, -0.38), V(0, 0, 90), "GunMetalLight" },
+	{ "ScopeTurretSide", "Cylinder", V(0.08, 0.1, 0.1), V(0.1, 0.36, -0.38), V(0, 0, 0), "GunMetalLight" }, -- rotation given = stays along X (sideways)
+	{ "ScopeLensFront", "Cylinder", V(0.02, 0.2, 0.2), V(0, 0.36, -1.175), nil, "ScopeGlass" },
+	{ "ScopeLensRear", "Cylinder", V(0.02, 0.16, 0.16), V(0, 0.36, 0.385), nil, "ScopeGlass" },
+
+	-- BOLT (animated; positions are relative to GunModel.BoltPivot)
+	{ "BoltHandle", "Block", V(0.26, 0.05, 0.05), V(0.13, 0, 0), nil, "GunMetalLight", "Bolt" },
+	{ "BoltKnob", "Ball", V(0.11, 0.11, 0.11), V(0.27, 0, 0), nil, "GunMetalLight", "Bolt" },
+}
+
+-- Where the bolt handle rotates/slides from (gun space)
+GunModel.BoltPivot = CFrame.new(0.07, 0.08, 0.1)
+-- Tip of the barrel (gun space)
+GunModel.Muzzle = CFrame.new(0, 0.04, -4.1)
+-- Centre of the scope's rear lens (gun space); used to aim down the scope
+GunModel.ScopeEye = Vector3.new(0, 0.36, 0.39)
+
+-- The local CFrame of a part spec (cylinders are turned to run along Z).
+local function specCFrame(spec, scale)
+	local rot = spec[5] or Vector3.zero
+	local cf = CFrame.new(spec[4] * scale)
+		* CFrame.Angles(math.rad(rot.X), math.rad(rot.Y), math.rad(rot.Z))
+	if spec[2] == "Cylinder" and not spec[5] then
+		cf *= CFrame.Angles(0, math.rad(90), 0) -- Roblox cylinders run along X
+	end
+	return cf
+end
+
+--[[
+	Builds the gun into `parent`.
+	options:
+		Scale      size multiplier (default 1)
+		Anchored   anchor the parts (viewmodel) or leave them free to weld
+		CastShadow
+	Returns { Parts = {[name] = part}, Offsets = {[name] = CFrame}, Bolt = {[name] = true} }
+	Offsets of "Bolt" parts are relative to BoltPivot; all others to the grip.
+]]
+function GunModel.Build(parent, options)
+	options = options or {}
+	local scale = options.Scale or 1
+	local result = { Parts = {}, Offsets = {}, Bolt = {} }
+
+	for _, spec in ipairs(GunModel.Parts) do
+		local name, shape, size = spec[1], spec[2], spec[3]
+		local part
+		if shape == "Wedge" then
+			part = Instance.new("WedgePart")
+		else
+			part = Instance.new("Part")
+			if shape == "Cylinder" then
+				part.Shape = Enum.PartType.Cylinder
+			elseif shape == "Ball" then
+				part.Shape = Enum.PartType.Ball
+			end
+		end
+		part.Name = name
+		part.Size = size * scale
+		part.Color = Config.Palette[spec[6]] or Color3.new(1, 0, 1)
+		part.Material = Enum.Material.SmoothPlastic
+		part.TopSurface = Enum.SurfaceType.Smooth
+		part.BottomSurface = Enum.SurfaceType.Smooth
+		part.Anchored = options.Anchored == true
+		part.CanCollide = false
+		part.CanQuery = false
+		part.CanTouch = false
+		part.Massless = true
+		part.CastShadow = options.CastShadow == true
+		part.Parent = parent
+
+		result.Parts[name] = part
+		result.Offsets[name] = specCFrame(spec, scale)
+		if spec[7] == "Bolt" then
+			result.Bolt[name] = true
+		end
+	end
+	return result
+end
+
+-- CFrame of every part for a given grip CFrame (bolt closed). Handy for
+-- placing the gun once before welding it.
+function GunModel.Place(built, grip, scale)
+	scale = scale or 1
+	local boltPivot = grip * CFrame.new(GunModel.BoltPivot.Position * scale)
+	for name, part in pairs(built.Parts) do
+		local base = built.Bolt[name] and boltPivot or grip
+		part.CFrame = base * built.Offsets[name]
+	end
+end
+
+return GunModel
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="6">
         <Properties>
           <string name="Name">PowerUps</string>
           <string name="Source"><![CDATA[--[[
@@ -1004,7 +1215,7 @@ return PowerUps
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="6">
+      <Item class="ModuleScript" referent="7">
         <Properties>
           <string name="Name">Remotes</string>
           <string name="Source"><![CDATA[--[[
@@ -1038,6 +1249,7 @@ Remotes.Names = {
 	"Effect", -- S->C  one-off visual effects (explosions, shockwaves, grapple ropes)
 	"SettingsLoad", -- S->C  saved settings for this player
 	"SettingsSave", -- C->S  save settings
+	"Aim", -- C->S  where you're looking up/down (others see your aim pose)
 }
 
 local FOLDER_NAME = "Remotes"
@@ -1086,7 +1298,7 @@ return Remotes
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="7">
+      <Item class="ModuleScript" referent="8">
         <Properties>
           <string name="Name">Signal</string>
           <string name="Source"><![CDATA[--[[
@@ -1124,7 +1336,7 @@ return Signal
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="8">
+      <Item class="ModuleScript" referent="9">
         <Properties>
           <string name="Name">Util</string>
           <string name="Source"><![CDATA[--[[
@@ -1224,15 +1436,15 @@ return Util
       </Item>
     </Item>
   </Item>
-  <Item class="ServerScriptService" referent="9">
+  <Item class="ServerScriptService" referent="10">
     <Properties>
       <string name="Name">ServerScriptService</string>
     </Properties>
-    <Item class="Folder" referent="10">
+    <Item class="Folder" referent="11">
       <Properties>
         <string name="Name">Server</string>
       </Properties>
-      <Item class="ModuleScript" referent="11">
+      <Item class="ModuleScript" referent="12">
         <Properties>
           <string name="Name">CharacterService</string>
           <string name="Source"><![CDATA[--[[
@@ -1253,6 +1465,7 @@ local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local GunModel = require(ReplicatedStorage.Shared.GunModel)
 
 local Palette = Config.Palette
 local CharacterService = {}
@@ -1263,22 +1476,12 @@ CharacterService.OnDied = nil
 ----------------------------------------------------------------------------
 -- Styling
 ----------------------------------------------------------------------------
-local function flatPart(name, size, color, parent)
-	local p = Instance.new("Part")
-	p.Name = name
-	p.Size = size
-	p.Color = color
-	p.Material = Enum.Material.SmoothPlastic
-	p.CanCollide = false
-	p.CanQuery = false -- bullets pass through the gun, they hit the body
-	p.CanTouch = false
-	p.Massless = true
-	p.CastShadow = true
-	p.Parent = parent
-	return p
-end
+local WORLD_GUN_SCALE = 0.8
 
--- A simple sniper attached to the right hand (seen by the OTHER player).
+-- The rifle other players see in your hands (same model as your viewmodel,
+-- a bit smaller). The barrel points along the hand's -Y axis, so when the
+-- client's aim pose raises the arm forward (CharacterPoser), the gun points
+-- where you're looking.
 local function addWorldGun(character)
 	local hand = character:FindFirstChild("RightHand") or character:FindFirstChild("Right Arm")
 	if not hand then
@@ -1286,29 +1489,22 @@ local function addWorldGun(character)
 	end
 	local gun = Instance.new("Model")
 	gun.Name = "WorldGun"
+	local built = GunModel.Build(gun, { Scale = WORLD_GUN_SCALE, CastShadow = true })
 
-	local body = flatPart("Body", Vector3.new(0.35, 0.45, 2.6), Palette.GunBody, gun)
-	local barrel = flatPart("Barrel", Vector3.new(0.18, 0.18, 2.4), Palette.GunTrim, gun)
-	local scope = flatPart("Scope", Vector3.new(0.3, 0.3, 1.1), Palette.GunBody, gun)
-	local stock = flatPart("Stock", Vector3.new(0.3, 0.6, 1), Palette.GunTrim, gun)
-
-	local grip = hand.CFrame * CFrame.new(0, -0.15, -0.6)
-	body.CFrame = grip
-	barrel.CFrame = grip * CFrame.new(0, 0.08, -2.4)
-	scope.CFrame = grip * CFrame.new(0, 0.42, -0.2)
-	stock.CFrame = grip * CFrame.new(0, -0.1, 1.6)
-
-	for _, part in ipairs({ body, barrel, scope, stock }) do
+	local grip = hand.CFrame * CFrame.new(0, -0.15, 0) * CFrame.Angles(math.rad(-90), 0, 0)
+	GunModel.Place(built, grip, WORLD_GUN_SCALE)
+	for _, part in pairs(built.Parts) do
 		local weld = Instance.new("WeldConstraint")
 		weld.Part0 = hand
 		weld.Part1 = part
 		weld.Parent = part
 	end
 
+	-- tracers seen by other players start here (WorldGun.Barrel.Muzzle)
 	local muzzle = Instance.new("Attachment")
 	muzzle.Name = "Muzzle"
-	muzzle.Position = Vector3.new(0, 0, -1.2)
-	muzzle.Parent = barrel
+	muzzle.Parent = built.Parts.Barrel
+	muzzle.WorldCFrame = grip * CFrame.new(GunModel.Muzzle.Position * WORLD_GUN_SCALE)
 
 	gun.Parent = character
 end
@@ -1459,7 +1655,7 @@ return CharacterService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="12">
+      <Item class="ModuleScript" referent="13">
         <Properties>
           <string name="Name">CombatService</string>
           <string name="Source"><![CDATA[--[[
@@ -1496,8 +1692,10 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Ballistics = require(ReplicatedStorage.Shared.Ballistics)
 local Util = require(ReplicatedStorage.Shared.Util)
+local PowerUps = require(ReplicatedStorage.Shared.PowerUps)
 local CharacterService = require(script.Parent.CharacterService)
 local MatchService = require(script.Parent.MatchService)
+local DummyService = require(script.Parent.DummyService)
 
 local W = Config.Weapon
 local PU = Config.PowerUps
@@ -1720,6 +1918,8 @@ local function validateClaim(claim, victimCharacter, worldPath, homing)
 	return part
 end
 
+local PRACTICE_STATS = PowerUps.ComputeStats({}) -- lobby practice: no power-ups
+
 local function onFire(player, origin, direction, claims)
 	-- 1) argument sanity
 	if not Util.isFiniteVector3(origin) or not Util.isFiniteVector3(direction) then
@@ -1728,7 +1928,7 @@ local function onFire(player, origin, direction, claims)
 	if direction.Magnitude < 0.5 or direction.Magnitude > 1.5 then
 		return
 	end
-	-- client hit claims arrive as a list of { Index, Part, Point }
+	-- client hit claims arrive as a list of { Index, Model, Part, Point }
 	local claimByBullet = {}
 	if typeof(claims) == "table" then
 		for _, claim in ipairs(claims) do
@@ -1738,9 +1938,10 @@ local function onFire(player, origin, direction, claims)
 		end
 	end
 
-	-- 2) shooter state
+	-- 2) shooter state. No match = lobby practice range (dummies only).
 	local match = MatchService.GetMatch(player)
-	if not match or not match:IsFighting() then
+	local practice = match == nil
+	if match and not match:IsFighting() then
 		return
 	end
 	local humanoid, character = CharacterService.GetAliveHumanoid(player)
@@ -1752,7 +1953,7 @@ local function onFire(player, origin, direction, claims)
 	if not head or not root then
 		return
 	end
-	local stats = match:GetStats(player)
+	local stats = practice and PRACTICE_STATS or match:GetStats(player)
 
 	-- 3) fire rate
 	local now = os.clock()
@@ -1778,11 +1979,22 @@ local function onFire(player, origin, direction, claims)
 	lastFire[player] = now
 
 	-- 5) trace every bullet on the server
-	local opponent = match:GetOpponent(player)
-	local victimCharacter = opponent.Character
+	local opponent = match and match:GetOpponent(player)
+	local victimCharacter = opponent and opponent.Character
 	local victimTorso = getTorso(victimCharacter)
 	local homingTargets = victimTorso and { victimTorso.Position } or {}
 	local exclude = buildExclude(player)
+
+	-- what this shooter is allowed to damage
+	local function isTarget(model)
+		if typeof(model) ~= "Instance" or not model:IsDescendantOf(workspace) then
+			return false
+		end
+		if practice then
+			return model:GetAttribute("Dummy") == true and not model:GetAttribute("Down")
+		end
+		return model == victimCharacter
+	end
 
 	local fx = {}
 	for i, dir in ipairs(Ballistics.GetShotDirections(direction.Unit, stats.Bullets)) do
@@ -1794,20 +2006,20 @@ local function onFire(player, origin, direction, claims)
 			HomingTargets = homingTargets,
 		})
 
-		local hitPart, hitPos
+		local hitModel, hitPart, hitPos
 		if sim.Hit then
 			local model = sim.Hit.Model
 			if model:GetAttribute("Decoy") then
 				popDecoy(model)
-			elseif model == victimCharacter then
-				hitPart, hitPos = sim.Hit.Part, sim.Hit.Position
+			elseif isTarget(model) then
+				hitModel, hitPart, hitPos = model, sim.Hit.Part, sim.Hit.Position
 			end
 		end
 
 		-- Lag compensation: trust a believable client claim over a server
 		-- miss or body shot (never over a server headshot).
 		local claim = claimByBullet[i]
-		if claim and victimCharacter and not (hitPart and Util.hitZone(hitPart.Name) == "Head") then
+		if claim and isTarget(claim.Model) and not (hitPart and Util.hitZone(hitPart.Name) == "Head") then
 			local worldPath = Ballistics.Simulate({
 				Origin = origin,
 				Direction = dir,
@@ -1816,17 +2028,26 @@ local function onFire(player, origin, direction, claims)
 				HomingTargets = homingTargets,
 				IgnoreTargets = true,
 			})
-			local claimed = validateClaim(claim, victimCharacter, worldPath, stats.Homing)
+			local claimed = validateClaim(claim, claim.Model, worldPath, stats.Homing)
 			if claimed then
-				hitPart, hitPos = claimed, claim.Point
+				hitModel, hitPart, hitPos = claim.Model, claimed, claim.Point
 			end
 		end
 
 		if hitPart then
 			local damage, headshot = damageForPart(hitPart)
-			CombatService.Damage(match, player, opponent, damage, { Headshot = headshot })
+			if practice then
+				local killed = DummyService.Damage(hitModel, damage)
+				Remotes.Get("HitConfirm"):FireClient(player, {
+					Headshot = headshot,
+					Killed = killed,
+					Damage = damage,
+				})
+			else
+				CombatService.Damage(match, player, opponent, damage, { Headshot = headshot })
+			end
 		end
-		if stats.Explosive then
+		if stats.Explosive and match then
 			explode(match, player, hitPos or sim.EndPosition, hitPart and opponent or nil)
 		end
 
@@ -1839,9 +2060,30 @@ local function onFire(player, origin, direction, claims)
 		})
 	end
 
-	-- Let the opponent draw this shot (the shooter already drew it locally).
-	if opponent.Parent then
-		Remotes.Get("ShotFx"):FireClient(opponent, player.UserId, fx, stats.Explosive)
+	-- Let others draw this shot (the shooter already drew it locally):
+	-- the opponent in a match, everyone else in the lobby when practising.
+	local shotFx = Remotes.Get("ShotFx")
+	if match then
+		if opponent.Parent then
+			shotFx:FireClient(opponent, player.UserId, fx, stats.Explosive)
+		end
+	else
+		for _, other in ipairs(Players:GetPlayers()) do
+			if other ~= player and not MatchService.GetMatch(other) then
+				shotFx:FireClient(other, player.UserId, fx, false)
+			end
+		end
+	end
+end
+
+-- Players send where they're looking (up/down) so others see them aim.
+local function onAim(player, pitch)
+	if typeof(pitch) ~= "number" or pitch ~= pitch then
+		return
+	end
+	local character = player.Character
+	if character then
+		character:SetAttribute("AimPitch", math.clamp(pitch, -1.4, 1.4))
 	end
 end
 
@@ -1997,6 +2239,7 @@ function CombatService.Init()
 
 	Remotes.Get("Fire").OnServerEvent:Connect(onFire)
 	Remotes.Get("Ability").OnServerEvent:Connect(onAbility)
+	Remotes.Get("Aim").OnServerEvent:Connect(onAim)
 
 	Players.PlayerRemoving:Connect(function(player)
 		lastFire[player] = nil
@@ -2014,7 +2257,183 @@ return CombatService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="13">
+      <Item class="ModuleScript" referent="14">
+        <Properties>
+          <string name="Name">DummyService</string>
+          <string name="Source"><![CDATA[--[[
+	DummyService.lua  (ServerScriptService.Server.DummyService)
+
+	Practice dummies on the lobby shooting range, so you can test the sniper
+	and your aim on your own. Some stand still, some strafe left and right,
+	one bobs up and down like a player bunny hopping.
+
+	Dummies are simple flat-coloured models with the attribute Dummy = true,
+	and body parts named like a real character (Head, UpperTorso, ...) so
+	headshots and body shots work exactly the same as on a player.
+]]
+
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage.Shared.Config)
+
+local Palette = Config.Palette
+local DummyService = {}
+
+local folder
+local dummies = {} -- { Model, Base = CFrame, Motion, Amount, Speed, Phase }
+
+-- name, size, position (relative to the feet, facing +Z)
+local BODY = {
+	{ "LeftUpperLeg", Vector3.new(0.9, 2, 0.9), Vector3.new(-0.5, 1, 0) },
+	{ "RightUpperLeg", Vector3.new(0.9, 2, 0.9), Vector3.new(0.5, 1, 0) },
+	{ "LowerTorso", Vector3.new(2, 0.6, 1), Vector3.new(0, 2.3, 0) },
+	{ "UpperTorso", Vector3.new(2, 1.6, 1), Vector3.new(0, 3.4, 0) },
+	{ "LeftUpperArm", Vector3.new(0.8, 2, 0.8), Vector3.new(-1.45, 3.2, 0) },
+	{ "RightUpperArm", Vector3.new(0.8, 2, 0.8), Vector3.new(1.45, 3.2, 0) },
+	{ "Head", Vector3.new(1.15, 1.15, 1.15), Vector3.new(0, 4.85, 0) },
+}
+
+local function makeDummy(base)
+	local model = Instance.new("Model")
+	model.Name = "Dummy"
+	model:SetAttribute("Dummy", true)
+	model:SetAttribute("Health", Config.Lobby.DummyHealth)
+
+	for _, spec in ipairs(BODY) do
+		local part = Instance.new("Part")
+		part.Name = spec[1]
+		part.Size = spec[2]
+		part.CFrame = base * CFrame.new(spec[3])
+		part.Color = spec[1] == "Head" and Palette.PlayerB:Lerp(Color3.new(1, 1, 1), 0.25) or Palette.PlayerB
+		part:SetAttribute("BaseColor", part.Color)
+		part.Material = Enum.Material.SmoothPlastic
+		part.Anchored = true
+		part.CanCollide = false
+		part.CanTouch = false
+		part.Parent = model
+	end
+	model.WorldPivot = base
+
+	-- health bar
+	local bar = Instance.new("BillboardGui")
+	bar.Name = "HealthBar"
+	bar.Size = UDim2.fromScale(3.2, 0.32)
+	bar.StudsOffsetWorldSpace = Vector3.new(0, 6.2, 0)
+	bar.Adornee = model.Head
+	bar.Parent = model
+	local back = Instance.new("Frame")
+	back.Size = UDim2.fromScale(1, 1)
+	back.BackgroundColor3 = Palette.UIBackground
+	back.BorderSizePixel = 0
+	back.Parent = bar
+	Instance.new("UICorner").Parent = back
+	local fill = Instance.new("Frame")
+	fill.Name = "Fill"
+	fill.Size = UDim2.fromScale(1, 1)
+	fill.BackgroundColor3 = Palette.UIText
+	fill.BorderSizePixel = 0
+	fill.Parent = back
+	Instance.new("UICorner").Parent = fill
+
+	model.Parent = folder
+	return model
+end
+
+local function setHealth(model, health)
+	model:SetAttribute("Health", health)
+	local fill = model:FindFirstChild("HealthBar") and model.HealthBar:FindFirstChild("Fill", true)
+	if fill then
+		local fraction = math.clamp(health / Config.Lobby.DummyHealth, 0, 1)
+		fill.Size = UDim2.fromScale(fraction, 1)
+		fill.BackgroundColor3 = fraction < 0.35 and Palette.UIDanger or Palette.UIText
+	end
+end
+
+local function setShown(model, shown)
+	for _, part in ipairs(model:GetChildren()) do
+		if part:IsA("BasePart") then
+			part.Transparency = shown and 0 or 1
+			part.CanQuery = shown
+		end
+	end
+	if model:FindFirstChild("HealthBar") then
+		model.HealthBar.Enabled = shown
+	end
+end
+
+-- Deals damage to a dummy. Returns true if this hit "killed" it.
+function DummyService.Damage(model, amount)
+	if not model:GetAttribute("Dummy") or model:GetAttribute("Down") then
+		return false
+	end
+	local health = (model:GetAttribute("Health") or Config.Lobby.DummyHealth) - amount
+	setHealth(model, math.max(health, 0))
+
+	-- flash white
+	for _, part in ipairs(model:GetChildren()) do
+		if part:IsA("BasePart") then
+			part.Color = Color3.new(1, 1, 1)
+			TweenService:Create(part, TweenInfo.new(0.2), { Color = part:GetAttribute("BaseColor") }):Play()
+		end
+	end
+
+	if health <= 0 then
+		model:SetAttribute("Down", true)
+		setShown(model, false)
+		task.delay(Config.Lobby.DummyRespawnTime, function()
+			if model.Parent then
+				model:SetAttribute("Down", false)
+				setHealth(model, Config.Lobby.DummyHealth)
+				setShown(model, true)
+			end
+		end)
+		return true
+	end
+	return false
+end
+
+--[[
+	spots: list of { Position = Vector3 (feet), Motion = "Static"|"Strafe"|"Bob",
+	                 Amount = studs, Speed = cycles per second }
+	Dummies face +Z (toward the lobby).
+]]
+function DummyService.Init(spots)
+	folder = Instance.new("Folder")
+	folder.Name = "Dummies"
+	folder.Parent = workspace
+
+	for i, spot in ipairs(spots or {}) do
+		local base = CFrame.lookAt(spot.Position, spot.Position + Vector3.new(0, 0, 1))
+		table.insert(dummies, {
+			Model = makeDummy(base),
+			Base = base,
+			Motion = spot.Motion or "Static",
+			Amount = spot.Amount or 0,
+			Speed = spot.Speed or 0.5,
+			Phase = i * 1.3,
+		})
+	end
+
+	RunService.Heartbeat:Connect(function()
+		local t = os.clock()
+		for _, d in ipairs(dummies) do
+			if d.Motion ~= "Static" and d.Model.Parent then
+				local wave = math.sin(t * d.Speed * math.pi * 2 + d.Phase)
+				local offset = d.Motion == "Strafe" and Vector3.new(wave * d.Amount, 0, 0)
+					or Vector3.new(0, (wave + 1) * 0.5 * d.Amount, 0)
+				d.Model:PivotTo(d.Base + offset)
+			end
+		end
+	end)
+end
+
+return DummyService
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="15">
         <Properties>
           <string name="Name">LightingSetup</string>
           <string name="Source"><![CDATA[--[[
@@ -2084,7 +2503,7 @@ return LightingSetup
 ]]></string>
         </Properties>
       </Item>
-      <Item class="Script" referent="14">
+      <Item class="Script" referent="16">
         <Properties>
           <string name="Name">Main</string>
           <token name="RunContext">0</token>
@@ -2124,7 +2543,7 @@ print("[Sniper Duel] server ready")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="15">
+      <Item class="ModuleScript" referent="17">
         <Properties>
           <string name="Name">MapBuilder</string>
           <string name="Source"><![CDATA[--[[
@@ -2339,8 +2758,8 @@ function MapBuilder.BuildLobby()
 	b.block(V(140, 4, 140), V(0, -2, 0), Palette.Snow)
 	b.block(V(140, 3, 2), V(0, 1.5, 69), Palette.Mid, "Z")
 	b.block(V(2, 3, 140), V(69, 1.5, 0), Palette.Mid, "X")
-	-- Practice wall-run walls, ramp and boxes
-	b.runWall(V(50, 20, 2), V(-30, 10, -40), "X")
+	-- Practice wall-run walls (along the sides so the range stays visible), ramp and boxes
+	b.runWall(V(2, 20, 50), V(-44, 10, -20), "X")
 	b.ramp(V(-10, 0, 30), V(-1, 0, 0), 20, 8, 12, Palette.AccentB)
 	b.block(V(16, 8, 16), V(-38, 4, 30), Palette.Mid)
 	b.block(V(10, 16, 10), V(-38, 8, 48), Palette.Light)
@@ -2349,10 +2768,22 @@ function MapBuilder.BuildLobby()
 	b.block(V(30, 2, 20), V(30, 24, 0), Palette.Mid) -- a ceiling for Magnetic Boots fans
 	b.block(V(2, 23, 2), V(16, 11.5, -9), Palette.Dark, "Z")
 
-	-- Title sign
-	local sign = newPart("Part", V(44, 12, 1), CFrame.new(0, 14, -66), Palette.UIPanel, model)
+	-- SHOOTING RANGE (north of the lobby, along -Z) ------------------------
+	b.block(V(64, 4, 344), V(0, -2, -242), Palette.Snow)
+	b.block(V(2, 8, 344), V(32, 4, -242), Palette.Light, "X") -- side walls
+	b.block(V(64, 46, 4), V(0, 23, -416), Palette.Light) -- back wall
+	for _, z in ipairs({ -120, -170, -270, -370 }) do
+		b.block(V(60, 0.1, 1), V(0, 0.05, z), Palette.Mid) -- distance lines
+	end
+	b.block(V(16, 20, 10), V(12, 10, -300), Palette.AccentA) -- sniper's nest dummy platform
+	b.block(V(8, 5, 3), V(-8, 2.5, -150), Palette.AccentA)
+	b.block(V(6, 8, 3), V(14, 4, -215), Palette.Mid)
+	b.block(V(10, 4, 3), V(-6, 2, -330), Palette.AccentA)
+
+	-- Title sign (behind spawn, facing the lobby)
+	local sign = newPart("Part", V(44, 12, 1), CFrame.new(0, 14, 66), Palette.UIPanel, model)
 	local gui = Instance.new("SurfaceGui")
-	gui.Face = Enum.NormalId.Back
+	gui.Face = Enum.NormalId.Front
 	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
 	gui.PixelsPerStud = 40
 	gui.Parent = sign
@@ -2380,6 +2811,16 @@ function MapBuilder.BuildLobby()
 			return CFrame.lookAt(offset, Vector3.new(0, 3.5, -60))
 		end,
 		KillY = -60,
+		-- practice dummies on the range (see DummyService)
+		DummySpots = {
+			{ Position = V(-10, 0, -110), Motion = "Static" },
+			{ Position = V(8, 0, -135), Motion = "Strafe", Amount = 8, Speed = 0.35 },
+			{ Position = V(0, 0, -185), Motion = "Strafe", Amount = 14, Speed = 0.25 },
+			{ Position = V(-14, 0, -235), Motion = "Static" },
+			{ Position = V(-12, 4, -260), Motion = "Bob", Amount = 10, Speed = 0.6 },
+			{ Position = V(12, 20, -300), Motion = "Static" },
+			{ Position = V(0, 0, -370), Motion = "Strafe", Amount = 18, Speed = 0.2 },
+		},
 	}
 end
 
@@ -2387,7 +2828,7 @@ return MapBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="16">
+      <Item class="ModuleScript" referent="18">
         <Properties>
           <string name="Name">Match</string>
           <string name="Source"><![CDATA[--[[
@@ -2741,7 +3182,7 @@ return Match
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="17">
+      <Item class="ModuleScript" referent="19">
         <Properties>
           <string name="Name">MatchService</string>
           <string name="Source"><![CDATA[--[[
@@ -2763,6 +3204,7 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local CharacterService = require(script.Parent.CharacterService)
 local MapBuilder = require(script.Parent.MapBuilder)
+local DummyService = require(script.Parent.DummyService)
 local Match = require(script.Parent.Match)
 
 local MatchService = {}
@@ -2810,7 +3252,8 @@ local function spawnInLobby(player)
 	if not player.Parent or matchByPlayer[player] then
 		return
 	end
-	player.CameraMode = Enum.CameraMode.Classic
+	player.CameraMode = Config.Camera.FirstPersonInLobby and Enum.CameraMode.LockFirstPerson
+		or Enum.CameraMode.Classic
 	CharacterService.Spawn(player, lobby.SpawnCFrame(), {
 		Color = Config.Palette.LobbyPlayer,
 		KillY = lobby.KillY,
@@ -2887,6 +3330,7 @@ end
 ----------------------------------------------------------------------------
 function MatchService.Init()
 	lobby = MapBuilder.BuildLobby()
+	DummyService.Init(lobby.DummySpots)
 
 	CharacterService.OnDied = function(player)
 		local match = matchByPlayer[player]
@@ -2935,7 +3379,7 @@ return MatchService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="18">
+      <Item class="ModuleScript" referent="20">
         <Properties>
           <string name="Name">SettingsService</string>
           <string name="Source"><![CDATA[--[[
@@ -3032,13 +3476,13 @@ return SettingsService
       </Item>
     </Item>
   </Item>
-  <Item class="SoundService" referent="19">
+  <Item class="SoundService" referent="21">
     <Properties>
       <string name="Name">SoundService</string>
       <bool name="RespectFilteringEnabled">true</bool>
     </Properties>
   </Item>
-  <Item class="StarterPlayer" referent="20">
+  <Item class="StarterPlayer" referent="22">
     <Properties>
       <string name="Name">StarterPlayer</string>
       <float name="CameraMaxZoomDistance">18</float>
@@ -3046,11 +3490,11 @@ return SettingsService
       <bool name="EnableMouseLockOption">false</bool>
       <bool name="LoadCharacterAppearance">false</bool>
     </Properties>
-    <Item class="StarterCharacterScripts" referent="21">
+    <Item class="StarterCharacterScripts" referent="23">
       <Properties>
         <string name="Name">StarterCharacterScripts</string>
       </Properties>
-      <Item class="Script" referent="22">
+      <Item class="Script" referent="24">
         <Properties>
           <string name="Name">Health</string>
           <token name="RunContext">0</token>
@@ -3065,15 +3509,15 @@ return SettingsService
         </Properties>
       </Item>
     </Item>
-    <Item class="StarterPlayerScripts" referent="23">
+    <Item class="StarterPlayerScripts" referent="25">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="Folder" referent="24">
+      <Item class="Folder" referent="26">
         <Properties>
           <string name="Name">Client</string>
         </Properties>
-        <Item class="ModuleScript" referent="25">
+        <Item class="ModuleScript" referent="27">
           <Properties>
             <string name="Name">CameraController</string>
             <string name="Source"><![CDATA[--[[
@@ -3115,6 +3559,10 @@ local currentDrop = 0
 local recoilLeft = 0 -- degrees of pitch still to apply
 local fovPunch = 0
 local shake = 0
+local bobTime = 0
+local bobAmount = 0
+local landDip = 0 -- current camera dip from landing (studs)
+local landDipVelocity = 0
 local hiddenParts = {}
 local firstPerson = false
 
@@ -3131,6 +3579,13 @@ end
 
 function CameraController.Shake(amount)
 	shake = math.max(shake, amount)
+end
+
+-- Camera dips down on landing (bigger fall = bigger dip), then springs back.
+function CameraController.LandingDip(fallSpeed)
+	-- normal jumps / bunny hops land at ~50 u/s and only get a tiny dip
+	local dip = math.min(0.04 + math.max(fallSpeed - 45, 0) * C.LandingDip, C.MaxLandingDip)
+	landDipVelocity -= dip * 14
 end
 
 function CameraController.IsFirstPerson()
@@ -3177,7 +3632,7 @@ end
 -- Camera mode
 ----------------------------------------------------------------------------
 local function wantsFirstPerson()
-	return ClientState.InMatch() or Config.Debug.FirstPersonInLobby
+	return ClientState.InMatch() or C.FirstPersonInLobby
 end
 
 local function applyCameraMode()
@@ -3232,10 +3687,19 @@ local function update(dt)
 	end
 	UserInputService.MouseDeltaSensitivity = sensitivity
 
-	-- CAMERA DROP while sliding (CameraOffset is used by the default camera next frame)
+	-- CAMERA OFFSET: slide drop + running head bob + landing dip
+	-- (CameraOffset is used by the default camera next frame)
 	currentDrop = Util.lerp(currentDrop, hints.Drop, Util.smooth(C.CameraDropLerpSpeed, dt))
+	local speed = movement.GetSpeed()
+	local running = movement.IsGrounded() and movement.GetMode() == "Ground" and speed > 4
+	bobAmount = Util.lerp(bobAmount, running and math.clamp(speed / Config.Movement.RunSpeed, 0, 1.3) or 0, Util.smooth(10, dt))
+	bobTime += dt * (7 + speed * 0.18)
+	local bobY = math.sin(bobTime * 2) * C.HeadBob * bobAmount * (1 - scopeAlpha)
+	-- landing dip spring
+	landDipVelocity += (-landDip * 180 - landDipVelocity * 18) * dt
+	landDip += landDipVelocity * dt
 	if humanoid then
-		humanoid.CameraOffset = Vector3.new(0, -currentDrop, 0)
+		humanoid.CameraOffset = Vector3.new(0, -currentDrop + bobY + landDip, 0)
 	end
 
 	if firstPerson then
@@ -3294,6 +3758,8 @@ function CameraController.Start()
 		end
 	end)
 
+	Controllers.Movement.Landed:Connect(CameraController.LandingDip)
+
 	RunService:BindToRenderStep("SniperCamera", Enum.RenderPriority.Camera.Value + 1, update)
 end
 
@@ -3301,7 +3767,133 @@ return CameraController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="26">
+        <Item class="ModuleScript" referent="28">
+          <Properties>
+            <string name="Name">CharacterPoser</string>
+            <string name="Source"><![CDATA[--[[
+	CharacterPoser.lua  (Client.CharacterPoser)
+
+	Third-person "holding a sniper" pose for every OTHER player you can see:
+	arms raised holding the rifle, pointing where that player is looking (up
+	or down), head and chest following the aim. Legs keep Roblox's normal
+	run / jump / fall animations.
+
+	How: each frame, after Roblox's Animator has posed the character, we
+	override the arm / neck / waist Motor6D.Transform values (R15 rigs).
+	Your own look pitch is sent to the server a few times a second and stored
+	as the character attribute "AimPitch", so everyone sees it.
+]]
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Remotes = require(ReplicatedStorage:WaitForChild("Shared").Remotes)
+
+local player = Players.LocalPlayer
+local rad = math.rad
+
+local CharacterPoser = {}
+
+local SEND_INTERVAL = 0.1
+local cache = {} -- [character] = { motors }
+
+local function getMotors(character)
+	local motors = cache[character]
+	if motors then
+		return motors
+	end
+	local function find(partName, motorName)
+		local part = character:FindFirstChild(partName)
+		return part and part:FindFirstChild(motorName)
+	end
+	motors = {
+		RightShoulder = find("RightUpperArm", "RightShoulder"),
+		RightElbow = find("RightLowerArm", "RightElbow"),
+		LeftShoulder = find("LeftUpperArm", "LeftShoulder"),
+		LeftElbow = find("LeftLowerArm", "LeftElbow"),
+		Waist = find("UpperTorso", "Waist"),
+		Neck = find("Head", "Neck"),
+	}
+	if not motors.RightShoulder then
+		return nil -- not an R15 rig (yet)
+	end
+	cache[character] = motors
+	character.AncestryChanged:Connect(function(_, parent)
+		if not parent then
+			cache[character] = nil
+		end
+	end)
+	return motors
+end
+
+local function pose(character)
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	if not humanoid or humanoid.Health <= 0 or not character:FindFirstChild("WorldGun") then
+		return
+	end
+	local motors = getMotors(character)
+	if not motors then
+		return
+	end
+	local pitch = character:GetAttribute("AimPitch") or 0
+	local armPitch = pitch * 0.75 -- the waist adds the rest
+
+	-- right arm: straight forward holding the grip
+	motors.RightShoulder.Transform = CFrame.Angles(0, rad(12), 0) * CFrame.Angles(rad(90) + armPitch, 0, 0)
+	if motors.RightElbow then
+		motors.RightElbow.Transform = CFrame.Angles(rad(12), 0, 0)
+	end
+	-- left arm: reaches across to hold the handguard
+	if motors.LeftShoulder then
+		motors.LeftShoulder.Transform = CFrame.Angles(0, rad(-42), 0) * CFrame.Angles(rad(96) + armPitch, 0, 0)
+	end
+	if motors.LeftElbow then
+		motors.LeftElbow.Transform = CFrame.Angles(rad(28), 0, 0)
+	end
+	if motors.Waist then
+		motors.Waist.Transform = CFrame.Angles(pitch * 0.25, 0, 0)
+	end
+	if motors.Neck then
+		motors.Neck.Transform = CFrame.Angles(pitch * 0.5, 0, 0)
+	end
+end
+
+function CharacterPoser.Init() end
+
+function CharacterPoser.Start()
+	-- override the animation pose every frame (Stepped runs after the Animator)
+	RunService.Stepped:Connect(function()
+		for _, other in ipairs(Players:GetPlayers()) do
+			if other ~= player and other.Character then
+				pose(other.Character)
+			end
+		end
+	end)
+
+	-- send our own look pitch
+	local aim = Remotes.Get("Aim")
+	local lastSent = 0
+	task.spawn(function()
+		while true do
+			task.wait(SEND_INTERVAL)
+			local camera = workspace.CurrentCamera
+			if camera and player.Character then
+				local pitch = math.asin(math.clamp(camera.CFrame.LookVector.Y, -1, 1))
+				if math.abs(pitch - lastSent) > 0.03 then
+					lastSent = pitch
+					aim:FireServer(pitch)
+				end
+			end
+		end
+	end)
+end
+
+return CharacterPoser
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="29">
           <Properties>
             <string name="Name">ClientState</string>
             <string name="Source"><![CDATA[--[[
@@ -3356,6 +3948,17 @@ function ClientState.IsInArena()
 	local phase = ClientState.Snapshot.Phase
 	return ClientState.Snapshot.InMatch == true
 		and (phase == "Countdown" or phase == "Fight" or phase == "RoundEnd")
+end
+
+-- True when you should be holding your sniper: in the lobby (practice range)
+-- or in the arena during a round.
+function ClientState.HasGun()
+	return not ClientState.Snapshot.InMatch or ClientState.IsInArena()
+end
+
+-- True when shots are allowed: practice in the lobby, or a live round.
+function ClientState.CanShoot()
+	return not ClientState.Snapshot.InMatch or ClientState.IsFighting()
 end
 
 -- This player's entry in the snapshot's Players list.
@@ -3441,7 +4044,7 @@ return ClientState
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="27">
+        <Item class="ModuleScript" referent="30">
           <Properties>
             <string name="Name">EffectsController</string>
             <string name="Source"><![CDATA[--[[
@@ -3779,7 +4382,7 @@ return Effects
 ]]></string>
           </Properties>
         </Item>
-        <Item class="LocalScript" referent="28">
+        <Item class="LocalScript" referent="31">
           <Properties>
             <string name="Name">Main</string>
             <string name="Source"><![CDATA[--[[
@@ -3797,6 +4400,7 @@ return Effects
 		WeaponController     scope + fire (sends shots to the server)
 		EffectsController    tracers, explosions, ropes, screen tints
 		UIController         all screens (ui/ folder)
+		CharacterPoser       third-person rifle-holding pose for other players
 ]]
 
 local Client = script.Parent
@@ -3808,6 +4412,7 @@ local ViewmodelController = require(Client.ViewmodelController)
 local WeaponController = require(Client.WeaponController)
 local EffectsController = require(Client.EffectsController)
 local UIController = require(Client.UIController)
+local CharacterPoser = require(Client.CharacterPoser)
 
 local controllers = {
 	Camera = CameraController,
@@ -3816,6 +4421,7 @@ local controllers = {
 	Weapon = WeaponController,
 	Effects = EffectsController,
 	UI = UIController,
+	Poser = CharacterPoser,
 }
 
 ClientState.Init()
@@ -3827,6 +4433,7 @@ local order = {
 	WeaponController,
 	EffectsController,
 	UIController,
+	CharacterPoser,
 }
 for _, controller in ipairs(order) do
 	controller.Init(controllers)
@@ -3837,40 +4444,41 @@ end
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="29">
+        <Item class="ModuleScript" referent="32">
           <Properties>
             <string name="Name">MovementController</string>
             <string name="Source"><![CDATA[--[[
 	MovementController.lua  (Client.MovementController)
 
-	Fast, momentum-based movement on top of the normal Roblox Humanoid.
+	Fast, momentum-based movement with BUNNY HOPPING.
 
 	CONTROLS
 		WASD           move
+		Space          jump. HOLD it to bunny hop (you re-jump the instant you
+		               land and keep all your speed). Double jump / wall jump too.
+		A/D + mouse    air strafe: hold A and turn the mouse left (or D + right)
+		               while in the air to GAIN speed, like CS / TF2
 		Left Shift     sprint (hold) on the ground / AIR DASH when in the air
-		C or L-Ctrl    slide (hold). Pressing it in the air = slide on landing
-		Space          jump, double jump, wall jump, (Magnetic Boots: hold under
-		               a ceiling to cling to it)
+		C or L-Ctrl    slide (hold). Hold it in the air = slide when you land
 		E              Grapple Hook (power-up)
 		Q              Decoy (power-up)
 
 	HOW IT WORKS
-	We keep our own horizontal velocity, `momentum`, and drive the character
-	with a LinearVelocity constraint in "Plane" mode (horizontal only). That
-	means gravity and jumping still work normally, but WE decide horizontal
-	speed, so momentum carries between moves: slide -> jump keeps your speed,
-	wall run -> dash keeps your speed, etc.
+	The ground and air physics copy the Source engine (Half-Life, CS, TF2):
+	  * ground: friction, then accelerate toward your input direction
+	  * air:    the acceleration can only add a tiny bit of speed IN the
+	            direction you're pressing, but there's no limit on total speed.
+	            Turning the mouse while strafing keeps your input sideways to
+	            your velocity, which bends and grows it. That's air strafing.
+	  * landing with Space held jumps again on the same frame, before any
+	            friction is applied, so no speed is lost. That's bunny hopping.
 
-	Every move is a "mode":
-		Ground   walking / sprinting (extra speed bleeds off slowly)
-		Air      falling / jumping (air control + momentum)
-		Slide    low friction ground slide
-		WallRun  running along a wall
-		Dash     short burst in the air
-		Grapple  being pulled toward the hook point
-		Ceiling  clinging to a ceiling (Magnetic Boots)
+	We keep our own horizontal velocity (`momentum`) and drive the character
+	with a LinearVelocity in Plane mode (horizontal only), so gravity and
+	jumping still use normal Roblox physics.
 
-	The Camera reads GetCameraHints() for FOV kick, roll and camera drop.
+	Modes: Ground, Air, Slide, WallRun, Dash, Grapple, Ceiling.
+	Other scripts can listen to Movement.Jumped / Landed / Dashed.
 ]]
 
 local Players = game:GetService("Players")
@@ -3881,6 +4489,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Remotes = require(Shared.Remotes)
+local Signal = require(Shared.Signal)
 local Util = require(Shared.Util)
 local ClientState = require(script.Parent.ClientState)
 local Sfx = require(script.Parent.Sfx)
@@ -3892,6 +4501,10 @@ local player = Players.LocalPlayer
 
 local Movement = {}
 local Controllers
+
+Movement.Jumped = Signal.new() -- ()
+Movement.Landed = Signal.new() -- (fallSpeed)
+Movement.Dashed = Signal.new() -- ()
 
 -- Character references
 local character, humanoid, root, linearVelocity
@@ -3906,14 +4519,15 @@ local airJumpsLeft = 0
 local dashesLeft = 0
 
 local sprintHeld, slideHeld, jumpHeld = false, false, false
+local jumpPressedAt = -10 -- for the jump buffer
 
 local now = os.clock
-local lastLandTime = 0
 local lastGroundJumpTime = 0
 local lastLiftTime = 0
 local lastSlideTime = 0
 local lastDashTime = 0
 local peakY = 0
+local lowestVelocityY = 0 -- fastest fall speed this air time (for landing effects)
 
 local dash = { Timer = 0, Dir = Vector3.zero, ExitSpeed = 0 }
 local wall = { Normal = Vector3.zero, Side = 0, Timer = 0, Y = 0, LastNormal = nil, LastTime = 0 }
@@ -3961,6 +4575,33 @@ local function steer(v, dir, t)
 	return newDir.Unit * v.Magnitude
 end
 
+--[[
+	Source-engine acceleration.
+	Adds speed along `wishDir` until the speed IN THAT DIRECTION reaches
+	`addCap`. In the air addCap is tiny (AirSpeedCap), which is exactly what
+	makes air strafing gain speed when you turn while strafing.
+]]
+local function accelerate(v, wishDir, wishSpeed, accel, dt, addCap)
+	local current = v:Dot(wishDir)
+	local addSpeed = (addCap or wishSpeed) - current
+	if addSpeed <= 0 then
+		return v
+	end
+	local accelSpeed = math.min(accel * dt * wishSpeed, addSpeed)
+	return v + wishDir * accelSpeed
+end
+
+-- Source-engine ground friction.
+local function applyFriction(v, friction, dt)
+	local speed = v.Magnitude
+	if speed < 0.05 then
+		return Vector3.zero
+	end
+	local control = math.max(speed, M.StopSpeed)
+	local newSpeed = math.max(speed - control * friction * dt, 0)
+	return v * (newSpeed / speed)
+end
+
 local function speedMultiplier()
 	return now() < speedBoost.Until and speedBoost.Multiplier or 1
 end
@@ -3983,7 +4624,7 @@ local function makeRaycastParams()
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
 	local exclude = { character, workspace.CurrentCamera }
-	for _, name in ipairs({ "Effects", "Decoys" }) do
+	for _, name in ipairs({ "Effects", "Decoys", "Dummies" }) do
 		local folder = workspace:FindFirstChild(name)
 		if folder then
 			table.insert(exclude, folder)
@@ -4002,6 +4643,17 @@ end
 local function setVerticalVelocity(y)
 	local v = root.AssemblyLinearVelocity
 	root.AssemblyLinearVelocity = Vector3.new(v.X, y, v.Z)
+end
+
+-- True if we are falling and the ground is just below (so a Space press now
+-- should be a buffered bunny hop, not a double jump).
+local function groundIsClose()
+	local vy = root.AssemblyLinearVelocity.Y
+	if vy > 0 then
+		return false
+	end
+	local reach = 3.6 + math.min(-vy * M.JumpBuffer, 8)
+	return workspace:Raycast(root.Position, Vector3.new(0, -reach, 0), makeRaycastParams()) ~= nil
 end
 
 ----------------------------------------------------------------------------
@@ -4029,6 +4681,10 @@ function Movement.GetSpeed()
 	return momentum.Magnitude
 end
 
+function Movement.GetWallSide()
+	return mode == "WallRun" and wall.Side or 0
+end
+
 function Movement.GetGrapplePoint()
 	return grapple.Point
 end
@@ -4043,6 +4699,10 @@ end
 
 function Movement.IsGrounded()
 	return humanoid ~= nil and humanoid.FloorMaterial ~= Enum.Material.Air
+end
+
+function Movement.IsSprinting()
+	return mode == "Ground" and sprintHeld and momentum.Magnitude > M.RunSpeed * 0.8
 end
 
 -- FOV kick / roll / camera drop for the CameraController.
@@ -4066,7 +4726,7 @@ function Movement.GetCameraHints()
 end
 
 ----------------------------------------------------------------------------
--- Move starters
+-- Moves
 ----------------------------------------------------------------------------
 local function startSlide()
 	if now() - lastSlideTime < M.SlideCooldown then
@@ -4078,21 +4738,27 @@ local function startSlide()
 	end
 	lastSlideTime = now()
 	mode = "Slide"
-	momentum = momentum.Unit * math.min(speed + M.SlideBoost, M.SlideMaxSpeed)
+	-- boost, but never above the cap (so slide spam can't snowball)
+	if speed < M.SlideBoostCap then
+		speed = math.min(speed + M.SlideBoost, M.SlideBoostCap)
+	end
+	momentum = momentum.Unit * speed
 	Sfx.Play("Dash", { Pitch = 0.7, Volume = 0.6 })
 end
 
 local function onLanded()
 	local fell = peakY - root.Position.Y
+	local fallSpeed = -lowestVelocityY
 	peakY = root.Position.Y
+	lowestVelocityY = 0
 	mode = "Ground"
-	lastLandTime = now()
 	airJumpsLeft = stats().AirJumps
 	dashesLeft = M.DashesPerAir
 	bulletTime.UsedThisAir = false
-	if fell > 6 then
-		Sfx.Play("Land", { Volume = math.clamp(fell / 20, 0.4, 1.2) })
+	if fallSpeed > 30 then
+		Sfx.Play("Land", { Volume = math.clamp(fallSpeed / 80, 0.3, 1.2) })
 	end
+	Movement.Landed:Fire(fallSpeed)
 	-- SHOCKWAVE LANDING power-up
 	if stats().ShockwaveLanding and fell >= PU.ShockwaveLanding.MinFallHeight then
 		Remotes.Get("Ability"):FireServer("Shockwave", {})
@@ -4101,6 +4767,22 @@ local function onLanded()
 	if slideHeld then
 		startSlide()
 	end
+end
+
+-- Jump off the ground (or out of a slide). Called from the step so it can
+-- happen on the exact landing frame (bunny hop).
+local function groundJump()
+	if mode == "Slide" and momentum.Magnitude < M.SlideBoostCap then
+		momentum += Util.safeUnit(momentum) * M.SlideJumpBoost
+	end
+	humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+	setVerticalVelocity(M.JumpPower)
+	lastGroundJumpTime = now()
+	jumpPressedAt = -10
+	mode = "Air"
+	peakY = root.Position.Y
+	Sfx.Play("Jump", { Pitch = 0.95 + math.random() * 0.1 })
+	Movement.Jumped:Fire()
 end
 
 local function startDash()
@@ -4117,6 +4799,7 @@ local function startDash()
 	mode = "Dash"
 	Controllers.Camera.AddFovPunch(C.DashFOVKick)
 	Sfx.Play("Dash")
+	Movement.Dashed:Fire()
 	-- PHANTOM DASH power-up: the server makes us invisible
 	if stats().PhantomDash then
 		Remotes.Get("Ability"):FireServer("PhantomDash", {})
@@ -4181,9 +4864,27 @@ local function wallJump()
 	mode = "Air"
 	airJumpsLeft = stats().AirJumps -- wall jumps refresh your air jumps
 	Sfx.Play("Jump", { Pitch = 1.15 })
+	Movement.Jumped:Fire()
+end
+
+local function airJump()
+	airJumpsLeft -= 1
+	pendingLift = M.AirJumpVelocity
+	-- re-aim momentum toward your keys (keeps your speed)
+	local wish = wishDirection()
+	if mode == "Dash" then
+		momentum = dash.Dir * dash.ExitSpeed
+	end
+	if wish.Magnitude > 0.1 then
+		momentum = wish.Unit * math.max(momentum.Magnitude, M.AirJumpMinSpeed * speedMultiplier())
+	end
+	mode = "Air"
+	Sfx.Play("Jump", { Pitch = 1.25 })
+	Movement.Jumped:Fire()
 end
 
 local function onJumpPressed()
+	jumpPressedAt = now()
 	if not canMove() then
 		return
 	end
@@ -4191,74 +4892,43 @@ local function onJumpPressed()
 		wallJump()
 	elseif mode == "Grapple" then
 		endGrapple(true)
-	elseif mode == "Slide" then
-		-- the Humanoid does the jump itself; we add a little speed
-		momentum += Util.safeUnit(momentum) * M.SlideJumpBoost
-		mode = "Air"
-		lastGroundJumpTime = now()
-		Sfx.Play("Jump")
-	elseif mode == "Ground" and Movement.IsGrounded() then
-		lastGroundJumpTime = now()
-		Sfx.Play("Jump")
-	elseif mode == "Air" or mode == "Dash" or (mode == "Ground" and not Movement.IsGrounded()) then
+	elseif mode == "Air" or mode == "Dash" then
 		if now() - lastGroundJumpTime < 0.12 then
-			return -- that was the ground jump itself
+			return -- we only just left the ground
+		end
+		if mode == "Air" and groundIsClose() then
+			return -- about to land: the jump buffer turns this into a bunny hop
 		end
 		if airJumpsLeft > 0 then
-			airJumpsLeft -= 1
-			pendingLift = M.AirJumpVelocity
-			-- re-aim momentum toward input (keeps your speed)
-			local wish = wishDirection()
-			if wish.Magnitude > 0.1 then
-				momentum = wish.Unit * math.max(momentum.Magnitude, M.WalkSpeed)
-			end
-			if mode == "Dash" then
-				momentum = dash.Dir * dash.ExitSpeed
-			end
-			mode = "Air"
-			Sfx.Play("Jump", { Pitch = 1.25 })
+			airJump()
 		end
 	end
+	-- Ground / Slide jumps happen in the step (so they line up with landing)
 end
 
 ----------------------------------------------------------------------------
 -- Per-mode updates
 ----------------------------------------------------------------------------
 local function updateGround(dt, wish)
-	local target = (sprintHeld and M.SprintSpeed or M.WalkSpeed) * speedMultiplier()
-	local speed = momentum.Magnitude
-	if speed > target + 0.5 then
-		-- carrying extra speed (from a slide/dash/fall): bleed it off slowly,
-		-- not at all right after landing so you can chain a jump
-		if now() - lastLandTime > M.BhopGrace then
-			speed = math.max(target, speed - M.ExcessFriction * dt)
-		end
-		momentum = steer(momentum, wish, 6 * dt).Unit * speed
-		if wish.Magnitude < 0.1 then
-			momentum = approachVector(momentum, Vector3.zero, M.GroundFriction * 0.5 * dt)
-		end
-	else
-		local accel = wish.Magnitude > 0.1 and M.GroundAccel or M.GroundFriction
-		momentum = approachVector(momentum, wish * target, accel * dt)
+	local wishSpeed = (sprintHeld and M.SprintSpeed or M.RunSpeed) * speedMultiplier()
+	momentum = applyFriction(momentum, M.Friction, dt)
+	if wish.Magnitude > 0.05 then
+		momentum = accelerate(momentum, wish.Unit, wishSpeed * math.min(wish.Magnitude, 1), M.GroundAccel, dt)
 	end
-	humanoid.WalkSpeed = math.max(target, 1)
+	humanoid.WalkSpeed = math.max(wishSpeed, 1)
 end
 
 local function updateAir(dt, wish)
-	local speedCap = math.max(momentum.Magnitude, M.AirMaxInputSpeed * speedMultiplier())
-	if wish.Magnitude > 0.1 then
-		momentum = steer(momentum, wish, M.AirTurnRate * dt)
-		momentum += wish * M.AirAccel * dt
-		if momentum.Magnitude > speedCap then
-			momentum = momentum.Unit * speedCap
-		end
+	if wish.Magnitude > 0.05 then
+		momentum = accelerate(
+			momentum,
+			wish.Unit,
+			M.AirControlSpeed * speedMultiplier(),
+			M.AirAccel,
+			dt,
+			M.AirSpeedCap * speedMultiplier()
+		)
 	end
-	-- light drag on speed above normal air speed
-	local excess = momentum.Magnitude - M.AirMaxInputSpeed
-	if excess > 0 then
-		momentum = momentum.Unit * (momentum.Magnitude - excess * M.AirDrag * dt)
-	end
-	peakY = math.max(peakY, root.Position.Y)
 end
 
 local function tryStartWallRun(wish)
@@ -4325,14 +4995,12 @@ local function updateWallRun(dt, wish)
 end
 
 local function updateSlide(dt, wish)
-	local speed = momentum.Magnitude - M.SlideFriction * dt
+	momentum = applyFriction(momentum, M.SlideFriction, dt)
 	momentum = steer(momentum, wish, M.SlideSteer * dt)
-	if speed < M.SlideEndSpeed or not slideHeld then
+	if momentum.Magnitude < M.SlideEndSpeed or not slideHeld then
 		mode = "Ground"
-		momentum = Util.safeUnit(momentum) * math.max(speed, 0)
 		return
 	end
-	momentum = Util.safeUnit(momentum) * speed
 	humanoid.WalkSpeed = 4 -- calm the run animation while sliding
 end
 
@@ -4377,8 +5045,10 @@ local function updateCeiling(dt, wish)
 		mode = "Air"
 		return
 	end
-	local target = M.SprintSpeed * speedMultiplier()
-	momentum = approachVector(momentum, wish * math.max(target, momentum.Magnitude), M.GroundAccel * dt)
+	-- runs like the ground, but with no friction so you keep your speed
+	if wish.Magnitude > 0.05 then
+		momentum = accelerate(momentum, wish.Unit, M.SprintSpeed * speedMultiplier(), M.GroundAccel, dt)
+	end
 	setVerticalVelocity(3) -- keep pressed against the ceiling
 	airJumpsLeft = stats().AirJumps
 	dashesLeft = M.DashesPerAir
@@ -4450,7 +5120,7 @@ local function step(dt)
 		end
 	end
 
-	-- External impulses (knockback / rocket jump)
+	-- External impulses (knockback / rocket jump / double jump)
 	if pendingImpulse.Magnitude > 0 then
 		momentum += pendingImpulse
 		pendingImpulse = Vector3.zero
@@ -4467,11 +5137,12 @@ local function step(dt)
 
 	-- "grounded" ignores the first moments after any jump/launch, so the
 	-- floor we just left doesn't instantly count as a landing
-	local justLaunched = now() - math.max(lastGroundJumpTime, lastLiftTime) < 0.15
+	local justLaunched = now() - math.max(lastGroundJumpTime, lastLiftTime) < 0.12
 	local grounded = Movement.IsGrounded() and not justLaunched
 	local wish = wishDirection()
 	if not grounded then
 		peakY = math.max(peakY, root.Position.Y) -- for Shockwave Landing
+		lowestVelocityY = math.min(lowestVelocityY, velocity.Y)
 	end
 
 	-- Ground <-> air transitions
@@ -4480,6 +5151,15 @@ local function step(dt)
 	elseif not grounded and (mode == "Ground" or mode == "Slide") then
 		mode = "Air"
 		peakY = root.Position.Y
+	end
+
+	-- JUMP / BUNNY HOP: holding Space (or a buffered press) jumps on the very
+	-- frame we touch the ground, BEFORE friction runs, so no speed is lost.
+	if grounded and (mode == "Ground" or mode == "Slide") then
+		local wantsJump = (M.AutoBhop and jumpHeld) or (now() - jumpPressedAt < M.JumpBuffer)
+		if wantsJump then
+			groundJump()
+		end
 	end
 
 	if mode == "Ground" then
@@ -4501,6 +5181,11 @@ local function step(dt)
 		updateCeiling(dt, wish)
 	end
 
+	-- hard speed limit
+	if momentum.Magnitude > M.MaxSpeed then
+		momentum = momentum.Unit * M.MaxSpeed
+	end
+
 	updateBulletTime(dt, grounded)
 
 	-- Drive the character
@@ -4520,7 +5205,7 @@ local function step(dt)
 		kick = C.WallRunFOVKick
 	elseif mode == "Dash" then
 		kick = C.DashFOVKick
-	elseif speed > M.WalkSpeed + 2 then
+	elseif speed > M.RunSpeed + 2 then
 		kick = C.SprintFOVKick
 	end
 	kick += math.clamp((speed - M.SprintSpeed) * C.SpeedFOVPerStud, 0, C.MaxSpeedFOV)
@@ -4537,7 +5222,7 @@ local function onCharacterAdded(newCharacter)
 
 	humanoid.UseJumpPower = true
 	humanoid.JumpPower = M.JumpPower
-	humanoid.WalkSpeed = M.WalkSpeed
+	humanoid.WalkSpeed = M.RunSpeed
 
 	local attachment = root:FindFirstChild("RootAttachment") or root:FindFirstChild("RootRigAttachment")
 	if not attachment then
@@ -4566,9 +5251,10 @@ local function onCharacterAdded(newCharacter)
 	speedBoost.Until = 0
 	bulletTime.Until = 0
 	peakY = root.Position.Y
+	lowestVelocityY = 0
 
 	humanoid.StateChanged:Connect(function(_, new)
-		if new == Enum.HumanoidStateType.Jumping and mode == "Ground" then
+		if new == Enum.HumanoidStateType.Jumping and (mode == "Ground" or mode == "Slide") then
 			lastGroundJumpTime = now()
 		end
 	end)
@@ -4577,6 +5263,7 @@ end
 ----------------------------------------------------------------------------
 -- Input
 ----------------------------------------------------------------------------
+
 -- Roblox's own control scripts bind Space (and some mouse buttons) with
 -- ContextActionService, which marks those inputs as "processed". So we only
 -- ignore input while the player is typing in a text box (e.g. chat).
@@ -4664,7 +5351,7 @@ return Movement
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="30">
+        <Item class="ModuleScript" referent="33">
           <Properties>
             <string name="Name">Sfx</string>
             <string name="Source"><![CDATA[--[[
@@ -4721,7 +5408,7 @@ return Sfx
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="31">
+        <Item class="ModuleScript" referent="34">
           <Properties>
             <string name="Name">Spring</string>
             <string name="Source"><![CDATA[--[[
@@ -4767,7 +5454,7 @@ return Spring
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="32">
+        <Item class="ModuleScript" referent="35">
           <Properties>
             <string name="Name">UIController</string>
             <string name="Source"><![CDATA[--[[
@@ -4845,7 +5532,7 @@ return UIController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="33">
+        <Item class="ModuleScript" referent="36">
           <Properties>
             <string name="Name">ViewmodelController</string>
             <string name="Source"><![CDATA[--[[
@@ -4853,17 +5540,21 @@ return UIController
 
 	First-person arms + sniper, built from flat-coloured parts and attached to
 	the camera. Only YOU see it (it lives inside workspace.CurrentCamera).
+	The rifle itself comes from Shared/GunModel (same model other players see).
 
-	Animation is all procedural:
-		sway     lags behind mouse movement (spring)
-		bob      walk/sprint bob based on speed
-		recoil   kick back + up when firing (spring)
-		bolt     right hand works the bolt after every shot
-		aim      slides to the centre when scoping, then hides behind the scope overlay
-		poses    lowered while sprinting, tilted while sliding / wall running
+	All animation is procedural (no animation assets needed):
+		equip     gun swings up into view when you spawn
+		sway      lags behind mouse movement
+		bob       figure-8 walk/run bob, stronger when sprinting
+		jump/land gun dips when you jump and slams down when you land hard
+		dash      gun pulls back
+		poses     lowered while sprinting, canted while sliding, tilted on wall runs
+		recoil    kick back + up, muzzle flash
+		bolt      right hand leaves the grip, works the bolt, comes back
+		aim       slides to the centre when scoping, then hides behind the scope
+		inspect   press V to admire the rifle
 
-	Layout: every part has an offset relative to the "grip" (where the right
-	hand holds the gun). +X right, +Y up, -Z forward (down the barrel).
+	Gun space: origin = right hand on the grip, +X right, +Y up, -Z forward.
 ]]
 
 local Players = game:GetService("Players")
@@ -4873,42 +5564,59 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
+local GunModel = require(Shared.GunModel)
 local Util = require(Shared.Util)
 local ClientState = require(script.Parent.ClientState)
 local Spring = require(script.Parent.Spring)
 local Sfx = require(script.Parent.Sfx)
 
 local Palette = Config.Palette
+local VM = Config.Viewmodel
 local player = Players.LocalPlayer
 
 local Viewmodel = {}
 local Controllers
 
+local rad = math.rad
+
 -- Where the grip sits in camera space when hip-firing / aiming down the scope.
-local HIP_OFFSET = CFrame.new(0.85, -0.92, -1.55)
-local ADS_OFFSET = CFrame.new(0, -0.36, -1.15) -- scope centred on screen
-local SPRINT_POSE = CFrame.new(-0.15, -0.25, 0.1) * CFrame.Angles(math.rad(-18), math.rad(35), math.rad(12))
+local HIP_OFFSET = CFrame.new(0.62, -0.7, -1.1)
+local ADS_OFFSET = CFrame.new(-GunModel.ScopeEye.X, -GunModel.ScopeEye.Y, -0.55 - GunModel.ScopeEye.Z)
+local SPRINT_POSE = CFrame.new(-0.1, -0.22, 0.15) * CFrame.Angles(rad(-16), rad(38), rad(14))
+local EQUIP_POSE = CFrame.new(0.15, -1.2, 0.45) * CFrame.Angles(rad(-55), rad(25), rad(20))
+
+-- Hands (gun space)
+local RIGHT_GRIP = CFrame.new(0, -0.22, 0.18) * CFrame.Angles(rad(-18), 0, 0)
+local KNOB_HOLD = CFrame.new(0.3, 0.02, 0.07) -- relative to the animated bolt pivot
+local LEFT_HOLD = CFrame.new(0, -0.21, -1.5)
+-- Arm joints (gun space). Shoulders sit behind the camera, out of view.
+local RIGHT_ELBOW = Vector3.new(0.42, -0.62, 0.78)
+local RIGHT_SHOULDER = Vector3.new(0.95, -1.1, 1.9)
+local LEFT_ELBOW = Vector3.new(-0.42, -0.62, -0.55)
+local LEFT_SHOULDER = Vector3.new(-1.0, -1.05, 0.95)
 
 local model
-local parts = {} -- [name] = BasePart
-local staticOffsets = {} -- [name] = CFrame relative to grip
-local muzzleOffset = CFrame.new(0, 0.05, -3.25)
+local gun -- result of GunModel.Build
+local parts = {} -- extra parts: hands, arms, flash
 local visible = false
 
-local swaySpring = Spring.new(140, 16)
-local recoilSpring = Spring.new(220, 18) -- X = pitch, Y = back, Z = roll
+local swaySpring = Spring.new(140, 16) -- rotation (degrees)
+local recoilSpring = Spring.new(220, 18) -- X = pitch, Y = push back, Z = roll
+local moveSpring = Spring.new(150, 13) -- position offset from jumps / landings / dashes
 local bobTime = 0
-local sprintAlpha = 0
-local slideAlpha = 0
-local wallAlpha = 0
-local airOffset = 0
+local sprintAlpha, slideAlpha, wallAlpha, airOffset = 0, 0, 0, 0
 local boltStart, boltDuration = 0, 0
 local boltSoundPlayed = true
+local equipStart = -10
+local inspectStart, inspecting = 0, false
+local flashUntil = 0
+local lastCharacter
+local hadGun = false
 
 ----------------------------------------------------------------------------
 -- Building
 ----------------------------------------------------------------------------
-local function addPart(name, size, offset, color, shape)
+local function addPart(name, size, color, shape)
 	local part = Instance.new("Part")
 	part.Name = name
 	part.Size = size
@@ -4924,84 +5632,85 @@ local function addPart(name, size, offset, color, shape)
 	end
 	part.Parent = model
 	parts[name] = part
-	staticOffsets[name] = offset
 	return part
 end
 
 local function build()
 	model = Instance.new("Model")
 	model.Name = "Viewmodel"
+	gun = GunModel.Build(model, { Anchored = true })
 
-	-- SNIPER (flat colour blocks)
-	addPart("Receiver", Vector3.new(0.22, 0.28, 1.6), CFrame.new(0, 0, -0.35), Palette.GunBody)
-	addPart("Barrel", Vector3.new(0.09, 0.09, 1.9), CFrame.new(0, 0.05, -2.05), Palette.GunTrim)
-	addPart("Brake", Vector3.new(0.15, 0.15, 0.25), CFrame.new(0, 0.05, -3.05), Palette.GunBody)
-	addPart("Handguard", Vector3.new(0.2, 0.22, 0.9), CFrame.new(0, -0.02, -1.35), Palette.GunTrim)
-	addPart("Stock", Vector3.new(0.2, 0.34, 0.95), CFrame.new(0, -0.1, 0.85), Palette.GunBody)
-	addPart("StockPad", Vector3.new(0.22, 0.38, 0.08), CFrame.new(0, -0.1, 1.36), Palette.GunTrim)
-	addPart("Grip", Vector3.new(0.16, 0.36, 0.2), CFrame.new(0, -0.27, 0.12) * CFrame.Angles(math.rad(-15), 0, 0), Palette.GunBody)
-	addPart("Magazine", Vector3.new(0.14, 0.3, 0.32), CFrame.new(0, -0.27, -0.55), Palette.GunTrim)
-	-- Scope
-	addPart("ScopeTube", Vector3.new(0.15, 0.15, 1.0), CFrame.new(0, 0.32, -0.4), Palette.GunBody)
-	addPart("ScopeFront", Vector3.new(0.22, 0.22, 0.14), CFrame.new(0, 0.32, -0.92), Palette.GunBody)
-	addPart("ScopeRear", Vector3.new(0.2, 0.2, 0.14), CFrame.new(0, 0.32, 0.12), Palette.GunBody)
-	addPart("ScopeLens", Vector3.new(0.17, 0.17, 0.02), CFrame.new(0, 0.32, -1.0), Palette.ScopeGlass)
-	addPart("MountA", Vector3.new(0.08, 0.14, 0.08), CFrame.new(0, 0.19, -0.7), Palette.GunTrim)
-	addPart("MountB", Vector3.new(0.08, 0.14, 0.08), CFrame.new(0, 0.19, -0.1), Palette.GunTrim)
-	-- Bolt (animated)
-	addPart("BoltHandle", Vector3.new(0.26, 0.05, 0.05), CFrame.new(0.17, 0.06, 0.05), Palette.GunTrim)
-	addPart("BoltKnob", Vector3.new(0.1, 0.1, 0.1), CFrame.new(0.31, 0.06, 0.05), Palette.GunTrim, Enum.PartType.Ball)
+	-- Gloved hands
+	for _, side in ipairs({ "Right", "Left" }) do
+		addPart(side .. "Palm", Vector3.new(0.21, 0.27, 0.25), Palette.Glove)
+		addPart(side .. "Fingers", Vector3.new(0.22, 0.23, 0.08), Palette.Glove)
+		addPart(side .. "Thumb", Vector3.new(0.07, 0.07, 0.19), Palette.Glove)
+		addPart(side .. "Cuff", Vector3.new(0.3, 0.3, 0.14), Palette.SleeveCuff)
+		addPart(side .. "Forearm", Vector3.new(0.27, 0.27, 1), Palette.Sleeve)
+		addPart(side .. "Elbow", Vector3.new(0.3, 0.3, 0.3), Palette.Sleeve, Enum.PartType.Ball)
+		addPart(side .. "UpperArm", Vector3.new(0.32, 0.32, 1), Palette.Sleeve)
+	end
+	-- the left palm lies flat under the handguard
+	parts.LeftPalm.Size = Vector3.new(0.27, 0.1, 0.33)
+	parts.LeftFingers.Size = Vector3.new(0.06, 0.2, 0.28)
+	parts.LeftThumb.Size = Vector3.new(0.06, 0.14, 0.2)
 
-	-- ARMS (hands are blocks, forearms + sleeves are stretched between joints)
-	addPart("RightHand", Vector3.new(0.2, 0.24, 0.26), CFrame.identity, Palette.Skin)
-	addPart("RightForearm", Vector3.new(0.22, 0.22, 1), CFrame.identity, Palette.Skin)
-	addPart("RightSleeve", Vector3.new(0.3, 0.3, 1), CFrame.identity, Palette.Sleeve)
-	addPart("LeftHand", Vector3.new(0.2, 0.24, 0.26), CFrame.identity, Palette.Skin)
-	addPart("LeftForearm", Vector3.new(0.22, 0.22, 1), CFrame.identity, Palette.Skin)
-	addPart("LeftSleeve", Vector3.new(0.3, 0.3, 1), CFrame.identity, Palette.Sleeve)
+	-- Muzzle flash (a flat star)
+	addPart("FlashCore", Vector3.new(0.4, 0.4, 0.4), Palette.MuzzleFlash, Enum.PartType.Ball)
+	addPart("FlashA", Vector3.new(0.07, 0.9, 0.07), Palette.MuzzleFlash)
+	addPart("FlashB", Vector3.new(0.9, 0.07, 0.07), Palette.MuzzleFlash)
+	addPart("FlashLong", Vector3.new(0.12, 0.12, 0.7), Palette.MuzzleFlash)
 
 	model.Parent = workspace.CurrentCamera
 end
 
--- Places a limb part between two points (in grip space).
-local function limbBetween(name, a, b)
-	local part = parts[name]
-	local length = (b - a).Magnitude
-	part.Size = Vector3.new(part.Size.X, part.Size.Y, length)
+-- CFrame for a limb part stretched between points a and b.
+local function limbBetween(part, a, b)
+	local length = math.max((b - a).Magnitude, 0.05)
+	if math.abs(part.Size.Z - length) > 0.001 then
+		part.Size = Vector3.new(part.Size.X, part.Size.Y, length)
+	end
 	return CFrame.lookAt((a + b) / 2, b)
 end
 
 ----------------------------------------------------------------------------
--- Bolt animation: returns right-hand position + bolt offset for progress t (0-1)
+-- Animation helpers
 ----------------------------------------------------------------------------
-local GRIP_HAND = Vector3.new(0.02, -0.2, 0.14)
-local KNOB_HAND = Vector3.new(0.34, 0.02, 0.1)
+local function easeOutBack(t)
+	local c1, c3 = 1.4, 2.4
+	return 1 + c3 * (t - 1) ^ 3 + c1 * (t - 1) ^ 2
+end
 
+local function seg(t, a, b)
+	return math.clamp((t - a) / (b - a), 0, 1)
+end
+
+local function smoothstep(t)
+	return t * t * (3 - 2 * t)
+end
+
+-- Bolt cycle for progress t (0-1).
+-- Returns: bolt pivot CFrame (gun space), right hand CFrame (gun space), gun roll.
 local function boltPose(t)
-	-- keyframes: reach (0-.15), lift (.15-.3), pull (.3-.5), push (.5-.7), lower (.7-.8), return (.8-1)
-	local handPos = GRIP_HAND
-	local lift, pull = 0, 0
-	local function seg(a, b)
-		return math.clamp((t - a) / (b - a), 0, 1)
-	end
-	local reach = seg(0, 0.15)
-	local back = seg(0.8, 1)
-	lift = seg(0.15, 0.3) - seg(0.7, 0.8)
-	pull = seg(0.3, 0.5) - seg(0.5, 0.7)
-	-- smooth the curves
-	lift = math.sin(lift * math.pi / 2)
-	pull = math.sin(pull * math.pi / 2)
-
-	local atKnob = KNOB_HAND + Vector3.new(0, lift * 0.22, pull * 0.38)
-	if t < 0.15 then
-		handPos = GRIP_HAND:Lerp(atKnob, reach)
+	-- reach (0-.15) lift (.15-.3) pull (.3-.5) push (.5-.68) lower (.68-.8) return (.8-1)
+	local lift = smoothstep(seg(t, 0.15, 0.3)) - smoothstep(seg(t, 0.68, 0.8))
+	local pull = smoothstep(seg(t, 0.3, 0.5)) - smoothstep(seg(t, 0.5, 0.68))
+	local pivot = GunModel.BoltPivot * CFrame.new(0, 0, pull * 0.4) * CFrame.Angles(0, 0, rad(80) * lift)
+	local onKnob = pivot * KNOB_HOLD * CFrame.Angles(0, 0, rad(-25))
+	local reach = smoothstep(seg(t, 0, 0.15))
+	local back = smoothstep(seg(t, 0.8, 1))
+	local hand
+	if t <= 0 or t >= 1 then
+		hand = RIGHT_GRIP
+	elseif t < 0.15 then
+		hand = RIGHT_GRIP:Lerp(onKnob, reach)
 	elseif t < 0.8 then
-		handPos = atKnob
+		hand = onKnob
 	else
-		handPos = atKnob:Lerp(GRIP_HAND, back)
+		hand = onKnob:Lerp(RIGHT_GRIP, back)
 	end
-	local gunRoll = math.sin(math.clamp(t, 0, 1) * math.pi) * math.rad(14)
-	return handPos, lift, pull, gunRoll
+	local roll = math.sin(math.clamp(t, 0, 1) * math.pi) * rad(16)
+	return pivot, hand, roll
 end
 
 ----------------------------------------------------------------------------
@@ -5009,7 +5718,9 @@ end
 ----------------------------------------------------------------------------
 function Viewmodel.PlayFire(scoped)
 	local kick = scoped and 0.5 or 1
-	recoilSpring:Impulse(Vector3.new(18 * kick, 7 * kick, (math.random() - 0.5) * 6))
+	recoilSpring:Impulse(Vector3.new(22 * kick, 9 * kick, (math.random() - 0.5) * 8))
+	flashUntil = os.clock() + 0.05
+	inspecting = false
 end
 
 function Viewmodel.PlayBolt(duration)
@@ -5018,15 +5729,22 @@ function Viewmodel.PlayBolt(duration)
 	boltSoundPlayed = false
 end
 
+function Viewmodel.PlayEquip()
+	equipStart = os.clock()
+	inspecting = false
+	Sfx.Play("Bolt", { Pitch = 1.3, Volume = 0.6 })
+end
+
 function Viewmodel.GetMuzzlePosition()
-	if model and parts.Brake then
-		return (parts.Receiver.CFrame * staticOffsets.Receiver:Inverse() * muzzleOffset).Position
+	if gun and gun.Parts.Receiver then
+		local grip = gun.Parts.Receiver.CFrame * gun.Offsets.Receiver:Inverse()
+		return (grip * GunModel.Muzzle).Position
 	end
 	return workspace.CurrentCamera.CFrame.Position
 end
 
 function Viewmodel.GetLeftHandPosition()
-	return parts.LeftHand and parts.LeftHand.Position or workspace.CurrentCamera.CFrame.Position
+	return parts.LeftPalm and parts.LeftPalm.Position or workspace.CurrentCamera.CFrame.Position
 end
 
 local function setVisible(v)
@@ -5034,8 +5752,13 @@ local function setVisible(v)
 		return
 	end
 	visible = v
-	for _, part in pairs(parts) do
+	for _, part in pairs(gun.Parts) do
 		part.LocalTransparencyModifier = v and 0 or 1
+	end
+	for name, part in pairs(parts) do
+		if not name:find("Flash") then
+			part.LocalTransparencyModifier = v and 0 or 1
+		end
 	end
 end
 
@@ -5050,107 +5773,155 @@ local function update(dt)
 
 	local character = player.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-	local alive = humanoid and humanoid.Health > 0
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	local alive = humanoid ~= nil and humanoid.Health > 0
+	local hasGun = ClientState.HasGun()
 	local scopeAlpha = Controllers.Weapon.GetScopeAlpha()
 
-	local shouldShow = alive and ClientState.IsInArena() and Controllers.Camera.IsFirstPerson() and scopeAlpha < 0.92
+	-- replay the equip animation on a new life / when the gun comes back
+	if alive and hasGun and (character ~= lastCharacter or not hadGun) then
+		Viewmodel.PlayEquip()
+	end
+	lastCharacter = character
+	hadGun = alive and hasGun
+
+	local shouldShow = alive and hasGun and Controllers.Camera.IsFirstPerson() and scopeAlpha < 0.92
 	setVisible(shouldShow)
-	if not shouldShow and not ClientState.IsInArena() then
-		return
+	if not shouldShow then
+		for name, part in pairs(parts) do
+			if name:find("Flash") then
+				part.LocalTransparencyModifier = 1
+			end
+		end
+		if not hasGun then
+			return
+		end
 	end
 
 	local movement = Controllers.Movement
 	local mode = movement.GetMode()
 	local speed = movement.GetSpeed()
 	local grounded = movement.IsGrounded()
+	local t = os.clock()
 
 	-- SWAY from mouse movement
 	local delta = UserInputService:GetMouseDelta()
-	local swayScale = 1 - scopeAlpha * 0.85
+	local swayScale = (1 - scopeAlpha * 0.85) * VM.SwayAmount
 	swaySpring.Target = Vector3.new(
-		math.clamp(-delta.Y * 0.06, -4, 4),
-		math.clamp(-delta.X * 0.06, -4, 4),
-		math.clamp(-delta.X * 0.04, -3, 3)
-	) * swayScale
+		math.clamp(-delta.Y * swayScale, -5, 5),
+		math.clamp(-delta.X * swayScale, -5, 5),
+		math.clamp(-delta.X * swayScale * 0.7, -4, 4)
+	)
 	local sway = swaySpring:Update(dt)
 
-	-- BOB from moving on the ground
-	local moving = grounded and speed > 2 and mode ~= "Slide"
-	if moving then
-		bobTime += dt * (6 + speed * 0.22)
+	-- BOB: figure-8 while running on the ground
+	local running = grounded and speed > 2 and mode == "Ground"
+	if running then
+		bobTime += dt * (7 + speed * 0.2)
 	end
-	local bobAmount = moving and math.clamp(speed / 30, 0, 1.4) * (1 - scopeAlpha * 0.9) or 0
-	local idle = math.sin(os.clock() * 1.6) * 0.012
-	local bob = Vector3.new(math.sin(bobTime) * 0.045 * bobAmount, math.abs(math.cos(bobTime)) * 0.05 * bobAmount + idle, 0)
+	local bobAmount = running and math.clamp(speed / Config.Movement.RunSpeed, 0, 1.4) * (1 - scopeAlpha * 0.9) * VM.BobAmount or 0
+	local idle = math.sin(t * 1.7) * 0.012
+	local bobPos = Vector3.new(math.sin(bobTime) * 0.05, math.sin(bobTime * 2) * 0.035 + idle, 0) * bobAmount
+	local bobRoll = math.sin(bobTime) * rad(2.2) * bobAmount
 
 	-- POSES
-	local sprinting = grounded and mode == "Ground" and speed > Config.Movement.WalkSpeed + 3
-	local boltT = boltDuration > 0 and (os.clock() - boltStart) / boltDuration or 1
+	local boltT = boltDuration > 0 and (t - boltStart) / boltDuration or 1
 	local cycling = boltT < 1
-	sprintAlpha = Util.lerp(sprintAlpha, (sprinting and scopeAlpha < 0.1 and not cycling) and 1 or 0, Util.smooth(10, dt))
-	slideAlpha = Util.lerp(slideAlpha, mode == "Slide" and 1 or 0, Util.smooth(10, dt))
-	wallAlpha = Util.lerp(wallAlpha, mode == "WallRun" and 1 or 0, Util.smooth(10, dt))
-	local vy = character and character:FindFirstChild("HumanoidRootPart") and character.HumanoidRootPart.AssemblyLinearVelocity.Y or 0
-	airOffset = Util.lerp(airOffset, grounded and 0 or math.clamp(-vy * 0.002, -0.08, 0.08), Util.smooth(8, dt))
+	local sprinting = movement.IsSprinting() and scopeAlpha < 0.1 and not cycling
+	sprintAlpha = Util.lerp(sprintAlpha, sprinting and 1 or 0, Util.smooth(10, dt))
+	slideAlpha = Util.lerp(slideAlpha, mode == "Slide" and 1 or 0, Util.smooth(12, dt))
+	wallAlpha = Util.lerp(wallAlpha, movement.GetWallSide(), Util.smooth(10, dt))
+	local vy = root and root.AssemblyLinearVelocity.Y or 0
+	airOffset = Util.lerp(airOffset, grounded and 0 or math.clamp(-vy * 0.0025, -0.1, 0.1), Util.smooth(8, dt))
 
-	-- RECOIL spring back to rest
+	-- EQUIP
+	local equipT = math.clamp((t - equipStart) / VM.EquipTime, 0, 1)
+	local equipPose = EQUIP_POSE:Lerp(CFrame.identity, easeOutBack(equipT))
+
+	-- INSPECT (V)
+	local inspectPose = CFrame.identity
+	if inspecting then
+		local it = (t - inspectStart) / 2.4
+		if it >= 1 or scopeAlpha > 0.05 or cycling then
+			inspecting = false
+		else
+			local w = math.sin(it * math.pi) ^ 0.7
+			local wiggle = math.sin(it * math.pi * 3) * 0.08 * w
+			inspectPose = CFrame.new(-0.4 * w, 0.2 * w, 0.3 * w)
+				* CFrame.Angles(rad(12) * w + wiggle, rad(55) * w, rad(-40) * w)
+		end
+	end
+
+	-- SPRINGS
 	local recoil = recoilSpring:Update(dt)
+	local kick = moveSpring:Update(dt)
 
 	-- BOLT
-	local handPos, boltLift, boltPull, boltRoll = boltPose(math.clamp(boltT, 0, 1))
+	local boltPivot, rightHand, boltRoll = boltPose(math.clamp(boltT, 0, 1))
 	if cycling and not boltSoundPlayed and boltT > 0.3 then
 		boltSoundPlayed = true
 		Sfx.Play("Bolt")
 	end
 
-	-- Combine everything into the grip CFrame
+	-- Combine everything into the grip CFrame (camera space -> world)
 	local base = HIP_OFFSET:Lerp(ADS_OFFSET, scopeAlpha)
 	local pose = CFrame.identity:Lerp(SPRINT_POSE, sprintAlpha)
-		* CFrame.Angles(0, 0, math.rad(-14) * slideAlpha)
-		* CFrame.new(0, -0.12 * slideAlpha, 0)
-		* CFrame.Angles(0, 0, math.rad(6) * wallAlpha)
+		* CFrame.new(0, -0.14 * slideAlpha, 0.05 * slideAlpha)
+		* CFrame.Angles(0, 0, rad(-18) * slideAlpha)
+		* CFrame.Angles(0, 0, rad(9) * wallAlpha)
 	local grip = camera.CFrame
 		* base
+		* equipPose
+		* inspectPose
 		* pose
-		* CFrame.new(bob.X, bob.Y + airOffset, recoil.Y * 0.02)
-		* CFrame.Angles(math.rad(sway.X + recoil.X * 0.35), math.rad(sway.Y), math.rad(sway.Z + recoil.Z * 0.3))
+		* CFrame.new(bobPos.X + kick.X, bobPos.Y + airOffset + kick.Y, kick.Z + recoil.Y * 0.02)
+		* CFrame.Angles(rad(sway.X + recoil.X * 0.35), rad(sway.Y), rad(sway.Z + recoil.Z * 0.3) + bobRoll)
 		* CFrame.Angles(0, 0, -boltRoll)
 
-	-- Gun parts
 	local list, cframes = {}, {}
-	for name, offset in pairs(staticOffsets) do
-		if not name:find("Hand") and not name:find("Forearm") and not name:find("Sleeve") and not name:find("Bolt") then
-			table.insert(list, parts[name])
-			table.insert(cframes, grip * offset)
-		end
+	local function put(part, cf)
+		table.insert(list, part)
+		table.insert(cframes, cf)
 	end
-	-- Bolt (rotates up and slides back)
-	local boltPivot = CFrame.new(0.06, 0.06, 0.05 + boltPull * 0.38) * CFrame.Angles(0, 0, math.rad(75) * boltLift)
-	table.insert(list, parts.BoltHandle)
-	table.insert(cframes, grip * boltPivot * CFrame.new(0.11, 0, 0))
-	table.insert(list, parts.BoltKnob)
-	table.insert(cframes, grip * boltPivot * CFrame.new(0.25, 0, 0))
 
-	-- Right arm (follows the bolt animation)
-	local rElbow = Vector3.new(0.5, -0.62, 0.95)
-	local rShoulder = Vector3.new(0.95, -1.05, 2.0)
-	table.insert(list, parts.RightHand)
-	table.insert(cframes, grip * CFrame.new(handPos) * CFrame.Angles(math.rad(-10), 0, 0))
-	table.insert(list, parts.RightForearm)
-	table.insert(cframes, grip * limbBetween("RightForearm", rElbow, handPos + Vector3.new(0, -0.02, 0.12)))
-	table.insert(list, parts.RightSleeve)
-	table.insert(cframes, grip * limbBetween("RightSleeve", rShoulder, rElbow))
+	-- Gun (bolt parts follow the animated bolt pivot)
+	local boltWorld = grip * boltPivot
+	for name, part in pairs(gun.Parts) do
+		put(part, (gun.Bolt[name] and boltWorld or grip) * gun.Offsets[name])
+	end
 
-	-- Left arm (holds the handguard)
-	local lHand = Vector3.new(0, -0.16, -1.3)
-	local lElbow = Vector3.new(-0.55, -0.62, -0.45)
-	local lShoulder = Vector3.new(-1.0, -1.0, 0.9)
-	table.insert(list, parts.LeftHand)
-	table.insert(cframes, grip * CFrame.new(lHand))
-	table.insert(list, parts.LeftForearm)
-	table.insert(cframes, grip * limbBetween("LeftForearm", lElbow, lHand + Vector3.new(0, -0.02, 0.1)))
-	table.insert(list, parts.LeftSleeve)
-	table.insert(cframes, grip * limbBetween("LeftSleeve", lShoulder, lElbow))
+	-- Right hand + arm
+	local rh = grip * rightHand
+	put(parts.RightPalm, rh)
+	put(parts.RightFingers, rh * CFrame.new(0, -0.02, -0.15))
+	put(parts.RightThumb, rh * CFrame.new(-0.12, 0.07, -0.06))
+	local rWrist = (rightHand * CFrame.new(0, -0.04, 0.17)).Position
+	put(parts.RightCuff, grip * limbBetween(parts.RightCuff, rWrist, rWrist + (RIGHT_ELBOW - rWrist).Unit * 0.14))
+	put(parts.RightForearm, grip * limbBetween(parts.RightForearm, RIGHT_ELBOW, rWrist))
+	put(parts.RightElbow, grip * CFrame.new(RIGHT_ELBOW))
+	put(parts.RightUpperArm, grip * limbBetween(parts.RightUpperArm, RIGHT_SHOULDER, RIGHT_ELBOW))
+
+	-- Left hand + arm (holds the handguard)
+	local lh = grip * LEFT_HOLD
+	put(parts.LeftPalm, lh)
+	put(parts.LeftFingers, lh * CFrame.new(0.155, 0.09, 0))
+	put(parts.LeftThumb, lh * CFrame.new(-0.155, 0.07, 0.02))
+	local lWrist = (LEFT_HOLD * CFrame.new(-0.05, -0.06, 0.2)).Position
+	put(parts.LeftCuff, grip * limbBetween(parts.LeftCuff, lWrist, lWrist + (LEFT_ELBOW - lWrist).Unit * 0.14))
+	put(parts.LeftForearm, grip * limbBetween(parts.LeftForearm, LEFT_ELBOW, lWrist))
+	put(parts.LeftElbow, grip * CFrame.new(LEFT_ELBOW))
+	put(parts.LeftUpperArm, grip * limbBetween(parts.LeftUpperArm, LEFT_SHOULDER, LEFT_ELBOW))
+
+	-- Muzzle flash
+	local flashing = shouldShow and t < flashUntil
+	local muzzle = grip * GunModel.Muzzle * CFrame.Angles(0, 0, math.random() * math.pi)
+	for _, name in ipairs({ "FlashCore", "FlashA", "FlashB", "FlashLong" }) do
+		parts[name].LocalTransparencyModifier = flashing and 0 or 1
+	end
+	put(parts.FlashCore, muzzle * CFrame.new(0, 0, -0.15))
+	put(parts.FlashA, muzzle * CFrame.new(0, 0, -0.15))
+	put(parts.FlashB, muzzle * CFrame.new(0, 0, -0.15))
+	put(parts.FlashLong, muzzle * CFrame.new(0, 0, -0.45))
 
 	workspace:BulkMoveTo(list, cframes, Enum.BulkMoveMode.FireCFrameChanged)
 end
@@ -5163,6 +5934,31 @@ function Viewmodel.Start()
 	build()
 	visible = true
 	setVisible(false)
+
+	-- movement reactions
+	Controllers.Movement.Jumped:Connect(function()
+		moveSpring:Impulse(Vector3.new(0, -2.2, 0))
+	end)
+	Controllers.Movement.Landed:Connect(function(fallSpeed)
+		local strength = math.clamp((fallSpeed - 25) / 60, 0.08, 1.6)
+		moveSpring:Impulse(Vector3.new(0, -3.5 * strength, 0))
+		recoilSpring:Impulse(Vector3.new(-10 * strength, 0, 0))
+	end)
+	Controllers.Movement.Dashed:Connect(function()
+		moveSpring:Impulse(Vector3.new(0, 0, 4))
+	end)
+
+	UserInputService.InputBegan:Connect(function(input, processed)
+		if processed and UserInputService:GetFocusedTextBox() then
+			return
+		end
+		if input.KeyCode == VM.InspectKey and visible and not inspecting then
+			inspecting = true
+			inspectStart = os.clock()
+			Sfx.Play("CardHover", { Pitch = 0.8, Volume = 1.5 })
+		end
+	end)
+
 	-- after the camera controller (Camera + 1) so we use the final camera CFrame
 	RunService:BindToRenderStep("SniperViewmodel", Enum.RenderPriority.Camera.Value + 2, update)
 end
@@ -5171,7 +5967,7 @@ return Viewmodel
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="34">
+        <Item class="ModuleScript" referent="37">
           <Properties>
             <string name="Name">WeaponController</string>
             <string name="Source"><![CDATA[--[[
@@ -5236,7 +6032,7 @@ end
 local function canShoot()
 	local character = player.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-	return ClientState.IsFighting()
+	return ClientState.CanShoot()
 		and not ClientState.MenuOpen
 		and humanoid
 		and humanoid.Health > 0
@@ -5311,9 +6107,12 @@ local function fire()
 			Exclude = exclude,
 			HomingTargets = homingTargets,
 		})
-		local hitEnemy = sim.Hit ~= nil and sim.Hit.Model == opponentCharacter
+		-- the enemy in a match, or a practice dummy in the lobby
+		local hitModel = sim.Hit and sim.Hit.Model
+		local hitEnemy = hitModel ~= nil
+			and ((opponentCharacter ~= nil and hitModel == opponentCharacter) or hitModel:GetAttribute("Dummy") == true)
 		if hitEnemy then
-			table.insert(claims, { Index = i, Part = sim.Hit.Part.Name, Point = sim.Hit.Position })
+			table.insert(claims, { Index = i, Model = hitModel, Part = sim.Hit.Part.Name, Point = sim.Hit.Position })
 		end
 		Controllers.Effects.DrawShot(sim.Segments, sim.Passes, sim.EndPosition, sim.EndNormal, muzzle, {
 			Explosive = stats.Explosive,
@@ -5384,7 +6183,7 @@ end
 local function update(dt)
 	local character = player.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-	local allowed = ClientState.IsInArena() and not ClientState.MenuOpen and humanoid and humanoid.Health > 0
+	local allowed = ClientState.HasGun() and not ClientState.MenuOpen and humanoid and humanoid.Health > 0
 	if not allowed then
 		scopeHeld = false
 	end
@@ -5407,11 +6206,11 @@ return Weapon
 ]]></string>
           </Properties>
         </Item>
-        <Item class="Folder" referent="35">
+        <Item class="Folder" referent="38">
           <Properties>
             <string name="Name">ui</string>
           </Properties>
-          <Item class="ModuleScript" referent="36">
+          <Item class="ModuleScript" referent="39">
             <Properties>
               <string name="Name">HUD</string>
               <string name="Source"><![CDATA[--[[
@@ -5458,6 +6257,7 @@ local banner, bannerTitle, bannerSub
 local vignette, indicator
 local lastCountdownNumber
 local bannerToken = 0
+local speedLabel
 
 ----------------------------------------------------------------------------
 -- Building
@@ -5740,6 +6540,21 @@ local function buildBanner()
 		TextColor3 = Palette.UISubText,
 		Parent = banner,
 	})
+end
+
+-- Speedometer (bottom centre): your horizontal speed, handy for bunny hopping.
+local function buildSpeedometer()
+	speedLabel = Theme.label({
+		Name = "Speed",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -110),
+		Size = UDim2.fromOffset(160, 24),
+		TextSize = 20,
+		FontFace = Theme.Font(Enum.FontWeight.Heavy),
+		TextTransparency = 0.15,
+		Parent = gui,
+	})
+	Theme.new("UIStroke", { Thickness = 1.5, Transparency = 0.6, Color = Palette.UIBackground, Parent = speedLabel })
 end
 
 local function buildDamage()
@@ -6039,7 +6854,7 @@ local function formatTime(seconds)
 end
 
 local function update()
-	local inArena = ClientState.IsInArena()
+	local inArena = ClientState.HasGun() -- lobby practice range or a live round
 	local scopeAlpha = Controllers.Weapon.GetScopeAlpha()
 	local firstPerson = Controllers.Camera.IsFirstPerson()
 
@@ -6048,6 +6863,12 @@ local function update()
 	local bolt = Controllers.Weapon.GetBoltProgress()
 	boltBar.Visible = inArena and bolt > 0
 	boltFill.Size = UDim2.fromScale(1 - bolt, 1)
+
+	-- speedometer: white at normal speed, teal when bunny hopping fast
+	local speed = Controllers.Movement.GetSpeed()
+	speedLabel.Visible = inArena and scopeAlpha < 0.85 and not ClientState.MenuOpen
+	speedLabel.Text = tostring(math.floor(speed + 0.5)) .. " u/s"
+	speedLabel.TextColor3 = speed > Config.Movement.SprintSpeed + 6 and Palette.UIAccent or Palette.UIText
 
 	-- health
 	local character = player.Character
@@ -6108,6 +6929,7 @@ function HUD.Start(playerGui)
 	buildAbilities()
 	buildBanner()
 	buildDamage()
+	buildSpeedometer()
 
 	Remotes.Get("HitConfirm").OnClientEvent:Connect(onHitConfirm)
 	Remotes.Get("Damaged").OnClientEvent:Connect(onDamaged)
@@ -6118,7 +6940,7 @@ return HUD
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="37">
+          <Item class="ModuleScript" referent="40">
             <Properties>
               <string name="Name">Icons</string>
               <string name="Source"><![CDATA[--[[
@@ -6180,7 +7002,7 @@ return Icons
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="38">
+          <Item class="ModuleScript" referent="41">
             <Properties>
               <string name="Name">LobbyUI</string>
               <string name="Source"><![CDATA[--[[
@@ -6190,6 +7012,7 @@ return Icons
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
@@ -6209,11 +7032,15 @@ local CONTROLS = {
 	{ "SHIFT", "Sprint  /  Air dash" },
 	{ "C / CTRL", "Slide (keeps momentum)" },
 	{ "SPACE", "Jump  /  Double jump  /  Wall jump" },
+	{ "HOLD SPACE", "Bunny hop (keeps all your speed)" },
+	{ "", "Air strafe: hold A or D + turn the mouse that way" },
 	{ "", "Wall run: jump next to a wall and hold W" },
 	{ "RMB", "Scope" },
 	{ "LMB", "Fire" },
 	{ "E / Q", "Grapple / Decoy (power-ups)" },
-	{ "P", "Settings" },
+	{ "V", "Inspect rifle" },
+	{ "F", "Find a match" },
+	{ "P", "Settings (frees the mouse)" },
 }
 
 function LobbyUI.OnState(snapshot)
@@ -6222,17 +7049,17 @@ function LobbyUI.OnState(snapshot)
 		return
 	end
 	if snapshot.Queued then
-		playButton.Text = "IN QUEUE  -  CANCEL"
+		playButton.Text = "IN QUEUE  -  [F] CANCEL"
 		playButton.BackgroundColor3 = Palette.UIPanelLight
 		playButton.TextColor3 = Palette.UIText
 		statusLabel.Text = "Waiting for an opponent...  (" .. tostring(snapshot.QueueCount or 1) .. " in queue)"
 	else
-		playButton.Text = "PLAY"
+		playButton.Text = "[F]  FIND MATCH"
 		playButton.BackgroundColor3 = Palette.UIAccent
 		playButton.TextColor3 = Palette.UIBackground
 		local queued = snapshot.QueueCount or 0
 		statusLabel.Text = queued > 0 and (tostring(queued) .. " player(s) waiting - press PLAY to duel")
-			or "1v1 sniper duel  -  first to 4 rounds"
+			or "Practise on the range while you wait  -  first to 4 rounds"
 	end
 end
 
@@ -6268,7 +7095,7 @@ function LobbyUI.Start(playerGui)
 	local controls = Theme.panel({
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = UDim2.new(0, 24, 0.5, 20),
-		Size = UDim2.fromOffset(340, 28 + #CONTROLS * 26),
+		Size = UDim2.fromOffset(390, 28 + #CONTROLS * 26),
 		Parent = gui,
 	}, nil)
 	Theme.padding(controls, 14)
@@ -6305,14 +7132,24 @@ function LobbyUI.Start(playerGui)
 	playButton = Theme.button({
 		AnchorPoint = Vector2.new(0.5, 1),
 		Position = UDim2.new(0.5, 0, 1, -64),
-		Size = UDim2.fromOffset(320, 64),
-		Text = "PLAY",
+		Size = UDim2.fromOffset(340, 64),
+		Text = "[F]  FIND MATCH",
 		TextSize = 28,
 		Parent = gui,
 	})
-	playButton.Activated:Connect(function()
+	local function toggleQueue()
 		Sfx.Play("CardPick", { Volume = 0.6 })
 		Remotes.Get("QueueToggle"):FireServer()
+	end
+	playButton.Activated:Connect(toggleQueue)
+	-- the mouse is locked in first person, so the queue is on a key
+	UserInputService.InputBegan:Connect(function(input, processed)
+		if processed and UserInputService:GetFocusedTextBox() then
+			return
+		end
+		if input.KeyCode == Config.Lobby.QueueKey and gui.Enabled then
+			toggleQueue()
+		end
 	end)
 	statusLabel = Theme.label({
 		AnchorPoint = Vector2.new(0.5, 1),
@@ -6346,7 +7183,7 @@ return LobbyUI
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="39">
+          <Item class="ModuleScript" referent="42">
             <Properties>
               <string name="Name">PickScreen</string>
               <string name="Source"><![CDATA[--[[
@@ -6875,7 +7712,7 @@ return PickScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="40">
+          <Item class="ModuleScript" referent="43">
             <Properties>
               <string name="Name">SettingsMenu</string>
               <string name="Source"><![CDATA[--[[
@@ -7119,7 +7956,7 @@ return SettingsMenu
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="41">
+          <Item class="ModuleScript" referent="44">
             <Properties>
               <string name="Name">Theme</string>
               <string name="Source"><![CDATA[--[[
@@ -7272,7 +8109,7 @@ return Theme
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="42">
+          <Item class="ModuleScript" referent="45">
             <Properties>
               <string name="Name">VictoryScreen</string>
               <string name="Source"><![CDATA[--[[

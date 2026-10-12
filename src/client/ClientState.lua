@@ -52,6 +52,17 @@ function ClientState.IsInArena()
 		and (phase == "Countdown" or phase == "Fight" or phase == "RoundEnd")
 end
 
+-- True when you should be holding your sniper: in the lobby (practice range)
+-- or in the arena during a round.
+function ClientState.HasGun()
+	return not ClientState.Snapshot.InMatch or ClientState.IsInArena()
+end
+
+-- True when shots are allowed: practice in the lobby, or a live round.
+function ClientState.CanShoot()
+	return not ClientState.Snapshot.InMatch or ClientState.IsFighting()
+end
+
 -- This player's entry in the snapshot's Players list.
 function ClientState.GetMe()
 	for _, entry in ipairs(ClientState.Snapshot.Players or {}) do

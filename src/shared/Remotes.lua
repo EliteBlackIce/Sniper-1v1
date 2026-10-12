@@ -29,6 +29,7 @@ Remotes.Names = {
 	"Effect", -- S->C  one-off visual effects (explosions, shockwaves, grapple ropes)
 	"SettingsLoad", -- S->C  saved settings for this player
 	"SettingsSave", -- C->S  save settings
+	"Aim", -- C->S  where you're looking up/down (others see your aim pose)
 }
 
 local FOLDER_NAME = "Remotes"

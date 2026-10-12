@@ -31,12 +31,16 @@ Config.Palette = {
 	PlayerB = Color3.fromRGB(255, 94, 112), -- red
 	LobbyPlayer = Color3.fromRGB(205, 210, 220),
 
-	-- Viewmodel
-	Skin = Color3.fromRGB(238, 200, 170),
-	Sleeve = Color3.fromRGB(52, 57, 70),
-	GunBody = Color3.fromRGB(44, 48, 58),
-	GunTrim = Color3.fromRGB(120, 126, 140),
+	-- Sniper + arms (viewmodel and the gun other players see)
+	GunMetal = Color3.fromRGB(38, 41, 49), -- barrel, receiver, scope
+	GunMetalLight = Color3.fromRGB(70, 75, 88), -- rails, bolt, small metal bits
+	GunFurniture = Color3.fromRGB(84, 104, 78), -- stock + handguard (classic olive)
+	GunAccent = Color3.fromRGB(56, 199, 182), -- tiny highlights (matches AccentA)
 	ScopeGlass = Color3.fromRGB(120, 220, 255),
+	Glove = Color3.fromRGB(36, 38, 44),
+	Sleeve = Color3.fromRGB(62, 70, 86),
+	SleeveCuff = Color3.fromRGB(48, 54, 68),
+	MuzzleFlash = Color3.fromRGB(255, 236, 170),
 
 	-- Effects
 	Tracer = Color3.fromRGB(255, 244, 214),
@@ -86,6 +90,15 @@ Config.Match = {
 }
 
 ----------------------------------------------------------------------------
+-- LOBBY PRACTICE RANGE
+----------------------------------------------------------------------------
+Config.Lobby = {
+	QueueKey = Enum.KeyCode.F, -- press in the lobby to find a match
+	DummyHealth = 100,
+	DummyRespawnTime = 1.2,
+}
+
+----------------------------------------------------------------------------
 -- PLAYER / HEALTH
 ----------------------------------------------------------------------------
 Config.Player = {
@@ -116,6 +129,19 @@ Config.Camera = {
 
 	RecoilPitch = 2.4, -- degrees the aim kicks up per shot (hipfire)
 	ScopedRecoilPitch = 1.2,
+
+	FirstPersonInLobby = true, -- lobby is first person too (you can practise there)
+	HeadBob = 0.07, -- studs of camera bob while running (0 = off)
+	LandingDip = 0.012, -- camera dip per stud/s of landing speed
+	MaxLandingDip = 0.9,
+}
+
+-- Viewmodel (first-person arms + gun) animation
+Config.Viewmodel = {
+	EquipTime = 0.45, -- gun raise animation when you spawn
+	SwayAmount = 0.06, -- how much the gun lags behind the mouse
+	BobAmount = 1.0, -- walk bob strength
+	InspectKey = Enum.KeyCode.V, -- admire your rifle
 }
 
 -- Defaults for the settings menu (players can change and save these).
@@ -135,31 +161,41 @@ Config.SettingsLimits = {
 Config.Movement = {
 	Gravity = 170, -- workspace gravity (default Roblox is 196.2)
 
-	WalkSpeed = 22,
-	SprintSpeed = 32,
-	GroundAccel = 160, -- how fast you reach target speed on the ground
-	GroundFriction = 140, -- how fast you stop with no input
-	ExcessFriction = 55, -- how fast speed ABOVE sprint speed bleeds off on the ground
-	BhopGrace = 0.12, -- seconds after landing with no friction (slide/dash -> jump chains)
+	-- Movement uses the same model as Source games (CS / TF2 / Titanfall):
+	-- ground friction + acceleration, and "air strafing" in the air, which is
+	-- what makes bunny hopping work.
+	RunSpeed = 30, -- normal top speed on the ground
+	SprintSpeed = 38, -- top speed while holding Shift on the ground
+	GroundAccel = 11, -- how quickly you reach top speed (higher = snappier)
+	Friction = 6, -- ground friction (higher = stop faster)
+	StopSpeed = 10, -- below this speed friction acts as if you were going this fast
+
+	-- BUNNY HOPPING
+	-- Hold Space: you jump again the instant you land, and the landing frame
+	-- skips friction, so you keep all your speed. Hold A or D and turn the
+	-- mouse the same way in the air to GAIN speed (air strafing).
+	AutoBhop = true, -- true = holding Space re-jumps on landing
+	JumpBuffer = 0.15, -- a jump pressed this long before landing still counts
+	AirAccel = 14, -- air strafe strength (Source uses 10-12)
+	AirSpeedCap = 3.6, -- small cap per frame = the classic strafe gain (Source: 30 units)
+	AirControlSpeed = 30, -- wish speed used in the air
+	MaxSpeed = 120, -- hard limit on horizontal speed
 
 	JumpPower = 52,
 	AirJumps = 1, -- 1 = double jump (Triple Jump power-up adds more)
-	AirJumpVelocity = 52,
-	AirAccel = 70, -- air steering acceleration
-	AirMaxInputSpeed = 32, -- input alone can't push you faster than this in the air
-	AirTurnRate = 2.2, -- how strongly air input re-aims existing momentum (per second)
-	AirDrag = 0.35, -- fraction of excess momentum lost per second in the air
+	AirJumpVelocity = 50,
+	AirJumpMinSpeed = 30, -- a double jump re-aims you toward your keys at least this fast
 
 	-- Slide
 	SlideKey = Enum.KeyCode.C, -- LeftControl also works
 	SlideMinSpeed = 18, -- need at least this speed to start a slide
-	SlideBoost = 14, -- speed added when the slide starts
-	SlideMaxSpeed = 62,
-	SlideFriction = 22, -- speed lost per second while sliding
-	SlideEndSpeed = 14, -- slide ends below this speed
-	SlideSteer = 1.6, -- how much you can steer a slide
-	SlideCooldown = 0.35,
-	SlideJumpBoost = 4, -- extra speed for jumping out of a slide
+	SlideBoost = 12, -- speed added when the slide starts...
+	SlideBoostCap = 55, -- ...but only up to this speed (no infinite slide boosting)
+	SlideFriction = 0.55, -- slide friction (much lower than running)
+	SlideEndSpeed = 16, -- slide ends below this speed
+	SlideSteer = 2.2, -- how much you can steer a slide
+	SlideCooldown = 0.6,
+	SlideJumpBoost = 3, -- extra speed for jumping out of a slide
 
 	-- Air dash (press Shift in the air)
 	DashSpeed = 82,
@@ -316,7 +352,6 @@ Config.UI = {
 -- DEBUG
 ----------------------------------------------------------------------------
 Config.Debug = {
-	FirstPersonInLobby = false, -- true = lobby also uses the locked first-person camera
 	LogRejectedShots = true, -- print a warning when the server rejects a shot
 }
 

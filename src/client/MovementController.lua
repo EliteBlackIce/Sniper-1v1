@@ -1,34 +1,35 @@
 --[[
 	MovementController.lua  (Client.MovementController)
 
-	Fast, momentum-based movement on top of the normal Roblox Humanoid.
+	Fast, momentum-based movement with BUNNY HOPPING.
 
 	CONTROLS
 		WASD           move
+		Space          jump. HOLD it to bunny hop (you re-jump the instant you
+		               land and keep all your speed). Double jump / wall jump too.
+		A/D + mouse    air strafe: hold A and turn the mouse left (or D + right)
+		               while in the air to GAIN speed, like CS / TF2
 		Left Shift     sprint (hold) on the ground / AIR DASH when in the air
-		C or L-Ctrl    slide (hold). Pressing it in the air = slide on landing
-		Space          jump, double jump, wall jump, (Magnetic Boots: hold under
-		               a ceiling to cling to it)
+		C or L-Ctrl    slide (hold). Hold it in the air = slide when you land
 		E              Grapple Hook (power-up)
 		Q              Decoy (power-up)
 
 	HOW IT WORKS
-	We keep our own horizontal velocity, `momentum`, and drive the character
-	with a LinearVelocity constraint in "Plane" mode (horizontal only). That
-	means gravity and jumping still work normally, but WE decide horizontal
-	speed, so momentum carries between moves: slide -> jump keeps your speed,
-	wall run -> dash keeps your speed, etc.
+	The ground and air physics copy the Source engine (Half-Life, CS, TF2):
+	  * ground: friction, then accelerate toward your input direction
+	  * air:    the acceleration can only add a tiny bit of speed IN the
+	            direction you're pressing, but there's no limit on total speed.
+	            Turning the mouse while strafing keeps your input sideways to
+	            your velocity, which bends and grows it. That's air strafing.
+	  * landing with Space held jumps again on the same frame, before any
+	            friction is applied, so no speed is lost. That's bunny hopping.
 
-	Every move is a "mode":
-		Ground   walking / sprinting (extra speed bleeds off slowly)
-		Air      falling / jumping (air control + momentum)
-		Slide    low friction ground slide
-		WallRun  running along a wall
-		Dash     short burst in the air
-		Grapple  being pulled toward the hook point
-		Ceiling  clinging to a ceiling (Magnetic Boots)
+	We keep our own horizontal velocity (`momentum`) and drive the character
+	with a LinearVelocity in Plane mode (horizontal only), so gravity and
+	jumping still use normal Roblox physics.
 
-	The Camera reads GetCameraHints() for FOV kick, roll and camera drop.
+	Modes: Ground, Air, Slide, WallRun, Dash, Grapple, Ceiling.
+	Other scripts can listen to Movement.Jumped / Landed / Dashed.
 ]]
 
 local Players = game:GetService("Players")
@@ -39,6 +40,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Remotes = require(Shared.Remotes)
+local Signal = require(Shared.Signal)
 local Util = require(Shared.Util)
 local ClientState = require(script.Parent.ClientState)
 local Sfx = require(script.Parent.Sfx)
@@ -50,6 +52,10 @@ local player = Players.LocalPlayer
 
 local Movement = {}
 local Controllers
+
+Movement.Jumped = Signal.new() -- ()
+Movement.Landed = Signal.new() -- (fallSpeed)
+Movement.Dashed = Signal.new() -- ()
 
 -- Character references
 local character, humanoid, root, linearVelocity
@@ -64,14 +70,15 @@ local airJumpsLeft = 0
 local dashesLeft = 0
 
 local sprintHeld, slideHeld, jumpHeld = false, false, false
+local jumpPressedAt = -10 -- for the jump buffer
 
 local now = os.clock
-local lastLandTime = 0
 local lastGroundJumpTime = 0
 local lastLiftTime = 0
 local lastSlideTime = 0
 local lastDashTime = 0
 local peakY = 0
+local lowestVelocityY = 0 -- fastest fall speed this air time (for landing effects)
 
 local dash = { Timer = 0, Dir = Vector3.zero, ExitSpeed = 0 }
 local wall = { Normal = Vector3.zero, Side = 0, Timer = 0, Y = 0, LastNormal = nil, LastTime = 0 }
@@ -119,6 +126,33 @@ local function steer(v, dir, t)
 	return newDir.Unit * v.Magnitude
 end
 
+--[[
+	Source-engine acceleration.
+	Adds speed along `wishDir` until the speed IN THAT DIRECTION reaches
+	`addCap`. In the air addCap is tiny (AirSpeedCap), which is exactly what
+	makes air strafing gain speed when you turn while strafing.
+]]
+local function accelerate(v, wishDir, wishSpeed, accel, dt, addCap)
+	local current = v:Dot(wishDir)
+	local addSpeed = (addCap or wishSpeed) - current
+	if addSpeed <= 0 then
+		return v
+	end
+	local accelSpeed = math.min(accel * dt * wishSpeed, addSpeed)
+	return v + wishDir * accelSpeed
+end
+
+-- Source-engine ground friction.
+local function applyFriction(v, friction, dt)
+	local speed = v.Magnitude
+	if speed < 0.05 then
+		return Vector3.zero
+	end
+	local control = math.max(speed, M.StopSpeed)
+	local newSpeed = math.max(speed - control * friction * dt, 0)
+	return v * (newSpeed / speed)
+end
+
 local function speedMultiplier()
 	return now() < speedBoost.Until and speedBoost.Multiplier or 1
 end
@@ -141,7 +175,7 @@ local function makeRaycastParams()
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
 	local exclude = { character, workspace.CurrentCamera }
-	for _, name in ipairs({ "Effects", "Decoys" }) do
+	for _, name in ipairs({ "Effects", "Decoys", "Dummies" }) do
 		local folder = workspace:FindFirstChild(name)
 		if folder then
 			table.insert(exclude, folder)
@@ -160,6 +194,17 @@ end
 local function setVerticalVelocity(y)
 	local v = root.AssemblyLinearVelocity
 	root.AssemblyLinearVelocity = Vector3.new(v.X, y, v.Z)
+end
+
+-- True if we are falling and the ground is just below (so a Space press now
+-- should be a buffered bunny hop, not a double jump).
+local function groundIsClose()
+	local vy = root.AssemblyLinearVelocity.Y
+	if vy > 0 then
+		return false
+	end
+	local reach = 3.6 + math.min(-vy * M.JumpBuffer, 8)
+	return workspace:Raycast(root.Position, Vector3.new(0, -reach, 0), makeRaycastParams()) ~= nil
 end
 
 ----------------------------------------------------------------------------
@@ -187,6 +232,10 @@ function Movement.GetSpeed()
 	return momentum.Magnitude
 end
 
+function Movement.GetWallSide()
+	return mode == "WallRun" and wall.Side or 0
+end
+
 function Movement.GetGrapplePoint()
 	return grapple.Point
 end
@@ -201,6 +250,10 @@ end
 
 function Movement.IsGrounded()
 	return humanoid ~= nil and humanoid.FloorMaterial ~= Enum.Material.Air
+end
+
+function Movement.IsSprinting()
+	return mode == "Ground" and sprintHeld and momentum.Magnitude > M.RunSpeed * 0.8
 end
 
 -- FOV kick / roll / camera drop for the CameraController.
@@ -224,7 +277,7 @@ function Movement.GetCameraHints()
 end
 
 ----------------------------------------------------------------------------
--- Move starters
+-- Moves
 ----------------------------------------------------------------------------
 local function startSlide()
 	if now() - lastSlideTime < M.SlideCooldown then
@@ -236,21 +289,27 @@ local function startSlide()
 	end
 	lastSlideTime = now()
 	mode = "Slide"
-	momentum = momentum.Unit * math.min(speed + M.SlideBoost, M.SlideMaxSpeed)
+	-- boost, but never above the cap (so slide spam can't snowball)
+	if speed < M.SlideBoostCap then
+		speed = math.min(speed + M.SlideBoost, M.SlideBoostCap)
+	end
+	momentum = momentum.Unit * speed
 	Sfx.Play("Dash", { Pitch = 0.7, Volume = 0.6 })
 end
 
 local function onLanded()
 	local fell = peakY - root.Position.Y
+	local fallSpeed = -lowestVelocityY
 	peakY = root.Position.Y
+	lowestVelocityY = 0
 	mode = "Ground"
-	lastLandTime = now()
 	airJumpsLeft = stats().AirJumps
 	dashesLeft = M.DashesPerAir
 	bulletTime.UsedThisAir = false
-	if fell > 6 then
-		Sfx.Play("Land", { Volume = math.clamp(fell / 20, 0.4, 1.2) })
+	if fallSpeed > 30 then
+		Sfx.Play("Land", { Volume = math.clamp(fallSpeed / 80, 0.3, 1.2) })
 	end
+	Movement.Landed:Fire(fallSpeed)
 	-- SHOCKWAVE LANDING power-up
 	if stats().ShockwaveLanding and fell >= PU.ShockwaveLanding.MinFallHeight then
 		Remotes.Get("Ability"):FireServer("Shockwave", {})
@@ -259,6 +318,22 @@ local function onLanded()
 	if slideHeld then
 		startSlide()
 	end
+end
+
+-- Jump off the ground (or out of a slide). Called from the step so it can
+-- happen on the exact landing frame (bunny hop).
+local function groundJump()
+	if mode == "Slide" and momentum.Magnitude < M.SlideBoostCap then
+		momentum += Util.safeUnit(momentum) * M.SlideJumpBoost
+	end
+	humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+	setVerticalVelocity(M.JumpPower)
+	lastGroundJumpTime = now()
+	jumpPressedAt = -10
+	mode = "Air"
+	peakY = root.Position.Y
+	Sfx.Play("Jump", { Pitch = 0.95 + math.random() * 0.1 })
+	Movement.Jumped:Fire()
 end
 
 local function startDash()
@@ -275,6 +350,7 @@ local function startDash()
 	mode = "Dash"
 	Controllers.Camera.AddFovPunch(C.DashFOVKick)
 	Sfx.Play("Dash")
+	Movement.Dashed:Fire()
 	-- PHANTOM DASH power-up: the server makes us invisible
 	if stats().PhantomDash then
 		Remotes.Get("Ability"):FireServer("PhantomDash", {})
@@ -339,9 +415,27 @@ local function wallJump()
 	mode = "Air"
 	airJumpsLeft = stats().AirJumps -- wall jumps refresh your air jumps
 	Sfx.Play("Jump", { Pitch = 1.15 })
+	Movement.Jumped:Fire()
+end
+
+local function airJump()
+	airJumpsLeft -= 1
+	pendingLift = M.AirJumpVelocity
+	-- re-aim momentum toward your keys (keeps your speed)
+	local wish = wishDirection()
+	if mode == "Dash" then
+		momentum = dash.Dir * dash.ExitSpeed
+	end
+	if wish.Magnitude > 0.1 then
+		momentum = wish.Unit * math.max(momentum.Magnitude, M.AirJumpMinSpeed * speedMultiplier())
+	end
+	mode = "Air"
+	Sfx.Play("Jump", { Pitch = 1.25 })
+	Movement.Jumped:Fire()
 end
 
 local function onJumpPressed()
+	jumpPressedAt = now()
 	if not canMove() then
 		return
 	end
@@ -349,74 +443,43 @@ local function onJumpPressed()
 		wallJump()
 	elseif mode == "Grapple" then
 		endGrapple(true)
-	elseif mode == "Slide" then
-		-- the Humanoid does the jump itself; we add a little speed
-		momentum += Util.safeUnit(momentum) * M.SlideJumpBoost
-		mode = "Air"
-		lastGroundJumpTime = now()
-		Sfx.Play("Jump")
-	elseif mode == "Ground" and Movement.IsGrounded() then
-		lastGroundJumpTime = now()
-		Sfx.Play("Jump")
-	elseif mode == "Air" or mode == "Dash" or (mode == "Ground" and not Movement.IsGrounded()) then
+	elseif mode == "Air" or mode == "Dash" then
 		if now() - lastGroundJumpTime < 0.12 then
-			return -- that was the ground jump itself
+			return -- we only just left the ground
+		end
+		if mode == "Air" and groundIsClose() then
+			return -- about to land: the jump buffer turns this into a bunny hop
 		end
 		if airJumpsLeft > 0 then
-			airJumpsLeft -= 1
-			pendingLift = M.AirJumpVelocity
-			-- re-aim momentum toward input (keeps your speed)
-			local wish = wishDirection()
-			if wish.Magnitude > 0.1 then
-				momentum = wish.Unit * math.max(momentum.Magnitude, M.WalkSpeed)
-			end
-			if mode == "Dash" then
-				momentum = dash.Dir * dash.ExitSpeed
-			end
-			mode = "Air"
-			Sfx.Play("Jump", { Pitch = 1.25 })
+			airJump()
 		end
 	end
+	-- Ground / Slide jumps happen in the step (so they line up with landing)
 end
 
 ----------------------------------------------------------------------------
 -- Per-mode updates
 ----------------------------------------------------------------------------
 local function updateGround(dt, wish)
-	local target = (sprintHeld and M.SprintSpeed or M.WalkSpeed) * speedMultiplier()
-	local speed = momentum.Magnitude
-	if speed > target + 0.5 then
-		-- carrying extra speed (from a slide/dash/fall): bleed it off slowly,
-		-- not at all right after landing so you can chain a jump
-		if now() - lastLandTime > M.BhopGrace then
-			speed = math.max(target, speed - M.ExcessFriction * dt)
-		end
-		momentum = steer(momentum, wish, 6 * dt).Unit * speed
-		if wish.Magnitude < 0.1 then
-			momentum = approachVector(momentum, Vector3.zero, M.GroundFriction * 0.5 * dt)
-		end
-	else
-		local accel = wish.Magnitude > 0.1 and M.GroundAccel or M.GroundFriction
-		momentum = approachVector(momentum, wish * target, accel * dt)
+	local wishSpeed = (sprintHeld and M.SprintSpeed or M.RunSpeed) * speedMultiplier()
+	momentum = applyFriction(momentum, M.Friction, dt)
+	if wish.Magnitude > 0.05 then
+		momentum = accelerate(momentum, wish.Unit, wishSpeed * math.min(wish.Magnitude, 1), M.GroundAccel, dt)
 	end
-	humanoid.WalkSpeed = math.max(target, 1)
+	humanoid.WalkSpeed = math.max(wishSpeed, 1)
 end
 
 local function updateAir(dt, wish)
-	local speedCap = math.max(momentum.Magnitude, M.AirMaxInputSpeed * speedMultiplier())
-	if wish.Magnitude > 0.1 then
-		momentum = steer(momentum, wish, M.AirTurnRate * dt)
-		momentum += wish * M.AirAccel * dt
-		if momentum.Magnitude > speedCap then
-			momentum = momentum.Unit * speedCap
-		end
+	if wish.Magnitude > 0.05 then
+		momentum = accelerate(
+			momentum,
+			wish.Unit,
+			M.AirControlSpeed * speedMultiplier(),
+			M.AirAccel,
+			dt,
+			M.AirSpeedCap * speedMultiplier()
+		)
 	end
-	-- light drag on speed above normal air speed
-	local excess = momentum.Magnitude - M.AirMaxInputSpeed
-	if excess > 0 then
-		momentum = momentum.Unit * (momentum.Magnitude - excess * M.AirDrag * dt)
-	end
-	peakY = math.max(peakY, root.Position.Y)
 end
 
 local function tryStartWallRun(wish)
@@ -483,14 +546,12 @@ local function updateWallRun(dt, wish)
 end
 
 local function updateSlide(dt, wish)
-	local speed = momentum.Magnitude - M.SlideFriction * dt
+	momentum = applyFriction(momentum, M.SlideFriction, dt)
 	momentum = steer(momentum, wish, M.SlideSteer * dt)
-	if speed < M.SlideEndSpeed or not slideHeld then
+	if momentum.Magnitude < M.SlideEndSpeed or not slideHeld then
 		mode = "Ground"
-		momentum = Util.safeUnit(momentum) * math.max(speed, 0)
 		return
 	end
-	momentum = Util.safeUnit(momentum) * speed
 	humanoid.WalkSpeed = 4 -- calm the run animation while sliding
 end
 
@@ -535,8 +596,10 @@ local function updateCeiling(dt, wish)
 		mode = "Air"
 		return
 	end
-	local target = M.SprintSpeed * speedMultiplier()
-	momentum = approachVector(momentum, wish * math.max(target, momentum.Magnitude), M.GroundAccel * dt)
+	-- runs like the ground, but with no friction so you keep your speed
+	if wish.Magnitude > 0.05 then
+		momentum = accelerate(momentum, wish.Unit, M.SprintSpeed * speedMultiplier(), M.GroundAccel, dt)
+	end
 	setVerticalVelocity(3) -- keep pressed against the ceiling
 	airJumpsLeft = stats().AirJumps
 	dashesLeft = M.DashesPerAir
@@ -608,7 +671,7 @@ local function step(dt)
 		end
 	end
 
-	-- External impulses (knockback / rocket jump)
+	-- External impulses (knockback / rocket jump / double jump)
 	if pendingImpulse.Magnitude > 0 then
 		momentum += pendingImpulse
 		pendingImpulse = Vector3.zero
@@ -625,11 +688,12 @@ local function step(dt)
 
 	-- "grounded" ignores the first moments after any jump/launch, so the
 	-- floor we just left doesn't instantly count as a landing
-	local justLaunched = now() - math.max(lastGroundJumpTime, lastLiftTime) < 0.15
+	local justLaunched = now() - math.max(lastGroundJumpTime, lastLiftTime) < 0.12
 	local grounded = Movement.IsGrounded() and not justLaunched
 	local wish = wishDirection()
 	if not grounded then
 		peakY = math.max(peakY, root.Position.Y) -- for Shockwave Landing
+		lowestVelocityY = math.min(lowestVelocityY, velocity.Y)
 	end
 
 	-- Ground <-> air transitions
@@ -638,6 +702,15 @@ local function step(dt)
 	elseif not grounded and (mode == "Ground" or mode == "Slide") then
 		mode = "Air"
 		peakY = root.Position.Y
+	end
+
+	-- JUMP / BUNNY HOP: holding Space (or a buffered press) jumps on the very
+	-- frame we touch the ground, BEFORE friction runs, so no speed is lost.
+	if grounded and (mode == "Ground" or mode == "Slide") then
+		local wantsJump = (M.AutoBhop and jumpHeld) or (now() - jumpPressedAt < M.JumpBuffer)
+		if wantsJump then
+			groundJump()
+		end
 	end
 
 	if mode == "Ground" then
@@ -659,6 +732,11 @@ local function step(dt)
 		updateCeiling(dt, wish)
 	end
 
+	-- hard speed limit
+	if momentum.Magnitude > M.MaxSpeed then
+		momentum = momentum.Unit * M.MaxSpeed
+	end
+
 	updateBulletTime(dt, grounded)
 
 	-- Drive the character
@@ -678,7 +756,7 @@ local function step(dt)
 		kick = C.WallRunFOVKick
 	elseif mode == "Dash" then
 		kick = C.DashFOVKick
-	elseif speed > M.WalkSpeed + 2 then
+	elseif speed > M.RunSpeed + 2 then
 		kick = C.SprintFOVKick
 	end
 	kick += math.clamp((speed - M.SprintSpeed) * C.SpeedFOVPerStud, 0, C.MaxSpeedFOV)
@@ -695,7 +773,7 @@ local function onCharacterAdded(newCharacter)
 
 	humanoid.UseJumpPower = true
 	humanoid.JumpPower = M.JumpPower
-	humanoid.WalkSpeed = M.WalkSpeed
+	humanoid.WalkSpeed = M.RunSpeed
 
 	local attachment = root:FindFirstChild("RootAttachment") or root:FindFirstChild("RootRigAttachment")
 	if not attachment then
@@ -724,9 +802,10 @@ local function onCharacterAdded(newCharacter)
 	speedBoost.Until = 0
 	bulletTime.Until = 0
 	peakY = root.Position.Y
+	lowestVelocityY = 0
 
 	humanoid.StateChanged:Connect(function(_, new)
-		if new == Enum.HumanoidStateType.Jumping and mode == "Ground" then
+		if new == Enum.HumanoidStateType.Jumping and (mode == "Ground" or mode == "Slide") then
 			lastGroundJumpTime = now()
 		end
 	end)
@@ -735,6 +814,7 @@ end
 ----------------------------------------------------------------------------
 -- Input
 ----------------------------------------------------------------------------
+
 -- Roblox's own control scripts bind Space (and some mouse buttons) with
 -- ContextActionService, which marks those inputs as "processed". So we only
 -- ignore input while the player is typing in a text box (e.g. chat).

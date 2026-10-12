@@ -64,9 +64,12 @@ src/character/             -> StarterPlayer.StarterCharacterScripts
 1. Download **`dist/SniperDuel.rbxlx`** (on GitHub: open the file, then click the
    download button).
 2. Double-click it, or in Roblox Studio use **File > Open from File** and pick it.
-3. **Test** tab > **Clients and Servers** > **2 Players** > **Start**, then press
-   **PLAY** in both windows.
-4. **File > Publish to Roblox** if you want it on your account.
+3. **Solo:** press **Play** (F5). You spawn in first person with your sniper in
+   the lobby. Shoot the dummies on the range, practise bunny hopping and wall
+   running.
+4. **A real duel:** **Test** tab > **Clients and Servers** > **2 Players** >
+   **Start**, then press **F** in both windows to find a match.
+5. **File > Publish to Roblox** if you want it on your account.
 
 This file is a snapshot of the code. If you edit the `src/` files, rebuild it with
 `rojo build -o dist/SniperDuel.rbxlx`, or use the live Rojo setup below.
@@ -138,9 +141,9 @@ A duel needs two players:
 2. Two client windows open. Press **PLAY** in both.
 3. The match starts in one of the arenas after a 3-second countdown.
 
-Single-player check: press **Play** (F5). You can move around the lobby
-playground and open settings, but you need a second player to start a match.
-To try first-person movement alone, set `Config.Debug.FirstPersonInLobby = true`.
+Single-player check: press **Play** (F5). The lobby is a first-person practice
+area with a shooting range and moving dummies, so you can test movement and
+the sniper on your own. You need a second player to start a match.
 
 ---
 
@@ -149,6 +152,8 @@ To try first-person movement alone, set `Config.Debug.FirstPersonInLobby = true`
 | Key | Action |
 |---|---|
 | WASD | Move |
+| Hold Space | **Bunny hop**: re-jump the instant you land, keeping all your speed |
+| A or D + mouse | **Air strafe**: in the air, hold A and turn left (or D and right) to gain speed |
 | Left Shift | Sprint (hold) / **Air dash** (press in the air) |
 | C or Left Ctrl | Slide (hold). Press in the air to slide on landing |
 | Space | Jump / double jump / wall jump |
@@ -158,7 +163,9 @@ To try first-person movement alone, set `Config.Debug.FirstPersonInLobby = true`
 | E | Grapple Hook (power-up) |
 | Q | Decoy (power-up) |
 | Space (hold) | Ceiling run under a ceiling (Magnetic Boots) |
-| P | Settings |
+| V | Inspect your rifle |
+| F | Find a match / leave the queue (lobby) |
+| P | Settings (frees the mouse) |
 
 ---
 
@@ -170,9 +177,10 @@ can work through these checklists in order once it's synced.
 ### Stage 1: first-person camera and movement
 Files: `Config`, `CameraController`, `MovementController`, `CharacterService`, `MapBuilder` (lobby)
 
-- [ ] In the lobby the camera is the normal third-person camera.
-- [ ] Set `Config.Debug.FirstPersonInLobby = true`: the camera locks in first
-      person, scrolling can't zoom out, and you can't see your own body.
+- [ ] You spawn in the lobby in first person, scrolling can't zoom out, and you
+      can't see your own body.
+- [ ] Hold Space: you bunny hop. Hold A and turn the mouse left in the air: the
+      speedometer climbs.
 - [ ] Shift sprint is faster and the FOV widens slightly.
 - [ ] Sprint, then C: you slide, the camera drops and tilts, and the FOV kicks out.
       Speed bleeds off and the slide ends on its own.
@@ -189,7 +197,11 @@ Files: `Config`, `CameraController`, `MovementController`, `CharacterService`, `
 ### Stage 2: sniper and viewmodel
 Files: `ViewmodelController`, `WeaponController`, `Ballistics`, `CombatService`, `EffectsController`
 
-- [ ] In a match you see arms holding a flat sniper. It sways when you move
+- [ ] In the lobby (and in matches) you see gloved arms holding the sniper. It
+      swings up into view when you spawn, dips when you jump, slams on hard
+      landings, and V inspects it. Shoot the range dummies: they flash, lose
+      health and respawn.
+- [ ] The rifle sways when you move
       the mouse, bobs when you walk, lowers when you sprint and tilts while sliding.
 - [ ] The small crosshair shows in the centre.
 - [ ] Right mouse: the gun slides to centre, the FOV zooms in, the scope overlay
@@ -242,6 +254,24 @@ Files: `MapBuilder` (arena), `LightingSetup`, `Config.Palette`, `Config.Lighting
       and UI colours follow.
 
 ---
+
+## Bunny hopping
+
+Movement uses the Source-engine model (Half-Life / CS / TF2):
+
+- **On the ground**: friction, then acceleration up to run speed (30) or sprint speed (38).
+- **In the air**: you can only add a tiny amount of speed *in the direction
+  you're pressing* (`AirSpeedCap`), but there's no limit on total speed. When you
+  strafe and turn the mouse at the same time, your input stays sideways to your
+  velocity, so it keeps bending and growing. That's air strafing.
+- **Holding Space** jumps again on the exact frame you land, before friction
+  runs, so you lose no speed. Chain hops + air strafing = bunny hopping. Watch
+  the speedometer under the crosshair (it turns teal when you're fast).
+- **Tips**: don't hold W in the air. Hold only A or D and turn smoothly the same
+  way. A slide (C) into a jump also starts a hop chain with extra speed.
+- **Tuning** (`Config.Movement`): `AirAccel` and `AirSpeedCap` for strafe gain,
+  `Friction` for how sticky the ground is, `MaxSpeed` for the speed limit, and
+  `AutoBhop = false` if you want players to time each jump.
 
 ## Tuning and extending
 

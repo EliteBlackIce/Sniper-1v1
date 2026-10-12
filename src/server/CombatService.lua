@@ -32,8 +32,10 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Ballistics = require(ReplicatedStorage.Shared.Ballistics)
 local Util = require(ReplicatedStorage.Shared.Util)
+local PowerUps = require(ReplicatedStorage.Shared.PowerUps)
 local CharacterService = require(script.Parent.CharacterService)
 local MatchService = require(script.Parent.MatchService)
+local DummyService = require(script.Parent.DummyService)
 
 local W = Config.Weapon
 local PU = Config.PowerUps
@@ -256,6 +258,8 @@ local function validateClaim(claim, victimCharacter, worldPath, homing)
 	return part
 end
 
+local PRACTICE_STATS = PowerUps.ComputeStats({}) -- lobby practice: no power-ups
+
 local function onFire(player, origin, direction, claims)
 	-- 1) argument sanity
 	if not Util.isFiniteVector3(origin) or not Util.isFiniteVector3(direction) then
@@ -264,7 +268,7 @@ local function onFire(player, origin, direction, claims)
 	if direction.Magnitude < 0.5 or direction.Magnitude > 1.5 then
 		return
 	end
-	-- client hit claims arrive as a list of { Index, Part, Point }
+	-- client hit claims arrive as a list of { Index, Model, Part, Point }
 	local claimByBullet = {}
 	if typeof(claims) == "table" then
 		for _, claim in ipairs(claims) do
@@ -274,9 +278,10 @@ local function onFire(player, origin, direction, claims)
 		end
 	end
 
-	-- 2) shooter state
+	-- 2) shooter state. No match = lobby practice range (dummies only).
 	local match = MatchService.GetMatch(player)
-	if not match or not match:IsFighting() then
+	local practice = match == nil
+	if match and not match:IsFighting() then
 		return
 	end
 	local humanoid, character = CharacterService.GetAliveHumanoid(player)
@@ -288,7 +293,7 @@ local function onFire(player, origin, direction, claims)
 	if not head or not root then
 		return
 	end
-	local stats = match:GetStats(player)
+	local stats = practice and PRACTICE_STATS or match:GetStats(player)
 
 	-- 3) fire rate
 	local now = os.clock()
@@ -314,11 +319,22 @@ local function onFire(player, origin, direction, claims)
 	lastFire[player] = now
 
 	-- 5) trace every bullet on the server
-	local opponent = match:GetOpponent(player)
-	local victimCharacter = opponent.Character
+	local opponent = match and match:GetOpponent(player)
+	local victimCharacter = opponent and opponent.Character
 	local victimTorso = getTorso(victimCharacter)
 	local homingTargets = victimTorso and { victimTorso.Position } or {}
 	local exclude = buildExclude(player)
+
+	-- what this shooter is allowed to damage
+	local function isTarget(model)
+		if typeof(model) ~= "Instance" or not model:IsDescendantOf(workspace) then
+			return false
+		end
+		if practice then
+			return model:GetAttribute("Dummy") == true and not model:GetAttribute("Down")
+		end
+		return model == victimCharacter
+	end
 
 	local fx = {}
 	for i, dir in ipairs(Ballistics.GetShotDirections(direction.Unit, stats.Bullets)) do
@@ -330,20 +346,20 @@ local function onFire(player, origin, direction, claims)
 			HomingTargets = homingTargets,
 		})
 
-		local hitPart, hitPos
+		local hitModel, hitPart, hitPos
 		if sim.Hit then
 			local model = sim.Hit.Model
 			if model:GetAttribute("Decoy") then
 				popDecoy(model)
-			elseif model == victimCharacter then
-				hitPart, hitPos = sim.Hit.Part, sim.Hit.Position
+			elseif isTarget(model) then
+				hitModel, hitPart, hitPos = model, sim.Hit.Part, sim.Hit.Position
 			end
 		end
 
 		-- Lag compensation: trust a believable client claim over a server
 		-- miss or body shot (never over a server headshot).
 		local claim = claimByBullet[i]
-		if claim and victimCharacter and not (hitPart and Util.hitZone(hitPart.Name) == "Head") then
+		if claim and isTarget(claim.Model) and not (hitPart and Util.hitZone(hitPart.Name) == "Head") then
 			local worldPath = Ballistics.Simulate({
 				Origin = origin,
 				Direction = dir,
@@ -352,17 +368,26 @@ local function onFire(player, origin, direction, claims)
 				HomingTargets = homingTargets,
 				IgnoreTargets = true,
 			})
-			local claimed = validateClaim(claim, victimCharacter, worldPath, stats.Homing)
+			local claimed = validateClaim(claim, claim.Model, worldPath, stats.Homing)
 			if claimed then
-				hitPart, hitPos = claimed, claim.Point
+				hitModel, hitPart, hitPos = claim.Model, claimed, claim.Point
 			end
 		end
 
 		if hitPart then
 			local damage, headshot = damageForPart(hitPart)
-			CombatService.Damage(match, player, opponent, damage, { Headshot = headshot })
+			if practice then
+				local killed = DummyService.Damage(hitModel, damage)
+				Remotes.Get("HitConfirm"):FireClient(player, {
+					Headshot = headshot,
+					Killed = killed,
+					Damage = damage,
+				})
+			else
+				CombatService.Damage(match, player, opponent, damage, { Headshot = headshot })
+			end
 		end
-		if stats.Explosive then
+		if stats.Explosive and match then
 			explode(match, player, hitPos or sim.EndPosition, hitPart and opponent or nil)
 		end
 
@@ -375,9 +400,30 @@ local function onFire(player, origin, direction, claims)
 		})
 	end
 
-	-- Let the opponent draw this shot (the shooter already drew it locally).
-	if opponent.Parent then
-		Remotes.Get("ShotFx"):FireClient(opponent, player.UserId, fx, stats.Explosive)
+	-- Let others draw this shot (the shooter already drew it locally):
+	-- the opponent in a match, everyone else in the lobby when practising.
+	local shotFx = Remotes.Get("ShotFx")
+	if match then
+		if opponent.Parent then
+			shotFx:FireClient(opponent, player.UserId, fx, stats.Explosive)
+		end
+	else
+		for _, other in ipairs(Players:GetPlayers()) do
+			if other ~= player and not MatchService.GetMatch(other) then
+				shotFx:FireClient(other, player.UserId, fx, false)
+			end
+		end
+	end
+end
+
+-- Players send where they're looking (up/down) so others see them aim.
+local function onAim(player, pitch)
+	if typeof(pitch) ~= "number" or pitch ~= pitch then
+		return
+	end
+	local character = player.Character
+	if character then
+		character:SetAttribute("AimPitch", math.clamp(pitch, -1.4, 1.4))
 	end
 end
 
@@ -533,6 +579,7 @@ function CombatService.Init()
 
 	Remotes.Get("Fire").OnServerEvent:Connect(onFire)
 	Remotes.Get("Ability").OnServerEvent:Connect(onAbility)
+	Remotes.Get("Aim").OnServerEvent:Connect(onAim)
 
 	Players.PlayerRemoving:Connect(function(player)
 		lastFire[player] = nil

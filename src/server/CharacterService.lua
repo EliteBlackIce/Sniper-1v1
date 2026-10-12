@@ -16,6 +16,7 @@ local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local GunModel = require(ReplicatedStorage.Shared.GunModel)
 
 local Palette = Config.Palette
 local CharacterService = {}
@@ -26,22 +27,12 @@ CharacterService.OnDied = nil
 ----------------------------------------------------------------------------
 -- Styling
 ----------------------------------------------------------------------------
-local function flatPart(name, size, color, parent)
-	local p = Instance.new("Part")
-	p.Name = name
-	p.Size = size
-	p.Color = color
-	p.Material = Enum.Material.SmoothPlastic
-	p.CanCollide = false
-	p.CanQuery = false -- bullets pass through the gun, they hit the body
-	p.CanTouch = false
-	p.Massless = true
-	p.CastShadow = true
-	p.Parent = parent
-	return p
-end
+local WORLD_GUN_SCALE = 0.8
 
--- A simple sniper attached to the right hand (seen by the OTHER player).
+-- The rifle other players see in your hands (same model as your viewmodel,
+-- a bit smaller). The barrel points along the hand's -Y axis, so when the
+-- client's aim pose raises the arm forward (CharacterPoser), the gun points
+-- where you're looking.
 local function addWorldGun(character)
 	local hand = character:FindFirstChild("RightHand") or character:FindFirstChild("Right Arm")
 	if not hand then
@@ -49,29 +40,22 @@ local function addWorldGun(character)
 	end
 	local gun = Instance.new("Model")
 	gun.Name = "WorldGun"
+	local built = GunModel.Build(gun, { Scale = WORLD_GUN_SCALE, CastShadow = true })
 
-	local body = flatPart("Body", Vector3.new(0.35, 0.45, 2.6), Palette.GunBody, gun)
-	local barrel = flatPart("Barrel", Vector3.new(0.18, 0.18, 2.4), Palette.GunTrim, gun)
-	local scope = flatPart("Scope", Vector3.new(0.3, 0.3, 1.1), Palette.GunBody, gun)
-	local stock = flatPart("Stock", Vector3.new(0.3, 0.6, 1), Palette.GunTrim, gun)
-
-	local grip = hand.CFrame * CFrame.new(0, -0.15, -0.6)
-	body.CFrame = grip
-	barrel.CFrame = grip * CFrame.new(0, 0.08, -2.4)
-	scope.CFrame = grip * CFrame.new(0, 0.42, -0.2)
-	stock.CFrame = grip * CFrame.new(0, -0.1, 1.6)
-
-	for _, part in ipairs({ body, barrel, scope, stock }) do
+	local grip = hand.CFrame * CFrame.new(0, -0.15, 0) * CFrame.Angles(math.rad(-90), 0, 0)
+	GunModel.Place(built, grip, WORLD_GUN_SCALE)
+	for _, part in pairs(built.Parts) do
 		local weld = Instance.new("WeldConstraint")
 		weld.Part0 = hand
 		weld.Part1 = part
 		weld.Parent = part
 	end
 
+	-- tracers seen by other players start here (WorldGun.Barrel.Muzzle)
 	local muzzle = Instance.new("Attachment")
 	muzzle.Name = "Muzzle"
-	muzzle.Position = Vector3.new(0, 0, -1.2)
-	muzzle.Parent = barrel
+	muzzle.Parent = built.Parts.Barrel
+	muzzle.WorldCFrame = grip * CFrame.new(GunModel.Muzzle.Position * WORLD_GUN_SCALE)
 
 	gun.Parent = character
 end

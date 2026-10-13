@@ -105,7 +105,9 @@ local function baseStats()
 		BlinkCooldown = 0,
 		PhantomDash = false,
 		PhantomTime = 0,
-		InfiniteWallRun = false,
+		WallRun = false, -- Wall Runner power-up
+		WallRunTime = 0,
+		WallRunCooldown = Config.Movement.WallRunCooldown,
 		CeilingRun = false,
 		ShockwaveLanding = false,
 		ShockwaveRadius = 0,
@@ -420,6 +422,28 @@ PowerUps.Definitions = {
 		end,
 	},
 	{
+		Id = "WallRunner",
+		Name = "Wall Runner",
+		Description = "Run along walls for a moment (one per jump, short cooldown).",
+		Stacking = "+0.2s and a shorter cooldown per stack",
+		Rarity = "Common",
+		Tags = { "Movement" },
+		IconColor = Color3.fromRGB(110, 200, 190),
+		MaxStacks = 3,
+		Icon = {
+			{ "Rect", 0.22, 0.5, 0.1, 0.7, 0 },
+			{ "Rect", 0.52, 0.44, 0.09, 0.3, -35 },
+			{ "Rect", 0.68, 0.58, 0.09, 0.3, -35, A = 0.6 },
+			{ "Rect", 0.84, 0.72, 0.09, 0.3, -35, A = 0.3 },
+		},
+		Effect = function(s, n)
+			local cfg = P.WallRunner
+			s.WallRun = true
+			s.WallRunTime = math.max(s.WallRunTime, cfg.Duration + cfg.DurationPerStack * (n - 1))
+			s.WallRunCooldown *= cfg.CooldownScalePerStack ^ (n - 1)
+		end,
+	},
+	{
 		Id = "Adrenaline",
 		Name = "Adrenaline",
 		Description = "+8% movement speed (running, air strafing and top speed).",
@@ -558,7 +582,7 @@ PowerUps.Definitions = {
 	{
 		Id = "MagneticBoots",
 		Name = "Magnetic Boots",
-		Description = "Wall runs last forever and you can run on ceilings (hold Space).",
+		Description = "Run on ceilings (hold Space), and wall run for up to 1 second.",
 		Stacking = "Doesn't stack",
 		Rarity = "Rare",
 		Tags = { "Movement" },
@@ -570,8 +594,9 @@ PowerUps.Definitions = {
 			{ "Rect", 0.5, 0.74, 0.54, 0.14, 0 },
 		},
 		Effect = function(s)
-			s.InfiniteWallRun = true
 			s.CeilingRun = true
+			s.WallRun = true
+			s.WallRunTime = math.max(s.WallRunTime, P.MagneticBoots.WallRunTime)
 		end,
 	},
 	{

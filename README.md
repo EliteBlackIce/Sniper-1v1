@@ -29,7 +29,8 @@ src/server/                -> ServerScriptService.Server
   Main.server.lua             entry point, starts every service
   LightingSetup.lua           Future lighting, Atmosphere, Bloom, ColorCorrection, SunRays
   MapBuilder.lua              builds the lobby and the arena from parts
-  ArenaSimple.lua             the default map: a simple 1v1 arena (ramps, walls, cover)
+  ArenaCrossfire.lua          the default map: a compact Rivals-style duel map
+  ArenaSimple.lua             optional open ramps arena (Config.Match.Map = "Simple")
   ArenaDowntown.lua           optional detailed city map (Config.Match.Map = "Downtown")
   DummyService.lua            practice dummies on the lobby shooting range
   CharacterService.lua        spawning, flat character style, freeze, invisibility, void
@@ -62,6 +63,8 @@ src/client/                -> StarterPlayerScripts.Client
     Toast.lua                 short messages from the server (admin commands)
     PowerUpLab.lua            try any power-up solo in the lobby (B)
 
+assets/SniperRifle.glb        PGM 338 rifle, ready for Studio's 3D Importer (CC-BY-4.0, see Quick start)
+
 src/character/             -> StarterPlayer.StarterCharacterScripts
   Health.server.lua           empty script that disables health regeneration
 ```
@@ -74,11 +77,30 @@ src/character/             -> StarterPlayer.StarterCharacterScripts
    download button).
 2. Double-click it, or in Roblox Studio use **File > Open from File** and pick it.
 3. **Solo:** press **Play** (F5). You spawn in first person with your sniper in
-   the lobby. Shoot the dummies on the range, practise bunny hopping and wall
-   running.
+   the lobby. Shoot the dummies on the range and practise bunny hopping.
 4. **A real duel:** **Test** tab > **Clients and Servers** > **2 Players** >
    **Start**, then press **F** in both windows to find a match.
 5. **File > Publish to Roblox** if you want it on your account.
+
+### Use the PGM 338 rifle model (one-time import)
+
+The place file can't contain meshes, so Studio has to import the rifle once:
+1. In Studio: **Home** (or **Avatar**) tab > **Import 3D**, pick
+   **`assets/SniperRifle.glb`**, and click **Import** (default settings are
+   fine). A model called **SniperRifle** appears in the Workspace.
+2. Press **Play**. The game moves it into ReplicatedStorage and uses it as
+   the rifle for everyone (first person and in other players' hands). Save
+   the place so you keep it.
+3. If it ever shows up facing the wrong way, set `Config.Viewmodel.MeshYaw`
+   to 90, 180 or 270. To go back to the built-in VX-7 rifle, delete the
+   SniperRifle model or set `Config.Viewmodel.UseImportedRifle = false`.
+
+This GLB is already scaled, turned and lined up with the game's grip, scope
+and muzzle points, and the hanging bipod legs are removed so they don't sit
+in your view. Rifle model: "PGM 338 Sniper Rifle" by Alexandre P.
+(https://sketchfab.com/3d-models/pgm-338-sniper-rifle-f32b57e4cecb491aa569358c9ae93b71),
+licensed CC-BY-4.0. Keep this credit if you publish the game (e.g. in the
+game description).
 
 This file is a snapshot of the code. If you edit the `src/` files, rebuild it with
 `rojo build -o dist/SniperDuel.rbxlx`, or use the live Rojo setup below.
@@ -171,7 +193,7 @@ Every key below can be rebound in **Settings (P) > Keyboard** or
 | W (in the air) | Steer your momentum toward where you look (keeps your speed) |
 | C [B / O] | Slide (tap, tap again to stand). Press in the air to slide on landing. Jump out of a slide any time |
 | Space | Jump / wall jump (no double jump unless you pick the Double Jump power-up) |
-| (automatic) | Wall run: jump next to a wall while moving and holding W |
+| (automatic) | Wall run, only with the **Wall Runner** power-up: jump next to a wall while moving and holding W |
 | Right mouse | Scope (hold, or toggle in settings) |
 | Left mouse | Fire |
 | E | Grapple Hook (power-up) |
@@ -209,8 +231,11 @@ Files: `Config`, `CameraController`, `MovementController`, `CharacterService`, `
 - [ ] Slide, then Space: you jump straight away and keep the slide speed.
 - [ ] Space in the air does nothing (no double jump by default).
 - [ ] Hold W in the air and look left/right: you curve that way without losing speed.
-- [ ] Jump next to the long lobby wall holding W: you wall run, the camera
-      tilts away from the wall, and you slowly sink. Space jumps off the wall.
+- [ ] Without power-ups you can't wall run. Add **Wall Runner** in the
+      Power-Up Lab (B), jump next to the long lobby wall holding W: a short
+      run (about half a second), no speed boost, and you sink fast. Space
+      jumps off. You get one per jump (touch the ground to recharge) and
+      there's a cooldown.
 - [ ] Walking into walls doesn't stick or jitter, and you stop quickly when you let go of WASD.
 - [ ] Tune feel in `Config.Movement` / `Config.Camera` while Rojo is connected.
 
@@ -265,21 +290,20 @@ Files: `PowerUps`, `PickScreen`, `Icons`, plus power-up code in Movement/Weapon/
       (Second Wind and Vampire need a real opponent: use a 2-player Studio test.)
 
 ### Stage 5: map, rifle and visuals
-Files: `ArenaSimple` (the arena), `GunModel` (rifle + power-up mods), `MapBuilder`, `LightingSetup`
+Files: `ArenaCrossfire` (the map), `GunModel` (rifle + power-up mods), `ViewmodelController`, `MapBuilder`
 
-- [ ] Spawn on your raised deck, run down the ramp, and check the arena:
-      a hill in the middle, ramps up to the side bridges, long walls to wall
-      run, and a few cover pieces (see `dist/arena-preview.png`).
-- [ ] The rifle is the new two-tone VX-7 with glowing lines (see
-      `dist/rifle-preview.png`).
-- [ ] Open the Power-Up Lab (B) and add power-ups: each one bolts a part onto
-      the rifle (coils, side barrels, canister, tesla coils, laser...), the
-      glow lines take the colour of your rarest power-up, and the rifle
-      plays its inspect animation to show it off. Other players see the
-      same attachments on your rifle.
-- [ ] Shadows are crisp, the sky has a soft atmosphere, and bloom is subtle.
-- [ ] Change `Config.Palette` (e.g. `AccentA`) and press Play: map, viewmodel
-      and UI colours follow.
+- [ ] Crossfire: spawn inside your spawn building, climb the stairs to its
+      roof, take the middle (plaza), the north market hall (inside or on the
+      roof) or the south container yard (see `dist/arena-preview.png`).
+- [ ] With the imported rifle (see Quick start): the PGM 338 is in your
+      hands, the scope lines up when you aim, and your hands sit on the grip
+      and under the handguard.
+- [ ] Open the Power-Up Lab (B) and add power-ups: each one adds an
+      attachment, and the rifle animates differently (see "Power-up
+      animations" below). Hair Trigger: the rifle spin-cocks after each shot.
+      Ricochet: kills spin the barrel. Quickdraw: the rifle twirls into your
+      hands when you spawn.
+- [ ] Other players see the same rifle and attachments in your hands.
 
 ---
 
@@ -358,7 +382,7 @@ deal/flip/pick, banners, score pops, victory confetti). Tone any of it down in
 
 ## Power-ups and builds
 
-There are 30 power-ups and almost all of them **stack**. Every card shows what
+There are 31 power-ups and almost all of them **stack**. Every card shows what
 another copy adds ("STACKS: ..."). They're designed to combine into builds:
 
 | Build | Cards | What happens |
@@ -381,28 +405,32 @@ Momentum (speed) x Pinball (hops) x Marked. Headshots always kill instantly.
 
 Test them solo in the lobby with the **Power-Up Lab** (press B).
 
-## The arena
+## The map: Crossfire
 
-![Arena](dist/arena-preview.png)
+![Crossfire](dist/arena-preview.png)
 
-The default map (`Config.Match.Map = "Simple"`) is an open 1v1 arena in the
-spirit of ROUNDS, built for flow: a few big shapes and long gentle ramps, so
-you can bunny hop, slide and wall run across it without snagging. It's
-mirrored, so both sides are identical.
-- **Spawn decks** on each end with a wide ramp down.
-- **Centre hill**: a low mesa with gentle ramps on all four sides (slide
-  over it) and one spine of cover on top.
-- **Side bridges**: long gentle ramps up to a high deck on each side, with
-  a low lip for cover.
-- **Long walls** between the lanes to hide behind or wall run along.
-- **Just a few cover pieces**: one low wall in each half of the middle lane
-  (so you can't see spawn to spawn) and a block in each corner.
+The default map (`Config.Match.Map = "Crossfire"`) is a compact duel map in
+the style of Rivals: small enough that you find each other fast, mirrored so
+both sides are identical, with three routes between the spawns:
+- **Spawn buildings** on each end (tinted with your team colour) with a
+  walkable roof, with stairs on both sides, to hold your end from above.
+- **Middle**: a raised plaza with a big centrepiece that blocks the
+  spawn-to-spawn line, low cover on top, pillars and low walls around it.
+- **North**: a covered market hall. Fight up close inside (two doorways and
+  an open end), or take the ramp up to its roof.
+- **South**: a container yard. A ramp gets you onto a container for height,
+  with crates and a low wall for cover.
 
-Everything is in `src/server/ArenaSimple.lua` as a short list of blocks and
-ramps, so it's easy to move things around. The playground dummies for each
-map are listed at the bottom of its file.
+The other maps are still there: `"Simple"` (the open ramps arena),
+`"Downtown"` (the detailed city) and `"Classic"`. Each map is one file in
+`src/server/` (`ArenaCrossfire.lua`...), with its playground dummy spots
+at the bottom.
 
 ## The rifle and power-up mods
+
+Import `assets/SniperRifle.glb` (see Quick start) to use the PGM 338 model.
+Without it, the game uses the built-in VX-7 below. Power-up attachments and
+animations work on both.
 
 ![Rifle](dist/rifle-preview.png)
 
@@ -427,6 +455,34 @@ magazine. It changes as you pick power-ups:
 - Your opponent sees the same rifle in your hands, so you can read their
   build. (Phantom Step hides the effects too.)
 - Add or change mods in `GunModel.Mods`.
+
+### Power-up animations
+
+Your power-ups also change how the rifle moves in first person:
+
+| When | Power-up | Animation |
+|---|---|---|
+| Firing | Explosive Rounds, Glass Cannon | heavy kick that shoves the rifle back |
+| Firing | Split Shot | a double kick |
+| Firing | Hair Trigger, Quickdraw | short, snappy kick |
+| Firing | Static Charge | the rifle buzzes with electricity |
+| Bolt | Hair Trigger, Quickdraw | spin-cock: the rifle spins once around the barrel |
+| Bolt | Bullet Time | the rifle tilts up so you can admire it while you work the bolt |
+| Bolt | Explosive Rounds, Split Shot | heavy pump, pulled back toward you |
+| Bolt | Ricochet, Pinball | the rifle bounces |
+| Spawning | Quickdraw | twirls into your hands |
+| Spawning | Ghost Round | phases in |
+| Idle | Ghost Round | floats |
+| Idle | Momentum Rounds | leans forward as you speed up |
+| Idle | Static Charge | random electric twitches |
+| Idle | Vampire | heartbeat pulse |
+| Kill | Ricochet, Pinball | barrel spin |
+| Kill | Explosive Rounds | tilts up to blow the smoke away |
+| Kill | Vampire | pulls the rifle in close |
+| Kill | anything else | a quick nod |
+| Inspect (V) | any power-up | turns the rifle both ways to show off the attachments |
+
+They're in `ViewmodelController` under "Power-up animation styles".
 
 ## The Downtown map (optional)
 

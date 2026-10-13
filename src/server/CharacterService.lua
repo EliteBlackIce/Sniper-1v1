@@ -64,7 +64,7 @@ local function addWorldGun(character, powerUps)
 	local muzzle = Instance.new("Attachment")
 	muzzle.Name = "Muzzle"
 	muzzle.Parent = built.Parts.Barrel
-	muzzle.WorldCFrame = grip * CFrame.new(GunModel.Muzzle.Position * WORLD_GUN_SCALE)
+	muzzle.WorldCFrame = grip * CFrame.new(built.Profile.Muzzle.Position * WORLD_GUN_SCALE)
 
 	gun.Parent = character
 end

@@ -85,7 +85,7 @@ local lastPhantomTime = 0
 local peakY = 0
 local lowestVelocityY = 0 -- fastest fall speed this air time (for landing effects)
 
-local wall = { Normal = Vector3.zero, Side = 0, Timer = 0, Y = 0, LastNormal = nil, LastTime = 0 }
+local wall = { Normal = Vector3.zero, Side = 0, Timer = 0, Y = 0, LastNormal = nil, LastTime = 0, Recharged = true, ReadyAt = 0 }
 local grapple = { Point = nil, Timer = 0, ReadyAt = 0 }
 local speedBoost = { Until = 0, Multiplier = 1 }
 local bulletTime = { Until = 0, ReadyAt = 0, UsedThisAir = false }
@@ -493,7 +493,6 @@ local function wallJump()
 	wall.LastNormal = wall.Normal
 	wall.LastTime = now()
 	mode = "Air"
-	airJumpsLeft = stats().AirJumps -- wall jumps refresh your air jumps
 	Sfx.Play("Jump", { Pitch = 1.15 })
 	Movement.Jumped:Fire()
 	phantomStep()
@@ -571,6 +570,10 @@ local function updateAir(dt, wish)
 end
 
 local function tryStartWallRun(wish)
+	-- Wall Runner power-up only, once per jump, with a cooldown
+	if not stats().WallRun or not wall.Recharged or now() < wall.ReadyAt then
+		return false
+	end
 	if momentum.Magnitude < M.WallRunMinSpeed or wish.Magnitude < 0.1 then
 		return false
 	end
@@ -593,8 +596,9 @@ local function tryStartWallRun(wish)
 				wall.Normal = normal
 				wall.Side = side
 				wall.Timer = 0
-				wall.Y = math.max(root.AssemblyLinearVelocity.Y * 0.4, M.WallRunStartLift)
-				airJumpsLeft = stats().AirJumps
+				wall.Y = math.max(root.AssemblyLinearVelocity.Y * 0.2, M.WallRunStartLift)
+				wall.Recharged = false
+				wall.ReadyAt = now() + stats().WallRunCooldown
 							return true
 			end
 		end
@@ -605,9 +609,8 @@ end
 local function updateWallRun(dt, wish)
 	local result =
 		workspace:Raycast(root.Position, -wall.Normal * (M.WallCheckDistance + 1.5), makeRaycastParams())
-	local infinite = stats().InfiniteWallRun
 	wall.Timer += dt
-	local expired = not infinite and wall.Timer > M.WallRunDuration
+	local expired = wall.Timer > stats().WallRunTime
 	if not result or math.abs(result.Normal.Y) > 0.3 or expired or wish.Magnitude < 0.1 then
 		wall.LastNormal = wall.Normal
 		wall.LastTime = now()
@@ -621,14 +624,11 @@ local function updateWallRun(dt, wish)
 		local look = cameraFlatLook()
 		along = look - wall.Normal * look:Dot(wall.Normal)
 	end
-	local speed = math.max(momentum.Magnitude, M.WallRunSpeed * speedMultiplier())
+	-- no speed boost: capped, and the wall slowly drags you down
+	local speed = math.min(momentum.Magnitude, M.WallRunMaxSpeed * speedMultiplier()) * (1 - M.WallRunDrag * dt)
 	momentum = Util.safeUnit(along) * speed - wall.Normal * 3 -- press into the wall
 
-	if infinite then
-		wall.Y = Util.approach(wall.Y, 0, M.WallRunGravity * dt)
-	else
-		wall.Y -= M.WallRunGravity * dt
-	end
+	wall.Y -= M.WallRunGravity * dt
 	setVerticalVelocity(wall.Y)
 end
 
@@ -788,6 +788,7 @@ local function step(dt)
 	-- frame we touch the ground, BEFORE friction runs, so no speed is lost.
 	if grounded and (mode == "Ground" or mode == "Slide") then
 		lastGroundedTime = now()
+		wall.Recharged = true -- touching the ground recharges your wall run
 		local wantsJump = (M.AutoBhop and jumpHeld) or (now() - jumpPressedAt < M.JumpBuffer)
 		if wantsJump then
 			groundJump()

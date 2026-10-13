@@ -135,7 +135,7 @@ Config.Match = {
 	VictoryTime = 7, -- victory screen length before returning to lobby
 	MaxRoundTime = 150, -- if nobody dies, higher health % wins the round (tie = replay)
 	CardsPerPick = 5,
-	Map = "Simple", -- "Simple" (clean 1v1 arena: ramps, walls, cover), "Downtown" (detailed city) or "Classic"
+	Map = "Crossfire", -- "Crossfire" (compact Rivals-style map), "Simple" (open ramps arena), "Downtown" (detailed city) or "Classic"
 	MaxArenas = 4, -- how many matches can run at the same time in one server
 	ArenaSpacing = 2000, -- distance between arena copies
 	VoidDepth = 80, -- falling this far below the arena floor kills you
@@ -223,6 +223,12 @@ Config.Viewmodel = {
 	SwayAmount = 0.06, -- how much the gun lags behind the mouse
 	BobAmount = 1.0, -- walk bob strength
 	InspectKey = Enum.KeyCode.V, -- admire your rifle
+	-- Imported rifle mesh (assets/SniperRifle.glb, see README). When a model
+	-- with this name is in ReplicatedStorage (or Workspace), it replaces the
+	-- flat-part rifle for everyone.
+	UseImportedRifle = true,
+	MeshTemplate = "SniperRifle",
+	MeshYaw = nil, -- force the model's turn in degrees (0/90/180/270) if it imports facing the wrong way
 }
 
 -- Defaults for the settings menu (players can change and save these).
@@ -316,15 +322,19 @@ Config.Movement = {
 	SlideCooldown = 0.25,
 	SlideJumpBoost = 4, -- extra speed for jumping out of a slide (up to SlideBoostCap)
 
-	-- Wall run (automatic: be in the air, moving, next to a wall)
+	-- Wall run: only with the Wall Runner power-up (or Magnetic Boots), and
+	-- deliberately weak: short, no speed boost, you sink fast, one per jump
+	-- (touch the ground to recharge) plus a cooldown. Duration comes from
+	-- Config.PowerUps.WallRunner.
 	WallCheckDistance = 3.4,
-	WallRunMinSpeed = 14,
-	WallRunSpeed = 38, -- minimum speed while wall running
-	WallRunDuration = 1.6,
-	WallRunStartLift = 8, -- small upward pop when you latch on
-	WallRunGravity = 22, -- how quickly you sink while wall running
-	WallJumpOut = 34, -- push away from wall
-	WallJumpUp = 50,
+	WallRunMinSpeed = 18,
+	WallRunMaxSpeed = 32, -- you never go faster than this on a wall
+	WallRunDrag = 0.5, -- fraction of speed lost per second on the wall
+	WallRunStartLift = 3, -- small upward pop when you latch on
+	WallRunGravity = 45, -- how quickly you sink while wall running
+	WallRunCooldown = 2.5, -- seconds before you can wall run again
+	WallJumpOut = 22, -- push away from wall
+	WallJumpUp = 38,
 	WallReattachDelay = 0.3,
 
 	-- Grapple Hook power-up (press E)
@@ -396,12 +406,13 @@ Config.PowerUps = {
 
 	-- MOVEMENT
 	DoubleJump = { ExtraJumpsPerStack = 1 },
+	WallRunner = { Duration = 0.55, DurationPerStack = 0.2, CooldownScalePerStack = 0.85 },
 	Adrenaline = { SpeedPerStack = 0.08 },
 	Featherweight = { GravityReductionPerStack = 0.18 },
 	SpringLegs = { JumpPerStack = 0.15 },
 	Blink = { Distance = 28, DistancePerStack = 8, Cooldown = 6 }, -- cooldown is divided by stacks
 	Grapple = { CooldownDividedByStacks = true, PullPerStack = 0.2 },
-	MagneticBoots = {},
+	MagneticBoots = { WallRunTime = 1.0 },
 	RocketJump = { Radius = 9, LaunchUp = 88, LaunchAway = 28, PowerPerStack = 0.25 },
 	PhantomDash = { InvisibleTime = 0.5, TimePerStack = 0.35 },
 	ShockwaveLanding = {

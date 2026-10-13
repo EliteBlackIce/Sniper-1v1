@@ -16,6 +16,8 @@
 		bolt      right hand leaves the grip, works the bolt, comes back
 		aim       slides to the centre when scoping, then hides behind the scope
 		inspect   press V to admire the rifle
+	power-ups your power-ups change how it moves (see "Power-up animation
+	          styles" below): spin-cocking, heavy kicks, twirls, kill flourishes...
 
 	Gun space: origin = right hand on the grip, +X right, +Y up, -Z forward.
 ]]
@@ -33,6 +35,7 @@ local ClientState = require(script.Parent.ClientState)
 local Spring = require(script.Parent.Spring)
 local Sfx = require(script.Parent.Sfx)
 local Keybinds = require(script.Parent.Keybinds)
+local Remotes = require(Shared.Remotes)
 
 local Palette = Config.Palette
 local VM = Config.Viewmodel
@@ -45,17 +48,12 @@ local rad = math.rad
 
 -- Where the grip sits in camera space when hip-firing / aiming down the scope.
 local HIP_OFFSET = CFrame.new(0.62, -0.7, -1.1)
-local ADS_OFFSET = CFrame.new(-GunModel.ScopeEye.X, -GunModel.ScopeEye.Y, -0.55 - GunModel.ScopeEye.Z)
 local SPRINT_POSE = CFrame.new(-0.1, -0.22, 0.15) * CFrame.Angles(rad(-16), rad(38), rad(14))
 local EQUIP_POSE = CFrame.new(0.15, -1.2, 0.45) * CFrame.Angles(rad(-55), rad(25), rad(20))
-
--- Spin axis for attachments that rotate around the barrel (gun space)
-local BARREL_AXIS = CFrame.new(0, 0.03, 0)
 
 -- Hands (gun space)
 local RIGHT_GRIP = CFrame.new(0, -0.22, 0.18) * CFrame.Angles(rad(-18), 0, 0)
 local KNOB_HOLD = CFrame.new(0.3, 0.02, 0.07) -- relative to the animated bolt pivot
-local LEFT_HOLD = CFrame.new(0, -0.21, -1.15) -- behind the folded bipod
 -- Arm joints (gun space). Shoulders sit behind the camera, out of view.
 local RIGHT_ELBOW = Vector3.new(0.42, -0.62, 0.78)
 local RIGHT_SHOULDER = Vector3.new(0.95, -1.1, 1.9)
@@ -131,7 +129,7 @@ end
 -- Returns true if you gained something (so we can show it off).
 local function buildGun()
 	local owned = ClientState.Owned or {}
-	local signature = ownedSignature(owned)
+	local signature = ownedSignature(owned) .. (GunModel.FindTemplate() and "|mesh" or "")
 	if gun and signature == builtSignature then
 		return false
 	end
@@ -225,7 +223,7 @@ local function boltPose(t)
 	-- reach (0-.15) lift (.15-.3) pull (.3-.5) push (.5-.68) lower (.68-.8) return (.8-1)
 	local lift = smoothstep(seg(t, 0.15, 0.3)) - smoothstep(seg(t, 0.68, 0.8))
 	local pull = smoothstep(seg(t, 0.3, 0.5)) - smoothstep(seg(t, 0.5, 0.68))
-	local pivot = GunModel.BoltPivot * CFrame.new(0, 0, pull * 0.4) * CFrame.Angles(0, 0, rad(80) * lift)
+	local pivot = gun.Profile.BoltPivot * CFrame.new(0, 0, pull * 0.4) * CFrame.Angles(0, 0, rad(80) * lift)
 	local onKnob = pivot * KNOB_HOLD * CFrame.Angles(0, 0, rad(-25))
 	local reach = smoothstep(seg(t, 0, 0.15))
 	local back = smoothstep(seg(t, 0.8, 1))
@@ -244,11 +242,71 @@ local function boltPose(t)
 end
 
 ----------------------------------------------------------------------------
+-- Power-up animation styles
+----------------------------------------------------------------------------
+--[[
+	Your power-ups change how the rifle moves:
+	  fire     Explosive Rounds / Glass Cannon: heavy kick that shoves the rifle back
+	           Split Shot: double kick   Hair Trigger / Quickdraw: short snappy kick
+	           Static Charge: the rifle buzzes with electricity for a moment
+	  bolt     Hair Trigger / Quickdraw: spin-cock (the rifle spins round the barrel)
+	           Bullet Time: smooth bolt with the rifle tilted up to admire it
+	           Explosive Rounds / Split Shot: heavy pump, pulled back toward you
+	           Ricochet / Pinball: the rifle bounces while you work the bolt
+	  equip    Quickdraw: twirls into your hands   Ghost Round: phases in
+	  idle     Ghost Round: floats   Momentum Rounds: leans with your speed
+	           Static Charge: random twitches   Vampire: heartbeat pulse
+	  kills    Ricochet / Pinball: barrel spin   Explosive Rounds: tilts up to blow
+	           the smoke away   Vampire: pulls the rifle in   otherwise: a nod
+	  inspect  with power-ups: turns the rifle both ways to show the attachments
+]]
+local function has(id)
+	return (ClientState.Owned[id] or 0) > 0
+end
+
+local boltStyle, equipStyle = "Normal", "Normal"
+local flourish, flourishStart = nil, -10
+local jitterUntil, nextTwitch = 0, 0
+
+local function chooseBoltStyle()
+	if has("HairTrigger") or has("Quickdraw") then
+		return "Spin"
+	elseif has("BulletTime") then
+		return "Admire"
+	elseif has("ExplosiveRounds") or has("SplitShot") then
+		return "Heavy"
+	elseif has("Ricochet") or has("Pinball") then
+		return "Bounce"
+	end
+	return "Normal"
+end
+
+-- Rotation around the barrel (gun space)
+local function aroundBarrel(angle)
+	local axis = CFrame.new(0, gun.Profile.BarrelY, 0)
+	return axis * CFrame.Angles(0, 0, angle) * axis:Inverse()
+end
+
+----------------------------------------------------------------------------
 -- Public API
 ----------------------------------------------------------------------------
 function Viewmodel.PlayFire(scoped)
 	local kick = scoped and 0.5 or 1
+	if has("ExplosiveRounds") or has("GlassCannon") then
+		kick *= 1.5
+		moveSpring:Impulse(Vector3.new(0, 0.8, scoped and 1.5 or 4.5))
+	elseif has("HairTrigger") or has("Quickdraw") then
+		kick *= 0.7
+	end
 	recoilSpring:Impulse(Vector3.new(22 * kick, 9 * kick, (math.random() - 0.5) * 8))
+	if has("SplitShot") then
+		task.delay(0.07, function()
+			recoilSpring:Impulse(Vector3.new(12 * kick, 5 * kick, (math.random() - 0.5) * 12))
+		end)
+	end
+	if has("StaticCharge") then
+		jitterUntil = os.clock() + 0.3
+	end
 	flashUntil = os.clock() + 0.05
 	inspecting = false
 end
@@ -257,18 +315,34 @@ function Viewmodel.PlayBolt(duration)
 	boltStart = os.clock()
 	boltDuration = duration
 	boltSoundPlayed = false
+	boltStyle = chooseBoltStyle()
 end
 
 function Viewmodel.PlayEquip()
 	equipStart = os.clock()
 	inspecting = false
+	equipStyle = has("Quickdraw") and "Twirl" or (has("GhostRound") and "Phase" or "Normal")
 	Sfx.Play("Bolt", { Pitch = 1.3, Volume = 0.6 })
+end
+
+-- A little flourish after a kill (plays once the bolt is cycled).
+function Viewmodel.PlayKill()
+	if has("Ricochet") or has("Pinball") then
+		flourish = "Spin"
+	elseif has("ExplosiveRounds") then
+		flourish = "Blow"
+	elseif has("Vampire") then
+		flourish = "Feed"
+	else
+		flourish = "Nod"
+	end
+	flourishStart = math.max(os.clock() + 0.1, boltStart + boltDuration)
 end
 
 function Viewmodel.GetMuzzlePosition()
 	if gun and gun.Parts.Receiver then
 		local grip = gun.Parts.Receiver.CFrame * gun.Offsets.Receiver:Inverse()
-		return (grip * GunModel.Muzzle).Position
+		return (grip * gun.Profile.Muzzle).Position
 	end
 	return workspace.CurrentCamera.CFrame.Position
 end
@@ -366,8 +440,13 @@ local function update(dt)
 	airOffset = Util.lerp(airOffset, grounded and 0 or math.clamp(-vy * 0.0025, -0.1, 0.1), Util.smooth(8, dt))
 
 	-- EQUIP
-	local equipT = math.clamp((t - equipStart) / VM.EquipTime, 0, 1)
+	local equipTime = equipStyle == "Twirl" and VM.EquipTime * 1.4 or VM.EquipTime
+	local equipT = math.clamp((t - equipStart) / equipTime, 0, 1)
 	local equipPose = EQUIP_POSE:Lerp(CFrame.identity, easeOutBack(equipT))
+	if equipStyle == "Twirl" then
+		equipPose *= CFrame.Angles(0, (1 - smoothstep(equipT)) * math.pi * 2, 0)
+	end
+	local phaseFade = equipStyle == "Phase" and (1 - smoothstep(equipT)) or 0
 
 	-- INSPECT (V)
 	local inspectPose = CFrame.identity
@@ -378,8 +457,15 @@ local function update(dt)
 		else
 			local w = math.sin(it * math.pi) ^ 0.7
 			local wiggle = math.sin(it * math.pi * 3) * 0.08 * w
-			inspectPose = CFrame.new(-0.4 * w, 0.2 * w, 0.3 * w)
-				* CFrame.Angles(rad(12) * w + wiggle, rad(55) * w, rad(-40) * w)
+			if GunModel.PowerLevel(ClientState.Owned) > 0 then
+				-- show off the attachments: turn it one way, then the other
+				local turn = math.sin(it * math.pi * 2)
+				inspectPose = CFrame.new(-0.4 * w, 0.22 * w, 0.35 * w)
+					* CFrame.Angles(rad(14) * w + wiggle, rad(70) * turn * w, rad(-30) * w)
+			else
+				inspectPose = CFrame.new(-0.4 * w, 0.2 * w, 0.3 * w)
+					* CFrame.Angles(rad(12) * w + wiggle, rad(55) * w, rad(-40) * w)
+			end
 		end
 	end
 
@@ -389,6 +475,65 @@ local function update(dt)
 
 	-- BOLT
 	local boltPivot, rightHand, boltRoll = boltPose(math.clamp(boltT, 0, 1))
+
+	-- POWER-UP STYLES (see the table above PlayFire)
+	local styleOffset = CFrame.identity
+	if cycling then
+		local bt = math.clamp(boltT, 0, 1)
+		local w = math.sin(bt * math.pi)
+		if boltStyle == "Spin" then
+			-- no hand on the bolt: the rifle spins once round the barrel instead
+			rightHand, boltPivot, boltRoll = RIGHT_GRIP, gun.Profile.BoltPivot, 0
+			styleOffset = aroundBarrel(-smoothstep(bt) * math.pi * 2)
+		elseif boltStyle == "Admire" then
+			styleOffset = CFrame.new(-0.1 * w, 0.14 * w, 0.12 * w) * CFrame.Angles(rad(16) * w, rad(-14) * w, 0)
+		elseif boltStyle == "Heavy" then
+			styleOffset = CFrame.new(0, -0.1 * w, 0.4 * w) * CFrame.Angles(rad(-10) * w, 0, 0)
+		elseif boltStyle == "Bounce" then
+			styleOffset = CFrame.new(0, math.abs(math.sin(bt * math.pi * 3)) * 0.14 * (1 - bt), 0)
+		end
+	end
+	local calm = 1 - scopeAlpha
+	local idlePose = CFrame.identity
+	if has("GhostRound") then
+		idlePose *= CFrame.new(math.sin(t * 0.9) * 0.03 * calm, math.sin(t * 1.3) * 0.035 * calm, 0)
+			* CFrame.Angles(0, 0, math.sin(t * 0.7) * rad(2) * calm)
+	end
+	if has("MomentumRounds") then
+		local lean = math.clamp((speed - 30) / 40, 0, 1) * calm
+		idlePose *= CFrame.Angles(rad(-6) * lean, 0, rad(6) * lean)
+	end
+	if has("Vampire") then
+		local beat = t % 1.1
+		local pulse = math.exp(-((beat - 0.1) / 0.05) ^ 2) + 0.6 * math.exp(-((beat - 0.32) / 0.05) ^ 2)
+		idlePose *= CFrame.new(0, 0, -0.035 * pulse * calm)
+	end
+	if has("StaticCharge") and t > nextTwitch then
+		nextTwitch = t + 1.2 + math.random() * 2
+		recoilSpring:Impulse(Vector3.new((math.random() - 0.5) * 8, 0, (math.random() - 0.5) * 14) * calm)
+	end
+	if t < jitterUntil then
+		idlePose *= CFrame.Angles(rad((math.random() - 0.5) * 3), rad((math.random() - 0.5) * 3), 0)
+	end
+	-- kill flourish
+	local flourishPose = CFrame.identity
+	if flourish and t >= flourishStart then
+		local ft = (t - flourishStart) / 0.75
+		if ft >= 1 then
+			flourish = nil
+		else
+			local w = math.sin(ft * math.pi) * calm
+			if flourish == "Spin" then
+				flourishPose = aroundBarrel(smoothstep(ft) * math.pi * 2 * calm)
+			elseif flourish == "Blow" then
+				flourishPose = CFrame.new(-0.25 * w, 0.28 * w, 0.3 * w) * CFrame.Angles(rad(38) * w, rad(25) * w, 0)
+			elseif flourish == "Feed" then
+				flourishPose = CFrame.new(-0.22 * w, -0.05 * w, 0.4 * w) * CFrame.Angles(0, rad(30) * w, rad(-22) * w)
+			else
+				flourishPose = CFrame.Angles(rad(-9) * w, 0, rad(4) * w)
+			end
+		end
+	end
 	if cycling and not boltSoundPlayed and boltT > 0.3 then
 		boltSoundPlayed = true
 		Sfx.Play("Bolt")
@@ -412,7 +557,9 @@ local function update(dt)
 	wallRetract = Util.lerp(wallRetract, wantRetract * (1 - scopeAlpha), Util.smooth(14, dt))
 	local retractAlpha = wallRetract / 3.6
 
-	local base = HIP_OFFSET:Lerp(ADS_OFFSET, scopeAlpha)
+	local eye = gun.Profile.ScopeEye
+	local adsOffset = CFrame.new(-eye.X, -eye.Y, -0.55 - eye.Z)
+	local base = HIP_OFFSET:Lerp(adsOffset, scopeAlpha)
 		* CFrame.new(0.1 * retractAlpha, -0.15 * retractAlpha, wallRetract)
 		* CFrame.Angles(rad(28) * retractAlpha, rad(12) * retractAlpha, rad(-10) * retractAlpha)
 	local pose = CFrame.identity:Lerp(SPRINT_POSE, sprintAlpha)
@@ -427,6 +574,9 @@ local function update(dt)
 		* CFrame.new(bobPos.X + kick.X, bobPos.Y + airOffset + kick.Y, kick.Z + recoil.Y * 0.02)
 		* CFrame.Angles(rad(sway.X + recoil.X * 0.35), rad(sway.Y), rad(sway.Z + recoil.Z * 0.3) + bobRoll)
 		* CFrame.Angles(0, 0, -boltRoll)
+		* idlePose
+		* flourishPose
+		* styleOffset
 
 	local list, cframes = {}, {}
 	local function put(part, cf)
@@ -444,7 +594,7 @@ local function update(dt)
 			local base = gun.BaseTransparency[name]
 			local fade = 0
 			if anim == "Spin" then
-				offset = BARREL_AXIS * CFrame.Angles(0, 0, t * 3) * BARREL_AXIS:Inverse() * offset
+				offset = aroundBarrel(t * 3) * offset
 			elseif anim == "Tick" then
 				offset = offset * CFrame.Angles(-t * 2, 0, 0)
 			elseif anim == "Turn" then
@@ -459,8 +609,10 @@ local function update(dt)
 				fade = 0.85 * (1 - fast)
 			end
 			if shouldShow then
-				part.LocalTransparencyModifier = math.min(1, fade / math.max(1 - base, 0.01))
+				part.LocalTransparencyModifier = math.min(1, math.max(fade / math.max(1 - base, 0.01), phaseFade))
 			end
+		elseif shouldShow and (phaseFade > 0 or part.LocalTransparencyModifier ~= 0) then
+			part.LocalTransparencyModifier = phaseFade -- Ghost Round equip: phase in
 		end
 		put(part, (gun.Bolt[name] and boltWorld or grip) * offset)
 	end
@@ -483,6 +635,7 @@ local function update(dt)
 	put(parts.RightUpperArm, grip * limbBetween(parts.RightUpperArm, RIGHT_SHOULDER, RIGHT_ELBOW))
 
 	-- Left hand + arm (holds the handguard)
+	local LEFT_HOLD = gun.Profile.LeftHold
 	local lh = grip * LEFT_HOLD
 	put(parts.LeftPalm, lh)
 	put(parts.LeftFingers, lh * CFrame.new(0.155, 0.09, 0))
@@ -495,7 +648,7 @@ local function update(dt)
 
 	-- Muzzle flash
 	local flashing = shouldShow and t < flashUntil
-	local muzzle = grip * GunModel.Muzzle * CFrame.Angles(0, 0, math.random() * math.pi)
+	local muzzle = grip * gun.Profile.Muzzle * CFrame.Angles(0, 0, math.random() * math.pi)
 	for _, name in ipairs({ "FlashCore", "FlashA", "FlashB", "FlashLong" }) do
 		parts[name].LocalTransparencyModifier = flashing and 0 or 1
 	end
@@ -542,6 +695,22 @@ function Viewmodel.Start()
 			Sfx.Play("CardHover", { Pitch = 0.8, Volume = 1.5 })
 		end
 	end)
+
+	-- kills play a flourish
+	Remotes.Get("HitConfirm").OnClientEvent:Connect(function(info)
+		if typeof(info) == "table" and info.Killed and visible then
+			Viewmodel.PlayKill()
+		end
+	end)
+
+	-- the imported rifle can arrive a moment after we start
+	local function onRifleChanged(child)
+		if child.Name == (Config.Viewmodel.MeshTemplate or "SniperRifle") then
+			task.defer(buildGun)
+		end
+	end
+	ReplicatedStorage.ChildAdded:Connect(onRifleChanged)
+	ReplicatedStorage.ChildRemoved:Connect(onRifleChanged)
 
 	-- new power-up = new attachment on the rifle; show it off with an inspect
 	ClientState.Changed:Connect(function()

@@ -280,8 +280,12 @@ function MapBuilder.BuildArena(index)
 	if Config.Match.Map == "Classic" then
 		return buildClassicArena(index)
 	end
-	-- "Simple" (default) or "Downtown": map modules return spawns, dummy spots
-	local mapName = Config.Match.Map == "Downtown" and "Downtown" or "Simple"
+	-- Config.Match.Map picks the module ArenaCrossfire / ArenaSimple / ArenaDowntown
+	-- (each returns its spawns and playground dummy spots)
+	local mapName = Config.Match.Map
+	if not script.Parent:FindFirstChild("Arena" .. tostring(mapName)) then
+		mapName = "Crossfire"
+	end
 	local mapModule = require(script.Parent["Arena" .. mapName])
 	local origin = Vector3.new(0, 0, index * Config.Match.ArenaSpacing)
 	local model = Instance.new("Model")

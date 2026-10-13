@@ -149,6 +149,138 @@ GunModel.Muzzle = CFrame.new(0, 0.03, -4.32)
 GunModel.ScopeEye = Vector3.new(0, 0.36, 0.39)
 
 ----------------------------------------------------------------------------
+-- IMPORTED RIFLE (PGM 338 mesh)
+----------------------------------------------------------------------------
+--[[
+	If a model named Config.Viewmodel.MeshTemplate ("SniperRifle") is in
+	ReplicatedStorage (or the Workspace; the server moves it), the rifle is
+	built from its MeshParts instead of the flat parts above. Import
+	assets/SniperRifle.glb with Studio's 3D Importer to get it (see README).
+
+	That GLB is already baked into gun space (grip at the origin, barrel
+	along -Z, in studs), and these numbers describe it. At runtime the
+	model's bounding box is matched to Bounds, so it doesn't matter where
+	the importer puts it or how it scales it. Power-up attachments are
+	nudged by ModShift to sit on its barrel and scope.
+
+	Model: "PGM 338 Sniper Rifle" by Alexandre P., CC-BY-4.0
+	https://sketchfab.com/3d-models/pgm-338-sniper-rifle-f32b57e4cecb491aa569358c9ae93b71
+]]
+GunModel.PartsProfile = {
+	Muzzle = GunModel.Muzzle,
+	ScopeEye = GunModel.ScopeEye,
+	BoltPivot = GunModel.BoltPivot,
+	LeftHold = CFrame.new(0, -0.21, -1.15),
+	BarrelY = 0.03,
+	ModShift = Vector3.zero,
+}
+GunModel.MeshProfile = {
+	Muzzle = CFrame.new(0, 0.141, -4.2),
+	ScopeEye = Vector3.new(0, 0.466, 0.228),
+	BoltPivot = CFrame.new(-0.052, 0.1, -0.224),
+	LeftHold = CFrame.new(0, -0.16, -1.3),
+	BarrelY = 0.141,
+	ModShift = Vector3.new(0, 0.11, 0.1),
+	Bounds = { Min = Vector3.new(-0.1791, -0.6684, -4.201), Max = Vector3.new(0.2913, 0.6329, 1.4395) },
+}
+
+local function templateParts(template)
+	local list = {}
+	if template:IsA("BasePart") then
+		table.insert(list, template)
+	end
+	for _, item in ipairs(template:GetDescendants()) do
+		if item:IsA("BasePart") then
+			table.insert(list, item)
+		end
+	end
+	return list
+end
+
+-- The imported rifle model, or nil.
+function GunModel.FindTemplate()
+	if game == nil then
+		return nil -- (outside Roblox, e.g. tests)
+	end
+	local name = Config.Viewmodel.MeshTemplate or "SniperRifle"
+	if Config.Viewmodel.UseImportedRifle == false then
+		return nil
+	end
+	local template = game:GetService("ReplicatedStorage"):FindFirstChild(name)
+	if template and #templateParts(template) > 0 then
+		return template
+	end
+	return nil
+end
+
+-- Axis-aligned box around every part, after rotating by `rot`.
+local function boundsOf(parts, rot)
+	local huge = math.huge
+	local mn, mx = Vector3.new(huge, huge, huge), Vector3.new(-huge, -huge, -huge)
+	for _, part in ipairs(parts) do
+		local cf = rot * part.CFrame
+		local h = part.Size / 2
+		for _, sx in ipairs({ -1, 1 }) do
+			for _, sy in ipairs({ -1, 1 }) do
+				for _, sz in ipairs({ -1, 1 }) do
+					local c = cf * Vector3.new(h.X * sx, h.Y * sy, h.Z * sz)
+					mn = mn:Min(c)
+					mx = mx:Max(c)
+				end
+			end
+		end
+	end
+	return mn, mx
+end
+
+-- Works out where each template part goes in gun space (cached).
+local layoutCache = setmetatable({}, { __mode = "k" })
+local function meshLayout(template)
+	if layoutCache[template] then
+		return layoutCache[template]
+	end
+	local parts = templateParts(template)
+	-- Which way does it face? The barrel should be the long axis, pointing -Z,
+	-- with the scope/barrel mesh at the front. (Config.Viewmodel.MeshYaw forces it.)
+	local yaws = Config.Viewmodel.MeshYaw and { Config.Viewmodel.MeshYaw } or { 0, 90, 180, 270 }
+	local best, bestScore = 0, -math.huge
+	for _, yaw in ipairs(yaws) do
+		local rot = CFrame.Angles(0, math.rad(yaw), 0)
+		local mn, mx = boundsOf(parts, rot)
+		local size = mx - mn
+		local score = size.Z - math.max(size.X, size.Y) * 2 -- long along Z
+		for _, part in ipairs(parts) do
+			local n = part.Name:lower()
+			if n:find("scope") or n:find("barrel") or n:find("cannon") then
+				local pmn = boundsOf({ part }, rot)
+				if math.abs(pmn.Z - mn.Z) < size.Z * 0.02 then
+					score += 1000 -- the barrel reaches the front (-Z)
+				end
+			end
+		end
+		if score > bestScore then
+			best, bestScore = yaw, score
+		end
+	end
+	local rot = CFrame.Angles(0, math.rad(best), 0)
+	local mn, mx = boundsOf(parts, rot)
+	local B = GunModel.MeshProfile.Bounds
+	local k = (B.Max.Z - B.Min.Z) / math.max(mx.Z - mn.Z, 1e-3)
+	local layout = {}
+	for i, part in ipairs(parts) do
+		local cf = rot * part.CFrame
+		table.insert(layout, {
+			Part = part,
+			Name = "Mesh" .. i,
+			Size = part.Size * k,
+			Offset = CFrame.new(B.Min + (cf.Position - mn) * k) * cf.Rotation,
+		})
+	end
+	layoutCache[template] = layout
+	return layout
+end
+
+----------------------------------------------------------------------------
 -- POWER-UP MODS
 ----------------------------------------------------------------------------
 --[[
@@ -372,6 +504,7 @@ local CHARMS = {
 	PhantomDash = C3(110, 120, 150),
 	MagneticBoots = C3(200, 70, 90),
 	ShockwaveLanding = C3(240, 170, 40),
+	WallRunner = C3(110, 200, 190),
 }
 local charmIds = {}
 for id in pairs(CHARMS) do
@@ -501,6 +634,7 @@ end
 		PowerUps   { [id] = stacks }: adds each power-up's attachment + effects
 		           and tints the glow lines
 		Effects    false to skip particles / lights
+		UseMesh    false to always use the flat-part rifle
 	Returns {
 		Parts = {[name] = part}, Offsets = {[name] = CFrame}, Bolt = {[name] = true},
 		Anims = {[name] = "Pulse" | ...}, Glow = { glowing parts }, GlowColor = Color3,
@@ -513,6 +647,8 @@ function GunModel.Build(parent, options)
 	local scale = options.Scale or 1
 	local owned = options.PowerUps or {}
 	local glowColor = GunModel.GlowColor(owned)
+	local template = options.UseMesh ~= false and GunModel.FindTemplate() or nil
+	local profile = template and GunModel.MeshProfile or GunModel.PartsProfile
 	local result = {
 		Parts = {},
 		Offsets = {},
@@ -521,9 +657,48 @@ function GunModel.Build(parent, options)
 		Glow = {},
 		GlowColor = glowColor,
 		BaseTransparency = {},
+		Profile = profile, -- Muzzle, ScopeEye, BoltPivot, LeftHold, BarrelY for this rifle
+		UsesMesh = template ~= nil,
 	}
 
-	local specs = table.clone(GunModel.Parts)
+	local function setup(part, name, offset)
+		part.Name = name
+		part.Anchored = options.Anchored == true
+		part.CanCollide = false
+		part.CanQuery = false
+		part.CanTouch = false
+		part.Massless = true
+		part.Parent = parent
+		result.Parts[name] = part
+		result.Offsets[name] = offset
+		result.BaseTransparency[name] = part.Transparency
+	end
+
+	local specs = {}
+	if template then
+		-- the imported rifle's meshes (textures come along with them)
+		for _, info in ipairs(meshLayout(template)) do
+			local part = info.Part:Clone()
+			for _, child in ipairs(part:GetChildren()) do
+				if child:IsA("JointInstance") or child:IsA("Constraint") or child:IsA("BasePart") then
+					child:Destroy()
+				end
+			end
+			part.Size = info.Size * scale
+			part.CastShadow = options.CastShadow == true
+			setup(part, info.Name, info.Offset.Rotation + info.Offset.Position * scale)
+		end
+		-- invisible anchors other code looks up by name
+		for name, pos in pairs({ Receiver = Vector3.new(0, 0, -0.3), Barrel = Vector3.new(0, profile.BarrelY, -3) }) do
+			local anchor = Instance.new("Part")
+			anchor.Size = Vector3.one * 0.1
+			anchor.Transparency = 1
+			anchor.CastShadow = false
+			setup(anchor, name, CFrame.new(pos * scale))
+		end
+	else
+		specs = table.clone(GunModel.Parts)
+	end
 	local effects = {}
 	local ids = {}
 	for id in pairs(owned) do
@@ -535,6 +710,10 @@ function GunModel.Build(parent, options)
 		if mod and owned[id] > 0 then
 			local modParts, modEffects = mod(owned[id])
 			for _, spec in ipairs(modParts or {}) do
+				if profile.ModShift ~= Vector3.zero then
+					spec = table.clone(spec)
+					spec[4] += profile.ModShift
+				end
 				table.insert(specs, spec)
 			end
 			for _, effect in ipairs(modEffects or {}) do
@@ -597,15 +776,18 @@ function GunModel.Build(parent, options)
 	if options.Effects ~= false then
 		local lightsOn = Config.Effects == nil or Config.Effects.Lights ~= false
 		for _, effect in ipairs(effects) do
-			local part = result.Parts[effect.Part]
+			local part = result.Parts[effect.Part] or result.Parts.Barrel
 			if part then
 				addEffect(part, effect, scale, lightsOn)
 			end
 		end
 		-- a charged rifle (lots of power-ups) shimmers along the handguard
-		if GunModel.PowerLevel(owned) >= 5 and result.Parts.HandguardGlowL then
-			addEffect(result.Parts.HandguardGlowL, { Kind = "Sparks", Color = glowColor }, scale * 0.6, lightsOn)
-			addEffect(result.Parts.HandguardGlowR, { Kind = "Sparks", Color = glowColor }, scale * 0.6, lightsOn)
+		if GunModel.PowerLevel(owned) >= 5 then
+			for _, name in ipairs({ "HandguardGlowL", "HandguardGlowR", "Barrel" }) do
+				if result.Parts[name] and (name ~= "Barrel" or template) then
+					addEffect(result.Parts[name], { Kind = "Sparks", Color = glowColor }, scale * 0.6, lightsOn)
+				end
+			end
 		end
 	end
 	return result
@@ -615,7 +797,7 @@ end
 -- placing the gun once before welding it.
 function GunModel.Place(built, grip, scale)
 	scale = scale or 1
-	local boltPivot = grip * CFrame.new(GunModel.BoltPivot.Position * scale)
+	local boltPivot = grip * CFrame.new(built.Profile.BoltPivot.Position * scale)
 	for name, part in pairs(built.Parts) do
 		local base = built.Bolt[name] and boltPivot or grip
 		part.CFrame = base * built.Offsets[name]

@@ -19,6 +19,15 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 Remotes.Init() -- create every RemoteEvent before anything else
 
+-- The imported rifle (Studio's 3D Importer drops it in the Workspace):
+-- keep it in ReplicatedStorage where the server and every client can clone it.
+local Config = require(ReplicatedStorage.Shared.Config)
+local rifleName = Config.Viewmodel.MeshTemplate or "SniperRifle"
+local importedRifle = workspace:FindFirstChild(rifleName)
+if importedRifle and not ReplicatedStorage:FindFirstChild(rifleName) then
+	importedRifle.Parent = ReplicatedStorage
+end
+
 local LightingSetup = require(script.Parent.LightingSetup)
 local CharacterService = require(script.Parent.CharacterService)
 local SettingsService = require(script.Parent.SettingsService)

@@ -21,6 +21,7 @@ local ClientState = {}
 
 ClientState.Snapshot = { Phase = "Lobby", InMatch = false }
 ClientState.Stats = PowerUps.ComputeStats({})
+ClientState.Owned = {} -- { [powerUpId] = stacks } you have right now (match or Power-Up Lab)
 ClientState.Settings = table.clone(Config.SettingsDefaults)
 ClientState.MenuOpen = false -- true while a menu needs the mouse (settings / pick / victory)
 
@@ -174,7 +175,8 @@ function ClientState.Init()
 		-- in a match: your match power-ups; in the lobby: your Power-Up Lab picks
 		local me = ClientState.GetMe()
 		local owned = snapshot.InMatch and (me and me.PowerUps) or snapshot.PowerUps
-		ClientState.Stats = PowerUps.ComputeStats(owned or {})
+		ClientState.Owned = owned or {}
+		ClientState.Stats = PowerUps.ComputeStats(ClientState.Owned)
 		ClientState.Changed:Fire(snapshot, old)
 	end)
 

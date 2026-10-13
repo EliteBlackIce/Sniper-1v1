@@ -156,6 +156,7 @@ function Match:SpawnPlayers()
 				MaxHealth = stats.MaxHealth,
 				Frozen = true,
 				KillY = self.Arena.FloorY - Config.Match.VoidDepth,
+				PowerUps = self.Owned[player],
 			})
 			done += 1
 		end)

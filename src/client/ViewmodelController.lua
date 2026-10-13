@@ -49,6 +49,9 @@ local ADS_OFFSET = CFrame.new(-GunModel.ScopeEye.X, -GunModel.ScopeEye.Y, -0.55 
 local SPRINT_POSE = CFrame.new(-0.1, -0.22, 0.15) * CFrame.Angles(rad(-16), rad(38), rad(14))
 local EQUIP_POSE = CFrame.new(0.15, -1.2, 0.45) * CFrame.Angles(rad(-55), rad(25), rad(20))
 
+-- Spin axis for attachments that rotate around the barrel (gun space)
+local BARREL_AXIS = CFrame.new(0, 0.03, 0)
+
 -- Hands (gun space)
 local RIGHT_GRIP = CFrame.new(0, -0.22, 0.18) * CFrame.Angles(rad(-18), 0, 0)
 local KNOB_HOLD = CFrame.new(0.3, 0.02, 0.07) -- relative to the animated bolt pivot
@@ -102,10 +105,57 @@ local function addPart(name, size, color, shape)
 	return part
 end
 
+-- A string that changes whenever your power-ups change.
+local function ownedSignature(owned)
+	local list = {}
+	for id, stacks in pairs(owned) do
+		table.insert(list, id .. "=" .. stacks)
+	end
+	table.sort(list)
+	return table.concat(list, ",")
+end
+local builtSignature = nil
+local builtLevel = 0
+
+local function setGunEffects(on)
+	for _, part in pairs(gun.Parts) do
+		for _, child in ipairs(part:GetChildren()) do
+			if child:IsA("ParticleEmitter") or child:IsA("PointLight") then
+				child.Enabled = on
+			end
+		end
+	end
+end
+
+-- (Re)builds the rifle with an attachment for every power-up you own.
+-- Returns true if you gained something (so we can show it off).
+local function buildGun()
+	local owned = ClientState.Owned or {}
+	local signature = ownedSignature(owned)
+	if gun and signature == builtSignature then
+		return false
+	end
+	if gun then
+		for _, part in pairs(gun.Parts) do
+			part:Destroy()
+		end
+	end
+	builtSignature = signature
+	gun = GunModel.Build(model, { Anchored = true, PowerUps = owned })
+	for _, part in pairs(gun.Parts) do
+		part.LocalTransparencyModifier = visible and 0 or 1
+	end
+	setGunEffects(visible)
+	local level = GunModel.PowerLevel(owned)
+	local gained = level > builtLevel
+	builtLevel = level
+	return gained
+end
+
 local function build()
 	model = Instance.new("Model")
 	model.Name = "Viewmodel"
-	gun = GunModel.Build(model, { Anchored = true })
+	buildGun()
 
 	-- Gloved hands
 	for _, side in ipairs({ "Right", "Left" }) do
@@ -235,6 +285,7 @@ local function setVisible(v)
 	for _, part in pairs(gun.Parts) do
 		part.LocalTransparencyModifier = v and 0 or 1
 	end
+	setGunEffects(v)
 	for name, part in pairs(parts) do
 		if not name:find("Flash") then
 			part.LocalTransparencyModifier = v and 0 or 1
@@ -383,10 +434,41 @@ local function update(dt)
 		table.insert(cframes, cf)
 	end
 
-	-- Gun (bolt parts follow the animated bolt pivot)
+	-- Gun (bolt parts follow the animated bolt pivot; power-up parts animate)
 	local boltWorld = grip * boltPivot
+	local fast = math.clamp((speed - 30) / 40, 0, 1)
 	for name, part in pairs(gun.Parts) do
-		put(part, (gun.Bolt[name] and boltWorld or grip) * gun.Offsets[name])
+		local offset = gun.Offsets[name]
+		local anim = gun.Anims[name]
+		if anim then
+			local base = gun.BaseTransparency[name]
+			local fade = 0
+			if anim == "Spin" then
+				offset = BARREL_AXIS * CFrame.Angles(0, 0, t * 3) * BARREL_AXIS:Inverse() * offset
+			elseif anim == "Tick" then
+				offset = offset * CFrame.Angles(-t * 2, 0, 0)
+			elseif anim == "Turn" then
+				offset = CFrame.new(offset.Position) * CFrame.Angles(0, t * 2.5, 0) * offset.Rotation
+			elseif anim == "Pulse" then
+				fade = 0.3 * (1 + math.sin(t * 4)) / 2
+			elseif anim == "Ghost" then
+				fade = 0.5 * (1 + math.sin(t * 6 + offset.Position.Z * 8)) / 2
+			elseif anim == "Flicker" then
+				fade = math.random() < 0.25 and 0.85 or 0
+			elseif anim == "Speed" then
+				fade = 0.85 * (1 - fast)
+			end
+			if shouldShow then
+				part.LocalTransparencyModifier = math.min(1, fade / math.max(1 - base, 0.01))
+			end
+		end
+		put(part, (gun.Bolt[name] and boltWorld or grip) * offset)
+	end
+	-- glow lines breathe, and flare white for a moment when you fire
+	local flare = math.clamp((flashUntil - t) / 0.05, 0, 1)
+	local glow = gun.GlowColor:Lerp(Color3.new(1, 1, 1), 0.12 * (1 + math.sin(t * 2.4)) / 2 + flare * 0.6)
+	for _, part in ipairs(gun.Glow) do
+		part.Color = glow
 	end
 
 	-- Right hand + arm
@@ -458,6 +540,15 @@ function Viewmodel.Start()
 			inspecting = true
 			inspectStart = os.clock()
 			Sfx.Play("CardHover", { Pitch = 0.8, Volume = 1.5 })
+		end
+	end)
+
+	-- new power-up = new attachment on the rifle; show it off with an inspect
+	ClientState.Changed:Connect(function()
+		if buildGun() and visible and not inspecting then
+			inspecting = true
+			inspectStart = os.clock()
+			Sfx.Play("CardPick", { Pitch = 1.3, Volume = 0.6 })
 		end
 	end)
 

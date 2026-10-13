@@ -34,7 +34,9 @@ Config.Palette = {
 	-- Sniper + arms (viewmodel and the gun other players see)
 	GunMetal = Color3.fromRGB(38, 41, 49), -- barrel, receiver, scope
 	GunMetalLight = Color3.fromRGB(70, 75, 88), -- rails, bolt, small metal bits
-	GunFurniture = Color3.fromRGB(84, 104, 78), -- stock + handguard (classic olive)
+	GunFurniture = Color3.fromRGB(84, 104, 78), -- (old rifle) stock + handguard
+	GunShell = Color3.fromRGB(226, 229, 236), -- the rifle's light outer shell
+	GunGlow = Color3.fromRGB(56, 199, 182), -- glowing energy lines (recoloured by power-ups)
 	GunAccent = Color3.fromRGB(56, 199, 182), -- tiny highlights (matches AccentA)
 	ScopeGlass = Color3.fromRGB(120, 220, 255),
 	Glove = Color3.fromRGB(36, 38, 44),
@@ -133,7 +135,7 @@ Config.Match = {
 	VictoryTime = 7, -- victory screen length before returning to lobby
 	MaxRoundTime = 150, -- if nobody dies, higher health % wins the round (tie = replay)
 	CardsPerPick = 5,
-	Map = "Downtown", -- "Downtown" (detailed city) or "Classic" (the original simple arena)
+	Map = "Simple", -- "Simple" (clean 1v1 arena: ramps, walls, cover), "Downtown" (detailed city) or "Classic"
 	MaxArenas = 4, -- how many matches can run at the same time in one server
 	ArenaSpacing = 2000, -- distance between arena copies
 	VoidDepth = 80, -- falling this far below the arena floor kills you

@@ -280,11 +280,13 @@ function MapBuilder.BuildArena(index)
 	if Config.Match.Map == "Classic" then
 		return buildClassicArena(index)
 	end
-	local ArenaDowntown = require(script.Parent.ArenaDowntown)
+	-- "Simple" (default) or "Downtown": map modules return spawns, dummy spots
+	local mapName = Config.Match.Map == "Downtown" and "Downtown" or "Simple"
+	local mapModule = require(script.Parent["Arena" .. mapName])
 	local origin = Vector3.new(0, 0, index * Config.Match.ArenaSpacing)
 	local model = Instance.new("Model")
-	model.Name = "Arena" .. index .. "_Downtown"
-	local spawns = ArenaDowntown.Build(makeBuilder(origin, model))
+	model.Name = "Arena" .. index .. "_" .. mapName
+	local spawns, dummySpots = mapModule.Build(makeBuilder(origin, model))
 
 	local folder = workspace:FindFirstChild("Arenas")
 	if not folder then
@@ -301,6 +303,7 @@ function MapBuilder.BuildArena(index)
 		Origin = origin,
 		FloorY = origin.Y,
 		Spawns = { base * spawns[1], base * spawns[2] },
+		DummySpots = dummySpots or {}, -- for the Playground (local to Origin)
 	}
 end
 

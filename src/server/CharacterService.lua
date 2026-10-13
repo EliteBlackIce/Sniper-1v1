@@ -37,14 +37,19 @@ local WORLD_GUN_SCALE = 0.8
 -- a bit smaller). The barrel points along the hand's -Y axis, so when the
 -- client's aim pose raises the arm forward (CharacterPoser), the gun points
 -- where you're looking.
-local function addWorldGun(character)
+-- powerUps ({ [id] = stacks }) adds each power-up's attachment + effects.
+local function addWorldGun(character, powerUps)
 	local hand = character:FindFirstChild("RightHand") or character:FindFirstChild("Right Arm")
 	if not hand then
 		return
 	end
+	local old = character:FindFirstChild("WorldGun")
+	if old then
+		old:Destroy()
+	end
 	local gun = Instance.new("Model")
 	gun.Name = "WorldGun"
-	local built = GunModel.Build(gun, { Scale = WORLD_GUN_SCALE, CastShadow = true })
+	local built = GunModel.Build(gun, { Scale = WORLD_GUN_SCALE, CastShadow = true, PowerUps = powerUps })
 
 	local grip = hand.CFrame * CFrame.new(0, -0.15, 0) * CFrame.Angles(math.rad(-90), 0, 0)
 	GunModel.Place(built, grip, WORLD_GUN_SCALE)
@@ -96,6 +101,7 @@ end
 		MaxHealth  starting max health
 		Frozen     anchor the character in place
 		KillY      falling below this Y kills you
+		PowerUps   { [id] = stacks } shown as attachments on the rifle
 ]]
 function CharacterService.Spawn(player, cframe, options)
 	options = options or {}
@@ -115,7 +121,7 @@ function CharacterService.Spawn(player, cframe, options)
 	end
 
 	CharacterService.Style(character, options.Color or Palette.LobbyPlayer)
-	addWorldGun(character)
+	addWorldGun(character, options.PowerUps)
 
 	humanoid.MaxHealth = options.MaxHealth or Config.Player.MaxHealth
 	humanoid.Health = humanoid.MaxHealth
@@ -155,6 +161,15 @@ function CharacterService.SetFrozen(player, frozen)
 	end
 end
 
+-- Rebuilds the rifle in a player's hands (e.g. after trying power-ups in the lab).
+function CharacterService.RefreshWorldGun(player, powerUps)
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if humanoid and humanoid.Health > 0 then
+		addWorldGun(character, powerUps)
+	end
+end
+
 -- Makes a character invisible to everyone for `duration` seconds.
 function CharacterService.MakeInvisible(player, duration)
 	local character = player.Character
@@ -163,16 +178,25 @@ function CharacterService.MakeInvisible(player, duration)
 	end
 	character:SetAttribute("Invisible", true)
 	local saved = {}
+	local effects = {}
 	for _, part in ipairs(character:GetDescendants()) do
 		if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
 			saved[part] = part.Transparency
 			part.Transparency = 1
+		elseif (part:IsA("ParticleEmitter") or part:IsA("PointLight")) and part.Enabled then
+			effects[part] = true -- rifle power-up effects would give you away
+			part.Enabled = false
 		end
 	end
 	task.delay(duration, function()
 		for part, transparency in pairs(saved) do
 			if part.Parent then
 				part.Transparency = transparency
+			end
+		end
+		for effect in pairs(effects) do
+			if effect.Parent then
+				effect.Enabled = true
 			end
 		end
 		if character.Parent then

@@ -86,26 +86,12 @@ end
 
 -- PLAYGROUND: a free-roam copy of the match map with dummies everywhere and
 -- the Power-Up Lab, for trying movement and builds without an opponent.
-local PLAYGROUND_DUMMIES = {
-	{ Position = Vector3.new(-120, 0.5, 5), Motion = "Strafe", Amount = 10, Speed = 0.3, Face = Vector3.new(1, 0, 0) },
-	{ Position = Vector3.new(60, 0.5, -5), Motion = "Strafe", Amount = 12, Speed = 0.25, Face = Vector3.new(-1, 0, 0) },
-	{ Position = Vector3.new(-95, 48.8, 62), Face = Vector3.new(0, 0, -1) },
-	{ Position = Vector3.new(95, 48.8, 62), Face = Vector3.new(0, 0, -1) },
-	{ Position = Vector3.new(-152, 24.8, 60), Face = Vector3.new(1, 0, -1) },
-	{ Position = Vector3.new(12, 26.8, 62), Face = Vector3.new(0, 0, -1) },
-	{ Position = Vector3.new(0, 31.3, -75), Face = Vector3.new(0, 0, 1) },
-	{ Position = Vector3.new(-60, 22, -75), Motion = "Strafe", Amount = 16, Speed = 0.2, Face = Vector3.new(0, 0, 1) },
-	{ Position = Vector3.new(-90, 0.3, -47), Motion = "Bob", Amount = 9, Speed = 0.5, Face = Vector3.new(0, 0, 1) },
-	{ Position = Vector3.new(150, 0.5, -100), Face = Vector3.new(-1, 0, 0) },
-	{ Position = Vector3.new(30, 0.5, -112), Motion = "Strafe", Amount = 8, Speed = 0.4, Face = Vector3.new(0, 0, 1) },
-	{ Position = Vector3.new(40, 0.5, 30), Face = Vector3.new(0, 0, -1) },
-}
-
+-- (Each map lists its own dummy spots.)
 local function getPlayground()
 	if not playground then
 		playground = MapBuilder.BuildArena(Config.Match.MaxArenas + 2)
 		playground.Model.Name = "Playground"
-		DummyService.AddSpots(PLAYGROUND_DUMMIES, playground.Origin)
+		DummyService.AddSpots(playground.DummySpots or {}, playground.Origin)
 	end
 	return playground
 end
@@ -120,6 +106,7 @@ local function spawnInLobby(player)
 		CharacterService.Spawn(player, arena.Spawns[math.random(1, 2)], {
 			Color = Config.Palette.LobbyPlayer,
 			MaxHealth = MatchService.GetPracticeStats(player).MaxHealth,
+			PowerUps = practiceOwned[player],
 			KillY = arena.FloorY - Config.Match.VoidDepth,
 		})
 		sendLobbyState(player)
@@ -131,6 +118,7 @@ local function spawnInLobby(player)
 		Color = Config.Palette.LobbyPlayer,
 		MaxHealth = MatchService.GetPracticeStats(player).MaxHealth,
 		KillY = lobby.KillY,
+		PowerUps = practiceOwned[player],
 	})
 	sendLobbyState(player)
 end
@@ -385,6 +373,7 @@ function MatchService.Init()
 			humanoid.MaxHealth = MatchService.GetPracticeStats(player).MaxHealth
 			humanoid.Health = humanoid.MaxHealth
 		end
+		CharacterService.RefreshWorldGun(player, owned)
 		sendLobbyState(player)
 	end)
 

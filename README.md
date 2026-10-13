@@ -21,7 +21,7 @@ src/shared/                -> ReplicatedStorage.Shared   (server + client)
   Config.lua                  ALL tunable numbers + colour palette + sounds + lighting
   PowerUps.lua                every power-up as one data entry + card drawing
   Ballistics.lua              bullet tracing (ghost / ricochet / homing / split shot)
-  GunModel.lua                the sniper rifle as a part list (viewmodel + third person)
+  GunModel.lua                the sniper rifle + a visual mod for every power-up
   Remotes.lua                 list of every RemoteEvent
   Signal.lua, Util.lua        small helpers
 
@@ -29,7 +29,8 @@ src/server/                -> ServerScriptService.Server
   Main.server.lua             entry point, starts every service
   LightingSetup.lua           Future lighting, Atmosphere, Bloom, ColorCorrection, SunRays
   MapBuilder.lua              builds the lobby and the arena from parts
-  ArenaDowntown.lua           the Downtown city map (buildings, train track, props)
+  ArenaSimple.lua             the default map: a simple 1v1 arena (ramps, walls, cover)
+  ArenaDowntown.lua           optional detailed city map (Config.Match.Map = "Downtown")
   DummyService.lua            practice dummies on the lobby shooting range
   CharacterService.lua        spawning, flat character style, freeze, invisibility, void
   MatchService.lua            lobby, queue, matchmaking, arena slots
@@ -263,20 +264,19 @@ Files: `PowerUps`, `PickScreen`, `Icons`, plus power-up code in Movement/Weapon/
       **DRAW 5 CARDS** opens the real pick screen with random cards.
       (Second Wind and Vampire need a real opponent: use a 2-player Studio test.)
 
-### Stage 5: map and visuals
-Files: `ArenaDowntown` (city map), `MapBuilder` (lobby + helpers), `LightingSetup`, `Config.MapPalette`
+### Stage 5: map, rifle and visuals
+Files: `ArenaSimple` (the arena), `GunModel` (rifle + power-up mods), `MapBuilder`, `LightingSetup`
 
-- [ ] Downtown: spawn on a transit platform, look down the avenue past the bus
-      and cars to the plaza fountain and City Hall's clock tower.
-- [ ] Climb the fire escapes (apartments 24, office tower 48, City Hall 26),
-      cross the rooftop catwalk, take the stairs up to the train track and
-      stand on the parked train.
-- [ ] Buildings have depth: pilasters, window frames, ledges, cornices,
-      storefronts with awnings and signs (see `dist/downtown-preview.png`
-      and `dist/downtown-street.png`).
-- [ ] Run along building walls and through the streets: nothing snags you
-      (detail parts don't collide), and you can't clip into walls.
-- [ ] Everything is flat SmoothPlastic from the palette; only lights glow (Neon).
+- [ ] Spawn on your raised deck, run down the ramp, and check the arena:
+      a tower in the middle with ramps, tall walls to hide behind, side
+      platforms with ramps, and cover blocks (see `dist/arena-preview.png`).
+- [ ] The rifle is the new two-tone VX-7 with glowing lines (see
+      `dist/rifle-preview.png`).
+- [ ] Open the Power-Up Lab (B) and add power-ups: each one bolts a part onto
+      the rifle (coils, side barrels, canister, tesla coils, laser...), the
+      glow lines take the colour of your rarest power-up, and the rifle
+      plays its inspect animation to show it off. Other players see the
+      same attachments on your rifle.
 - [ ] Shadows are crisp, the sky has a soft atmosphere, and bloom is subtle.
 - [ ] Change `Config.Palette` (e.g. `AccentA`) and press Play: map, viewmodel
       and UI colours follow.
@@ -328,9 +328,9 @@ Play a full match against a computer opponent, e.g. to test builds.
 
 ## Playground mode
 
-Press **G** in the lobby. You're dropped into your own copy of the Downtown map
+Press **G** in the lobby. You're dropped into your own copy of the match map
 (shared with anyone else in the playground) with practice dummies on the
-rooftops, the train, the avenue and the park. Open the **Power-Up Lab (B)** and
+high ground and in the lanes. Open the **Power-Up Lab (B)** and
 try any build on the real map; press **G** again to go back to the lobby, or
 **F** to queue for a match from there.
 
@@ -381,7 +381,54 @@ Momentum (speed) x Pinball (hops) x Marked. Headshots always kill instantly.
 
 Test them solo in the lobby with the **Power-Up Lab** (press B).
 
-## The Downtown map
+## The arena
+
+![Arena](dist/arena-preview.png)
+
+The default map (`Config.Match.Map = "Simple"`) is a plain 1v1 arena in the
+spirit of ROUNDS: no decoration, just a flat floor and shapes to play
+around. It's mirrored, so both sides are identical.
+- **Spawn decks** on each end with a ramp down.
+- **Centre tower**: high ground with ramps up from both sides and a bit of
+  cover on top.
+- **Tall walls** on both sides of the middle: hide behind them or wall run.
+- **Side platforms** (second high ground) with ramps toward the middle.
+- **Cover blocks and pillars** everywhere, including one in the middle lane
+  so you can't see spawn to spawn.
+
+Everything is in `src/server/ArenaSimple.lua` as a short list of blocks and
+ramps, so it's easy to move things around. The playground dummies for each
+map are listed at the bottom of its file.
+
+## The rifle and power-up mods
+
+![Rifle](dist/rifle-preview.png)
+
+![Rifle with every power-up](dist/rifle-powerups-preview.png)
+
+The VX-7 is an angular two-tone rifle (light shell, dark metal) with glowing
+energy lines, an energy cell on the side and a glowing round counter in the
+magazine. It changes as you pick power-ups:
+- The **glow lines** take the colour of your rarest power-up and flare
+  white when you fire.
+- Every power-up **bolts on its own part**, with an effect: Ghost Round
+  shimmering phase fins, Ricochet glowing coils (more per stack), Split Shot
+  side barrels, Homing a seeker module with a laser, Explosive Rounds a
+  grenade canister and embers at the muzzle, Shrapnel spinning spikes,
+  Static Charge crackling tesla coils with sparks, Pinball bumper rings,
+  Momentum fins that glow as you speed up, Sky Sniper wings, Glass Cannon a
+  white-hot barrel, Marked a red laser, Hair Trigger a gold trigger, Vampire
+  a dripping blood vial, Bullet Time a ticking clock, Wallhack Pulse a
+  spinning radar dish, Thick Skin armour plates, Second Wind a heart cell,
+  Grapple a hook launcher, and so on. Movement power-ups hang a coloured charm.
+- With 5 or more power-ups the handguard sparks.
+- Your opponent sees the same rifle in your hands, so you can read their
+  build. (Phantom Step hides the effects too.)
+- Add or change mods in `GunModel.Mods`.
+
+## The Downtown map (optional)
+
+Set `Config.Match.Map = "Downtown"` for the detailed city instead.
 
 ![Downtown](dist/downtown-preview.png)
 

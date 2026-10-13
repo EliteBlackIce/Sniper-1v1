@@ -708,6 +708,22 @@ local function trafficLight(b, pos, faceDir, armDir, m)
 	end)
 end
 
+-- Practice dummies for the Playground (rooftops, train, avenue, park)
+local PLAYGROUND_DUMMIES = {
+	{ Position = V(-120, 0.5, 5), Motion = "Strafe", Amount = 10, Speed = 0.3, Face = V(1, 0, 0) },
+	{ Position = V(60, 0.5, -5), Motion = "Strafe", Amount = 12, Speed = 0.25, Face = V(-1, 0, 0) },
+	{ Position = V(-95, 48.8, 62), Face = V(0, 0, -1) },
+	{ Position = V(95, 48.8, 62), Face = V(0, 0, -1) },
+	{ Position = V(-152, 24.8, 60), Face = V(1, 0, -1) },
+	{ Position = V(12, 26.8, 62), Face = V(0, 0, -1) },
+	{ Position = V(0, 31.3, -75), Face = V(0, 0, 1) },
+	{ Position = V(-60, 22, -75), Motion = "Strafe", Amount = 16, Speed = 0.2, Face = V(0, 0, 1) },
+	{ Position = V(-90, 0.3, -47), Motion = "Bob", Amount = 9, Speed = 0.5, Face = V(0, 0, 1) },
+	{ Position = V(150, 0.5, -100), Face = V(-1, 0, 0) },
+	{ Position = V(30, 0.5, -112), Motion = "Strafe", Amount = 8, Speed = 0.4, Face = V(0, 0, 1) },
+	{ Position = V(40, 0.5, 30), Face = V(0, 0, -1) },
+}
+
 ----------------------------------------------------------------------------
 -- BUILD
 ----------------------------------------------------------------------------
@@ -1152,7 +1168,7 @@ function ArenaDowntown.Build(b)
 	return {
 		CFrame.lookAt(V(-192, spawnHeight, 0), V(0, spawnHeight, 0)),
 		CFrame.lookAt(V(192, spawnHeight, 0), V(0, spawnHeight, 0)),
-	}
+	}, PLAYGROUND_DUMMIES
 end
 
 return ArenaDowntown

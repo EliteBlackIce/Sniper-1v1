@@ -135,7 +135,7 @@ Config.Match = {
 	VictoryTime = 7, -- victory screen length before returning to lobby
 	MaxRoundTime = 150, -- if nobody dies, higher health % wins the round (tie = replay)
 	CardsPerPick = 5,
-	Map = "Nuketown", -- "Nuketown" (the classic cul-de-sac), "Crossfire" (compact Rivals-style), "Simple" (open ramps arena), "Downtown" (detailed city) or "Classic"
+	Map = "Polygon", -- "Polygon" (compact Rivals-style arena, lots of cover), "Nuketown" (the classic cul-de-sac), "Crossfire" (compact Rivals-style), "Simple" (open ramps arena), "Downtown" (detailed city) or "Classic"
 	MaxArenas = 4, -- how many matches can run at the same time in one server
 	ArenaSpacing = 2000, -- distance between arena copies
 	VoidDepth = 80, -- falling this far below the arena floor kills you

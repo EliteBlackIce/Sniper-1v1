@@ -29,7 +29,8 @@ src/server/                -> ServerScriptService.Server
   Main.server.lua             entry point, starts every service
   LightingSetup.lua           Future lighting, Atmosphere, Bloom, ColorCorrection, SunRays
   MapBuilder.lua              builds the lobby and the arena from parts
-  ArenaNuketown.lua           the default map: the Nuketown cul-de-sac (flat colours)
+  ArenaPolygon.lua            the default map: compact Rivals-style arena, tall walls + ramps
+  ArenaNuketown.lua           optional Nuketown cul-de-sac (Config.Match.Map = "Nuketown")
   ArenaCrossfire.lua          optional compact Rivals-style duel map
   ArenaSimple.lua             optional open ramps arena (Config.Match.Map = "Simple")
   ArenaDowntown.lua           optional detailed city map (Config.Match.Map = "Downtown")
@@ -484,11 +485,31 @@ Momentum (speed) x Pinball (hops) x Marked. Headshots always kill instantly.
 
 Test them solo in the lobby with the **Power-Up Lab** (press B).
 
+## The map: Polygon
+
+![Polygon](dist/polygon-preview.png)
+
+The default map (`Config.Match.Map = "Polygon"`) is a compact 1v1 arena in the
+Roblox Rivals style: an octagon of 40-stud walls with lots to fight around.
+Flat colours, angled low-poly shapes, no textures. It's mirrored both ways, so
+both spawns are fair.
+- **Spawn decks** at each end, raised with a ramp down and a tall shield wall
+  in front so nobody gets shot spawn-to-spawn.
+- **Central tower** with ramps up from the north and south and cover on top.
+- **Tall inner walls** that split the lanes (too high to see or jump over).
+- **Side catwalks** along both long walls, ramps at each end and a low edge to
+  jump off.
+- **Lots of cover**: hexagonal pillars, crate stacks, low walls, raised corner
+  blocks to jump onto, and small kicker ramps.
+
+It's in `src/server/ArenaPolygon.lua`. The other maps are still there:
+`"Nuketown"`, `"Crossfire"`, `"Simple"`, `"Downtown"` and `"Classic"`.
+
 ## The map: Nuketown
 
 ![Nuketown](dist/nuketown-preview.png)
 
-The default map (`Config.Match.Map = "Nuketown"`) is the classic 1960s
+An optional map (`Config.Match.Map = "Nuketown"`): the classic 1960s
 test-site cul-de-sac, rebuilt 1:1 in layout with flat colours (no textures).
 It's point-symmetric (the green side is the yellow side turned around), so
 both spawns are fair:
@@ -505,8 +526,7 @@ both spawns are fair:
 - **Map ends**: rocks, the test-site fence, mannequins and the "NUKETOWN"
   sign.
 
-It's in `src/server/ArenaNuketown.lua`. The other maps are still there:
-`"Crossfire"`, `"Simple"`, `"Downtown"` and `"Classic"`.
+It's in `src/server/ArenaNuketown.lua`.
 
 ## The map: Crossfire
 

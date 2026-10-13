@@ -196,6 +196,12 @@ function MobileControls.Start(playerGui)
 	roundButton("Grapple", "HOOK", 58, br(80, 310), Palette.UIPanel, tap("Grapple"))
 	roundButton("Blink", "BLINK", 58, br(150, 300), Palette.UIPanel, tap("Blink"))
 	roundButton("Decoy", "DECOY", 58, br(220, 300), Palette.UIPanel, tap("Decoy"))
+	-- switch rifle <-> knife (with the knife out, FIRE slashes and SCOPE stabs)
+	roundButton("Knife", "KNIFE", 58, br(305, 165), Palette.UIPanel, function()
+		if Controllers and Controllers.Knife then
+			Controllers.Knife.Toggle()
+		end
+	end)
 
 	pill("Lab", "LAB", UDim2.new(0, 60, 0, 120), tap("PowerUpLab"))
 	pill("Duel", "DUEL", UDim2.new(0, 150, 0, 120), tap("DuelFriend"))

@@ -38,6 +38,8 @@ Remotes.Names = {
 	"DuelInvite", -- S->C  someone challenged you / wants a rematch
 	"CrateOpen", -- C->S  open a crate at the lobby altar
 	"Crates", -- S->C  crate results + your keys / skins
+	"Equip", -- C->S  switch weapon: "Sniper" / "Knife"
+	"Melee", -- C->S  knife swing: kind ("Slash" / "Stab"), what it hit, look direction
 }
 
 local FOLDER_NAME = "Remotes"

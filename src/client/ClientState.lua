@@ -24,6 +24,7 @@ ClientState.Stats = PowerUps.ComputeStats({})
 ClientState.Owned = {} -- { [powerUpId] = stacks } you have right now (match or Power-Up Lab)
 ClientState.Settings = table.clone(Config.SettingsDefaults)
 ClientState.MenuOpen = false -- true while a menu needs the mouse (settings / pick / victory)
+ClientState.Weapon = "Sniper" -- what's in your hands: "Sniper" or "Knife" (KnifeController)
 
 ClientState.Changed = Signal.new() -- (newSnapshot, oldSnapshot)
 ClientState.SettingsChanged = Signal.new() -- (settings)

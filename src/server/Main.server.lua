@@ -28,6 +28,11 @@ local importedRifle = workspace:FindFirstChild(rifleName)
 if importedRifle and not ReplicatedStorage:FindFirstChild(rifleName) then
 	importedRifle.Parent = ReplicatedStorage
 end
+local knifeName = Config.Knife.MeshTemplate or "CombatKnife" -- same for the imported knife
+local importedKnife = workspace:FindFirstChild(knifeName)
+if importedKnife and not ReplicatedStorage:FindFirstChild(knifeName) then
+	importedKnife.Parent = ReplicatedStorage
+end
 
 local LightingSetup = require(script.Parent.LightingSetup)
 local CharacterService = require(script.Parent.CharacterService)

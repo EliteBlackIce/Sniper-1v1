@@ -17,6 +17,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local GunModel = require(ReplicatedStorage.Shared.GunModel)
+local KnifeModel = require(ReplicatedStorage.Shared.KnifeModel)
 local Util = require(ReplicatedStorage.Shared.Util)
 
 local Palette = Config.Palette
@@ -66,7 +67,79 @@ local function addWorldGun(character, powerUps)
 	muzzle.Parent = built.Parts.Barrel
 	muzzle.WorldCFrame = grip * CFrame.new(built.Profile.Muzzle.Position * WORLD_GUN_SCALE)
 
+	for _, part in ipairs(gun:GetDescendants()) do
+		if part:IsA("BasePart") then
+			part:SetAttribute("BaseTransparency", part.Transparency)
+		end
+	end
 	gun.Parent = character
+	CharacterService.ShowWeapon(character)
+end
+
+-- The knife in your hand (hidden until you switch to it). Blade along the
+-- hand's -Y, like the rifle, so the aim pose points it forward.
+local function addWorldKnife(character)
+	local hand = character:FindFirstChild("RightHand") or character:FindFirstChild("Right Arm")
+	if not hand or not Config.Knife.Enabled then
+		return
+	end
+	local old = character:FindFirstChild("WorldKnife")
+	if old then
+		old:Destroy()
+	end
+	local knife = Instance.new("Model")
+	knife.Name = "WorldKnife"
+	local scale = Config.Knife.WorldScale
+	local built = KnifeModel.Build(knife, { Scale = scale, CastShadow = true })
+	local grip = hand.CFrame * CFrame.new(0, -0.15, 0) * CFrame.Angles(math.rad(-90), 0, 0)
+	local origin = grip * CFrame.new(KnifeModel.Grip.Position * -scale)
+	KnifeModel.Place(built, origin)
+	for _, part in pairs(built.Parts) do
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0 = hand
+		weld.Part1 = part
+		weld.Parent = part
+		part:SetAttribute("BaseTransparency", part.Transparency)
+	end
+	knife.Parent = character
+	CharacterService.ShowWeapon(character)
+end
+
+-- Shows the weapon in the "Weapon" attribute ("Sniper" or "Knife") and hides
+-- the other one. Everyone sees what you're holding.
+function CharacterService.ShowWeapon(character)
+	if not character or character:GetAttribute("Invisible") then
+		return -- MakeInvisible calls this again when it ends
+	end
+	local knifeOut = character:GetAttribute("Weapon") == "Knife"
+	for name, shown in pairs({ WorldGun = not knifeOut, WorldKnife = knifeOut }) do
+		local model = character:FindFirstChild(name)
+		for _, item in ipairs(model and model:GetDescendants() or {}) do
+			if item:IsA("BasePart") then
+				item.Transparency = shown and (item:GetAttribute("BaseTransparency") or 0) or 1
+			elseif item:IsA("ParticleEmitter") or item:IsA("PointLight") then
+				item.Enabled = shown
+			end
+		end
+	end
+end
+
+-- Switches what a player holds (the client asks; MeleeService/CombatService
+-- check the "Weapon" attribute before allowing an attack).
+function CharacterService.SetWeapon(player, weapon)
+	local character = player.Character
+	if not character or (weapon ~= "Sniper" and weapon ~= "Knife") then
+		return
+	end
+	if weapon == "Knife" and not Config.Knife.Enabled then
+		return
+	end
+	if character:GetAttribute("Weapon") == weapon then
+		return
+	end
+	character:SetAttribute("Weapon", weapon)
+	character:SetAttribute("WeaponSince", workspace:GetServerTimeNow())
+	CharacterService.ShowWeapon(character)
 end
 
 -- AVATAR LOOK (Config.Player.UseAvatars): you play as your own Roblox
@@ -183,7 +256,9 @@ function CharacterService.Spawn(player, cframe, options)
 	end
 
 	CharacterService.Style(character, options.Color or Palette.LobbyPlayer, player)
+	character:SetAttribute("Weapon", "Sniper") -- every life starts with the rifle out
 	addWorldGun(character, options.PowerUps)
+	addWorldKnife(character)
 
 	humanoid.MaxHealth = options.MaxHealth or Config.Player.MaxHealth
 	humanoid.Health = humanoid.MaxHealth
@@ -263,6 +338,7 @@ function CharacterService.MakeInvisible(player, duration)
 		end
 		if character.Parent then
 			character:SetAttribute("Invisible", false)
+			CharacterService.ShowWeapon(character) -- in case you switched weapons while invisible
 		end
 	end)
 end

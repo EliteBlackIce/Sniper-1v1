@@ -16,6 +16,10 @@
 		bolt      right hand leaves the grip, works the bolt, comes back
 		aim       slides to the centre when scoping, then hides behind the scope
 		inspect   press V to admire the rifle
+	knife   when the knife is out (KnifeController): flip-in equip, alternating
+	        slashes, a wind-up stab, and two inspects (toss it up and catch
+	        it, or twirl it in your fingers). The arms follow the knife with
+	        two-bone IK from fixed shoulders.
 	power-ups your power-ups change how it moves (see "Power-up animation
 	          styles" below): spin-cocking, heavy kicks, twirls, kill flourishes...
 
@@ -30,6 +34,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local GunModel = require(Shared.GunModel)
+local KnifeModel = require(Shared.KnifeModel)
+local KnifeAnim = require(script.Parent.KnifeAnim)
 local Util = require(Shared.Util)
 local ClientState = require(script.Parent.ClientState)
 local Spring = require(script.Parent.Spring)
@@ -68,6 +74,10 @@ local LEFT_SHOULDER = Vector3.new(-1.0, -1.05, 0.95)
 
 local model
 local gun -- result of GunModel.Build
+local knife -- result of KnifeModel.Build
+local weapon = "Sniper" -- "Sniper" or "Knife" (Viewmodel.SetWeapon)
+local knifeAnim = { Kind = "Equip", Start = -10, Side = 1, Variant = "Toss" }
+local applyWeaponVisibility -- (defined with setVisible below)
 local parts = {} -- extra parts: hands, arms, flash
 local visible = false
 
@@ -156,10 +166,23 @@ local function buildGun()
 	return gained
 end
 
+local function buildKnife()
+	if knife then
+		for _, part in pairs(knife.Parts) do
+			part:Destroy()
+		end
+	end
+	knife = KnifeModel.Build(model, { Anchored = true })
+	for _, part in pairs(knife.Parts) do
+		part.LocalTransparencyModifier = (visible and weapon == "Knife") and 0 or 1
+	end
+end
+
 local function build()
 	model = Instance.new("Model")
 	model.Name = "Viewmodel"
 	buildGun()
+	buildKnife()
 
 	-- Gloved hands
 	for _, side in ipairs({ "Right", "Left" }) do
@@ -437,6 +460,57 @@ function Viewmodel.SetPuppet(info)
 	flourish = nil
 end
 
+-- Switches what's in your hands ("Sniper" or "Knife") and plays its equip.
+function Viewmodel.SetWeapon(name)
+	if name ~= "Knife" then
+		name = "Sniper"
+	end
+	if name == weapon then
+		return
+	end
+	weapon = name
+	inspecting = false
+	flourish = nil
+	if weapon == "Knife" then
+		knifeAnim = { Kind = "Equip", Start = os.clock(), Side = 1 }
+		Sfx.Play("CardPick", { Pitch = 1.15, Volume = 0.7 }) -- unsheathe
+	else
+		Viewmodel.PlayEquip()
+	end
+	applyWeaponVisibility()
+end
+
+function Viewmodel.GetWeapon()
+	return weapon
+end
+
+-- Knife moves: "Slash" (alternates sides), "Stab", "Inspect".
+function Viewmodel.PlayKnife(kind)
+	local side = knifeAnim.Side or 1
+	if kind == "Slash" then
+		side = -side
+	elseif kind == "Inspect" then
+		if knifeAnim.Kind ~= "Idle" and os.clock() - knifeAnim.Start < (knifeAnim.Length or 0) then
+			return -- finish what you're doing first
+		end
+	end
+	knifeAnim = {
+		Kind = kind,
+		Start = os.clock(),
+		Side = side,
+		Variant = kind == "Inspect" and (math.random() < 0.65 and "Toss" or "Twirl") or nil,
+	}
+end
+
+-- The knife's tip in the world (for spark effects).
+local knifeWorld -- the knife's origin CFrame last frame
+function Viewmodel.GetKnifeTip()
+	if knifeWorld then
+		return (knifeWorld * CFrame.new(KnifeModel.Tip)).Position
+	end
+	return workspace.CurrentCamera.CFrame.Position
+end
+
 -- Kill cam: how fast the killer was moving (for the walk bob).
 function Viewmodel.SetPuppetSpeed(speed)
 	if puppet then
@@ -505,15 +579,25 @@ function Viewmodel.GetLeftHandPosition()
 	return parts.LeftPalm and parts.LeftPalm.Position or workspace.CurrentCamera.CFrame.Position
 end
 
+-- Shows the rifle or the knife (whichever is out), if the viewmodel is shown.
+function applyWeaponVisibility()
+	local v = visible
+	local gunShown = v and weapon ~= "Knife"
+	for _, part in pairs(gun.Parts) do
+		part.LocalTransparencyModifier = gunShown and 0 or 1
+	end
+	setGunEffects(gunShown)
+	for _, part in pairs(knife and knife.Parts or {}) do
+		part.LocalTransparencyModifier = (v and weapon == "Knife") and 0 or 1
+	end
+end
+
 local function setVisible(v)
 	if v == visible then
 		return
 	end
 	visible = v
-	for _, part in pairs(gun.Parts) do
-		part.LocalTransparencyModifier = v and 0 or 1
-	end
-	setGunEffects(v)
+	applyWeaponVisibility()
 	for name, part in pairs(parts) do
 		if not name:find("Flash") then
 			part.LocalTransparencyModifier = v and 0 or 1
@@ -524,6 +608,89 @@ local function setVisible(v)
 			part.LocalTransparencyModifier = v and 0 or 1
 		end
 	end
+end
+
+----------------------------------------------------------------------------
+-- Knife (camera space poses; the knife origin = middle of the handle)
+----------------------------------------------------------------------------
+local KN = Config.Knife
+local solveElbow = KnifeAnim.SolveElbow
+local KNIFE_IDLE, KNIFE_SPRINT = KnifeAnim.Idle, KnifeAnim.Sprint
+local LEFT_GUARD = KnifeAnim.LeftGuard
+local R_SHOULDER, L_SHOULDER = KnifeAnim.RightShoulder, KnifeAnim.LeftShoulder
+local KNIFE_SOUNDS = {
+	Toss = { "CardFlip", { Pitch = 1.1, Volume = 0.8 } },
+	Catch = { "Bolt", { Pitch = 1.5, Volume = 0.7 } },
+	Twirl = { "CardFlip", { Pitch = 1.4, Volume = 0.6 } },
+}
+local function knifePose(t, base)
+	return KnifeAnim.Pose(knifeAnim, t, base, function(name)
+		local sound = KNIFE_SOUNDS[name]
+		if sound then
+			Sfx.Play(sound[1], sound[2])
+		end
+	end)
+end
+
+local function placeArm(side, camCF, list, cframes, shoulder, handCF, pole)
+	local thick = Config.Viewmodel.ArmThickness or 0.3
+	local function put(part, cf)
+		if part then
+			table.insert(list, part)
+			table.insert(cframes, camCF * cf)
+		end
+	end
+	if avatarArms then
+		local size = avatarHandSize(side .. "Hand", thick * 0.95)
+		local wrist = (handCF * CFrame.new(0, size.Y / 2, 0)).Position
+		local elbow = solveElbow(shoulder, wrist, pole)
+		put(avatarArms.Parts[side .. "Hand"], handCF)
+		put(avatarArms.Parts[side .. "LowerArm"], avatarLimb(side .. "LowerArm", elbow, wrist, thick * 0.9))
+		put(avatarArms.Parts[side .. "UpperArm"], avatarLimb(side .. "UpperArm", shoulder, elbow, thick))
+	else
+		local wrist = (handCF * CFrame.new(0, 0.17, 0)).Position
+		local elbow = solveElbow(shoulder, wrist, pole)
+		put(parts[side .. "Palm"], handCF)
+		put(parts[side .. "Fingers"], handCF * CFrame.new(0, -0.12, -0.06))
+		put(parts[side .. "Thumb"], handCF * CFrame.new(side == "Right" and -0.12 or 0.12, 0.02, -0.06))
+		put(parts[side .. "Cuff"], limbBetween(parts[side .. "Cuff"], wrist, wrist + (elbow - wrist).Unit * 0.14))
+		put(parts[side .. "Forearm"], limbBetween(parts[side .. "Forearm"], elbow, wrist))
+		put(parts[side .. "Elbow"], CFrame.new(elbow))
+		put(parts[side .. "UpperArm"], limbBetween(parts[side .. "UpperArm"], shoulder, elbow))
+	end
+end
+
+local function updateKnife(dt, camera, t, sway, bobPos, bobRoll, shouldShow)
+	recoilSpring:Update(dt)
+	local kick = moveSpring:Update(dt)
+	local base = KNIFE_IDLE:Lerp(KNIFE_SPRINT, sprintAlpha)
+		* CFrame.new(0, math.sin(t * 1.6) * 0.012, 0)
+		* CFrame.Angles(rad(math.sin(t * 1.1) * 1.2), 0, 0)
+	local pose, hand, free = knifePose(t, base)
+	local motion = CFrame.new(bobPos.X + kick.X, bobPos.Y + airOffset + kick.Y, kick.Z)
+		* CFrame.Angles(rad(sway.X * 0.8), rad(sway.Y * 0.8), rad(sway.Z * 0.6) + bobRoll)
+	local camCF = camera.CFrame * motion
+	knifeWorld = camCF * pose
+	if not shouldShow then
+		return
+	end
+	local list, cframes = {}, {}
+	for name, part in pairs(knife.Parts) do
+		table.insert(list, part)
+		table.insert(cframes, knifeWorld * knife.Offsets[name])
+	end
+	-- the shoulder leans into stabs and slashes a little
+	local lean = (pose.Position - KNIFE_IDLE.Position) * 0.35
+	placeArm("Right", camCF, list, cframes, R_SHOULDER + lean, hand, Vector3.new(0.6, -1, 0.2))
+	local left = LEFT_GUARD * CFrame.new(-lean.X * 0.4, 0, -lean.Z * 0.3)
+	if free then
+		left = left * CFrame.new(0.1, 0.12, -0.1) -- ready to help catch
+	end
+	placeArm("Left", camCF, list, cframes, L_SHOULDER, left, Vector3.new(-0.6, -1, 0.2))
+	for _, name in ipairs({ "FlashCore", "FlashA", "FlashB", "FlashLong" }) do
+		parts[name].LocalTransparencyModifier = 1
+	end
+	workspace:BulkMoveTo(list, cframes, Enum.BulkMoveMode.FireCFrameChanged)
 end
 
 ----------------------------------------------------------------------------
@@ -597,6 +764,15 @@ local function update(dt)
 	local idle = math.sin(t * 1.7) * 0.012
 	local bobPos = Vector3.new(math.sin(bobTime) * 0.05, math.sin(bobTime * 2) * 0.035 + idle, 0) * bobAmount
 	local bobRoll = math.sin(bobTime) * rad(2.2) * bobAmount
+
+	if weapon == "Knife" then
+		local sprinting = movement.IsSprinting() and not puppet
+		sprintAlpha = Util.lerp(sprintAlpha, sprinting and 1 or 0, Util.smooth(10, dt))
+		local vy = root and root.AssemblyLinearVelocity.Y or 0
+		airOffset = Util.lerp(airOffset, grounded and 0 or math.clamp(-vy * 0.0025, -0.1, 0.1), Util.smooth(8, dt))
+		updateKnife(dt, camera, t, sway, bobPos, bobRoll, shouldShow)
+		return
+	end
 
 	-- POSES
 	local boltT = boltDuration > 0 and (t - boltStart) / boltDuration or 1
@@ -889,6 +1065,10 @@ function Viewmodel.Start()
 		if processed and UserInputService:GetFocusedTextBox() then
 			return
 		end
+		if Keybinds.Matches("Inspect", input) and visible and weapon == "Knife" and not puppet then
+			Viewmodel.PlayKnife("Inspect")
+			return
+		end
 		if Keybinds.Matches("Inspect", input) and visible and not inspecting and not puppet then
 			inspecting = true
 			inspectStart = os.clock()
@@ -924,6 +1104,9 @@ function Viewmodel.Start()
 		if child.Name == (Config.Viewmodel.MeshTemplate or "SniperRifle") then
 			task.defer(buildGun)
 			task.delay(1, buildGun) -- its meshes may replicate a moment later
+		elseif child.Name == (Config.Knife.MeshTemplate or "CombatKnife") then
+			task.defer(buildKnife)
+			task.delay(1, buildKnife)
 		end
 	end
 	ReplicatedStorage.ChildAdded:Connect(onRifleChanged)

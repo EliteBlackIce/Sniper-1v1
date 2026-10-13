@@ -18,6 +18,7 @@
 		KillCamController    replays your death through your killer's eyes
 		LightingController   arena / indoor lobby lighting profiles
 		CrateController      the lobby crate + its opening cinematic
+		KnifeController      the combat knife: switching, slashes, stabs, hit checks
 ]]
 
 local Client = script.Parent
@@ -33,6 +34,7 @@ local CharacterPoser = require(Client.CharacterPoser)
 local KillCamController = require(Client.KillCamController)
 local LightingController = require(Client.LightingController)
 local CrateController = require(Client.CrateController)
+local KnifeController = require(Client.KnifeController)
 
 local controllers = {
 	Camera = CameraController,
@@ -45,6 +47,7 @@ local controllers = {
 	KillCam = KillCamController,
 	Lighting = LightingController,
 	Crates = CrateController,
+	Knife = KnifeController,
 }
 
 ClientState.Init()
@@ -60,6 +63,7 @@ local order = {
 	KillCamController,
 	LightingController,
 	CrateController,
+	KnifeController,
 }
 for _, controller in ipairs(order) do
 	controller.Init(controllers)

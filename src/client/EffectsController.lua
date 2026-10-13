@@ -262,6 +262,17 @@ function Effects.DrawShot(segments, passes, endPosition, endNormal, startPos, op
 end
 
 -- Muzzle flash light + smoke at a world position (your own gun or theirs).
+-- Knife hits: sparks off a wall, a red burst on a body.
+function Effects.KnifeImpact(position, normal, flesh)
+	if flesh then
+		emit(position, "Sparks", Color3.fromRGB(255, 70, 80), 14, normal)
+		puff(position, Color3.fromRGB(255, 90, 100), 0.5, 0.18, true)
+	else
+		emit(position, "Sparks", Color3.fromRGB(255, 236, 190), 10, normal)
+		lightFlash(position, Color3.fromRGB(255, 230, 180), 2, 8, 0.12)
+	end
+end
+
 function Effects.MuzzleFlash(position, direction)
 	lightFlash(position, Palette.MuzzleFlash, 6, 16, 0.08)
 	emit(position, "Smoke", Color3.fromRGB(220, 220, 225), 3, direction)

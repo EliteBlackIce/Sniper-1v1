@@ -26,6 +26,28 @@ local CharacterPoser = {}
 
 local SEND_INTERVAL = 0.1
 local cache = {} -- [character] = { motors }
+local swings = {} -- [character] = { Count, Start, Kind } (knife swings, from the server's "Swing" attribute)
+
+-- 0..1 progress of the knife swing playing on this character (nil = none)
+local function swingProgress(character)
+	local count = character:GetAttribute("Swing")
+	if count == nil then
+		return nil
+	end
+	local state = swings[character]
+	if not state then
+		swings[character] = { Count = count, Start = -10 }
+		return nil
+	end
+	if state.Count ~= count then
+		state.Count = count
+		state.Start = os.clock()
+		state.Kind = character:GetAttribute("SwingKind")
+	end
+	local length = state.Kind == "Stab" and 0.5 or 0.32
+	local t = (os.clock() - state.Start) / length
+	return (t >= 0 and t < 1) and t or nil, state.Kind
+end
 
 local function getMotors(character)
 	local motors = cache[character]
@@ -51,6 +73,7 @@ local function getMotors(character)
 	character.AncestryChanged:Connect(function(_, parent)
 		if not parent then
 			cache[character] = nil
+			swings[character] = nil
 		end
 	end)
 	return motors
@@ -66,6 +89,35 @@ local function pose(character, pitchOverride)
 		return
 	end
 	local pitch = pitchOverride or character:GetAttribute("AimPitch") or 0
+
+	-- KNIFE: right arm forward and low, blade pointing ahead; swings and
+	-- stabs play when the server bumps the "Swing" attribute. The left arm
+	-- keeps the normal run animation.
+	if character:GetAttribute("Weapon") == "Knife" then
+		local t, kind = swingProgress(character)
+		local yaw, lift, elbow = rad(10), rad(62) + pitch * 0.6, rad(35)
+		if t then
+			local w = math.sin(t * math.pi)
+			if kind == "Stab" then
+				lift += rad(30) * w
+				elbow = elbow * (1 - w)
+			else
+				yaw = rad(55) - t * rad(110) -- sweep across
+				lift += rad(25) * w
+			end
+		end
+		motors.RightShoulder.Transform = CFrame.Angles(0, yaw, 0) * CFrame.Angles(lift, 0, 0)
+		if motors.RightElbow then
+			motors.RightElbow.Transform = CFrame.Angles(elbow, 0, 0)
+		end
+		if motors.Waist then
+			motors.Waist.Transform = CFrame.Angles(pitch * 0.25, t and kind ~= "Stab" and (rad(20) - t * rad(40)) or 0, 0)
+		end
+		if motors.Neck then
+			motors.Neck.Transform = CFrame.Angles(pitch * 0.5, 0, 0)
+		end
+		return
+	end
 	local armPitch = pitch * 0.75 -- the waist adds the rest
 
 	-- right arm: straight forward holding the grip

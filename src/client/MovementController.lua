@@ -161,7 +161,8 @@ end
 -- Second Wind boost x Adrenaline power-up
 local function speedMultiplier()
 	local boost = now() < speedBoost.Until and speedBoost.Multiplier or 1
-	return boost * stats().MoveSpeedMultiplier
+	local knife = ClientState.Weapon == "Knife" and Config.Knife.MoveSpeedMultiplier or 1
+	return boost * stats().MoveSpeedMultiplier * knife
 end
 
 -- Spring Legs power-up

@@ -398,6 +398,38 @@ Config.Rarity = {
 }
 
 ----------------------------------------------------------------------------
+-- KNIFE (your second weapon: press 2 / scroll, or ButtonR1 on a controller)
+--   Left click  slash (alternates left / right)
+--   Right click heavy stab with a short lunge
+--   V           inspect: toss it up and catch it
+-- Hits are checked on the server (range, facing, line of sight, timing).
+-- A hit from behind (backstab) is always a kill.
+----------------------------------------------------------------------------
+Config.Knife = {
+	Enabled = true,
+	SlashDamage = 40,
+	StabDamage = 70,
+	BackstabDamage = 1000, -- from behind = always a kill
+	BackstabAngle = 65, -- degrees either side of straight behind the victim
+	SlashRange = 7, -- studs from you to the target's body
+	StabRange = 8.5, -- (the lunge carries you a little further)
+	SlashTime = 0.42, -- seconds per slash (also the cooldown)
+	StabTime = 0.85,
+	SlashHitAt = 0.14, -- when in the swing the hit lands
+	StabHitAt = 0.3,
+	HitAngle = 55, -- the target must be within this many degrees of where you look
+	LungeSpeed = 34, -- forward push on a stab
+	EquipTime = 0.4, -- seconds after switching before you can attack
+	MoveSpeedMultiplier = 1.12, -- knife out = you run a bit faster
+	-- imported knife mesh (assets: CombatKnife.glb, see README)
+	UseImportedKnife = true,
+	MeshTemplate = "CombatKnife",
+	MeshYaw = nil,
+	MeshPaint = "Always", -- "Always" = flat steel blade + dark handle, "Auto" = keep imported textures
+	WorldScale = 0.75, -- the knife other players see in your hand
+}
+
+----------------------------------------------------------------------------
 -- CRATES (lobby crate vault). Open one with a key at the altar in the lobby
 -- to unlock a rifle skin. Rarities are listed lowest to highest; Chance is a
 -- percentage (they add up to 100).
@@ -1970,6 +2002,244 @@ return GunModel
       </Item>
       <Item class="ModuleScript" referent="7">
         <Properties>
+          <string name="Name">KnifeModel</string>
+          <string name="Source"><![CDATA[--[[
+	KnifeModel.lua  (ReplicatedStorage.Shared.KnifeModel)
+
+	The combat knife: first person (ViewmodelController) and in other
+	players' hands (CharacterService "WorldKnife").
+
+	If a model named Config.Knife.MeshTemplate ("CombatKnife") is in
+	ReplicatedStorage (the server moves it there from the Workspace), the
+	knife is built from its meshes ("Blade" + "Handle", from the
+	CombatKnife.glb import). Otherwise a knife is built from parts.
+
+	Knife space: origin = the middle of the handle, blade toward -Z, cutting
+	edge toward -Y, +X = the flat side. Studs.
+
+		local built = KnifeModel.Build(parent, { Scale = 1, Anchored = true })
+		KnifeModel.Place(built, cf)           -- knife origin at cf
+		built.Parts[name], built.Offsets[name]
+]]
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage:WaitForChild("Shared").Config)
+
+local KnifeModel = {}
+
+local V = Vector3.new
+local K = Config.Knife
+
+-- The baked GLB's bounding box (knife space), used to fit the imported meshes.
+KnifeModel.Bounds = { Min = V(-0.065, -0.1546, -1.168), Max = V(0.0667, 0.1044, 0.232) }
+KnifeModel.Grip = CFrame.new(0, -0.01, -0.1) -- where the hand closes round the handle
+KnifeModel.Tip = V(0, -0.03, -1.15)
+
+-- flat paint for the meshes (by name)
+KnifeModel.MeshPaint = {
+	{ Match = "blade", Color = Color3.fromRGB(176, 182, 190), Material = Enum.Material.Metal },
+	{ Match = "", Color = Color3.fromRGB(34, 36, 40), Material = Enum.Material.SmoothPlastic }, -- handle + guard
+}
+
+-- The parts knife: { name, shape, size, position, rotation (degrees), colour, material }
+local STEEL = Color3.fromRGB(176, 182, 190)
+local EDGE = Color3.fromRGB(222, 226, 232)
+local GRIP = Color3.fromRGB(34, 36, 40)
+local GUARD = Color3.fromRGB(70, 74, 82)
+KnifeModel.Parts = {
+	{ "Blade", "Block", V(0.03, 0.15, 0.62), V(0, 0.0, -0.73), nil, STEEL, "Metal" },
+	{ "Edge", "Block", V(0.02, 0.05, 0.6), V(0, -0.085, -0.72), nil, EDGE, "Metal" },
+	{ "Tip", "Wedge", V(0.03, 0.15, 0.18), V(0, 0.0, -1.13), nil, STEEL, "Metal" }, -- slopes down to the point
+	{ "Spine", "Block", V(0.035, 0.03, 0.4), V(0, 0.085, -0.62), nil, GUARD, "Metal" },
+	{ "Guard", "Block", V(0.09, 0.32, 0.05), V(0, -0.01, -0.42), nil, GUARD, "Metal" },
+	{ "Handle", "Cylinder", V(0.56, 0.13, 0.13), V(0, -0.01, -0.12), V(0, 90, 0), GRIP, "SmoothPlastic" },
+	{ "Pommel", "Cylinder", V(0.07, 0.16, 0.16), V(0, -0.01, 0.19), V(0, 90, 0), GUARD, "Metal" },
+}
+for i = 0, 3 do -- grip rings
+	table.insert(KnifeModel.Parts, { "Ring" .. i, "Cylinder", V(0.03, 0.145, 0.145), V(0, -0.01, -0.3 + i * 0.13), V(0, 90, 0), GUARD, "Metal" })
+end
+
+local function templateParts(template)
+	local list = {}
+	for _, item in ipairs(template:GetDescendants()) do
+		if item:IsA("BasePart") then
+			table.insert(list, item)
+		end
+	end
+	if template:IsA("BasePart") then
+		table.insert(list, template)
+	end
+	return list
+end
+
+function KnifeModel.FindTemplate()
+	if game == nil or Config.Knife.UseImportedKnife == false then
+		return nil
+	end
+	local template = ReplicatedStorage:FindFirstChild(K.MeshTemplate or "CombatKnife")
+	if template and #templateParts(template) > 0 then
+		return template
+	end
+	return nil
+end
+
+local function boundsOf(parts, rot)
+	local huge = math.huge
+	local mn, mx = V(huge, huge, huge), V(-huge, -huge, -huge)
+	for _, part in ipairs(parts) do
+		local cf = rot * part.CFrame
+		local h = part.Size / 2
+		for _, sx in ipairs({ -1, 1 }) do
+			for _, sy in ipairs({ -1, 1 }) do
+				for _, sz in ipairs({ -1, 1 }) do
+					local c = cf * V(h.X * sx, h.Y * sy, h.Z * sz)
+					mn = mn:Min(c)
+					mx = mx:Max(c)
+				end
+			end
+		end
+	end
+	return mn, mx
+end
+
+-- Where each imported mesh goes in knife space (works out the importer's turn).
+local layoutCache = setmetatable({}, { __mode = "k" })
+local function meshLayout(template)
+	if layoutCache[template] then
+		return layoutCache[template]
+	end
+	local parts = templateParts(template)
+	local best, bestScore = 0, -math.huge
+	for _, yaw in ipairs(K.MeshYaw and { K.MeshYaw } or { 0, 90, 180, 270 }) do
+		local rot = CFrame.Angles(0, math.rad(yaw), 0)
+		local mn, mx = boundsOf(parts, rot)
+		local size = mx - mn
+		local score = size.Z - math.max(size.X, size.Y) * 2
+		for _, part in ipairs(parts) do
+			if part.Name:lower():find("blade") then
+				local pmn = boundsOf({ part }, rot)
+				if math.abs(pmn.Z - mn.Z) < size.Z * 0.03 then
+					score += 1000 -- the blade reaches the front (-Z)
+				end
+			end
+		end
+		if score > bestScore then
+			best, bestScore = yaw, score
+		end
+	end
+	local rot = CFrame.Angles(0, math.rad(best), 0)
+	local mn, mx = boundsOf(parts, rot)
+	local B = KnifeModel.Bounds
+	local k = (B.Max.Z - B.Min.Z) / math.max(mx.Z - mn.Z, 1e-3)
+	local layout = {}
+	for i, part in ipairs(parts) do
+		local cf = rot * part.CFrame
+		table.insert(layout, {
+			Part = part,
+			Name = part.Name ~= "" and part.Name .. i or ("Mesh" .. i),
+			Size = part.Size * k,
+			Offset = CFrame.new(B.Min + (cf.Position - mn) * k) * cf.Rotation,
+		})
+	end
+	layoutCache[template] = layout
+	return layout
+end
+
+local function paint(part)
+	if not part:IsA("MeshPart") then
+		return
+	end
+	if (K.MeshPaint or "Always") ~= "Always" and (part.TextureID ~= "" or part:FindFirstChildOfClass("SurfaceAppearance")) then
+		return
+	end
+	for _, child in ipairs(part:GetChildren()) do
+		if child:IsA("SurfaceAppearance") then
+			child:Destroy()
+		end
+	end
+	pcall(function()
+		part.TextureID = ""
+	end)
+	local name = part.Name:lower()
+	for _, rule in ipairs(KnifeModel.MeshPaint) do
+		if name:find(rule.Match, 1, true) then
+			part.Color = rule.Color
+			part.Material = rule.Material
+			return
+		end
+	end
+end
+
+--[[
+	options: Scale (default 1), Anchored, CastShadow
+	Returns { Parts = {[name] = part}, Offsets = {[name] = CFrame}, Scale, UsesMesh }
+]]
+function KnifeModel.Build(parent, options)
+	options = options or {}
+	local scale = options.Scale or 1
+	local result = { Parts = {}, Offsets = {}, Scale = scale }
+	local function setup(part, name, offset)
+		part.Name = name
+		part.Anchored = options.Anchored == true
+		part.CanCollide = false
+		part.CanQuery = false
+		part.CanTouch = false
+		part.Massless = true
+		part.CastShadow = options.CastShadow == true
+		part.Parent = parent
+		result.Parts[name] = part
+		result.Offsets[name] = offset
+	end
+	local template = KnifeModel.FindTemplate()
+	if template then
+		result.UsesMesh = true
+		for _, info in ipairs(meshLayout(template)) do
+			local part = info.Part:Clone()
+			for _, child in ipairs(part:GetChildren()) do
+				if child:IsA("JointInstance") or child:IsA("Constraint") or child:IsA("BasePart") then
+					child:Destroy()
+				end
+			end
+			part.Size = info.Size * scale
+			paint(part)
+			setup(part, info.Name, info.Offset.Rotation + info.Offset.Position * scale)
+		end
+	else
+		for _, spec in ipairs(KnifeModel.Parts) do
+			local name, shape, size, pos, rot, color, material = table.unpack(spec)
+			local part
+			if shape == "Wedge" then
+				part = Instance.new("WedgePart")
+			else
+				part = Instance.new("Part")
+				part.Shape = Enum.PartType[shape]
+			end
+			part.Size = size * scale
+			part.Color = color
+			part.Material = Enum.Material[material]
+			part.TopSurface = Enum.SurfaceType.Smooth
+			part.BottomSurface = Enum.SurfaceType.Smooth
+			local r = rot or Vector3.zero
+			setup(part, name, CFrame.new(pos * scale) * CFrame.Angles(math.rad(r.X), math.rad(r.Y), math.rad(r.Z)))
+		end
+	end
+	return result
+end
+
+-- Puts every part at `cf` (the knife origin).
+function KnifeModel.Place(built, cf)
+	for name, part in pairs(built.Parts) do
+		part.CFrame = cf * built.Offsets[name]
+	end
+end
+
+return KnifeModel
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="8">
+        <Properties>
           <string name="Name">Logo</string>
           <string name="Source"><![CDATA[--[[
 	Logo.lua  (ReplicatedStorage.Shared.Logo)
@@ -2150,7 +2420,7 @@ return Logo
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="8">
+      <Item class="ModuleScript" referent="9">
         <Properties>
           <string name="Name">PowerUps</string>
           <string name="Source"><![CDATA[--[[
@@ -2964,7 +3234,7 @@ return PowerUps
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="9">
+      <Item class="ModuleScript" referent="10">
         <Properties>
           <string name="Name">Remotes</string>
           <string name="Source"><![CDATA[--[[
@@ -3007,6 +3277,8 @@ Remotes.Names = {
 	"DuelInvite", -- S->C  someone challenged you / wants a rematch
 	"CrateOpen", -- C->S  open a crate at the lobby altar
 	"Crates", -- S->C  crate results + your keys / skins
+	"Equip", -- C->S  switch weapon: "Sniper" / "Knife"
+	"Melee", -- C->S  knife swing: kind ("Slash" / "Stab"), what it hit, look direction
 }
 
 local FOLDER_NAME = "Remotes"
@@ -3080,7 +3352,7 @@ return Remotes
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="10">
+      <Item class="ModuleScript" referent="11">
         <Properties>
           <string name="Name">Signal</string>
           <string name="Source"><![CDATA[--[[
@@ -3118,7 +3390,7 @@ return Signal
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="11">
+      <Item class="ModuleScript" referent="12">
         <Properties>
           <string name="Name">Util</string>
           <string name="Source"><![CDATA[--[[
@@ -3224,15 +3496,15 @@ return Util
       </Item>
     </Item>
   </Item>
-  <Item class="ServerScriptService" referent="12">
+  <Item class="ServerScriptService" referent="13">
     <Properties>
       <string name="Name">ServerScriptService</string>
     </Properties>
-    <Item class="Folder" referent="13">
+    <Item class="Folder" referent="14">
       <Properties>
         <string name="Name">Server</string>
       </Properties>
-      <Item class="ModuleScript" referent="14">
+      <Item class="ModuleScript" referent="15">
         <Properties>
           <string name="Name">ArenaCrossfire</string>
           <string name="Source"><![CDATA[--[[
@@ -3394,7 +3666,7 @@ return ArenaCrossfire
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="15">
+      <Item class="ModuleScript" referent="16">
         <Properties>
           <string name="Name">ArenaDowntown</string>
           <string name="Source"><![CDATA[--[[
@@ -4574,7 +4846,7 @@ return ArenaDowntown
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="16">
+      <Item class="ModuleScript" referent="17">
         <Properties>
           <string name="Name">ArenaNuketown</string>
           <string name="Source"><![CDATA[--[[
@@ -5024,7 +5296,7 @@ return ArenaNuketown
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="17">
+      <Item class="ModuleScript" referent="18">
         <Properties>
           <string name="Name">ArenaPolygon</string>
           <string name="Source"><![CDATA[--[[
@@ -5192,7 +5464,7 @@ return ArenaPolygon
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="18">
+      <Item class="ModuleScript" referent="19">
         <Properties>
           <string name="Name">ArenaSimple</string>
           <string name="Source"><![CDATA[--[[
@@ -5291,7 +5563,7 @@ return ArenaSimple
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="19">
+      <Item class="ModuleScript" referent="20">
         <Properties>
           <string name="Name">BotService</string>
           <string name="Source"><![CDATA[--[[
@@ -5754,7 +6026,7 @@ return BotService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="20">
+      <Item class="ModuleScript" referent="21">
         <Properties>
           <string name="Name">CharacterService</string>
           <string name="Source"><![CDATA[--[[
@@ -5776,6 +6048,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local GunModel = require(ReplicatedStorage.Shared.GunModel)
+local KnifeModel = require(ReplicatedStorage.Shared.KnifeModel)
 local Util = require(ReplicatedStorage.Shared.Util)
 
 local Palette = Config.Palette
@@ -5825,7 +6098,79 @@ local function addWorldGun(character, powerUps)
 	muzzle.Parent = built.Parts.Barrel
 	muzzle.WorldCFrame = grip * CFrame.new(built.Profile.Muzzle.Position * WORLD_GUN_SCALE)
 
+	for _, part in ipairs(gun:GetDescendants()) do
+		if part:IsA("BasePart") then
+			part:SetAttribute("BaseTransparency", part.Transparency)
+		end
+	end
 	gun.Parent = character
+	CharacterService.ShowWeapon(character)
+end
+
+-- The knife in your hand (hidden until you switch to it). Blade along the
+-- hand's -Y, like the rifle, so the aim pose points it forward.
+local function addWorldKnife(character)
+	local hand = character:FindFirstChild("RightHand") or character:FindFirstChild("Right Arm")
+	if not hand or not Config.Knife.Enabled then
+		return
+	end
+	local old = character:FindFirstChild("WorldKnife")
+	if old then
+		old:Destroy()
+	end
+	local knife = Instance.new("Model")
+	knife.Name = "WorldKnife"
+	local scale = Config.Knife.WorldScale
+	local built = KnifeModel.Build(knife, { Scale = scale, CastShadow = true })
+	local grip = hand.CFrame * CFrame.new(0, -0.15, 0) * CFrame.Angles(math.rad(-90), 0, 0)
+	local origin = grip * CFrame.new(KnifeModel.Grip.Position * -scale)
+	KnifeModel.Place(built, origin)
+	for _, part in pairs(built.Parts) do
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0 = hand
+		weld.Part1 = part
+		weld.Parent = part
+		part:SetAttribute("BaseTransparency", part.Transparency)
+	end
+	knife.Parent = character
+	CharacterService.ShowWeapon(character)
+end
+
+-- Shows the weapon in the "Weapon" attribute ("Sniper" or "Knife") and hides
+-- the other one. Everyone sees what you're holding.
+function CharacterService.ShowWeapon(character)
+	if not character or character:GetAttribute("Invisible") then
+		return -- MakeInvisible calls this again when it ends
+	end
+	local knifeOut = character:GetAttribute("Weapon") == "Knife"
+	for name, shown in pairs({ WorldGun = not knifeOut, WorldKnife = knifeOut }) do
+		local model = character:FindFirstChild(name)
+		for _, item in ipairs(model and model:GetDescendants() or {}) do
+			if item:IsA("BasePart") then
+				item.Transparency = shown and (item:GetAttribute("BaseTransparency") or 0) or 1
+			elseif item:IsA("ParticleEmitter") or item:IsA("PointLight") then
+				item.Enabled = shown
+			end
+		end
+	end
+end
+
+-- Switches what a player holds (the client asks; MeleeService/CombatService
+-- check the "Weapon" attribute before allowing an attack).
+function CharacterService.SetWeapon(player, weapon)
+	local character = player.Character
+	if not character or (weapon ~= "Sniper" and weapon ~= "Knife") then
+		return
+	end
+	if weapon == "Knife" and not Config.Knife.Enabled then
+		return
+	end
+	if character:GetAttribute("Weapon") == weapon then
+		return
+	end
+	character:SetAttribute("Weapon", weapon)
+	character:SetAttribute("WeaponSince", workspace:GetServerTimeNow())
+	CharacterService.ShowWeapon(character)
 end
 
 -- AVATAR LOOK (Config.Player.UseAvatars): you play as your own Roblox
@@ -5942,7 +6287,9 @@ function CharacterService.Spawn(player, cframe, options)
 	end
 
 	CharacterService.Style(character, options.Color or Palette.LobbyPlayer, player)
+	character:SetAttribute("Weapon", "Sniper") -- every life starts with the rifle out
 	addWorldGun(character, options.PowerUps)
+	addWorldKnife(character)
 
 	humanoid.MaxHealth = options.MaxHealth or Config.Player.MaxHealth
 	humanoid.Health = humanoid.MaxHealth
@@ -6022,6 +6369,7 @@ function CharacterService.MakeInvisible(player, duration)
 		end
 		if character.Parent then
 			character:SetAttribute("Invisible", false)
+			CharacterService.ShowWeapon(character) -- in case you switched weapons while invisible
 		end
 	end)
 end
@@ -6063,7 +6411,7 @@ return CharacterService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="21">
+      <Item class="ModuleScript" referent="22">
         <Properties>
           <string name="Name">CombatService</string>
           <string name="Source"><![CDATA[--[[
@@ -6102,6 +6450,11 @@ return CharacterService
 
 	"Targets" are the enemy player in a match, or the practice dummies in the
 	lobby, so every power-up works on the range too.
+
+	KNIFE (onMelee): the client says what it swung at; the server checks the
+	knife is out (and was drawn long enough ago), the swing timing, the
+	range, that you were facing the target and could see it, then deals
+	slash / stab damage. A hit from behind (backstab) is always a kill.
 ]]
 
 local Players = game:GetService("Players")
@@ -6122,6 +6475,7 @@ local PU = Config.PowerUps
 local CombatService = {}
 
 local lastFire = {} -- [player] = os.clock() of last accepted shot
+local lastMelee = {} -- [player] = os.clock() of the last accepted swing
 local cooldowns = {} -- [player] = { [abilityName] = os.clock() ready time }
 local bulletTimeUntil = {} -- [player] = os.clock()
 local markedUntil = {} -- [player or dummy model] = os.clock()
@@ -6327,6 +6681,8 @@ function CombatService.Damage(match, attacker, victim, amount, info)
 			Damage = dealt,
 			Splash = info.Splash == true,
 			Position = info.Position,
+			Melee = info.Melee == true,
+			Backstab = info.Backstab == true,
 		})
 	end
 
@@ -6375,6 +6731,8 @@ local function damageTarget(match, attacker, stats, target, amount, info)
 			Damage = amount,
 			Splash = info.Splash == true,
 			Position = info.Position,
+			Melee = info.Melee == true,
+			Backstab = info.Backstab == true,
 		})
 		if killed and torso then
 			sendFx(nil, { Type = "Kill", Position = torso.Position, Color = Config.Palette.PlayerB, Headshot = info.Headshot == true })
@@ -6591,6 +6949,9 @@ local function onFire(player, origin, direction, claims)
 	local humanoid, character = CharacterService.GetAliveHumanoid(player)
 	if not humanoid or character:GetAttribute("Frozen") then
 		return
+	end
+	if character:GetAttribute("Weapon") == "Knife" then
+		return -- the rifle is put away
 	end
 	local head = character:FindFirstChild("Head")
 	local root = character:FindFirstChild("HumanoidRootPart")
@@ -6919,7 +7280,112 @@ local function onAbility(player, name, data)
 end
 
 -- Forget everything about a player / bot (bots aren't in PlayerRemoving).
+----------------------------------------------------------------------------
+-- Knife
+----------------------------------------------------------------------------
+local function flatUnit(v)
+	local flat = Vector3.new(v.X, 0, v.Z)
+	return flat.Magnitude > 1e-3 and flat.Unit or nil
+end
+
+local function onMelee(player, kind, targetModel, look)
+	local K = Config.Knife
+	if not K.Enabled or (kind ~= "Slash" and kind ~= "Stab") then
+		return
+	end
+	if not Util.isFiniteVector3(look) or look.Magnitude < 0.5 or look.Magnitude > 1.5 then
+		return
+	end
+	look = look.Unit
+	local match = MatchService.GetMatch(player)
+	if match and not match:IsFighting() then
+		return
+	end
+	local humanoid, character = CharacterService.GetAliveHumanoid(player)
+	if not humanoid or character:GetAttribute("Frozen") or character:GetAttribute("Weapon") ~= "Knife" then
+		return
+	end
+	local root = character:FindFirstChild("HumanoidRootPart")
+	local head = character:FindFirstChild("Head")
+	if not root or not head then
+		return
+	end
+	-- the knife has to have been out for a moment
+	local since = character:GetAttribute("WeaponSince") or 0
+	if workspace:GetServerTimeNow() - since < K.EquipTime * 0.6 then
+		return
+	end
+	-- swing rate
+	local now = os.clock()
+	local swingTime = kind == "Stab" and K.StabTime or K.SlashTime
+	if lastMelee[player] and now - lastMelee[player] < swingTime * 0.75 then
+		return
+	end
+	lastMelee[player] = now
+	-- everyone sees the swing (CharacterPoser animates the arm)
+	character:SetAttribute("SwingKind", kind)
+	character:SetAttribute("Swing", ((character:GetAttribute("Swing") or 0) + 1) % 1000)
+
+	if typeof(targetModel) ~= "Instance" then
+		return -- a miss
+	end
+	local target = targetForModel(getTargets(player, match), targetModel)
+	local torso = target and getTorso(target.Model)
+	if not torso then
+		return
+	end
+	-- the client's look must roughly match where the character faces
+	local facing = flatUnit(root.CFrame.LookVector)
+	local flatLook = flatUnit(look)
+	if facing and flatLook and facing:Dot(flatLook) < 0.4 then
+		return
+	end
+	-- range (with an allowance for both of you moving)
+	local victimRoot = target.Model:FindFirstChild("HumanoidRootPart") or torso
+	local range = (kind == "Stab" and K.StabRange or K.SlashRange)
+		+ 2
+		+ root.AssemblyLinearVelocity.Magnitude * 0.12
+		+ victimRoot.AssemblyLinearVelocity.Magnitude * 0.12
+	local offset = torso.Position - head.Position
+	if offset.Magnitude > range then
+		return
+	end
+	-- facing it
+	if offset.Magnitude > 2 and look:Dot(offset.Unit) < math.cos(math.rad(K.HitAngle + 15)) then
+		return
+	end
+	-- nothing solid in between
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = buildExclude(player)
+	local hit = workspace:Raycast(head.Position, offset, params)
+	if hit and not hit.Instance:IsDescendantOf(target.Model) then
+		return
+	end
+	-- backstab: you're behind them
+	local backstab = false
+	local victimFacing = flatUnit(victimRoot.CFrame.LookVector)
+	local fromVictim = flatUnit(root.Position - victimRoot.Position)
+	if victimFacing and fromVictim and victimFacing:Dot(fromVictim) < -math.cos(math.rad(K.BackstabAngle)) then
+		backstab = true
+	end
+	local damage = backstab and K.BackstabDamage or (kind == "Stab" and K.StabDamage or K.SlashDamage)
+	local stats = getStats(player, match)
+	damageTarget(match, player, stats, target, damage, {
+		Position = torso.Position,
+		Melee = true,
+		Backstab = backstab,
+	})
+end
+
+local function onEquip(player, weapon)
+	if typeof(weapon) == "string" then
+		CharacterService.SetWeapon(player, weapon)
+	end
+end
+
 function CombatService.Forget(player)
+	lastMelee[player] = nil
 	lastFire[player] = nil
 	cooldowns[player] = nil
 	bulletTimeUntil[player] = nil
@@ -6951,8 +7417,11 @@ function CombatService.Init()
 	Remotes.Get("Fire").OnServerEvent:Connect(onFire)
 	Remotes.Get("Ability").OnServerEvent:Connect(onAbility)
 	Remotes.Get("Aim").OnServerEvent:Connect(onAim)
+	Remotes.Get("Melee").OnServerEvent:Connect(onMelee)
+	Remotes.Get("Equip").OnServerEvent:Connect(onEquip)
 
 	Players.PlayerRemoving:Connect(function(player)
+		lastMelee[player] = nil
 		lastFire[player] = nil
 		cooldowns[player] = nil
 		bulletTimeUntil[player] = nil
@@ -6969,7 +7438,7 @@ return CombatService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="22">
+      <Item class="ModuleScript" referent="23">
         <Properties>
           <string name="Name">CrateService</string>
           <string name="Source"><![CDATA[--[[
@@ -7274,7 +7743,7 @@ return CrateService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="23">
+      <Item class="ModuleScript" referent="24">
         <Properties>
           <string name="Name">DummyService</string>
           <string name="Source"><![CDATA[--[[
@@ -7482,7 +7951,7 @@ return DummyService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="24">
+      <Item class="ModuleScript" referent="25">
         <Properties>
           <string name="Name">LightingSetup</string>
           <string name="Source"><![CDATA[--[[
@@ -7562,7 +8031,7 @@ return LightingSetup
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="25">
+      <Item class="ModuleScript" referent="26">
         <Properties>
           <string name="Name">LobbyBuilder</string>
           <string name="Source"><![CDATA[--[[
@@ -8432,7 +8901,7 @@ return LobbyBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="Script" referent="26">
+      <Item class="Script" referent="27">
         <Properties>
           <string name="Name">Main</string>
           <token name="RunContext">0</token>
@@ -8466,6 +8935,11 @@ local importedRifle = workspace:FindFirstChild(rifleName)
 if importedRifle and not ReplicatedStorage:FindFirstChild(rifleName) then
 	importedRifle.Parent = ReplicatedStorage
 end
+local knifeName = Config.Knife.MeshTemplate or "CombatKnife" -- same for the imported knife
+local importedKnife = workspace:FindFirstChild(knifeName)
+if importedKnife and not ReplicatedStorage:FindFirstChild(knifeName) then
+	importedKnife.Parent = ReplicatedStorage
+end
 
 local LightingSetup = require(script.Parent.LightingSetup)
 local CharacterService = require(script.Parent.CharacterService)
@@ -8487,7 +8961,7 @@ print("[Sniper Duel] server ready")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="27">
+      <Item class="ModuleScript" referent="28">
         <Properties>
           <string name="Name">MapBuilder</string>
           <string name="Source"><![CDATA[--[[
@@ -8820,7 +9294,7 @@ return MapBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="28">
+      <Item class="ModuleScript" referent="29">
         <Properties>
           <string name="Name">Match</string>
           <string name="Source"><![CDATA[--[[
@@ -9199,7 +9673,7 @@ return Match
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="29">
+      <Item class="ModuleScript" referent="30">
         <Properties>
           <string name="Name">MatchService</string>
           <string name="Source"><![CDATA[--[[
@@ -9766,7 +10240,7 @@ return MatchService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="30">
+      <Item class="ModuleScript" referent="31">
         <Properties>
           <string name="Name">SettingsService</string>
           <string name="Source"><![CDATA[--[[
@@ -9887,13 +10361,13 @@ return SettingsService
       </Item>
     </Item>
   </Item>
-  <Item class="SoundService" referent="31">
+  <Item class="SoundService" referent="32">
     <Properties>
       <string name="Name">SoundService</string>
       <bool name="RespectFilteringEnabled">true</bool>
     </Properties>
   </Item>
-  <Item class="StarterPlayer" referent="32">
+  <Item class="StarterPlayer" referent="33">
     <Properties>
       <string name="Name">StarterPlayer</string>
       <float name="CameraMaxZoomDistance">18</float>
@@ -9901,11 +10375,11 @@ return SettingsService
       <bool name="EnableMouseLockOption">false</bool>
       <bool name="LoadCharacterAppearance">true</bool>
     </Properties>
-    <Item class="StarterCharacterScripts" referent="33">
+    <Item class="StarterCharacterScripts" referent="34">
       <Properties>
         <string name="Name">StarterCharacterScripts</string>
       </Properties>
-      <Item class="Script" referent="34">
+      <Item class="Script" referent="35">
         <Properties>
           <string name="Name">Health</string>
           <token name="RunContext">0</token>
@@ -9920,15 +10394,15 @@ return SettingsService
         </Properties>
       </Item>
     </Item>
-    <Item class="StarterPlayerScripts" referent="35">
+    <Item class="StarterPlayerScripts" referent="36">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="Folder" referent="36">
+      <Item class="Folder" referent="37">
         <Properties>
           <string name="Name">Client</string>
         </Properties>
-        <Item class="ModuleScript" referent="37">
+        <Item class="ModuleScript" referent="38">
           <Properties>
             <string name="Name">AimAssist</string>
             <string name="Source"><![CDATA[--[[
@@ -10109,7 +10583,7 @@ return AimAssist
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="38">
+        <Item class="ModuleScript" referent="39">
           <Properties>
             <string name="Name">CameraController</string>
             <string name="Source"><![CDATA[--[[
@@ -10433,7 +10907,7 @@ return CameraController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="39">
+        <Item class="ModuleScript" referent="40">
           <Properties>
             <string name="Name">CharacterPoser</string>
             <string name="Source"><![CDATA[--[[
@@ -10464,6 +10938,28 @@ local CharacterPoser = {}
 
 local SEND_INTERVAL = 0.1
 local cache = {} -- [character] = { motors }
+local swings = {} -- [character] = { Count, Start, Kind } (knife swings, from the server's "Swing" attribute)
+
+-- 0..1 progress of the knife swing playing on this character (nil = none)
+local function swingProgress(character)
+	local count = character:GetAttribute("Swing")
+	if count == nil then
+		return nil
+	end
+	local state = swings[character]
+	if not state then
+		swings[character] = { Count = count, Start = -10 }
+		return nil
+	end
+	if state.Count ~= count then
+		state.Count = count
+		state.Start = os.clock()
+		state.Kind = character:GetAttribute("SwingKind")
+	end
+	local length = state.Kind == "Stab" and 0.5 or 0.32
+	local t = (os.clock() - state.Start) / length
+	return (t >= 0 and t < 1) and t or nil, state.Kind
+end
 
 local function getMotors(character)
 	local motors = cache[character]
@@ -10489,6 +10985,7 @@ local function getMotors(character)
 	character.AncestryChanged:Connect(function(_, parent)
 		if not parent then
 			cache[character] = nil
+			swings[character] = nil
 		end
 	end)
 	return motors
@@ -10504,6 +11001,35 @@ local function pose(character, pitchOverride)
 		return
 	end
 	local pitch = pitchOverride or character:GetAttribute("AimPitch") or 0
+
+	-- KNIFE: right arm forward and low, blade pointing ahead; swings and
+	-- stabs play when the server bumps the "Swing" attribute. The left arm
+	-- keeps the normal run animation.
+	if character:GetAttribute("Weapon") == "Knife" then
+		local t, kind = swingProgress(character)
+		local yaw, lift, elbow = rad(10), rad(62) + pitch * 0.6, rad(35)
+		if t then
+			local w = math.sin(t * math.pi)
+			if kind == "Stab" then
+				lift += rad(30) * w
+				elbow = elbow * (1 - w)
+			else
+				yaw = rad(55) - t * rad(110) -- sweep across
+				lift += rad(25) * w
+			end
+		end
+		motors.RightShoulder.Transform = CFrame.Angles(0, yaw, 0) * CFrame.Angles(lift, 0, 0)
+		if motors.RightElbow then
+			motors.RightElbow.Transform = CFrame.Angles(elbow, 0, 0)
+		end
+		if motors.Waist then
+			motors.Waist.Transform = CFrame.Angles(pitch * 0.25, t and kind ~= "Stab" and (rad(20) - t * rad(40)) or 0, 0)
+		end
+		if motors.Neck then
+			motors.Neck.Transform = CFrame.Angles(pitch * 0.5, 0, 0)
+		end
+		return
+	end
 	local armPitch = pitch * 0.75 -- the waist adds the rest
 
 	-- right arm: straight forward holding the grip
@@ -10570,7 +11096,7 @@ return CharacterPoser
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="40">
+        <Item class="ModuleScript" referent="41">
           <Properties>
             <string name="Name">ClientState</string>
             <string name="Source"><![CDATA[--[[
@@ -10599,6 +11125,7 @@ ClientState.Stats = PowerUps.ComputeStats({})
 ClientState.Owned = {} -- { [powerUpId] = stacks } you have right now (match or Power-Up Lab)
 ClientState.Settings = table.clone(Config.SettingsDefaults)
 ClientState.MenuOpen = false -- true while a menu needs the mouse (settings / pick / victory)
+ClientState.Weapon = "Sniper" -- what's in your hands: "Sniper" or "Knife" (KnifeController)
 
 ClientState.Changed = Signal.new() -- (newSnapshot, oldSnapshot)
 ClientState.SettingsChanged = Signal.new() -- (settings)
@@ -10767,7 +11294,7 @@ return ClientState
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="41">
+        <Item class="ModuleScript" referent="42">
           <Properties>
             <string name="Name">CrateController</string>
             <string name="Source"><![CDATA[--[[
@@ -11503,7 +12030,7 @@ return CrateController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="42">
+        <Item class="ModuleScript" referent="43">
           <Properties>
             <string name="Name">EffectsController</string>
             <string name="Source"><![CDATA[--[[
@@ -11770,6 +12297,17 @@ function Effects.DrawShot(segments, passes, endPosition, endNormal, startPos, op
 end
 
 -- Muzzle flash light + smoke at a world position (your own gun or theirs).
+-- Knife hits: sparks off a wall, a red burst on a body.
+function Effects.KnifeImpact(position, normal, flesh)
+	if flesh then
+		emit(position, "Sparks", Color3.fromRGB(255, 70, 80), 14, normal)
+		puff(position, Color3.fromRGB(255, 90, 100), 0.5, 0.18, true)
+	else
+		emit(position, "Sparks", Color3.fromRGB(255, 236, 190), 10, normal)
+		lightFlash(position, Color3.fromRGB(255, 230, 180), 2, 8, 0.12)
+	end
+end
+
 function Effects.MuzzleFlash(position, direction)
 	lightFlash(position, Palette.MuzzleFlash, 6, 16, 0.08)
 	emit(position, "Smoke", Color3.fromRGB(220, 220, 225), 3, direction)
@@ -12133,7 +12671,7 @@ return Effects
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="43">
+        <Item class="ModuleScript" referent="44">
           <Properties>
             <string name="Name">Keybinds</string>
             <string name="Source"><![CDATA[--[[
@@ -12189,7 +12727,9 @@ Keybinds.Actions = {
 	{ Id = "Grapple", Name = "Grapple (power-up)", Keyboard = "E", Gamepad = "ButtonY" },
 	{ Id = "Blink", Name = "Blink (power-up)", Keyboard = "R", Gamepad = "ButtonX" },
 	{ Id = "Decoy", Name = "Decoy (power-up)", Keyboard = "Q", Gamepad = "DPadUp" },
-	{ Id = "Inspect", Name = "Inspect rifle", Keyboard = "V", Gamepad = "DPadDown" },
+	{ Id = "Inspect", Name = "Inspect weapon", Keyboard = "V", Gamepad = "DPadDown" },
+	{ Id = "Primary", Name = "Sniper", Keyboard = "One", Gamepad = "ButtonR1" },
+	{ Id = "Knife", Name = "Knife", Keyboard = "Two", Gamepad = "ButtonR1" },
 	{ Id = "PowerUpLab", Name = "Power-Up Lab", Keyboard = "B", Gamepad = "DPadLeft" },
 	{ Id = "FindMatch", Name = "Find match", Keyboard = "F", Gamepad = "DPadRight" },
 	{ Id = "Playground", Name = "Playground", Keyboard = "G", Gamepad = "ButtonL1" },
@@ -12269,7 +12809,7 @@ return Keybinds
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="44">
+        <Item class="ModuleScript" referent="45">
           <Properties>
             <string name="Name">KillCamController</string>
             <string name="Source"><![CDATA[--[[
@@ -12371,6 +12911,9 @@ local function record()
 		Me = myRoot.CFrame,
 		MyPitch = me:GetAttribute("AimPitch") or 0,
 		MyAir = myHumanoid ~= nil and myHumanoid.FloorMaterial == Enum.Material.Air,
+		Weapon = enemy:GetAttribute("Weapon") or "Sniper",
+		Swing = enemy:GetAttribute("Swing"),
+		SwingKind = enemy:GetAttribute("SwingKind"),
 	})
 	trim(samples)
 end
@@ -12397,6 +12940,9 @@ local function sampleAt(t)
 				Me = a.Me:Lerp(b.Me, alpha),
 				MyPitch = a.MyPitch + (b.MyPitch - a.MyPitch) * alpha,
 				MyAir = alpha < 0.5 and a.MyAir or b.MyAir,
+				Weapon = b.Weapon,
+				Swing = b.Swing,
+				SwingKind = b.SwingKind,
 			}
 		end
 	end
@@ -12562,6 +13108,15 @@ local function play(deathTime, killerName)
 	banner.Position = UDim2.new(0.5, 0, 0, -80)
 	Theme.tween(banner, 0.35, { Position = UDim2.new(0.5, 0, 0, 40) }, Enum.EasingStyle.Back)
 
+	-- the killer's weapon + knife swings, as recorded
+	local shownWeapon = "Sniper"
+	local lastSwing = nil
+	local function showWeapon(name)
+		if name ~= shownWeapon then
+			shownWeapon = name
+			pcall(Controllers.Viewmodel.SetWeapon, name)
+		end
+	end
 	local replayT = deathTime - K.Length
 	local finish = deathTime + 0.5
 	local rate = 1
@@ -12587,6 +13142,7 @@ local function play(deathTime, killerName)
 		Controllers.Camera.SetSuspended(false)
 		playing = false
 		gui.Enabled = false
+		pcall(Controllers.Viewmodel.SetWeapon, ClientState.Weapon or "Sniper")
 		if ghost then
 			ghost:Destroy()
 		end
@@ -12616,6 +13172,13 @@ local function play(deathTime, killerName)
 		local s = sampleAt(at)
 		current = s
 		if s then
+			showWeapon(s.Weapon or "Sniper")
+			if s.Swing ~= lastSwing then
+				if lastSwing ~= nil and s.Weapon == "Knife" then
+					Controllers.Viewmodel.PlayKnife(s.SwingKind or "Slash")
+				end
+				lastSwing = s.Swing
+			end
 			camera.CFrame = CFrame.new(s.Head) * CFrame.fromOrientation(s.Pitch, s.Yaw, 0)
 			-- how fast they were moving (walk bob on their arms)
 			local before = sampleAt(at - 0.1)
@@ -12782,7 +13345,533 @@ return KillCam
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="45">
+        <Item class="ModuleScript" referent="46">
+          <Properties>
+            <string name="Name">KnifeAnim</string>
+            <string name="Source"><![CDATA[--[[
+	KnifeAnim.lua  (Client.KnifeAnim)
+
+	The knife's first-person animation maths, used by ViewmodelController:
+	poses in camera space for idle / sprint / equip / slash / stab / inspect
+	(toss and catch, or twirl), and a two-bone IK solve for the arms. Pure
+	CFrame maths (no instances), so it can be previewed outside Roblox.
+
+	Knife space: origin = the middle of the handle, blade toward -Z, edge -Y.
+]]
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Config = require(Shared.Config)
+local KnifeModel = require(Shared.KnifeModel)
+
+local KnifeAnim = {}
+
+local rad = math.rad
+local KN = Config.Knife
+
+local function easeOutBack(t)
+	local c1, c3 = 1.4, 2.4
+	return 1 + c3 * (t - 1) ^ 3 + c1 * (t - 1) ^ 2
+end
+
+local function smoothstep(t)
+	return t * t * (3 - 2 * t)
+end
+
+-- A knife pose from where the handle is, which way the blade points and
+-- which way the cutting edge faces (camera space: +X right, +Y up, -Z ahead).
+local function knifeCF(pos, blade, edge)
+	local z = -blade.Unit -- knife -Z = blade
+	local y = -(edge - z * edge:Dot(z)).Unit -- knife -Y = edge, made square to the blade
+	local x = y:Cross(z)
+	return CFrame.fromMatrix(pos, x, y, z)
+end
+local V = Vector3.new
+
+local KNIFE_IDLE = knifeCF(V(0.62, -0.55, -1.3), V(-0.5, 0.42, -0.75), V(-0.25, -1, 0))
+local KNIFE_SPRINT = knifeCF(V(0.55, -0.85, -1.0), V(-0.35, -0.15, -0.9), V(0, -1, 0))
+local KNIFE_EQUIP = knifeCF(V(0.6, -1.5, -0.6), V(0, -1, 0.2), V(-1, 0, 0))
+local SLASH_KEYS = {
+	-- right to left, edge first, the blade lying across your view
+	[1] = {
+		knifeCF(V(1.0, -0.15, -1.05), V(0.2, 0.65, -0.75), V(-1, 0, 0)),
+		knifeCF(V(0.1, -0.35, -1.5), V(-0.75, 0.25, -0.6), V(-1, -0.2, 0.3)),
+		knifeCF(V(-0.7, -0.7, -1.0), V(-0.6, -0.45, -0.6), V(-1, -0.5, 0)),
+	},
+	-- backhand, left to right
+	[-1] = {
+		knifeCF(V(-0.35, -0.25, -1.1), V(-0.6, 0.45, -0.65), V(1, 0, 0)),
+		knifeCF(V(0.2, -0.35, -1.5), V(0.7, 0.2, -0.7), V(1, -0.2, 0.3)),
+		knifeCF(V(0.95, -0.7, -0.95), V(0.6, -0.45, -0.6), V(1, -0.5, 0)),
+	},
+}
+local STAB_BACK = knifeCF(V(0.75, -0.4, -0.75), V(-0.15, 0.3, -1), V(0, -1, 0))
+local STAB_OUT = knifeCF(V(0.2, -0.3, -2.0), V(-0.25, 0.12, -1), V(0, -1, 0))
+local TOSS_HOLD = knifeCF(V(0.32, -0.62, -1.3), V(-0.1, 1, -0.25), V(-1, 0, 0)) -- blade up, flat side to you
+local ADMIRE = knifeCF(V(0.12, -0.42, -1.15), V(-1, 0.15, -0.2), V(0, -1, 0)) -- blade across, side on
+local HAND_ON_KNIFE = KnifeModel.Grip * CFrame.Angles(rad(100), 0, 0) -- hand +Y points back to the wrist
+local LEFT_GUARD = CFrame.new(-0.72, -1.02, -1.0) * CFrame.Angles(rad(60), rad(-15), rad(25))
+local R_SHOULDER = Vector3.new(0.95, -1.25, 0.55)
+local L_SHOULDER = Vector3.new(-0.95, -1.25, 0.55)
+local UPPER, LOWER = 1.05, 1.0
+
+local function lerpKeys(a, b, c, x)
+	if x < 0.5 then
+		return a:Lerp(b, x * 2)
+	end
+	return b:Lerp(c, (x - 0.5) * 2)
+end
+
+-- Two-bone IK: the elbow for a shoulder S reaching wrist W, bending toward `pole`.
+function KnifeAnim.SolveElbow(S, W, pole)
+	local toW = W - S
+	local d = math.clamp(toW.Magnitude, 0.05, UPPER + LOWER - 0.01)
+	local dir = toW.Unit
+	local cosA = math.clamp((UPPER * UPPER + d * d - LOWER * LOWER) / (2 * UPPER * d), -1, 1)
+	local sinA = math.sqrt(1 - cosA * cosA)
+	local side = pole - dir * pole:Dot(dir)
+	side = side.Magnitude > 1e-3 and side.Unit or Vector3.new(0, -1, 0)
+	return S + dir * UPPER * cosA + side * UPPER * sinA
+end
+
+-- Knife pose (camera space) for animation state `a` at time t. Returns
+-- knifeCF, handCF, free (knife in the air). onEvent(name) fires for sounds.
+function KnifeAnim.Pose(a, t, base, onEvent)
+	onEvent = onEvent or function() end
+	local u = t - a.Start
+	if a.Kind == "Equip" then
+		local e = math.clamp(u / KN.EquipTime, 0, 1)
+		local pose = KNIFE_EQUIP:Lerp(base, easeOutBack(e)) * CFrame.Angles((1 - smoothstep(e)) * math.pi * 2, 0, 0)
+		return pose, pose * HAND_ON_KNIFE, false
+	elseif a.Kind == "Slash" then
+		local x = u / KN.SlashTime
+		local k = SLASH_KEYS[a.Side or 1]
+		local pose
+		if x < 0.18 then
+			pose = base:Lerp(k[1], smoothstep(x / 0.18))
+		elseif x < 0.48 then
+			pose = lerpKeys(k[1], k[2], k[3], smoothstep((x - 0.18) / 0.3))
+		elseif x < 1 then
+			pose = k[3]:Lerp(base, smoothstep((x - 0.48) / 0.52))
+		else
+			a.Kind = "Idle"
+			pose = base
+		end
+		return pose, pose * HAND_ON_KNIFE, false
+	elseif a.Kind == "Stab" then
+		local x = u / KN.StabTime
+		local pose
+		if x < 0.26 then
+			pose = base:Lerp(STAB_BACK, smoothstep(x / 0.26))
+		elseif x < 0.4 then
+			local y = (x - 0.26) / 0.14
+			pose = STAB_BACK:Lerp(STAB_OUT, 1 - (1 - y) * (1 - y))
+		elseif x < 0.53 then
+			pose = STAB_OUT * CFrame.new(0, 0, math.sin((x - 0.4) / 0.13 * math.pi) * 0.04)
+		elseif x < 1 then
+			pose = STAB_OUT:Lerp(base, smoothstep((x - 0.53) / 0.47))
+		else
+			a.Kind = "Idle"
+			pose = base
+		end
+		return pose, pose * HAND_ON_KNIFE, false
+	elseif a.Kind == "Inspect" and a.Variant == "Toss" then
+		a.Length = 2.2
+		local hold = TOSS_HOLD
+		if u < 0.25 then
+			local pose = base:Lerp(hold, smoothstep(u / 0.25))
+			return pose, pose * HAND_ON_KNIFE, false
+		elseif u < 0.95 then
+			-- up it goes, flipping end over end twice; the hand waits to catch it
+			if not a.Tossed then
+				a.Tossed = true
+				onEvent("Toss")
+			end
+			local f = (u - 0.25) / 0.7
+			local height = 4 * 1.15 * f * (1 - f)
+			local pose = CFrame.new(hold.Position + Vector3.new(0, height, 0))
+				* hold.Rotation
+				* CFrame.Angles(-f * math.pi * 4, f * rad(20), 0)
+			local hand = hold * CFrame.new(0, -0.08 * math.sin(f * math.pi), 0) * HAND_ON_KNIFE
+			return pose, hand, true
+		elseif u < 1.1 then
+			if not a.Caught then
+				a.Caught = true
+				onEvent("Catch")
+			end
+			local pose = hold * CFrame.new(0, -0.12 * math.sin((u - 0.95) / 0.15 * math.pi), 0)
+			return pose, pose * HAND_ON_KNIFE, false
+		elseif u < 1.9 then
+			local f = (u - 1.1) / 0.8
+			local pose = hold:Lerp(ADMIRE, smoothstep(math.min(f * 2, 1))) * CFrame.Angles(0, 0, math.pi * smoothstep(f))
+			return pose, pose * HAND_ON_KNIFE, false
+		elseif u < 2.2 then
+			local pose = (ADMIRE * CFrame.Angles(0, 0, math.pi)):Lerp(base, smoothstep((u - 1.9) / 0.3))
+			return pose, pose * HAND_ON_KNIFE, false
+		end
+		a.Kind = "Idle"
+		return base, base * HAND_ON_KNIFE, false
+	elseif a.Kind == "Inspect" then
+		-- twirl: three quick spins round the grip, then a flip into the hand
+		a.Length = 1.6
+		if u < 1.6 then
+			local w = math.sin(math.clamp(u / 1.6, 0, 1) * math.pi)
+			local spin = smoothstep(math.clamp((u - 0.15) / 1.1, 0, 1)) * math.pi * 6
+			local lift = CFrame.new(-0.15 * w, 0.18 * w, 0.1 * w) * CFrame.Angles(0, rad(-25) * w, 0)
+			local pose = base * lift * CFrame.new(KnifeModel.Grip.Position) * CFrame.Angles(-spin, 0, 0)
+				* CFrame.new(-KnifeModel.Grip.Position)
+			if not a.Tossed and u > 0.2 then
+				a.Tossed = true
+				onEvent("Twirl")
+			end
+			return pose, base * lift * HAND_ON_KNIFE, false
+		end
+		a.Kind = "Idle"
+		return base, base * HAND_ON_KNIFE, false
+	end
+	return base, base * HAND_ON_KNIFE, false
+end
+
+KnifeAnim.Idle = KNIFE_IDLE
+KnifeAnim.Sprint = KNIFE_SPRINT
+KnifeAnim.HandOnKnife = HAND_ON_KNIFE
+KnifeAnim.LeftGuard = LEFT_GUARD
+KnifeAnim.RightShoulder = R_SHOULDER
+KnifeAnim.LeftShoulder = L_SHOULDER
+
+return KnifeAnim
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="47">
+          <Properties>
+            <string name="Name">KnifeController</string>
+            <string name="Source"><![CDATA[--[[
+	KnifeController.lua  (Client.KnifeController)
+
+	Your second weapon: the combat knife (Config.Knife).
+		1 / 2 / mouse wheel   switch rifle <-> knife (ButtonR1 on a controller)
+		Left click            slash (alternates left / right, leaves a trail)
+		Right click           stab: wind up, then a short lunge forward
+		V                     inspect: toss it up and catch it, or twirl it
+
+	With the knife out you run a little faster (MovementController) and the
+	rifle can't fire (WeaponController / the server both check).
+
+	Hits: at the right moment in the swing we look for the enemy (or a
+	practice dummy) in front of you, within range and in sight, and tell the
+	server; the server re-checks everything (CombatService onMelee) and
+	deals the damage. A hit from behind is a backstab: always a kill.
+]]
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Config = require(Shared.Config)
+local Remotes = require(Shared.Remotes)
+local Util = require(Shared.Util)
+local ClientState = require(script.Parent.ClientState)
+local Keybinds = require(script.Parent.Keybinds)
+local Sfx = require(script.Parent.Sfx)
+
+local K = Config.Knife
+local player = Players.LocalPlayer
+
+local KnifeController = {}
+local Controllers
+
+local equippedAt = 0
+local busyUntil = 0 -- no new swing before this
+local pending = {} -- scheduled hit checks { At, Kind, Done }
+local trailUntil = 0
+local lastTip
+
+----------------------------------------------------------------------------
+-- Helpers
+----------------------------------------------------------------------------
+local function alive()
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	return humanoid ~= nil and humanoid.Health > 0 and not character:GetAttribute("Frozen")
+end
+
+local function canAttack()
+	return K.Enabled
+		and ClientState.Weapon == "Knife"
+		and ClientState.CanShoot()
+		and not ClientState.MenuOpen
+		and alive()
+		and os.clock() >= busyUntil
+		and os.clock() - equippedAt >= K.EquipTime
+end
+
+local function setWeapon(name)
+	if not K.Enabled then
+		name = "Sniper"
+	end
+	if name == ClientState.Weapon then
+		return
+	end
+	if name == "Knife" and not ClientState.HasGun() then
+		return -- (between rounds / pick screen)
+	end
+	ClientState.Weapon = name
+	equippedAt = os.clock()
+	busyUntil = 0
+	table.clear(pending)
+	Controllers.Viewmodel.SetWeapon(name)
+	Remotes.Get("Equip"):FireServer(name)
+end
+
+function KnifeController.Toggle()
+	setWeapon(ClientState.Weapon == "Knife" and "Sniper" or "Knife")
+end
+
+function KnifeController.IsOut()
+	return ClientState.Weapon == "Knife"
+end
+
+-- What's in front of us: the enemy in a match, the dummies in the lobby.
+local function candidates()
+	local list = {}
+	if ClientState.InMatch() then
+		local opponent = ClientState.GetOpponentPlayer()
+		if opponent and opponent.Character then
+			table.insert(list, opponent.Character)
+		end
+	else
+		local folder = workspace:FindFirstChild("Dummies")
+		for _, dummy in ipairs(folder and folder:GetChildren() or {}) do
+			if not dummy:GetAttribute("Down") then
+				table.insert(list, dummy)
+			end
+		end
+	end
+	return list
+end
+
+local function torsoOf(model)
+	return model:FindFirstChild("UpperTorso") or model:FindFirstChild("Torso") or model:FindFirstChild("HumanoidRootPart")
+end
+
+local function excludeList()
+	local list = { workspace.CurrentCamera }
+	if player.Character then
+		table.insert(list, player.Character)
+	end
+	local effects = workspace:FindFirstChild("Effects")
+	if effects then
+		table.insert(list, effects)
+	end
+	return list
+end
+
+-- The target the swing connects with (nearest in range + in the cone + in sight).
+local function findTarget(kind)
+	local camera = workspace.CurrentCamera
+	local origin = camera.CFrame.Position
+	local look = camera.CFrame.LookVector
+	local range = kind == "Stab" and K.StabRange or K.SlashRange
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = excludeList()
+	local best, bestDist
+	for _, model in ipairs(candidates()) do
+		local torso = torsoOf(model)
+		if torso then
+			local offset = torso.Position - origin
+			local dist = offset.Magnitude
+			local inCone = dist < 2.5 or look:Dot(offset.Unit) >= math.cos(math.rad(K.HitAngle))
+			if dist <= range and inCone then
+				local hit = workspace:Raycast(origin, offset, params)
+				if (not hit or hit.Instance:IsDescendantOf(model)) and (not bestDist or dist < bestDist) then
+					best, bestDist = model, dist
+				end
+			end
+		end
+	end
+	return best
+end
+
+----------------------------------------------------------------------------
+-- Attacks
+----------------------------------------------------------------------------
+local function attack(kind)
+	if not canAttack() then
+		return
+	end
+	local now = os.clock()
+	local length = kind == "Stab" and K.StabTime or K.SlashTime
+	busyUntil = now + length
+	Controllers.Viewmodel.PlayKnife(kind)
+	table.insert(pending, { At = now + (kind == "Stab" and K.StabHitAt or K.SlashHitAt), Kind = kind })
+	if kind == "Slash" then
+		trailUntil = now + 0.3
+		Sfx.Play("Dash", { Pitch = 1.5 + math.random() * 0.2, Volume = 0.9 })
+	else
+		-- wind up, then lunge
+		task.delay(K.StabTime * 0.26, function()
+			if ClientState.Weapon ~= "Knife" or not alive() then
+				return
+			end
+			trailUntil = os.clock() + 0.2
+			Sfx.Play("Dash", { Pitch = 1.15, Volume = 1.1 })
+			local look = Util.flat(workspace.CurrentCamera.CFrame.LookVector)
+			if look.Magnitude > 0.1 and Controllers.Movement.IsGrounded() then
+				Controllers.Movement.ApplyImpulse(look.Unit * K.LungeSpeed)
+			end
+			Controllers.Camera.AddFovPunch(4)
+		end)
+	end
+end
+
+local function resolve(hitCheck)
+	local camera = workspace.CurrentCamera
+	local look = camera.CFrame.LookVector
+	local target = findTarget(hitCheck.Kind)
+	Remotes.Get("Melee"):FireServer(hitCheck.Kind, target, look)
+	if target then
+		local torso = torsoOf(target)
+		Controllers.Effects.KnifeImpact(torso.Position - look * 0.6, -look, true)
+		Controllers.Camera.Shake(hitCheck.Kind == "Stab" and 1.6 or 0.9)
+		return
+	end
+	-- no body: did we hit a wall? (sparks + a clink)
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = excludeList()
+	local reach = (hitCheck.Kind == "Stab" and K.StabRange or K.SlashRange) * 0.7
+	local hit = workspace:Raycast(camera.CFrame.Position, look * reach, params)
+	if hit then
+		Controllers.Effects.KnifeImpact(hit.Position, hit.Normal, false)
+		Sfx.PlayAt("Bolt", hit.Position, { Pitch = 1.8, Volume = 0.8 })
+		Controllers.Camera.Shake(0.6)
+	end
+end
+
+----------------------------------------------------------------------------
+-- Slash trail: thin glowing streaks along the tip's path
+----------------------------------------------------------------------------
+local trailFolder
+local function drawTrail()
+	local tip = Controllers.Viewmodel.GetKnifeTip()
+	if os.clock() < trailUntil and lastTip and (tip - lastTip).Magnitude > 0.02 and Config.Effects.NeonEffects then
+		local part = Instance.new("Part")
+		part.Anchored = true
+		part.CanCollide = false
+		part.CanQuery = false
+		part.CanTouch = false
+		part.CastShadow = false
+		part.Material = Enum.Material.Neon
+		part.Color = Color3.fromRGB(235, 240, 255)
+		part.Transparency = 0.45
+		part.Size = Vector3.new(0.025, 0.025, (tip - lastTip).Magnitude)
+		part.CFrame = CFrame.lookAt((tip + lastTip) / 2, tip)
+		part.Parent = trailFolder
+		task.spawn(function()
+			for i = 1, 6 do
+				task.wait(0.02)
+				part.Transparency = 0.45 + i * 0.09
+				part.Size = Vector3.new(0.025 * (1 - i / 7), 0.025 * (1 - i / 7), part.Size.Z)
+			end
+			part:Destroy()
+		end)
+	end
+	lastTip = tip
+end
+
+----------------------------------------------------------------------------
+-- Input
+----------------------------------------------------------------------------
+local function onInput(input, processed)
+	if processed and UserInputService:GetFocusedTextBox() then
+		return
+	end
+	local primary, knife = Keybinds.Matches("Primary", input), Keybinds.Matches("Knife", input)
+	if primary and knife then
+		KnifeController.Toggle() -- the same button for both (controller): toggle
+		return
+	elseif knife then
+		setWeapon("Knife")
+		return
+	elseif primary then
+		setWeapon("Sniper")
+		return
+	end
+	if ClientState.Weapon ~= "Knife" then
+		return
+	end
+	if Keybinds.Matches("Fire", input) then
+		attack("Slash")
+	elseif Keybinds.Matches("Scope", input) then
+		attack("Stab")
+	end
+end
+
+function KnifeController.Init(controllers)
+	Controllers = controllers
+end
+
+function KnifeController.Start()
+	trailFolder = Instance.new("Folder")
+	trailFolder.Name = "KnifeTrail"
+	trailFolder.Parent = workspace.CurrentCamera
+
+	UserInputService.InputBegan:Connect(onInput)
+	Keybinds.VirtualBegan:Connect(onInput)
+	-- mouse wheel switches too
+	UserInputService.InputChanged:Connect(function(input, processed)
+		if input.UserInputType == Enum.UserInputType.MouseWheel and not processed and not ClientState.MenuOpen then
+			if not Controllers.Weapon.IsScoped() then
+				KnifeController.Toggle()
+			end
+		end
+	end)
+
+	-- every life starts with the rifle
+	local function reset()
+		if ClientState.Weapon ~= "Sniper" then
+			ClientState.Weapon = "Sniper"
+			Controllers.Viewmodel.SetWeapon("Sniper")
+		end
+		table.clear(pending)
+		busyUntil = 0
+	end
+	player.CharacterAdded:Connect(reset)
+	ClientState.Changed:Connect(function()
+		if not ClientState.HasGun() then
+			reset()
+		end
+	end)
+
+	RunService.RenderStepped:Connect(function()
+		local now = os.clock()
+		for i = #pending, 1, -1 do
+			local check = pending[i]
+			if now >= check.At then
+				table.remove(pending, i)
+				if ClientState.Weapon == "Knife" and alive() then
+					resolve(check)
+				end
+			end
+		end
+		if ClientState.Weapon == "Knife" then
+			drawTrail()
+		else
+			lastTip = nil
+		end
+	end)
+end
+
+return KnifeController
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="48">
           <Properties>
             <string name="Name">LightingController</string>
             <string name="Source"><![CDATA[--[[
@@ -12894,7 +13983,7 @@ return LightingController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="LocalScript" referent="46">
+        <Item class="LocalScript" referent="49">
           <Properties>
             <string name="Name">Main</string>
             <string name="Source"><![CDATA[--[[
@@ -12917,6 +14006,7 @@ return LightingController
 		KillCamController    replays your death through your killer's eyes
 		LightingController   arena / indoor lobby lighting profiles
 		CrateController      the lobby crate + its opening cinematic
+		KnifeController      the combat knife: switching, slashes, stabs, hit checks
 ]]
 
 local Client = script.Parent
@@ -12932,6 +14022,7 @@ local CharacterPoser = require(Client.CharacterPoser)
 local KillCamController = require(Client.KillCamController)
 local LightingController = require(Client.LightingController)
 local CrateController = require(Client.CrateController)
+local KnifeController = require(Client.KnifeController)
 
 local controllers = {
 	Camera = CameraController,
@@ -12944,6 +14035,7 @@ local controllers = {
 	KillCam = KillCamController,
 	Lighting = LightingController,
 	Crates = CrateController,
+	Knife = KnifeController,
 }
 
 ClientState.Init()
@@ -12959,6 +14051,7 @@ local order = {
 	KillCamController,
 	LightingController,
 	CrateController,
+	KnifeController,
 }
 for _, controller in ipairs(order) do
 	controller.Init(controllers)
@@ -12969,7 +14062,7 @@ end
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="47">
+        <Item class="ModuleScript" referent="50">
           <Properties>
             <string name="Name">MovementController</string>
             <string name="Source"><![CDATA[--[[
@@ -13135,7 +14228,8 @@ end
 -- Second Wind boost x Adrenaline power-up
 local function speedMultiplier()
 	local boost = now() < speedBoost.Until and speedBoost.Multiplier or 1
-	return boost * stats().MoveSpeedMultiplier
+	local knife = ClientState.Weapon == "Knife" and Config.Knife.MoveSpeedMultiplier or 1
+	return boost * stats().MoveSpeedMultiplier * knife
 end
 
 -- Spring Legs power-up
@@ -13976,7 +15070,7 @@ return Movement
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="48">
+        <Item class="ModuleScript" referent="51">
           <Properties>
             <string name="Name">Sfx</string>
             <string name="Source"><![CDATA[--[[
@@ -14033,7 +15127,7 @@ return Sfx
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="49">
+        <Item class="ModuleScript" referent="52">
           <Properties>
             <string name="Name">Spring</string>
             <string name="Source"><![CDATA[--[[
@@ -14079,7 +15173,7 @@ return Spring
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="50">
+        <Item class="ModuleScript" referent="53">
           <Properties>
             <string name="Name">UIController</string>
             <string name="Source"><![CDATA[--[[
@@ -14171,7 +15265,7 @@ return UIController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="51">
+        <Item class="ModuleScript" referent="54">
           <Properties>
             <string name="Name">ViewmodelController</string>
             <string name="Source"><![CDATA[--[[
@@ -14192,6 +15286,10 @@ return UIController
 		bolt      right hand leaves the grip, works the bolt, comes back
 		aim       slides to the centre when scoping, then hides behind the scope
 		inspect   press V to admire the rifle
+	knife   when the knife is out (KnifeController): flip-in equip, alternating
+	        slashes, a wind-up stab, and two inspects (toss it up and catch
+	        it, or twirl it in your fingers). The arms follow the knife with
+	        two-bone IK from fixed shoulders.
 	power-ups your power-ups change how it moves (see "Power-up animation
 	          styles" below): spin-cocking, heavy kicks, twirls, kill flourishes...
 
@@ -14206,6 +15304,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local GunModel = require(Shared.GunModel)
+local KnifeModel = require(Shared.KnifeModel)
+local KnifeAnim = require(script.Parent.KnifeAnim)
 local Util = require(Shared.Util)
 local ClientState = require(script.Parent.ClientState)
 local Spring = require(script.Parent.Spring)
@@ -14244,6 +15344,10 @@ local LEFT_SHOULDER = Vector3.new(-1.0, -1.05, 0.95)
 
 local model
 local gun -- result of GunModel.Build
+local knife -- result of KnifeModel.Build
+local weapon = "Sniper" -- "Sniper" or "Knife" (Viewmodel.SetWeapon)
+local knifeAnim = { Kind = "Equip", Start = -10, Side = 1, Variant = "Toss" }
+local applyWeaponVisibility -- (defined with setVisible below)
 local parts = {} -- extra parts: hands, arms, flash
 local visible = false
 
@@ -14332,10 +15436,23 @@ local function buildGun()
 	return gained
 end
 
+local function buildKnife()
+	if knife then
+		for _, part in pairs(knife.Parts) do
+			part:Destroy()
+		end
+	end
+	knife = KnifeModel.Build(model, { Anchored = true })
+	for _, part in pairs(knife.Parts) do
+		part.LocalTransparencyModifier = (visible and weapon == "Knife") and 0 or 1
+	end
+end
+
 local function build()
 	model = Instance.new("Model")
 	model.Name = "Viewmodel"
 	buildGun()
+	buildKnife()
 
 	-- Gloved hands
 	for _, side in ipairs({ "Right", "Left" }) do
@@ -14613,6 +15730,57 @@ function Viewmodel.SetPuppet(info)
 	flourish = nil
 end
 
+-- Switches what's in your hands ("Sniper" or "Knife") and plays its equip.
+function Viewmodel.SetWeapon(name)
+	if name ~= "Knife" then
+		name = "Sniper"
+	end
+	if name == weapon then
+		return
+	end
+	weapon = name
+	inspecting = false
+	flourish = nil
+	if weapon == "Knife" then
+		knifeAnim = { Kind = "Equip", Start = os.clock(), Side = 1 }
+		Sfx.Play("CardPick", { Pitch = 1.15, Volume = 0.7 }) -- unsheathe
+	else
+		Viewmodel.PlayEquip()
+	end
+	applyWeaponVisibility()
+end
+
+function Viewmodel.GetWeapon()
+	return weapon
+end
+
+-- Knife moves: "Slash" (alternates sides), "Stab", "Inspect".
+function Viewmodel.PlayKnife(kind)
+	local side = knifeAnim.Side or 1
+	if kind == "Slash" then
+		side = -side
+	elseif kind == "Inspect" then
+		if knifeAnim.Kind ~= "Idle" and os.clock() - knifeAnim.Start < (knifeAnim.Length or 0) then
+			return -- finish what you're doing first
+		end
+	end
+	knifeAnim = {
+		Kind = kind,
+		Start = os.clock(),
+		Side = side,
+		Variant = kind == "Inspect" and (math.random() < 0.65 and "Toss" or "Twirl") or nil,
+	}
+end
+
+-- The knife's tip in the world (for spark effects).
+local knifeWorld -- the knife's origin CFrame last frame
+function Viewmodel.GetKnifeTip()
+	if knifeWorld then
+		return (knifeWorld * CFrame.new(KnifeModel.Tip)).Position
+	end
+	return workspace.CurrentCamera.CFrame.Position
+end
+
 -- Kill cam: how fast the killer was moving (for the walk bob).
 function Viewmodel.SetPuppetSpeed(speed)
 	if puppet then
@@ -14681,15 +15849,25 @@ function Viewmodel.GetLeftHandPosition()
 	return parts.LeftPalm and parts.LeftPalm.Position or workspace.CurrentCamera.CFrame.Position
 end
 
+-- Shows the rifle or the knife (whichever is out), if the viewmodel is shown.
+function applyWeaponVisibility()
+	local v = visible
+	local gunShown = v and weapon ~= "Knife"
+	for _, part in pairs(gun.Parts) do
+		part.LocalTransparencyModifier = gunShown and 0 or 1
+	end
+	setGunEffects(gunShown)
+	for _, part in pairs(knife and knife.Parts or {}) do
+		part.LocalTransparencyModifier = (v and weapon == "Knife") and 0 or 1
+	end
+end
+
 local function setVisible(v)
 	if v == visible then
 		return
 	end
 	visible = v
-	for _, part in pairs(gun.Parts) do
-		part.LocalTransparencyModifier = v and 0 or 1
-	end
-	setGunEffects(v)
+	applyWeaponVisibility()
 	for name, part in pairs(parts) do
 		if not name:find("Flash") then
 			part.LocalTransparencyModifier = v and 0 or 1
@@ -14700,6 +15878,89 @@ local function setVisible(v)
 			part.LocalTransparencyModifier = v and 0 or 1
 		end
 	end
+end
+
+----------------------------------------------------------------------------
+-- Knife (camera space poses; the knife origin = middle of the handle)
+----------------------------------------------------------------------------
+local KN = Config.Knife
+local solveElbow = KnifeAnim.SolveElbow
+local KNIFE_IDLE, KNIFE_SPRINT = KnifeAnim.Idle, KnifeAnim.Sprint
+local LEFT_GUARD = KnifeAnim.LeftGuard
+local R_SHOULDER, L_SHOULDER = KnifeAnim.RightShoulder, KnifeAnim.LeftShoulder
+local KNIFE_SOUNDS = {
+	Toss = { "CardFlip", { Pitch = 1.1, Volume = 0.8 } },
+	Catch = { "Bolt", { Pitch = 1.5, Volume = 0.7 } },
+	Twirl = { "CardFlip", { Pitch = 1.4, Volume = 0.6 } },
+}
+local function knifePose(t, base)
+	return KnifeAnim.Pose(knifeAnim, t, base, function(name)
+		local sound = KNIFE_SOUNDS[name]
+		if sound then
+			Sfx.Play(sound[1], sound[2])
+		end
+	end)
+end
+
+local function placeArm(side, camCF, list, cframes, shoulder, handCF, pole)
+	local thick = Config.Viewmodel.ArmThickness or 0.3
+	local function put(part, cf)
+		if part then
+			table.insert(list, part)
+			table.insert(cframes, camCF * cf)
+		end
+	end
+	if avatarArms then
+		local size = avatarHandSize(side .. "Hand", thick * 0.95)
+		local wrist = (handCF * CFrame.new(0, size.Y / 2, 0)).Position
+		local elbow = solveElbow(shoulder, wrist, pole)
+		put(avatarArms.Parts[side .. "Hand"], handCF)
+		put(avatarArms.Parts[side .. "LowerArm"], avatarLimb(side .. "LowerArm", elbow, wrist, thick * 0.9))
+		put(avatarArms.Parts[side .. "UpperArm"], avatarLimb(side .. "UpperArm", shoulder, elbow, thick))
+	else
+		local wrist = (handCF * CFrame.new(0, 0.17, 0)).Position
+		local elbow = solveElbow(shoulder, wrist, pole)
+		put(parts[side .. "Palm"], handCF)
+		put(parts[side .. "Fingers"], handCF * CFrame.new(0, -0.12, -0.06))
+		put(parts[side .. "Thumb"], handCF * CFrame.new(side == "Right" and -0.12 or 0.12, 0.02, -0.06))
+		put(parts[side .. "Cuff"], limbBetween(parts[side .. "Cuff"], wrist, wrist + (elbow - wrist).Unit * 0.14))
+		put(parts[side .. "Forearm"], limbBetween(parts[side .. "Forearm"], elbow, wrist))
+		put(parts[side .. "Elbow"], CFrame.new(elbow))
+		put(parts[side .. "UpperArm"], limbBetween(parts[side .. "UpperArm"], shoulder, elbow))
+	end
+end
+
+local function updateKnife(dt, camera, t, sway, bobPos, bobRoll, shouldShow)
+	recoilSpring:Update(dt)
+	local kick = moveSpring:Update(dt)
+	local base = KNIFE_IDLE:Lerp(KNIFE_SPRINT, sprintAlpha)
+		* CFrame.new(0, math.sin(t * 1.6) * 0.012, 0)
+		* CFrame.Angles(rad(math.sin(t * 1.1) * 1.2), 0, 0)
+	local pose, hand, free = knifePose(t, base)
+	local motion = CFrame.new(bobPos.X + kick.X, bobPos.Y + airOffset + kick.Y, kick.Z)
+		* CFrame.Angles(rad(sway.X * 0.8), rad(sway.Y * 0.8), rad(sway.Z * 0.6) + bobRoll)
+	local camCF = camera.CFrame * motion
+	knifeWorld = camCF * pose
+	if not shouldShow then
+		return
+	end
+	local list, cframes = {}, {}
+	for name, part in pairs(knife.Parts) do
+		table.insert(list, part)
+		table.insert(cframes, knifeWorld * knife.Offsets[name])
+	end
+	-- the shoulder leans into stabs and slashes a little
+	local lean = (pose.Position - KNIFE_IDLE.Position) * 0.35
+	placeArm("Right", camCF, list, cframes, R_SHOULDER + lean, hand, Vector3.new(0.6, -1, 0.2))
+	local left = LEFT_GUARD * CFrame.new(-lean.X * 0.4, 0, -lean.Z * 0.3)
+	if free then
+		left = left * CFrame.new(0.1, 0.12, -0.1) -- ready to help catch
+	end
+	placeArm("Left", camCF, list, cframes, L_SHOULDER, left, Vector3.new(-0.6, -1, 0.2))
+	for _, name in ipairs({ "FlashCore", "FlashA", "FlashB", "FlashLong" }) do
+		parts[name].LocalTransparencyModifier = 1
+	end
+	workspace:BulkMoveTo(list, cframes, Enum.BulkMoveMode.FireCFrameChanged)
 end
 
 ----------------------------------------------------------------------------
@@ -14773,6 +16034,15 @@ local function update(dt)
 	local idle = math.sin(t * 1.7) * 0.012
 	local bobPos = Vector3.new(math.sin(bobTime) * 0.05, math.sin(bobTime * 2) * 0.035 + idle, 0) * bobAmount
 	local bobRoll = math.sin(bobTime) * rad(2.2) * bobAmount
+
+	if weapon == "Knife" then
+		local sprinting = movement.IsSprinting() and not puppet
+		sprintAlpha = Util.lerp(sprintAlpha, sprinting and 1 or 0, Util.smooth(10, dt))
+		local vy = root and root.AssemblyLinearVelocity.Y or 0
+		airOffset = Util.lerp(airOffset, grounded and 0 or math.clamp(-vy * 0.0025, -0.1, 0.1), Util.smooth(8, dt))
+		updateKnife(dt, camera, t, sway, bobPos, bobRoll, shouldShow)
+		return
+	end
 
 	-- POSES
 	local boltT = boltDuration > 0 and (t - boltStart) / boltDuration or 1
@@ -15065,6 +16335,10 @@ function Viewmodel.Start()
 		if processed and UserInputService:GetFocusedTextBox() then
 			return
 		end
+		if Keybinds.Matches("Inspect", input) and visible and weapon == "Knife" and not puppet then
+			Viewmodel.PlayKnife("Inspect")
+			return
+		end
 		if Keybinds.Matches("Inspect", input) and visible and not inspecting and not puppet then
 			inspecting = true
 			inspectStart = os.clock()
@@ -15100,6 +16374,9 @@ function Viewmodel.Start()
 		if child.Name == (Config.Viewmodel.MeshTemplate or "SniperRifle") then
 			task.defer(buildGun)
 			task.delay(1, buildGun) -- its meshes may replicate a moment later
+		elseif child.Name == (Config.Knife.MeshTemplate or "CombatKnife") then
+			task.defer(buildKnife)
+			task.delay(1, buildKnife)
 		end
 	end
 	ReplicatedStorage.ChildAdded:Connect(onRifleChanged)
@@ -15122,7 +16399,7 @@ return Viewmodel
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="52">
+        <Item class="ModuleScript" referent="55">
           <Properties>
             <string name="Name">WeaponController</string>
             <string name="Source"><![CDATA[--[[
@@ -15314,8 +16591,8 @@ local function isTyping(processed)
 end
 
 local function onInputBegan(input, processed)
-	if isTyping(processed) then
-		return
+	if isTyping(processed) or ClientState.Weapon == "Knife" then
+		return -- (KnifeController handles the knife)
 	end
 	if Keybinds.Matches("Fire", input) then
 		fire()
@@ -15340,6 +16617,7 @@ local function update(dt)
 	local character = player.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	local allowed = ClientState.HasGun() and not ClientState.MenuOpen and humanoid and humanoid.Health > 0
+		and ClientState.Weapon ~= "Knife"
 	if not allowed then
 		scopeHeld = false
 	end
@@ -15372,11 +16650,11 @@ return Weapon
 ]]></string>
           </Properties>
         </Item>
-        <Item class="Folder" referent="53">
+        <Item class="Folder" referent="56">
           <Properties>
             <string name="Name">ui</string>
           </Properties>
-          <Item class="ModuleScript" referent="54">
+          <Item class="ModuleScript" referent="57">
             <Properties>
               <string name="Name">CrateReveal</string>
               <string name="Source"><![CDATA[--[[
@@ -15873,7 +17151,7 @@ return CrateReveal
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="55">
+          <Item class="ModuleScript" referent="58">
             <Properties>
               <string name="Name">DuelUI</string>
               <string name="Source"><![CDATA[--[[
@@ -16182,7 +17460,7 @@ return DuelUI
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="56">
+          <Item class="ModuleScript" referent="59">
             <Properties>
               <string name="Name">HUD</string>
               <string name="Source"><![CDATA[--[[
@@ -16811,7 +18089,13 @@ local function onHitConfirm(data)
 		Theme.burst(gui, viewport / 2, data.Headshot and Palette.UIHeadshot or Palette.UIAccent, 18, 120, 7)
 		Theme.ring(gui, viewport / 2, data.Headshot and Palette.UIHeadshot or Color3.new(1, 1, 1), 160, 5)
 		Sfx.Play("Kill")
-		showBanner(data.Headshot and "HEADSHOT" or "ELIMINATED", nil, data.Headshot and Palette.UIHeadshot or Palette.UIText, 1.2)
+		if data.Backstab then
+			showBanner("BACKSTAB", nil, Palette.AccentB, 1.4)
+		elseif data.Melee then
+			showBanner("KNIFED", nil, Palette.UIAccent, 1.2)
+		else
+			showBanner(data.Headshot and "HEADSHOT" or "ELIMINATED", nil, data.Headshot and Palette.UIHeadshot or Palette.UIText, 1.2)
+		end
 	elseif data.Headshot then
 		Sfx.Play("Headshot")
 	else
@@ -17070,7 +18354,7 @@ return HUD
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="57">
+          <Item class="ModuleScript" referent="60">
             <Properties>
               <string name="Name">Icons</string>
               <string name="Source"><![CDATA[--[[
@@ -17132,7 +18416,7 @@ return Icons
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="58">
+          <Item class="ModuleScript" referent="61">
             <Properties>
               <string name="Name">LobbyUI</string>
               <string name="Source"><![CDATA[--[[
@@ -18301,7 +19585,7 @@ return LobbyUI
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="59">
+          <Item class="ModuleScript" referent="62">
             <Properties>
               <string name="Name">MobileControls</string>
               <string name="Source"><![CDATA[--[[
@@ -18502,6 +19786,12 @@ function MobileControls.Start(playerGui)
 	roundButton("Grapple", "HOOK", 58, br(80, 310), Palette.UIPanel, tap("Grapple"))
 	roundButton("Blink", "BLINK", 58, br(150, 300), Palette.UIPanel, tap("Blink"))
 	roundButton("Decoy", "DECOY", 58, br(220, 300), Palette.UIPanel, tap("Decoy"))
+	-- switch rifle <-> knife (with the knife out, FIRE slashes and SCOPE stabs)
+	roundButton("Knife", "KNIFE", 58, br(305, 165), Palette.UIPanel, function()
+		if Controllers and Controllers.Knife then
+			Controllers.Knife.Toggle()
+		end
+	end)
 
 	pill("Lab", "LAB", UDim2.new(0, 60, 0, 120), tap("PowerUpLab"))
 	pill("Duel", "DUEL", UDim2.new(0, 150, 0, 120), tap("DuelFriend"))
@@ -18529,7 +19819,7 @@ return MobileControls
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="60">
+          <Item class="ModuleScript" referent="63">
             <Properties>
               <string name="Name">PickScreen</string>
               <string name="Source"><![CDATA[--[[
@@ -19306,7 +20596,7 @@ return PickScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="61">
+          <Item class="ModuleScript" referent="64">
             <Properties>
               <string name="Name">PowerUpLab</string>
               <string name="Source"><![CDATA[--[[
@@ -19607,7 +20897,7 @@ return PowerUpLab
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="62">
+          <Item class="ModuleScript" referent="65">
             <Properties>
               <string name="Name">SettingsMenu</string>
               <string name="Source"><![CDATA[--[[
@@ -20136,7 +21426,7 @@ return SettingsMenu
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="63">
+          <Item class="ModuleScript" referent="66">
             <Properties>
               <string name="Name">Theme</string>
               <string name="Source"><![CDATA[--[[
@@ -20446,7 +21736,7 @@ return Theme
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="64">
+          <Item class="ModuleScript" referent="67">
             <Properties>
               <string name="Name">Toast</string>
               <string name="Source"><![CDATA[--[[
@@ -20533,7 +21823,7 @@ return Toast
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="65">
+          <Item class="ModuleScript" referent="68">
             <Properties>
               <string name="Name">VictoryScreen</string>
               <string name="Source"><![CDATA[--[[

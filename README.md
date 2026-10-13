@@ -26,6 +26,7 @@ src/shared/                -> ReplicatedStorage.Shared   (server + client)
   Signal.lua, Util.lua        small helpers
   Logo.lua                    the SNIPER DUEL logo (crosshair mark + wordmark, GUI frames)
   CrateModel.lua              the loot crate model (hinged lid, rarity glow)
+  KnifeModel.lua              the combat knife (imported mesh or built from parts)
 
 src/server/                -> ServerScriptService.Server
   Main.server.lua             entry point, starts every service
@@ -57,6 +58,8 @@ src/client/                -> StarterPlayerScripts.Client
   EffectsController.lua       tracers, explosions, ropes, wallhack pulse, screen tints
   LightingController.lua      blends arena / indoor lobby lighting (Config.Lighting)
   CrateController.lua         the lobby crate + its opening cinematic
+  KnifeController.lua         the knife: switching, slashes, stabs, hit checks
+  KnifeAnim.lua               the knife's first-person poses + arm IK
   UIController.lua            creates all screens
   Sfx.lua, Spring.lua         sound + spring helpers
   ui/
@@ -89,6 +92,19 @@ src/character/             -> StarterPlayer.StarterCharacterScripts
 4. **A real duel:** **Test** tab > **Clients and Servers** > **2 Players** >
    **Start**, then press **F** in both windows to find a match.
 5. **File > Publish to Roblox** if you want it on your account.
+
+### Use the combat knife model (one-time import)
+
+The knife works straight away with a built-in parts knife. To use the
+combat knife model instead, import **`CombatKnife.glb`** the same way as
+the rifle below (Import 3D, then Play). A model called **CombatKnife** goes
+to ReplicatedStorage. The file isn't in this repo: the model is under the
+Sketchfab Standard licence, which lets you use it in your game but not
+share the file itself, so keep your copy of `CombatKnife.glb` somewhere
+safe. It's already scaled and lined up (handle at the origin, blade
+forward, edge down) and split into Blade and Handle, which the game paints
+steel and black (`Config.Knife.MeshPaint`). Model: "Combat Knife" by
+hamzagost32 (https://sketchfab.com/3d-models/combat-knife-06988a4cabc04fa58cec83ed0a9dee70).
 
 ### Use the PGM 338 rifle model (one-time import)
 
@@ -216,7 +232,10 @@ Every key below can be rebound in **Settings (P) > Keyboard** or
 | R | Blink (power-up) |
 | Q | Decoy (power-up) |
 | Space (hold) | Ceiling run under a ceiling (Magnetic Boots) |
-| V | Inspect your rifle |
+| V | Inspect your rifle (or the knife: toss it up and catch it, or twirl it) |
+| 2 / mouse wheel [RB / R1] | **Knife** (1 or the wheel switches back to the rifle) |
+| Left mouse (knife) | Slash, alternating left and right |
+| Right mouse (knife) | Stab with a short lunge |
 | B | **Power-Up Lab** (lobby / playground): try any power-up solo |
 | G | **Playground** (lobby): free roam on the match map with dummies |
 | F [D-pad right] | Find a match / leave the queue (lobby) |
@@ -392,6 +411,30 @@ in the lobby, near the altar and have a key. Keys and owned skins are saved
 in a DataStore (in Studio this needs Game Settings > Security > "Enable Studio
 Access to API Services"). Rarities, odds, key rewards and the skin list are in
 `Config.Crates`. Skins are collected for now; equipping them is the next step.
+
+## The knife
+
+Press **2** (or scroll, or RB on a controller) to pull out the knife; **1**
+or scroll again goes back to the rifle. Every life starts with the rifle.
+- **Slash** (left click): fast swings that alternate right-to-left and
+  left-to-right, with a glowing trail on the blade. 40 damage.
+- **Stab** (right click): wind up, then thrust with a short lunge forward.
+  70 damage, a bit more reach.
+- **Backstab**: any hit from behind is a kill ("BACKSTAB" banner).
+- **Inspect** (V): toss it up end over end and catch it, then turn it to
+  show both sides; or a fast twirl round your fingers.
+- With the knife out you run 12% faster, and the rifle can't fire.
+- Your arms follow the knife (two-bone IK from your shoulders), so slashes
+  and stabs move your whole arm. Other players see the knife in your hand,
+  held forward, and see your swings and stabs; the kill cam replays knife
+  kills with the killer's knife.
+- Hits are checked on the server: the knife must have been out for a
+  moment, swings can't be faster than the animation, and the target has to
+  be in range, in front of you and not behind a wall.
+
+All the numbers are in `Config.Knife`. Code: `KnifeController.lua`
+(input + hit checks), `KnifeAnim.lua` (poses), `KnifeModel.lua` (the knife),
+the knife mode in `ViewmodelController.lua`, and `onMelee` in `CombatService.lua`.
 
 ## Duels, rematches and the kill cam
 

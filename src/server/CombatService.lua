@@ -34,6 +34,11 @@
 
 	"Targets" are the enemy player in a match, or the practice dummies in the
 	lobby, so every power-up works on the range too.
+
+	KNIFE (onMelee): the client says what it swung at; the server checks the
+	knife is out (and was drawn long enough ago), the swing timing, the
+	range, that you were facing the target and could see it, then deals
+	slash / stab damage. A hit from behind (backstab) is always a kill.
 ]]
 
 local Players = game:GetService("Players")
@@ -54,6 +59,7 @@ local PU = Config.PowerUps
 local CombatService = {}
 
 local lastFire = {} -- [player] = os.clock() of last accepted shot
+local lastMelee = {} -- [player] = os.clock() of the last accepted swing
 local cooldowns = {} -- [player] = { [abilityName] = os.clock() ready time }
 local bulletTimeUntil = {} -- [player] = os.clock()
 local markedUntil = {} -- [player or dummy model] = os.clock()
@@ -259,6 +265,8 @@ function CombatService.Damage(match, attacker, victim, amount, info)
 			Damage = dealt,
 			Splash = info.Splash == true,
 			Position = info.Position,
+			Melee = info.Melee == true,
+			Backstab = info.Backstab == true,
 		})
 	end
 
@@ -307,6 +315,8 @@ local function damageTarget(match, attacker, stats, target, amount, info)
 			Damage = amount,
 			Splash = info.Splash == true,
 			Position = info.Position,
+			Melee = info.Melee == true,
+			Backstab = info.Backstab == true,
 		})
 		if killed and torso then
 			sendFx(nil, { Type = "Kill", Position = torso.Position, Color = Config.Palette.PlayerB, Headshot = info.Headshot == true })
@@ -523,6 +533,9 @@ local function onFire(player, origin, direction, claims)
 	local humanoid, character = CharacterService.GetAliveHumanoid(player)
 	if not humanoid or character:GetAttribute("Frozen") then
 		return
+	end
+	if character:GetAttribute("Weapon") == "Knife" then
+		return -- the rifle is put away
 	end
 	local head = character:FindFirstChild("Head")
 	local root = character:FindFirstChild("HumanoidRootPart")
@@ -851,7 +864,112 @@ local function onAbility(player, name, data)
 end
 
 -- Forget everything about a player / bot (bots aren't in PlayerRemoving).
+----------------------------------------------------------------------------
+-- Knife
+----------------------------------------------------------------------------
+local function flatUnit(v)
+	local flat = Vector3.new(v.X, 0, v.Z)
+	return flat.Magnitude > 1e-3 and flat.Unit or nil
+end
+
+local function onMelee(player, kind, targetModel, look)
+	local K = Config.Knife
+	if not K.Enabled or (kind ~= "Slash" and kind ~= "Stab") then
+		return
+	end
+	if not Util.isFiniteVector3(look) or look.Magnitude < 0.5 or look.Magnitude > 1.5 then
+		return
+	end
+	look = look.Unit
+	local match = MatchService.GetMatch(player)
+	if match and not match:IsFighting() then
+		return
+	end
+	local humanoid, character = CharacterService.GetAliveHumanoid(player)
+	if not humanoid or character:GetAttribute("Frozen") or character:GetAttribute("Weapon") ~= "Knife" then
+		return
+	end
+	local root = character:FindFirstChild("HumanoidRootPart")
+	local head = character:FindFirstChild("Head")
+	if not root or not head then
+		return
+	end
+	-- the knife has to have been out for a moment
+	local since = character:GetAttribute("WeaponSince") or 0
+	if workspace:GetServerTimeNow() - since < K.EquipTime * 0.6 then
+		return
+	end
+	-- swing rate
+	local now = os.clock()
+	local swingTime = kind == "Stab" and K.StabTime or K.SlashTime
+	if lastMelee[player] and now - lastMelee[player] < swingTime * 0.75 then
+		return
+	end
+	lastMelee[player] = now
+	-- everyone sees the swing (CharacterPoser animates the arm)
+	character:SetAttribute("SwingKind", kind)
+	character:SetAttribute("Swing", ((character:GetAttribute("Swing") or 0) + 1) % 1000)
+
+	if typeof(targetModel) ~= "Instance" then
+		return -- a miss
+	end
+	local target = targetForModel(getTargets(player, match), targetModel)
+	local torso = target and getTorso(target.Model)
+	if not torso then
+		return
+	end
+	-- the client's look must roughly match where the character faces
+	local facing = flatUnit(root.CFrame.LookVector)
+	local flatLook = flatUnit(look)
+	if facing and flatLook and facing:Dot(flatLook) < 0.4 then
+		return
+	end
+	-- range (with an allowance for both of you moving)
+	local victimRoot = target.Model:FindFirstChild("HumanoidRootPart") or torso
+	local range = (kind == "Stab" and K.StabRange or K.SlashRange)
+		+ 2
+		+ root.AssemblyLinearVelocity.Magnitude * 0.12
+		+ victimRoot.AssemblyLinearVelocity.Magnitude * 0.12
+	local offset = torso.Position - head.Position
+	if offset.Magnitude > range then
+		return
+	end
+	-- facing it
+	if offset.Magnitude > 2 and look:Dot(offset.Unit) < math.cos(math.rad(K.HitAngle + 15)) then
+		return
+	end
+	-- nothing solid in between
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = buildExclude(player)
+	local hit = workspace:Raycast(head.Position, offset, params)
+	if hit and not hit.Instance:IsDescendantOf(target.Model) then
+		return
+	end
+	-- backstab: you're behind them
+	local backstab = false
+	local victimFacing = flatUnit(victimRoot.CFrame.LookVector)
+	local fromVictim = flatUnit(root.Position - victimRoot.Position)
+	if victimFacing and fromVictim and victimFacing:Dot(fromVictim) < -math.cos(math.rad(K.BackstabAngle)) then
+		backstab = true
+	end
+	local damage = backstab and K.BackstabDamage or (kind == "Stab" and K.StabDamage or K.SlashDamage)
+	local stats = getStats(player, match)
+	damageTarget(match, player, stats, target, damage, {
+		Position = torso.Position,
+		Melee = true,
+		Backstab = backstab,
+	})
+end
+
+local function onEquip(player, weapon)
+	if typeof(weapon) == "string" then
+		CharacterService.SetWeapon(player, weapon)
+	end
+end
+
 function CombatService.Forget(player)
+	lastMelee[player] = nil
 	lastFire[player] = nil
 	cooldowns[player] = nil
 	bulletTimeUntil[player] = nil
@@ -883,8 +1001,11 @@ function CombatService.Init()
 	Remotes.Get("Fire").OnServerEvent:Connect(onFire)
 	Remotes.Get("Ability").OnServerEvent:Connect(onAbility)
 	Remotes.Get("Aim").OnServerEvent:Connect(onAim)
+	Remotes.Get("Melee").OnServerEvent:Connect(onMelee)
+	Remotes.Get("Equip").OnServerEvent:Connect(onEquip)
 
 	Players.PlayerRemoving:Connect(function(player)
+		lastMelee[player] = nil
 		lastFire[player] = nil
 		cooldowns[player] = nil
 		bulletTimeUntil[player] = nil

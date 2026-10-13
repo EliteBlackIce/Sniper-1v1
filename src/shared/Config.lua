@@ -124,6 +124,38 @@ Config.Rarity = {
 }
 
 ----------------------------------------------------------------------------
+-- KNIFE (your second weapon: press 2 / scroll, or ButtonR1 on a controller)
+--   Left click  slash (alternates left / right)
+--   Right click heavy stab with a short lunge
+--   V           inspect: toss it up and catch it
+-- Hits are checked on the server (range, facing, line of sight, timing).
+-- A hit from behind (backstab) is always a kill.
+----------------------------------------------------------------------------
+Config.Knife = {
+	Enabled = true,
+	SlashDamage = 40,
+	StabDamage = 70,
+	BackstabDamage = 1000, -- from behind = always a kill
+	BackstabAngle = 65, -- degrees either side of straight behind the victim
+	SlashRange = 7, -- studs from you to the target's body
+	StabRange = 8.5, -- (the lunge carries you a little further)
+	SlashTime = 0.42, -- seconds per slash (also the cooldown)
+	StabTime = 0.85,
+	SlashHitAt = 0.14, -- when in the swing the hit lands
+	StabHitAt = 0.3,
+	HitAngle = 55, -- the target must be within this many degrees of where you look
+	LungeSpeed = 34, -- forward push on a stab
+	EquipTime = 0.4, -- seconds after switching before you can attack
+	MoveSpeedMultiplier = 1.12, -- knife out = you run a bit faster
+	-- imported knife mesh (assets: CombatKnife.glb, see README)
+	UseImportedKnife = true,
+	MeshTemplate = "CombatKnife",
+	MeshYaw = nil,
+	MeshPaint = "Always", -- "Always" = flat steel blade + dark handle, "Auto" = keep imported textures
+	WorldScale = 0.75, -- the knife other players see in your hand
+}
+
+----------------------------------------------------------------------------
 -- CRATES (lobby crate vault). Open one with a key at the altar in the lobby
 -- to unlock a rifle skin. Rarities are listed lowest to highest; Chance is a
 -- percentage (they add up to 100).

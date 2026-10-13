@@ -97,6 +97,9 @@ local function record()
 		Me = myRoot.CFrame,
 		MyPitch = me:GetAttribute("AimPitch") or 0,
 		MyAir = myHumanoid ~= nil and myHumanoid.FloorMaterial == Enum.Material.Air,
+		Weapon = enemy:GetAttribute("Weapon") or "Sniper",
+		Swing = enemy:GetAttribute("Swing"),
+		SwingKind = enemy:GetAttribute("SwingKind"),
 	})
 	trim(samples)
 end
@@ -123,6 +126,9 @@ local function sampleAt(t)
 				Me = a.Me:Lerp(b.Me, alpha),
 				MyPitch = a.MyPitch + (b.MyPitch - a.MyPitch) * alpha,
 				MyAir = alpha < 0.5 and a.MyAir or b.MyAir,
+				Weapon = b.Weapon,
+				Swing = b.Swing,
+				SwingKind = b.SwingKind,
 			}
 		end
 	end
@@ -288,6 +294,15 @@ local function play(deathTime, killerName)
 	banner.Position = UDim2.new(0.5, 0, 0, -80)
 	Theme.tween(banner, 0.35, { Position = UDim2.new(0.5, 0, 0, 40) }, Enum.EasingStyle.Back)
 
+	-- the killer's weapon + knife swings, as recorded
+	local shownWeapon = "Sniper"
+	local lastSwing = nil
+	local function showWeapon(name)
+		if name ~= shownWeapon then
+			shownWeapon = name
+			pcall(Controllers.Viewmodel.SetWeapon, name)
+		end
+	end
 	local replayT = deathTime - K.Length
 	local finish = deathTime + 0.5
 	local rate = 1
@@ -313,6 +328,7 @@ local function play(deathTime, killerName)
 		Controllers.Camera.SetSuspended(false)
 		playing = false
 		gui.Enabled = false
+		pcall(Controllers.Viewmodel.SetWeapon, ClientState.Weapon or "Sniper")
 		if ghost then
 			ghost:Destroy()
 		end
@@ -342,6 +358,13 @@ local function play(deathTime, killerName)
 		local s = sampleAt(at)
 		current = s
 		if s then
+			showWeapon(s.Weapon or "Sniper")
+			if s.Swing ~= lastSwing then
+				if lastSwing ~= nil and s.Weapon == "Knife" then
+					Controllers.Viewmodel.PlayKnife(s.SwingKind or "Slash")
+				end
+				lastSwing = s.Swing
+			end
 			camera.CFrame = CFrame.new(s.Head) * CFrame.fromOrientation(s.Pitch, s.Yaw, 0)
 			-- how fast they were moving (walk bob on their arms)
 			local before = sampleAt(at - 0.1)

@@ -187,8 +187,8 @@ local function isTyping(processed)
 end
 
 local function onInputBegan(input, processed)
-	if isTyping(processed) then
-		return
+	if isTyping(processed) or ClientState.Weapon == "Knife" then
+		return -- (KnifeController handles the knife)
 	end
 	if Keybinds.Matches("Fire", input) then
 		fire()
@@ -213,6 +213,7 @@ local function update(dt)
 	local character = player.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	local allowed = ClientState.HasGun() and not ClientState.MenuOpen and humanoid and humanoid.Health > 0
+		and ClientState.Weapon ~= "Knife"
 	if not allowed then
 		scopeHeld = false
 	end

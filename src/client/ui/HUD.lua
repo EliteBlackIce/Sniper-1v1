@@ -624,7 +624,13 @@ local function onHitConfirm(data)
 		Theme.burst(gui, viewport / 2, data.Headshot and Palette.UIHeadshot or Palette.UIAccent, 18, 120, 7)
 		Theme.ring(gui, viewport / 2, data.Headshot and Palette.UIHeadshot or Color3.new(1, 1, 1), 160, 5)
 		Sfx.Play("Kill")
-		showBanner(data.Headshot and "HEADSHOT" or "ELIMINATED", nil, data.Headshot and Palette.UIHeadshot or Palette.UIText, 1.2)
+		if data.Backstab then
+			showBanner("BACKSTAB", nil, Palette.AccentB, 1.4)
+		elseif data.Melee then
+			showBanner("KNIFED", nil, Palette.UIAccent, 1.2)
+		else
+			showBanner(data.Headshot and "HEADSHOT" or "ELIMINATED", nil, data.Headshot and Palette.UIHeadshot or Palette.UIText, 1.2)
+		end
 	elseif data.Headshot then
 		Sfx.Play("Headshot")
 	else

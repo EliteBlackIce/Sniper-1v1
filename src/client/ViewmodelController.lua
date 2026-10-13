@@ -53,7 +53,6 @@ local EQUIP_POSE = CFrame.new(0.15, -1.2, 0.45) * CFrame.Angles(rad(-55), rad(25
 
 -- Hands (gun space)
 local RIGHT_GRIP = CFrame.new(0, -0.22, 0.18) * CFrame.Angles(rad(-18), 0, 0)
-local KNOB_HOLD = CFrame.new(0.3, 0.02, 0.07) -- relative to the animated bolt pivot
 -- Arm joints (gun space). Shoulders sit behind the camera, out of view.
 local RIGHT_ELBOW = Vector3.new(0.42, -0.62, 0.78)
 local RIGHT_SHOULDER = Vector3.new(0.95, -1.1, 1.9)
@@ -192,6 +191,117 @@ local function build()
 	model.Parent = workspace.CurrentCamera
 end
 
+----------------------------------------------------------------------------
+-- Avatar arms (Config.Viewmodel.UseAvatarArms)
+----------------------------------------------------------------------------
+--[[
+	Your first-person arms are a copy of your own avatar's arms: skin
+	colour, shirt and all. The copy sits in a little model with a Humanoid
+	(that's what makes the shirt show up), is scaled down to
+	ArmThickness so it fits the rifle, and each part is stretched between
+	the same shoulder / elbow / hand points the plain arms use. If your
+	character has no R15 arms, the plain gloved arms are used instead.
+]]
+local ARM_NAMES = { "RightUpperArm", "RightLowerArm", "RightHand", "LeftUpperArm", "LeftLowerArm", "LeftHand" }
+local BLOCK_PIECES = { "Palm", "Fingers", "Thumb", "Cuff", "Forearm", "Elbow", "UpperArm" }
+local avatarArms -- { Model, Parts = {[name] = part}, Base = {[name] = original size} }
+
+local function setBlockArms(shown)
+	for _, side in ipairs({ "Right", "Left" }) do
+		for _, piece in ipairs(BLOCK_PIECES) do
+			local part = parts[side .. piece]
+			if part then
+				part.Transparency = shown and 0 or 1
+			end
+		end
+	end
+end
+
+local function buildAvatarArms(character)
+	if avatarArms then
+		avatarArms.Model:Destroy()
+		avatarArms = nil
+	end
+	if not Config.Viewmodel.UseAvatarArms or not character then
+		setBlockArms(true)
+		return
+	end
+	for _, name in ipairs(ARM_NAMES) do
+		if not character:FindFirstChild(name) then
+			setBlockArms(true)
+			return
+		end
+	end
+	local rig = Instance.new("Model")
+	rig.Name = "AvatarArms"
+	local humanoid = Instance.new("Humanoid")
+	humanoid.RigType = Enum.HumanoidRigType.R15
+	humanoid.RequiresNeck = false
+	humanoid.BreakJointsOnDeath = false
+	humanoid.EvaluateStateMachine = false
+	humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+	humanoid.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
+	humanoid.Parent = rig
+	for _, item in ipairs(character:GetChildren()) do
+		if item:IsA("Shirt") or item:IsA("BodyColors") then
+			item:Clone().Parent = rig
+		end
+	end
+	local armParts, base = {}, {}
+	for _, name in ipairs(ARM_NAMES) do
+		local source = character[name]
+		local ok, part = pcall(function()
+			return source:Clone()
+		end)
+		if not ok or not part then
+			rig:Destroy()
+			setBlockArms(true)
+			return
+		end
+		for _, child in ipairs(part:GetChildren()) do
+			if not (child:IsA("SurfaceAppearance") or child:IsA("SpecialMesh") or child:IsA("Decal") or child:IsA("Texture")) then
+				child:Destroy()
+			end
+		end
+		part.Anchored = true
+		part.CanCollide = false
+		part.CanQuery = false
+		part.CanTouch = false
+		part.CastShadow = false
+		part.Massless = true
+		part.Transparency = 0
+		part.Parent = rig
+		armParts[name] = part
+		base[name] = source.Size
+	end
+	rig.Parent = model
+	avatarArms = { Model = rig, Parts = armParts, Base = base }
+	setBlockArms(false)
+end
+
+-- CFrame (gun space) for an avatar limb stretched from a to b, `thick` studs wide.
+local function avatarLimb(name, a, b, thick)
+	local part, base = avatarArms.Parts[name], avatarArms.Base[name]
+	local length = math.max((b - a).Magnitude, 0.05)
+	local k = thick / math.max(base.X, 0.01)
+	local size = Vector3.new(base.X * k, length, base.Z * k)
+	if (part.Size - size).Magnitude > 0.001 then
+		part.Size = size
+	end
+	-- the limb's -Y runs from a (shoulder end) to b (hand end)
+	return CFrame.lookAt((a + b) / 2, b) * CFrame.Angles(rad(90), 0, 0)
+end
+
+-- CFrame-free helper: scales an avatar hand to fit and returns its size.
+local function avatarHandSize(name, width)
+	local part, base = avatarArms.Parts[name], avatarArms.Base[name]
+	local size = base * (width / math.max(base.X, 0.01))
+	if (part.Size - size).Magnitude > 0.001 then
+		part.Size = size
+	end
+	return size
+end
+
 -- CFrame for a limb part stretched between points a and b.
 local function limbBetween(part, a, b)
 	local length = math.max((b - a).Magnitude, 0.05)
@@ -223,8 +333,12 @@ local function boltPose(t)
 	-- reach (0-.15) lift (.15-.3) pull (.3-.5) push (.5-.68) lower (.68-.8) return (.8-1)
 	local lift = smoothstep(seg(t, 0.15, 0.3)) - smoothstep(seg(t, 0.68, 0.8))
 	local pull = smoothstep(seg(t, 0.3, 0.5)) - smoothstep(seg(t, 0.5, 0.68))
-	local pivot = gun.Profile.BoltPivot * CFrame.new(0, 0, pull * 0.4) * CFrame.Angles(0, 0, rad(80) * lift)
-	local onKnob = pivot * KNOB_HOLD * CFrame.Angles(0, 0, rad(-25))
+	-- the bolt turns up around the bore line, then slides back and forward
+	local profile = gun.Profile
+	local pivot = profile.BoltPivot
+		* CFrame.new(0, 0, pull * profile.BoltTravel)
+		* CFrame.Angles(0, 0, rad(profile.BoltLift) * lift)
+	local onKnob = pivot * profile.KnobHold * CFrame.Angles(0, 0, rad(-25))
 	local reach = smoothstep(seg(t, 0, 0.15))
 	local back = smoothstep(seg(t, 0.8, 1))
 	local hand
@@ -362,6 +476,11 @@ local function setVisible(v)
 	setGunEffects(v)
 	for name, part in pairs(parts) do
 		if not name:find("Flash") then
+			part.LocalTransparencyModifier = v and 0 or 1
+		end
+	end
+	if avatarArms then
+		for _, part in pairs(avatarArms.Parts) do
 			part.LocalTransparencyModifier = v and 0 or 1
 		end
 	end
@@ -646,6 +765,29 @@ local function update(dt)
 	put(parts.LeftElbow, grip * CFrame.new(LEFT_ELBOW))
 	put(parts.LeftUpperArm, grip * limbBetween(parts.LeftUpperArm, LEFT_SHOULDER, LEFT_ELBOW))
 
+	-- Avatar arms (replace the plain arms above when available)
+	if avatarArms then
+		local thick = Config.Viewmodel.ArmThickness or 0.3
+		local hide = visible and 0 or 1
+		for _, part in pairs(avatarArms.Parts) do
+			part.LocalTransparencyModifier = hide
+		end
+		-- right: hand on the grip (or the bolt), wrist at the top of the hand
+		local rSize = avatarHandSize("RightHand", thick * 0.95)
+		local rHandCF = rightHand * CFrame.new(0, -0.02, 0)
+		local rWristA = (rHandCF * CFrame.new(0, rSize.Y / 2, 0)).Position
+		put(avatarArms.Parts.RightHand, grip * rHandCF)
+		put(avatarArms.Parts.RightLowerArm, grip * avatarLimb("RightLowerArm", RIGHT_ELBOW, rWristA, thick * 0.9))
+		put(avatarArms.Parts.RightUpperArm, grip * avatarLimb("RightUpperArm", RIGHT_SHOULDER, RIGHT_ELBOW, thick))
+		-- left: palm up under the handguard, fingers curled toward the right
+		local lSize = avatarHandSize("LeftHand", thick * 0.95)
+		local lHandCF = LEFT_HOLD * CFrame.new(0, -0.03, 0) * CFrame.Angles(0, 0, rad(90))
+		local lWristA = (lHandCF * CFrame.new(0, lSize.Y / 2, 0)).Position
+		put(avatarArms.Parts.LeftHand, grip * lHandCF)
+		put(avatarArms.Parts.LeftLowerArm, grip * avatarLimb("LeftLowerArm", LEFT_ELBOW, lWristA, thick * 0.9))
+		put(avatarArms.Parts.LeftUpperArm, grip * avatarLimb("LeftUpperArm", LEFT_SHOULDER, LEFT_ELBOW, thick))
+	end
+
 	-- Muzzle flash
 	local flashing = shouldShow and t < flashUntil
 	local muzzle = grip * gun.Profile.Muzzle * CFrame.Angles(0, 0, math.random() * math.pi)
@@ -695,6 +837,18 @@ function Viewmodel.Start()
 			Sfx.Play("CardHover", { Pitch = 0.8, Volume = 1.5 })
 		end
 	end)
+
+	-- your avatar's arms (rebuilt for every new character / appearance)
+	local function refreshArms()
+		task.defer(buildAvatarArms, player.Character)
+	end
+	player.CharacterAppearanceLoaded:Connect(refreshArms)
+	player.CharacterAdded:Connect(function()
+		task.delay(1, refreshArms) -- in case the appearance event already fired
+	end)
+	if player.Character then
+		refreshArms()
+	end
 
 	-- kills play a flourish
 	Remotes.Get("HitConfirm").OnClientEvent:Connect(function(info)

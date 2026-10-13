@@ -14,7 +14,7 @@
     },
     "StarterPlayer": {
       "$properties": {
-        "LoadCharacterAppearance": false,
+        "LoadCharacterAppearance": true,
         "CameraMaxZoomDistance": 18,
         "CameraMinZoomDistance": 0.5,
         "EnableMouseLockOption": false

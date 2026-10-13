@@ -69,7 +69,32 @@ local function addWorldGun(character, powerUps)
 	gun.Parent = character
 end
 
-function CharacterService.Style(character, color)
+-- AVATAR LOOK (Config.Player.UseAvatars): you play as your own Roblox
+-- avatar. Hats and hair don't stop bullets (only the body counts), and a
+-- coloured outline shows which side you're on in a match.
+local function styleAvatar(character, color)
+	for _, item in ipairs(character:GetDescendants()) do
+		if item:IsA("BasePart") and item:FindFirstAncestorOfClass("Accessory") then
+			item.CanQuery = false
+			item.CanCollide = false
+			item.CanTouch = false
+			item.Massless = true
+		end
+	end
+	local outline = character:FindFirstChild("TeamOutline") or Instance.new("Highlight")
+	outline.Name = "TeamOutline"
+	outline.FillTransparency = 1
+	outline.OutlineColor = color
+	outline.OutlineTransparency = color == Palette.LobbyPlayer and 1 or 0.15
+	outline.DepthMode = Enum.HighlightDepthMode.Occluded
+	outline.Parent = character
+end
+
+function CharacterService.Style(character, color, player)
+	if Config.Player.UseAvatars and not Util.isBot(player) then
+		styleAvatar(character, color)
+		return
+	end
 	for _, item in ipairs(character:GetDescendants()) do
 		if item:IsA("Accessory") or item:IsA("Clothing") or item:IsA("ShirtGraphic") or item:IsA("BodyColors") then
 			item:Destroy()
@@ -94,6 +119,43 @@ end
 -- Spawning
 ----------------------------------------------------------------------------
 
+-- Everyone's avatar is loaded at the same standard body size (no tiny or
+-- giant hitboxes), keeping their look: skin, clothes, hair, face.
+local descriptions = {} -- [player] = HumanoidDescription
+local function standardDescription(player)
+	if descriptions[player] then
+		return descriptions[player]:Clone()
+	end
+	local ok, description = pcall(function()
+		return Players:GetHumanoidDescriptionFromUserId(math.max(player.UserId, 1))
+	end)
+	if not ok or not description then
+		return nil
+	end
+	description.HeightScale = 1
+	description.WidthScale = 1
+	description.DepthScale = 1
+	description.HeadScale = 1
+	description.BodyTypeScale = 0
+	description.ProportionScale = 0
+	descriptions[player] = description
+	return description:Clone()
+end
+
+function CharacterService.LoadCharacter(player)
+	if Util.isBot(player) or not Config.Player.UseAvatars then
+		player:LoadCharacter()
+		return
+	end
+	local description = player.UserId > 0 and standardDescription(player) or nil
+	local ok = description and pcall(function()
+		player:LoadCharacterWithHumanoidDescription(description)
+	end)
+	if not ok then
+		player:LoadCharacter() -- (Studio test players have no avatar to fetch)
+	end
+end
+
 --[[
 	Spawns (or respawns) `player` at `cframe`.
 	options:
@@ -109,7 +171,7 @@ function CharacterService.Spawn(player, cframe, options)
 		return nil
 	end
 
-	player:LoadCharacter()
+	CharacterService.LoadCharacter(player)
 	local character = player.Character
 	if not character then
 		return nil
@@ -120,7 +182,7 @@ function CharacterService.Spawn(player, cframe, options)
 		return nil
 	end
 
-	CharacterService.Style(character, options.Color or Palette.LobbyPlayer)
+	CharacterService.Style(character, options.Color or Palette.LobbyPlayer, player)
 	addWorldGun(character, options.PowerUps)
 
 	humanoid.MaxHealth = options.MaxHealth or Config.Player.MaxHealth
@@ -180,10 +242,10 @@ function CharacterService.MakeInvisible(player, duration)
 	local saved = {}
 	local effects = {}
 	for _, part in ipairs(character:GetDescendants()) do
-		if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-			saved[part] = part.Transparency
+		if (part:IsA("BasePart") and part.Name ~= "HumanoidRootPart") or part:IsA("Decal") then
+			saved[part] = part.Transparency -- (decals: the face)
 			part.Transparency = 1
-		elseif (part:IsA("ParticleEmitter") or part:IsA("PointLight")) and part.Enabled then
+		elseif (part:IsA("ParticleEmitter") or part:IsA("PointLight") or part:IsA("Highlight")) and part.Enabled then
 			effects[part] = true -- rifle power-up effects would give you away
 			part.Enabled = false
 		end
@@ -216,6 +278,9 @@ end
 
 function CharacterService.Init()
 	Players.CharacterAutoLoads = false
+	Players.PlayerRemoving:Connect(function(player)
+		descriptions[player] = nil
+	end)
 
 	-- Void check: anything that falls below its KillY dies.
 	RunService.Heartbeat:Connect(function()

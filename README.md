@@ -96,8 +96,12 @@ The place file can't contain meshes, so Studio has to import the rifle once:
    SniperRifle model or set `Config.Viewmodel.UseImportedRifle = false`.
 
 This GLB is already scaled, turned and lined up with the game's grip, scope
-and muzzle points, and the hanging bipod legs are removed so they don't sit
-in your view. Rifle model: "PGM 338 Sniper Rifle" by Alexandre P.
+and muzzle points. The hanging bipod legs are removed so they don't sit in
+your view, the textures are painted (desert-tan body, black scope and
+barrel, dark furniture), and the bolt handle is a separate piece: it turns
+up and slides back when you chamber a round. If you imported an older
+version of the file, delete the old SniperRifle model and import this one
+again. Rifle model: "PGM 338 Sniper Rifle" by Alexandre P.
 (https://sketchfab.com/3d-models/pgm-338-sniper-rifle-f32b57e4cecb491aa569358c9ae93b71),
 licensed CC-BY-4.0. Keep this credit if you publish the game (e.g. in the
 game description).
@@ -306,6 +310,19 @@ Files: `ArenaCrossfire` (the map), `GunModel` (rifle + power-up mods), `Viewmode
 - [ ] Other players see the same rifle and attachments in your hands.
 
 ---
+
+## Your avatar
+
+You play as your own Roblox avatar (`Config.Player.UseAvatars`):
+- Everyone is loaded at the standard body size (height, width, proportions),
+  so nobody gets a smaller or bigger hitbox from their avatar. Faces,
+  clothes, hair and accessories all show.
+- Hats, hair and other accessories don't stop bullets. Only the body counts.
+- In a match, a blue or red outline shows which side each player is on.
+- Your first-person arms are your avatar's arms, with your skin colour and
+  shirt (`Config.Viewmodel.UseAvatarArms`), scaled to fit the rifle.
+- Bots keep the flat team-coloured look. Set `UseAvatars = false` for the
+  flat one-colour characters everywhere.
 
 ## Settings and keybinds
 

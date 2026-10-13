@@ -163,6 +163,10 @@ GunModel.ScopeEye = Vector3.new(0, 0.36, 0.39)
 	the importer puts it or how it scales it. Power-up attachments are
 	nudged by ModShift to sit on its barrel and scope.
 
+	The bolt handle is its own mesh ("Bolt") so it really turns up and
+	slides back when you chamber a round. If a mesh comes in without its
+	texture, it gets painted from MeshPaint by name.
+
 	Model: "PGM 338 Sniper Rifle" by Alexandre P., CC-BY-4.0
 	https://sketchfab.com/3d-models/pgm-338-sniper-rifle-f32b57e4cecb491aa569358c9ae93b71
 ]]
@@ -170,6 +174,9 @@ GunModel.PartsProfile = {
 	Muzzle = GunModel.Muzzle,
 	ScopeEye = GunModel.ScopeEye,
 	BoltPivot = GunModel.BoltPivot,
+	KnobHold = CFrame.new(0.32, -0.04, 0.07), -- right hand on the bolt knob (relative to the pivot)
+	BoltLift = 55, -- degrees the bolt handle turns up (more would hit the scope)
+	BoltTravel = 0.4, -- studs the bolt slides back
 	LeftHold = CFrame.new(0, -0.21, -1.15),
 	BarrelY = 0.03,
 	ModShift = Vector3.zero,
@@ -177,12 +184,42 @@ GunModel.PartsProfile = {
 GunModel.MeshProfile = {
 	Muzzle = CFrame.new(0, 0.141, -4.2),
 	ScopeEye = Vector3.new(0, 0.466, 0.228),
-	BoltPivot = CFrame.new(-0.052, 0.1, -0.224),
+	BoltPivot = CFrame.new(0, 0.13, -0.246), -- on the bore line: the bolt turns around it
+	KnobHold = CFrame.new(0.36, -0.1, 0.06),
+	BoltLift = 55,
+	BoltTravel = 0.5,
 	LeftHold = CFrame.new(0, -0.16, -1.3),
 	BarrelY = 0.141,
 	ModShift = Vector3.new(0, 0.11, 0.1),
 	Bounds = { Min = Vector3.new(-0.1791, -0.6684, -4.201), Max = Vector3.new(0.2913, 0.6329, 1.4395) },
 }
+
+-- Fallback paint for meshes that imported without textures (by name).
+GunModel.MeshPaint = {
+	{ Match = "scope", Color = Color3.fromRGB(44, 46, 50), Material = Enum.Material.Metal },
+	{ Match = "barrel", Color = Color3.fromRGB(44, 46, 50), Material = Enum.Material.Metal },
+	{ Match = "bolt", Color = Color3.fromRGB(70, 72, 76), Material = Enum.Material.Metal },
+	{ Match = "stock", Color = Color3.fromRGB(66, 68, 62), Material = Enum.Material.SmoothPlastic },
+	{ Match = "", Color = Color3.fromRGB(184, 160, 118), Material = Enum.Material.SmoothPlastic }, -- body: desert tan
+}
+
+local function paintIfBare(part)
+	if not part:IsA("MeshPart") then
+		return
+	end
+	local textured = part.TextureID ~= "" or part:FindFirstChildOfClass("SurfaceAppearance") ~= nil
+	if textured then
+		return
+	end
+	local name = part.Name:lower()
+	for _, paint in ipairs(GunModel.MeshPaint) do
+		if name:find(paint.Match, 1, true) then
+			part.Color = paint.Color
+			part.Material = paint.Material
+			return
+		end
+	end
+end
 
 local function templateParts(template)
 	local list = {}
@@ -686,7 +723,16 @@ function GunModel.Build(parent, options)
 			end
 			part.Size = info.Size * scale
 			part.CastShadow = options.CastShadow == true
-			setup(part, info.Name, info.Offset.Rotation + info.Offset.Position * scale)
+			paintIfBare(part)
+			local offset = info.Offset.Rotation + info.Offset.Position * scale
+			if info.Part.Name:lower():find("bolt") then
+				-- the bolt handle moves with the bolt pivot (see Place / the viewmodel)
+				local pivot = CFrame.new(profile.BoltPivot.Position * scale)
+				setup(part, info.Name, pivot:Inverse() * offset)
+				result.Bolt[info.Name] = true
+			else
+				setup(part, info.Name, offset)
+			end
 		end
 		-- invisible anchors other code looks up by name
 		for name, pos in pairs({ Receiver = Vector3.new(0, 0, -0.3), Barrel = Vector3.new(0, profile.BarrelY, -3) }) do

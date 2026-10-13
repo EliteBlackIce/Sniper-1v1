@@ -184,6 +184,9 @@ Config.Bot = {
 ----------------------------------------------------------------------------
 Config.Player = {
 	MaxHealth = 100,
+	-- Play as your own Roblox avatar (always loaded at the standard body
+	-- size so hitboxes are fair). false = the flat one-colour characters.
+	UseAvatars = true,
 }
 
 ----------------------------------------------------------------------------
@@ -229,6 +232,10 @@ Config.Viewmodel = {
 	UseImportedRifle = true,
 	MeshTemplate = "SniperRifle",
 	MeshYaw = nil, -- force the model's turn in degrees (0/90/180/270) if it imports facing the wrong way
+	-- First-person arms are a copy of your avatar's arms (skin colour, shirt).
+	-- false = the plain gloved arms.
+	UseAvatarArms = true,
+	ArmThickness = 0.3, -- avatar arms are scaled down to this so they fit the rifle
 }
 
 -- Defaults for the settings menu (players can change and save these).

@@ -42,6 +42,7 @@ local VM = Config.Viewmodel
 local player = Players.LocalPlayer
 
 local Viewmodel = {}
+local hiddenBy = {} -- [reason] = true: see Viewmodel.SetHidden
 local Controllers
 
 local rad = math.rad
@@ -408,6 +409,12 @@ end
 ----------------------------------------------------------------------------
 -- Public API
 ----------------------------------------------------------------------------
+-- Hide the arms + rifle while something else owns the camera (e.g. a crate
+-- opening). Each caller passes its own reason so they don't clash.
+function Viewmodel.SetHidden(reason, hidden)
+	hiddenBy[reason] = hidden or nil
+end
+
 function Viewmodel.PlayFire(scoped)
 	local kick = scoped and 0.5 or 1
 	if has("ExplosiveRounds") or has("GlassCannon") then
@@ -513,7 +520,7 @@ local function update(dt)
 	lastCharacter = character
 	hadGun = alive and hasGun
 
-	local shouldShow = alive and hasGun and Controllers.Camera.IsFirstPerson() and scopeAlpha < 0.92
+	local shouldShow = alive and hasGun and Controllers.Camera.IsFirstPerson() and scopeAlpha < 0.92 and next(hiddenBy) == nil
 	setVisible(shouldShow)
 	if not shouldShow then
 		for name, part in pairs(parts) do

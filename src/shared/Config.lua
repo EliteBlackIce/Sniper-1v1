@@ -124,6 +124,45 @@ Config.Rarity = {
 }
 
 ----------------------------------------------------------------------------
+-- CRATES (lobby crate vault). Open one with a key at the altar in the lobby
+-- to unlock a rifle skin. Rarities are listed lowest to highest; Chance is a
+-- percentage (they add up to 100).
+----------------------------------------------------------------------------
+Config.Crates = {
+	StartingKeys = 5, -- keys a brand-new player starts with
+	KeysPerWin = 2, -- keys for winning a match
+	KeysPerLoss = 1, -- keys for finishing a match you lost
+	Cost = 1, -- keys per crate
+	FreeInStudio = true, -- opening is free when testing in Studio
+	MaxDistance = 26, -- how close to the altar you have to be (studs)
+	Cooldown = 4, -- seconds between opens (the animation covers it)
+	Rarities = {
+		{ Id = "Common", Name = "COMMON", Color = Color3.fromRGB(176, 182, 192), Chance = 50 },
+		{ Id = "Uncommon", Name = "UNCOMMON", Color = Color3.fromRGB(82, 214, 104), Chance = 25 },
+		{ Id = "Rare", Name = "RARE", Color = Color3.fromRGB(60, 146, 255), Chance = 14 },
+		{ Id = "Epic", Name = "EPIC", Color = Color3.fromRGB(176, 84, 255), Chance = 7 },
+		{ Id = "Legendary", Name = "LEGENDARY", Color = Color3.fromRGB(255, 192, 46), Chance = 3 },
+		{ Id = "Secret", Name = "SECRET", Color = Color3.fromRGB(255, 38, 56), Chance = 1 },
+	},
+	-- Rifle skins you can unlock. Body / Metal / Accent colour the rifle
+	-- (equipping skins comes later; for now they're collected).
+	Skins = {
+		{ Id = "FieldGrey", Name = "Field Grey", Rarity = "Common", Body = Color3.fromRGB(128, 132, 136), Metal = Color3.fromRGB(52, 54, 58), Accent = Color3.fromRGB(190, 194, 198) },
+		{ Id = "Sandstorm", Name = "Sandstorm", Rarity = "Common", Body = Color3.fromRGB(196, 170, 120), Metal = Color3.fromRGB(70, 64, 54), Accent = Color3.fromRGB(230, 214, 176) },
+		{ Id = "Woodland", Name = "Woodland", Rarity = "Common", Body = Color3.fromRGB(92, 110, 70), Metal = Color3.fromRGB(46, 50, 42), Accent = Color3.fromRGB(150, 128, 88) },
+		{ Id = "Arctic", Name = "Arctic", Rarity = "Uncommon", Body = Color3.fromRGB(226, 234, 240), Metal = Color3.fromRGB(96, 110, 124), Accent = Color3.fromRGB(150, 200, 230) },
+		{ Id = "Viper", Name = "Viper", Rarity = "Uncommon", Body = Color3.fromRGB(64, 150, 70), Metal = Color3.fromRGB(30, 36, 32), Accent = Color3.fromRGB(190, 240, 90) },
+		{ Id = "Cobalt", Name = "Cobalt", Rarity = "Rare", Body = Color3.fromRGB(40, 92, 200), Metal = Color3.fromRGB(28, 32, 48), Accent = Color3.fromRGB(110, 190, 255) },
+		{ Id = "DeepSea", Name = "Deep Sea", Rarity = "Rare", Body = Color3.fromRGB(20, 110, 130), Metal = Color3.fromRGB(16, 30, 40), Accent = Color3.fromRGB(80, 230, 220) },
+		{ Id = "Amethyst", Name = "Amethyst", Rarity = "Epic", Body = Color3.fromRGB(120, 60, 200), Metal = Color3.fromRGB(34, 24, 52), Accent = Color3.fromRGB(230, 150, 255) },
+		{ Id = "Synthwave", Name = "Synthwave", Rarity = "Epic", Body = Color3.fromRGB(40, 24, 70), Metal = Color3.fromRGB(20, 16, 32), Accent = Color3.fromRGB(255, 70, 200) },
+		{ Id = "GoldenEagle", Name = "Golden Eagle", Rarity = "Legendary", Body = Color3.fromRGB(232, 182, 60), Metal = Color3.fromRGB(60, 46, 24), Accent = Color3.fromRGB(255, 240, 170) },
+		{ Id = "SolarFlare", Name = "Solar Flare", Rarity = "Legendary", Body = Color3.fromRGB(255, 120, 30), Metal = Color3.fromRGB(50, 30, 20), Accent = Color3.fromRGB(255, 220, 90) },
+		{ Id = "CrimsonPhantom", Name = "Crimson Phantom", Rarity = "Secret", Body = Color3.fromRGB(26, 20, 22), Metal = Color3.fromRGB(12, 10, 12), Accent = Color3.fromRGB(255, 30, 50) },
+	},
+}
+
+----------------------------------------------------------------------------
 -- MATCH FLOW
 ----------------------------------------------------------------------------
 Config.Match = {

@@ -398,6 +398,45 @@ Config.Rarity = {
 }
 
 ----------------------------------------------------------------------------
+-- CRATES (lobby crate vault). Open one with a key at the altar in the lobby
+-- to unlock a rifle skin. Rarities are listed lowest to highest; Chance is a
+-- percentage (they add up to 100).
+----------------------------------------------------------------------------
+Config.Crates = {
+	StartingKeys = 5, -- keys a brand-new player starts with
+	KeysPerWin = 2, -- keys for winning a match
+	KeysPerLoss = 1, -- keys for finishing a match you lost
+	Cost = 1, -- keys per crate
+	FreeInStudio = true, -- opening is free when testing in Studio
+	MaxDistance = 26, -- how close to the altar you have to be (studs)
+	Cooldown = 4, -- seconds between opens (the animation covers it)
+	Rarities = {
+		{ Id = "Common", Name = "COMMON", Color = Color3.fromRGB(176, 182, 192), Chance = 50 },
+		{ Id = "Uncommon", Name = "UNCOMMON", Color = Color3.fromRGB(82, 214, 104), Chance = 25 },
+		{ Id = "Rare", Name = "RARE", Color = Color3.fromRGB(60, 146, 255), Chance = 14 },
+		{ Id = "Epic", Name = "EPIC", Color = Color3.fromRGB(176, 84, 255), Chance = 7 },
+		{ Id = "Legendary", Name = "LEGENDARY", Color = Color3.fromRGB(255, 192, 46), Chance = 3 },
+		{ Id = "Secret", Name = "SECRET", Color = Color3.fromRGB(255, 38, 56), Chance = 1 },
+	},
+	-- Rifle skins you can unlock. Body / Metal / Accent colour the rifle
+	-- (equipping skins comes later; for now they're collected).
+	Skins = {
+		{ Id = "FieldGrey", Name = "Field Grey", Rarity = "Common", Body = Color3.fromRGB(128, 132, 136), Metal = Color3.fromRGB(52, 54, 58), Accent = Color3.fromRGB(190, 194, 198) },
+		{ Id = "Sandstorm", Name = "Sandstorm", Rarity = "Common", Body = Color3.fromRGB(196, 170, 120), Metal = Color3.fromRGB(70, 64, 54), Accent = Color3.fromRGB(230, 214, 176) },
+		{ Id = "Woodland", Name = "Woodland", Rarity = "Common", Body = Color3.fromRGB(92, 110, 70), Metal = Color3.fromRGB(46, 50, 42), Accent = Color3.fromRGB(150, 128, 88) },
+		{ Id = "Arctic", Name = "Arctic", Rarity = "Uncommon", Body = Color3.fromRGB(226, 234, 240), Metal = Color3.fromRGB(96, 110, 124), Accent = Color3.fromRGB(150, 200, 230) },
+		{ Id = "Viper", Name = "Viper", Rarity = "Uncommon", Body = Color3.fromRGB(64, 150, 70), Metal = Color3.fromRGB(30, 36, 32), Accent = Color3.fromRGB(190, 240, 90) },
+		{ Id = "Cobalt", Name = "Cobalt", Rarity = "Rare", Body = Color3.fromRGB(40, 92, 200), Metal = Color3.fromRGB(28, 32, 48), Accent = Color3.fromRGB(110, 190, 255) },
+		{ Id = "DeepSea", Name = "Deep Sea", Rarity = "Rare", Body = Color3.fromRGB(20, 110, 130), Metal = Color3.fromRGB(16, 30, 40), Accent = Color3.fromRGB(80, 230, 220) },
+		{ Id = "Amethyst", Name = "Amethyst", Rarity = "Epic", Body = Color3.fromRGB(120, 60, 200), Metal = Color3.fromRGB(34, 24, 52), Accent = Color3.fromRGB(230, 150, 255) },
+		{ Id = "Synthwave", Name = "Synthwave", Rarity = "Epic", Body = Color3.fromRGB(40, 24, 70), Metal = Color3.fromRGB(20, 16, 32), Accent = Color3.fromRGB(255, 70, 200) },
+		{ Id = "GoldenEagle", Name = "Golden Eagle", Rarity = "Legendary", Body = Color3.fromRGB(232, 182, 60), Metal = Color3.fromRGB(60, 46, 24), Accent = Color3.fromRGB(255, 240, 170) },
+		{ Id = "SolarFlare", Name = "Solar Flare", Rarity = "Legendary", Body = Color3.fromRGB(255, 120, 30), Metal = Color3.fromRGB(50, 30, 20), Accent = Color3.fromRGB(255, 220, 90) },
+		{ Id = "CrimsonPhantom", Name = "Crimson Phantom", Rarity = "Secret", Body = Color3.fromRGB(26, 20, 22), Metal = Color3.fromRGB(12, 10, 12), Accent = Color3.fromRGB(255, 30, 50) },
+	},
+}
+
+----------------------------------------------------------------------------
 -- MATCH FLOW
 ----------------------------------------------------------------------------
 Config.Match = {
@@ -866,6 +905,190 @@ return Config
         </Properties>
       </Item>
       <Item class="ModuleScript" referent="5">
+        <Properties>
+          <string name="Name">CrateModel</string>
+          <string name="Source"><![CDATA[--[[
+	CrateModel.lua  (ReplicatedStorage.Shared.CrateModel)
+
+	The loot crate, built from parts: a dark armoured case with metal corner
+	posts, a glowing band in the rarity colour, side handles, a latch, the
+	SNIPER DUEL mark on the front and a hinged lid with a glowing cross.
+
+		local crate = CrateModel.Build({ CFrame = cf, Scale = 1.3, Color = c, Parent = folder })
+		crate.Model:PivotTo(cf)          -- move the whole crate (pivot = bottom centre)
+		CrateModel.SetLid(crate, 40)     -- open the lid 40 degrees
+		CrateModel.SetColor(crate, c)    -- recolour the glow, light and emblems
+
+	Front = -Z of the pivot.
+]]
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Logo = require(ReplicatedStorage.Shared.Logo)
+
+local CrateModel = {}
+
+local V = Vector3.new
+local BODY = Color3.fromRGB(30, 33, 42)
+local PANEL = Color3.fromRGB(22, 24, 31)
+local METAL = Color3.fromRGB(104, 110, 124)
+local METAL_DARK = Color3.fromRGB(58, 62, 72)
+
+-- body parts: { size, position (bottom centre = 0), colour, material, glow? }
+local BODY_PARTS = {
+	{ V(4.1, 0.26, 3.1), V(0, 0.13, 0), METAL_DARK, "Metal" }, -- foot
+	{ V(3.8, 2.14, 2.8), V(0, 1.33, 0), BODY, "SmoothPlastic" }, -- case
+	{ V(3.86, 0.14, 2.86), V(0, 1.02, 0), nil, "Neon", true }, -- glow band
+	{ V(2.3, 1.2, 0.08), V(0, 1.5, -1.43), PANEL, "SmoothPlastic", false, "Emblem" }, -- front plate
+	{ V(0.16, 0.34, 1.3), V(-2.0, 1.62, 0), METAL, "Metal" }, -- handles
+	{ V(0.16, 0.34, 1.3), V(2.0, 1.62, 0), METAL, "Metal" },
+	{ V(0.7, 0.5, 0.2), V(0, 2.18, -1.5), METAL, "Metal" }, -- latch
+	{ V(0.26, 0.26, 0.1), V(0, 2.18, -1.62), nil, "Neon", true }, -- latch light
+}
+-- corner posts and the top rim
+for _, x in ipairs({ -1.86, 1.86 }) do
+	for _, z in ipairs({ -1.36, 1.36 }) do
+		table.insert(BODY_PARTS, { V(0.42, 2.3, 0.42), V(x, 1.4, z), METAL, "Metal" })
+	end
+end
+for _, z in ipairs({ -1.36, 1.36 }) do
+	table.insert(BODY_PARTS, { V(3.3, 0.2, 0.3), V(0, 2.42, z), METAL_DARK, "Metal" })
+end
+-- glowing strips down the four corners
+for _, x in ipairs({ -1.86, 1.86 }) do
+	for _, z in ipairs({ -1.36, 1.36 }) do
+		table.insert(BODY_PARTS, { V(0.12, 1.9, 0.12), V(x * 1.115, 1.4, z * 1.15), nil, "Neon", true })
+	end
+end
+for _, x in ipairs({ -1.86, 1.86 }) do
+	table.insert(BODY_PARTS, { V(0.3, 0.2, 2.3), V(x, 2.42, 0), METAL_DARK, "Metal" })
+end
+
+-- lid parts, relative to the hinge (back top edge of the case)
+local HINGE = V(0, 2.52, 1.5)
+local LID_PARTS = {
+	{ V(4.06, 0.5, 3.06), V(0, 0.25, -1.5), BODY, "SmoothPlastic" }, -- lid
+	{ V(3.4, 0.22, 2.4), V(0, 0.6, -1.5), METAL_DARK, "Metal", false, "Top" }, -- raised top
+	{ V(3.44, 0.08, 0.2), V(0, 0.74, -1.5), nil, "Neon", true }, -- glowing cross
+	{ V(0.2, 0.08, 2.44), V(0, 0.74, -1.5), nil, "Neon", true },
+	{ V(4.1, 0.12, 0.16), V(0, 0.06, -3.02), METAL, "Metal" }, -- front lip
+	{ V(4.12, 0.08, 3.12), V(0, 0.32, -1.5), nil, "Neon", true }, -- glowing seam round the lid
+}
+
+local function makePart(info, scale, color, parent)
+	local part = Instance.new("Part")
+	part.Anchored = true
+	part.CanCollide = false
+	part.CanQuery = false
+	part.CanTouch = false
+	part.CastShadow = not info[5]
+	part.Size = info[1] * scale
+	part.Color = info[3] or color
+	part.Material = Enum.Material[info[4]]
+	part.TopSurface = Enum.SurfaceType.Smooth
+	part.BottomSurface = Enum.SurfaceType.Smooth
+	part.Parent = parent
+	return part
+end
+
+function CrateModel.Build(options)
+	options = options or {}
+	local scale = options.Scale or 1
+	local color = options.Color or Color3.fromRGB(176, 182, 192)
+	local pivot = options.CFrame or CFrame.new()
+
+	local model = Instance.new("Model")
+	model.Name = options.Name or "Crate"
+	local lid = Instance.new("Model")
+	lid.Name = "Lid"
+	lid.Parent = model
+
+	local crate = { Model = model, Lid = lid, Glow = {}, Emblems = {}, Scale = scale, Parts = {} }
+	local function add(info, cf, parent)
+		local part = makePart(info, scale, color, parent)
+		part.CFrame = cf
+		table.insert(crate.Parts, part)
+		if info[5] then
+			table.insert(crate.Glow, part)
+		end
+		if info[6] == "Emblem" then
+			part.Name = "Emblem"
+			table.insert(crate.Emblems, Logo.OnPart(part, Enum.NormalId.Front, { Layout = "Mark", Color = color, Accent = color, Stroke = 6 * scale }, 40))
+		elseif info[6] == "Top" then
+			part.Name = "LidTop"
+			table.insert(crate.Emblems, Logo.OnPart(part, Enum.NormalId.Top, { Layout = "Mark", Color = color, Accent = color, Stroke = 6 * scale }, 40))
+		end
+		return part
+	end
+	for _, info in ipairs(BODY_PARTS) do
+		add(info, pivot * CFrame.new(info[2] * scale), model)
+	end
+	crate.HingeOffset = CFrame.new(HINGE * scale)
+	local hinge = pivot * crate.HingeOffset
+	for _, info in ipairs(LID_PARTS) do
+		add(info, hinge * CFrame.new(info[2] * scale), lid)
+	end
+	model.WorldPivot = pivot
+	lid.WorldPivot = hinge
+
+	local core = crate.Parts[2]
+	crate.Core = core
+	local light = Instance.new("PointLight")
+	light.Color = color
+	light.Range = 9 * scale
+	light.Brightness = 1.1
+	light.Shadows = false
+	light.Parent = core
+	crate.Light = light
+
+	crate.Color = color
+	model.Parent = options.Parent
+	return crate
+end
+
+function CrateModel.SetColor(crate, color)
+	crate.Color = color
+	for _, part in ipairs(crate.Glow) do
+		part.Color = color
+	end
+	crate.Light.Color = color
+	for _, gui in ipairs(crate.Emblems) do
+		for _, item in ipairs(gui:GetDescendants()) do
+			if item:IsA("UIStroke") then
+				item.Color = color
+			elseif item:IsA("Frame") and item.BackgroundTransparency < 1 then
+				item.BackgroundColor3 = color
+			end
+		end
+	end
+end
+
+-- Opens the lid `degrees` (0 = shut). `extra` is an optional CFrame applied
+-- after the hinge turn (e.g. to throw the lid off).
+function CrateModel.SetLid(crate, degrees, extra)
+	local hinge = crate.Model:GetPivot() * crate.HingeOffset
+	crate.Lid:PivotTo(hinge * CFrame.Angles(math.rad(degrees), 0, 0) * (extra or CFrame.new()))
+end
+
+-- Fades every part (0 = solid, 1 = gone) on this client only.
+function CrateModel.SetFade(crate, alpha, lidOnly)
+	for _, part in ipairs(crate.Parts) do
+		if not lidOnly or part:IsDescendantOf(crate.Lid) then
+			part.LocalTransparencyModifier = alpha
+		end
+	end
+	for _, gui in ipairs(crate.Emblems) do
+		if not lidOnly or gui:IsDescendantOf(crate.Lid) then
+			gui.Enabled = alpha < 0.5
+		end
+	end
+end
+
+return CrateModel
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="6">
         <Properties>
           <string name="Name">GunModel</string>
           <string name="Source"><![CDATA[--[[
@@ -1724,7 +1947,189 @@ return GunModel
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="6">
+      <Item class="ModuleScript" referent="7">
+        <Properties>
+          <string name="Name">Logo</string>
+          <string name="Source"><![CDATA[--[[
+	Logo.lua  (ReplicatedStorage.Shared.Logo)
+
+	The SNIPER DUEL logo, built from GUI frames (no images): a crosshair mark
+	and the wordmark. Used on the lobby banners and signs (SurfaceGuis) and
+	on the crate emblems.
+
+		Logo.Make(parent, {
+			Layout = "Stacked" | "Inline" | "Mark",  -- default "Stacked"
+			Color = Color3,        -- main colour (default white)
+			Accent = Color3,       -- "DUEL" + centre dot (default Palette.UIAccent)
+			Stroke = number,       -- ring thickness in pixels (default: from size)
+			Subtitle = string?,    -- small line under the wordmark
+		})
+
+	The logo fills `parent` (a Frame, SurfaceGui, BillboardGui...).
+]]
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage.Shared.Config)
+
+local Logo = {}
+
+local function new(className, props)
+	local inst = Instance.new(className)
+	for key, value in pairs(props) do
+		if key ~= "Parent" then
+			inst[key] = value
+		end
+	end
+	inst.Parent = props.Parent
+	return inst
+end
+
+local function font(weight)
+	return Font.new(Config.UI.FontFamily, weight or Enum.FontWeight.Heavy)
+end
+
+-- The crosshair mark: a ring, four ticks pointing in, a dot in the middle.
+function Logo.Mark(parent, color, accent, stroke, position, size)
+	local mark = new("Frame", {
+		Name = "Mark",
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = position or UDim2.fromScale(0.5, 0.5),
+		Size = size or UDim2.fromScale(1, 1),
+		Parent = parent,
+	})
+	new("UIAspectRatioConstraint", { AspectRatio = 1, Parent = mark })
+	local ring = new("Frame", {
+		Name = "Ring",
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromScale(0.78, 0.78),
+		Parent = mark,
+	})
+	new("UICorner", { CornerRadius = UDim.new(0.5, 0), Parent = ring })
+	local uiStroke = new("UIStroke", { Color = color, Thickness = stroke or 4, Parent = ring })
+	if not stroke then
+		-- keep the ring in proportion on screen GUIs
+		local function fit()
+			uiStroke.Thickness = math.max(1.5, mark.AbsoluteSize.X * 0.055)
+		end
+		mark:GetPropertyChangedSignal("AbsoluteSize"):Connect(fit)
+		fit()
+	end
+	-- ticks: from outside the ring to part way in
+	for _, info in ipairs({
+		{ UDim2.fromScale(0.5, 0.11), UDim2.fromScale(0.06, 0.3) },
+		{ UDim2.fromScale(0.5, 0.89), UDim2.fromScale(0.06, 0.3) },
+		{ UDim2.fromScale(0.11, 0.5), UDim2.fromScale(0.3, 0.06) },
+		{ UDim2.fromScale(0.89, 0.5), UDim2.fromScale(0.3, 0.06) },
+	}) do
+		new("Frame", {
+			BackgroundColor3 = color,
+			BorderSizePixel = 0,
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = info[1],
+			Size = info[2],
+			Parent = mark,
+		})
+	end
+	local dot = new("Frame", {
+		Name = "Dot",
+		BackgroundColor3 = accent,
+		BorderSizePixel = 0,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromScale(0.13, 0.13),
+		Parent = mark,
+	})
+	new("UICorner", { CornerRadius = UDim.new(0.5, 0), Parent = dot })
+	return mark
+end
+
+local function word(parent, text, color, position, size, align)
+	return new("TextLabel", {
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(align == Enum.TextXAlignment.Left and 0 or 0.5, 0.5),
+		Position = position,
+		Size = size,
+		Text = text,
+		TextScaled = true,
+		TextXAlignment = align or Enum.TextXAlignment.Center,
+		FontFace = font(Enum.FontWeight.Heavy),
+		TextColor3 = color,
+		Parent = parent,
+	})
+end
+
+function Logo.Make(parent, options)
+	options = options or {}
+	local color = options.Color or Color3.new(1, 1, 1)
+	local accent = options.Accent or Config.Palette.UIAccent
+	local layout = options.Layout or "Stacked"
+
+	local root = new("Frame", {
+		Name = "SniperDuelLogo",
+		BackgroundTransparency = 1,
+		Size = UDim2.fromScale(1, 1),
+		Parent = parent,
+	})
+
+	if layout == "Mark" then
+		Logo.Mark(root, color, accent, options.Stroke)
+	elseif layout == "Inline" then
+		-- [mark] SNIPER DUEL  (subtitle under the words)
+		Logo.Mark(root, color, accent, options.Stroke, UDim2.fromScale(0.09, 0.5), UDim2.fromScale(0.9, 0.9))
+		local hasSub = options.Subtitle ~= nil
+		local wordY = hasSub and 0.38 or 0.5
+		local wordH = hasSub and 0.56 or 0.8
+		word(root, "SNIPER", color, UDim2.fromScale(0.2, wordY), UDim2.fromScale(0.44, wordH), Enum.TextXAlignment.Left)
+		word(root, "DUEL", accent, UDim2.fromScale(0.66, wordY), UDim2.fromScale(0.32, wordH), Enum.TextXAlignment.Left)
+		if hasSub then
+			local sub = word(root, options.Subtitle, color, UDim2.fromScale(0.2, 0.82), UDim2.fromScale(0.78, 0.2), Enum.TextXAlignment.Left)
+			sub.FontFace = font(Enum.FontWeight.Bold)
+			sub.TextTransparency = 0.15
+		end
+	else
+		-- mark on top, SNIPER / a rule / DUEL underneath (tall banners)
+		Logo.Mark(root, color, accent, options.Stroke, UDim2.fromScale(0.5, 0.27), UDim2.fromScale(0.62, 0.36))
+		word(root, "SNIPER", color, UDim2.fromScale(0.5, 0.58), UDim2.fromScale(0.86, 0.14))
+		new("Frame", {
+			BackgroundColor3 = accent,
+			BorderSizePixel = 0,
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.67),
+			Size = UDim2.fromScale(0.5, 0.012),
+			Parent = root,
+		})
+		word(root, "DUEL", accent, UDim2.fromScale(0.5, 0.76), UDim2.fromScale(0.6, 0.13))
+		if options.Subtitle then
+			local sub = word(root, options.Subtitle, color, UDim2.fromScale(0.5, 0.88), UDim2.fromScale(0.8, 0.06))
+			sub.FontFace = font(Enum.FontWeight.Bold)
+		end
+	end
+	return root
+end
+
+-- A SurfaceGui with the logo on one face of `part`.
+function Logo.OnPart(part, face, options, pixelsPerStud)
+	local gui = new("SurfaceGui", {
+		Name = "Logo" .. face.Name,
+		Face = face,
+		SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud,
+		PixelsPerStud = pixelsPerStud or 50,
+		LightInfluence = 0.4,
+		Parent = part,
+	})
+	Logo.Make(gui, options)
+	return gui
+end
+
+return Logo
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="8">
         <Properties>
           <string name="Name">PowerUps</string>
           <string name="Source"><![CDATA[--[[
@@ -2538,7 +2943,7 @@ return PowerUps
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="7">
+      <Item class="ModuleScript" referent="9">
         <Properties>
           <string name="Name">Remotes</string>
           <string name="Source"><![CDATA[--[[
@@ -2579,6 +2984,8 @@ Remotes.Names = {
 	"Notify", -- S->C  short toast message (admin command results etc.)
 	"Duel", -- C->S  "Challenge" (userId) / "Accept" / "Decline" (userId) / "Rematch"
 	"DuelInvite", -- S->C  someone challenged you / wants a rematch
+	"CrateOpen", -- C->S  open a crate at the lobby altar
+	"Crates", -- S->C  crate results + your keys / skins
 }
 
 local FOLDER_NAME = "Remotes"
@@ -2652,7 +3059,7 @@ return Remotes
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="8">
+      <Item class="ModuleScript" referent="10">
         <Properties>
           <string name="Name">Signal</string>
           <string name="Source"><![CDATA[--[[
@@ -2690,7 +3097,7 @@ return Signal
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="9">
+      <Item class="ModuleScript" referent="11">
         <Properties>
           <string name="Name">Util</string>
           <string name="Source"><![CDATA[--[[
@@ -2796,15 +3203,15 @@ return Util
       </Item>
     </Item>
   </Item>
-  <Item class="ServerScriptService" referent="10">
+  <Item class="ServerScriptService" referent="12">
     <Properties>
       <string name="Name">ServerScriptService</string>
     </Properties>
-    <Item class="Folder" referent="11">
+    <Item class="Folder" referent="13">
       <Properties>
         <string name="Name">Server</string>
       </Properties>
-      <Item class="ModuleScript" referent="12">
+      <Item class="ModuleScript" referent="14">
         <Properties>
           <string name="Name">ArenaCrossfire</string>
           <string name="Source"><![CDATA[--[[
@@ -2966,7 +3373,7 @@ return ArenaCrossfire
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="13">
+      <Item class="ModuleScript" referent="15">
         <Properties>
           <string name="Name">ArenaDowntown</string>
           <string name="Source"><![CDATA[--[[
@@ -4146,7 +4553,7 @@ return ArenaDowntown
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="14">
+      <Item class="ModuleScript" referent="16">
         <Properties>
           <string name="Name">ArenaNuketown</string>
           <string name="Source"><![CDATA[--[[
@@ -4596,7 +5003,7 @@ return ArenaNuketown
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="15">
+      <Item class="ModuleScript" referent="17">
         <Properties>
           <string name="Name">ArenaPolygon</string>
           <string name="Source"><![CDATA[--[[
@@ -4764,7 +5171,7 @@ return ArenaPolygon
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="16">
+      <Item class="ModuleScript" referent="18">
         <Properties>
           <string name="Name">ArenaSimple</string>
           <string name="Source"><![CDATA[--[[
@@ -4863,7 +5270,7 @@ return ArenaSimple
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="17">
+      <Item class="ModuleScript" referent="19">
         <Properties>
           <string name="Name">BotService</string>
           <string name="Source"><![CDATA[--[[
@@ -5326,7 +5733,7 @@ return BotService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="18">
+      <Item class="ModuleScript" referent="20">
         <Properties>
           <string name="Name">CharacterService</string>
           <string name="Source"><![CDATA[--[[
@@ -5635,7 +6042,7 @@ return CharacterService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="19">
+      <Item class="ModuleScript" referent="21">
         <Properties>
           <string name="Name">CombatService</string>
           <string name="Source"><![CDATA[--[[
@@ -6541,7 +6948,288 @@ return CombatService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="20">
+      <Item class="ModuleScript" referent="22">
+        <Properties>
+          <string name="Name">CrateService</string>
+          <string name="Source"><![CDATA[--[[
+	CrateService.lua  (ServerScriptService.Server.CrateService)
+
+	Crates in the lobby's crate vault (see Config.Crates):
+	  * Every player has Keys (the "Keys" attribute on the Player). New
+	    players start with Config.Crates.StartingKeys; finishing a match
+	    gives KeysPerWin / KeysPerLoss.
+	  * Opening a crate (the altar's "Open Crate" prompt, or the "CrateOpen"
+	    remote from the reveal screen's OPEN ANOTHER button) costs a key. The
+	    server checks you're in the lobby, near the altar and not spamming,
+	    then rolls the rarity (Chance %) and a skin of that rarity.
+	  * The result goes to the client over the "Crates" remote, which plays
+	    the opening animation (CrateController).
+	  * Keys and owned skins are saved in a DataStore. In Studio that needs
+	    Game Settings > Security > "Enable Studio Access to API Services";
+	    without it everything works for the session, it just isn't saved.
+]]
+
+local Players = game:GetService("Players")
+local DataStoreService = game:GetService("DataStoreService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+local Config = require(ReplicatedStorage.Shared.Config)
+local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local Util = require(ReplicatedStorage.Shared.Util)
+
+local CrateService = {}
+
+local CR = Config.Crates
+local MatchService
+
+local store
+pcall(function()
+	store = DataStoreService:GetDataStore("Crates_v1")
+end)
+
+local data = {} -- [player] = { Keys = n, Skins = { [skinId] = count }, Opened = n }
+local loaded = {} -- [player] = true once their save has loaded (or failed)
+local lastOpen = {} -- [player] = os.clock()
+local dirty = {} -- [player] = true when there are unsaved changes
+local rng = Random.new()
+
+local skinsByRarity = {}
+for _, skin in ipairs(CR.Skins) do
+	skinsByRarity[skin.Rarity] = skinsByRarity[skin.Rarity] or {}
+	table.insert(skinsByRarity[skin.Rarity], skin)
+end
+
+local function notify(player, text)
+	Remotes.Get("Notify"):FireClient(player, text)
+end
+
+local function sendInventory(player)
+	local d = data[player]
+	if d then
+		Remotes.Get("Crates"):FireClient(player, { Type = "Inventory", Keys = d.Keys, Skins = d.Skins })
+	end
+end
+
+local function setKeys(player, keys)
+	local d = data[player]
+	d.Keys = math.max(0, math.floor(keys))
+	player:SetAttribute("Keys", d.Keys)
+	dirty[player] = true
+end
+
+----------------------------------------------------------------------------
+-- Saving
+----------------------------------------------------------------------------
+local function save(player)
+	local d = data[player]
+	if not store or not d or not loaded[player] or not dirty[player] then
+		return
+	end
+	dirty[player] = nil
+	local ok, err = pcall(function()
+		store:SetAsync("u" .. player.UserId, { Keys = d.Keys, Skins = d.Skins, Opened = d.Opened })
+	end)
+	if not ok then
+		dirty[player] = true
+		warn("[CrateService] save failed for", player.Name, err)
+	end
+end
+
+local function load(player)
+	local saved
+	if store then
+		local ok, result = pcall(function()
+			return store:GetAsync("u" .. player.UserId)
+		end)
+		if ok then
+			saved = result
+		end
+	end
+	if not player.Parent then
+		return
+	end
+	local d = { Keys = CR.StartingKeys, Skins = {}, Opened = 0 }
+	if typeof(saved) == "table" then
+		if typeof(saved.Keys) == "number" then
+			d.Keys = math.max(0, math.floor(saved.Keys))
+		end
+		if typeof(saved.Opened) == "number" then
+			d.Opened = saved.Opened
+		end
+		if typeof(saved.Skins) == "table" then
+			for id, count in pairs(saved.Skins) do
+				if typeof(id) == "string" and typeof(count) == "number" then
+					d.Skins[id] = count
+				end
+			end
+		end
+	end
+	data[player] = d
+	loaded[player] = true
+	player:SetAttribute("Keys", d.Keys)
+	sendInventory(player)
+end
+
+----------------------------------------------------------------------------
+-- Opening
+----------------------------------------------------------------------------
+local function rollRarity()
+	local total = 0
+	for _, rarity in ipairs(CR.Rarities) do
+		total += rarity.Chance
+	end
+	local pick = rng:NextNumber() * total
+	for _, rarity in ipairs(CR.Rarities) do
+		pick -= rarity.Chance
+		if pick <= 0 then
+			return rarity
+		end
+	end
+	return CR.Rarities[1]
+end
+
+local function rollSkin()
+	-- re-roll the (very unlikely) case of a rarity with no skins
+	for _ = 1, 10 do
+		local rarity = rollRarity()
+		local list = skinsByRarity[rarity.Id]
+		if list and #list > 0 then
+			return rarity, list[rng:NextInteger(1, #list)]
+		end
+	end
+	local skin = CR.Skins[1]
+	for _, rarity in ipairs(CR.Rarities) do
+		if rarity.Id == skin.Rarity then
+			return rarity, skin
+		end
+	end
+	return CR.Rarities[1], skin
+end
+
+local function isFree()
+	return CR.FreeInStudio and RunService:IsStudio()
+end
+
+local function canOpen(player)
+	local d = data[player]
+	if not d then
+		return false, "Your crates are still loading"
+	end
+	if MatchService.GetMatch(player) then
+		return false, nil -- in a match: ignore quietly
+	end
+	if lastOpen[player] and os.clock() - lastOpen[player] < CR.Cooldown then
+		return false, nil
+	end
+	local lobby = MatchService.GetLobby()
+	local altar = lobby and lobby.CrateAltar
+	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	if not altar or not root or (root.Position - altar.Position).Magnitude > CR.MaxDistance then
+		return false, "Go to the crate vault to open crates"
+	end
+	if not isFree() and d.Keys < CR.Cost then
+		return false, "No keys left - play matches to earn more"
+	end
+	return true
+end
+
+function CrateService.Open(player)
+	local ok, reason = canOpen(player)
+	if not ok then
+		if reason then
+			notify(player, reason)
+		end
+		return
+	end
+	lastOpen[player] = os.clock()
+	local d = data[player]
+	if not isFree() then
+		setKeys(player, d.Keys - CR.Cost)
+	end
+	local rarity, skin = rollSkin()
+	local isNew = (d.Skins[skin.Id] or 0) == 0
+	d.Skins[skin.Id] = (d.Skins[skin.Id] or 0) + 1
+	d.Opened += 1
+	dirty[player] = true
+	Remotes.Get("Crates"):FireClient(player, {
+		Type = "Result",
+		Rarity = rarity.Id,
+		Skin = skin.Id,
+		New = isNew,
+		Count = d.Skins[skin.Id],
+		Keys = d.Keys,
+		Free = isFree(),
+		Skins = d.Skins,
+	})
+	-- save a little later (opening several in a row = one save)
+	task.delay(8, function()
+		if player.Parent then
+			save(player)
+		end
+	end)
+end
+
+----------------------------------------------------------------------------
+-- Keys for playing
+----------------------------------------------------------------------------
+local function onMatchFinished(match)
+	local winner = match.MatchWinner
+	if not winner then
+		return -- cancelled / no result
+	end
+	for _, player in ipairs(match.Players) do
+		if not Util.isBot(player) and player.Parent and data[player] then
+			local gain = player == winner and CR.KeysPerWin or CR.KeysPerLoss
+			if gain > 0 then
+				setKeys(player, data[player].Keys + gain)
+				notify(player, ("+%d KEY%s  -  open crates in the crate vault"):format(gain, gain == 1 and "" or "S"))
+				task.spawn(save, player)
+			end
+		end
+	end
+end
+
+function CrateService.Init(matchService)
+	MatchService = matchService
+
+	Remotes.Get("CrateOpen").OnServerEvent:Connect(function(player)
+		CrateService.Open(player)
+	end)
+
+	local lobby = MatchService.GetLobby()
+	local prompt = lobby and lobby.CrateAltar and lobby.CrateAltar:FindFirstChildOfClass("ProximityPrompt")
+	if prompt then
+		prompt.Triggered:Connect(function(player)
+			CrateService.Open(player)
+		end)
+	end
+
+	MatchService.MatchFinished:Connect(onMatchFinished)
+
+	Players.PlayerAdded:Connect(load)
+	for _, player in ipairs(Players:GetPlayers()) do
+		task.spawn(load, player)
+	end
+	Players.PlayerRemoving:Connect(function(player)
+		save(player)
+		data[player] = nil
+		loaded[player] = nil
+		lastOpen[player] = nil
+		dirty[player] = nil
+	end)
+	game:BindToClose(function()
+		for _, player in ipairs(Players:GetPlayers()) do
+			save(player)
+		end
+	end)
+end
+
+return CrateService
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="23">
         <Properties>
           <string name="Name">DummyService</string>
           <string name="Source"><![CDATA[--[[
@@ -6749,7 +7437,7 @@ return DummyService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="21">
+      <Item class="ModuleScript" referent="24">
         <Properties>
           <string name="Name">LightingSetup</string>
           <string name="Source"><![CDATA[--[[
@@ -6829,7 +7517,7 @@ return LightingSetup
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="22">
+      <Item class="ModuleScript" referent="25">
         <Properties>
           <string name="Name">LobbyBuilder</string>
           <string name="Source"><![CDATA[--[[
@@ -6859,10 +7547,9 @@ return LightingSetup
 	    sconces. The ceiling has radial beams and hanging lights.
 	  * North: a tunnel with a gate into the shooting range.
 	  * East: the duel area, a raised dais with team-coloured pads.
-	  * West: the crate shop, a storefront with arches, an awning, a counter,
-	    shelves and three crates on pedestals. It's a placeholder: each pedestal
-	    has a marker in Lobby.CrateSpots with a "Rarity" attribute, for the
-	    future crate / rifle skin system.
+	  * West: the crate vault, a round dais with the crate altar (the crate is
+	    built and animated by each client, see CrateController), the odds board
+	    and two light pillars. Lobby.CrateAltar has the "Open Crate" prompt.
 	  * South: the stage with the title sign.
 	  * Diagonals: the Playground portal, an indoor garden, a parkour corner and
 	    a wall-run wall with a low ceiling (Magnetic Boots).
@@ -6874,6 +7561,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local MapBuilder = require(script.Parent.MapBuilder)
+local Logo = require(ReplicatedStorage.Shared.Logo)
 
 local P = Config.Palette
 local C = Config.MapPalette
@@ -7032,21 +7720,6 @@ local function flowers(b, pos)
 	end)
 end
 
--- A loot crate (placeholder art).
-local function crate(b, pos, color, size)
-	size = size or 1
-	b.block(V(4.4, 3, 4.4) * size, pos + V(0, 1.5 * size, 0), C.Dark)
-	b.decor(function()
-		b.block(V(4.6, 0.9, 4.6) * size, pos + V(0, 3.4 * size, 0), color)
-		neon(b, b.block(V(4.5, 0.18, 4.5) * size, pos + V(0, 3 * size, 0), color))
-		for _, x in ipairs({ -1.5, 1.5 }) do
-			b.block(V(0.35, 3.1, 4.5) * size, pos + V(x * size, 1.5 * size, 0), C.Metal)
-		end
-		b.block(V(0.3, 1, 1) * size, pos + V(2.3 * size, 2.3 * size, 0), P.UIText)
-		neon(b, b.ball(0.5 * size, pos + V(2.45 * size, 2.3 * size, 0), color))
-	end)
-end
-
 -- A ring of blocks between radii ri and ro (an annulus), `thick` tall, top at yTop.
 -- skip(deg) can leave gaps.
 local function ring(b, ri, ro, yTop, thick, color, count, skip)
@@ -7107,7 +7780,7 @@ function LobbyBuilder.Build()
 		-- ...and the steps you see
 		for k = 0, 2 do
 			ring(b, PIT_R + k * 2, PIT_R + 6, -PIT_DEPTH + (k + 1) * PIT_DEPTH / 3, PIT_DEPTH / 3 + 0.02, k % 2 == 0 and C.Stone or C.Sidewalk, SEGMENTS)
-			ring(b, PIT_R + k * 2, PIT_R + k * 2 + 0.3, -PIT_DEPTH + (k + 1) * PIT_DEPTH / 3 + 0.03, 0.06, C.Trim, SEGMENTS) -- step nosing
+			ring(b, PIT_R + k * 2 - 0.08, PIT_R + k * 2 + 0.3, -PIT_DEPTH + (k + 1) * PIT_DEPTH / 3 + 0.03, 0.06, C.Trim, SEGMENTS) -- step nosing
 		end
 		-- floor pattern: radial joints and rings
 		for i = 0, 23 do
@@ -7183,9 +7856,29 @@ function LobbyBuilder.Build()
 				b.ball(2.6, pot + V(0, 2.4, 0), C.FoliageDark)
 				b.ball(1.8, pot + V(0.5, 3.2, 0.3), C.Foliage)
 			end
-			-- banners between columns, alternating team colours
-			local mid = polar(COLUMN_R, deg + 15, 17)
-			b.part(V(4.5, 9, 0.3), CFrame.lookAt(mid, V(0, 17, 0)), i % 2 == 0 and P.PlayerA or P.PlayerB)
+			-- banners between columns: the SNIPER DUEL logo, trimmed in team colours
+			-- (none in front of the four main signs: north, east, south, west)
+			if (deg + 15) % 90 ~= 0 then
+				local team = (i - math.floor((i + 1) / 3)) % 2 == 0 and P.PlayerA or P.PlayerB
+				local mid = polar(COLUMN_R, deg + 15, 16.5)
+				local bannerCf = CFrame.lookAt(mid, V(0, 16.5, 0))
+				local cloth = b.part(V(4.6, 10, 0.2), bannerCf, P.UIPanel)
+				for _, part in ipairs(cloth) do
+					part.Name = "Banner"
+					for _, face in ipairs({ Enum.NormalId.Front, Enum.NormalId.Back }) do
+						Logo.OnPart(part, face, { Layout = "Stacked", Color = P.UIText, Accent = team, Stroke = 9 }, 40)
+					end
+				end
+				for _, x in ipairs({ -2.18, 2.18 }) do
+					b.part(V(0.24, 10.3, 0.26), bannerCf * CFrame.new(x, 0, 0), team) -- side trims
+				end
+				b.part(V(4.84, 0.5, 0.3), bannerCf * CFrame.new(0, -5.1, 0), team) -- bottom hem
+				b.cylinder(5.6, 0.3, nil, C.Metal, nil, bannerCf * CFrame.new(0, 5.15, 0)) -- hanging rod
+				for _, x in ipairs({ -2.95, 2.95 }) do
+					b.ball(0.5, (bannerCf * CFrame.new(x, 5.15, 0)).Position, C.Trim)
+					b.part(V(0.08, WALL_H - 21.65, 0.08), bannerCf * CFrame.new(x * 0.8, 5.15 + (WALL_H - 21.65) / 2, 0), C.Metal) -- cords
+				end
+			end
 			-- radial beams under the ceiling
 			local a, c = polar(COLUMN_R, deg, WALL_H - 0.8), polar(R, deg, WALL_H - 0.8)
 			b.part(V(1.2, 1.4, (c - a).Magnitude), CFrame.lookAt((a + c) / 2, c), C.Trim)
@@ -7195,25 +7888,24 @@ function LobbyBuilder.Build()
 			b.block(V(2.6, 0.6, 2.6), hang - V(0, 5.2, 0), C.Dark)
 			light(neon(b, b.block(V(2, 0.3, 2), hang - V(0, 5.6, 0), C.LampLight)), C.LampLight, 32, 1.4)
 		end
-		ring(b, R - 2, R + 3, WALL_H + 0.2, 0.4, C.Trim, SEGMENTS) -- ceiling edge trim
+		ring(b, R - 2, R, WALL_H, 0.4, C.Trim, SEGMENTS) -- ceiling edge trim
 		for _, r in ipairs({ 40, 52 }) do -- ceiling beam rings (coffers)
 			ring(b, r, r + 1.2, WALL_H - 0.1, 1.2, C.Trim, SEGMENTS)
 		end
-		-- skylight drum + glass dome over the centre
-		ring(b, COLUMN_R - 1.5, COLUMN_R, WALL_H + 7, 7, C.BuildingA, SEGMENTS)
-		local glass = b.cylinder(0.5, (COLUMN_R - 0.5) * 2, V(0, WALL_H + 7.25, 0), C.Glass)
+		-- skylight drum (sitting on the roof, so no faces overlap) + glass + rim
+		ring(b, COLUMN_R - 1.5, COLUMN_R, WALL_H + 7, 5.5, C.BuildingA, SEGMENTS)
+		local glass = b.cylinder(0.3, (COLUMN_R - 0.6) * 2, V(0, WALL_H + 7.25, 0), C.Glass)
 		b.material(glass, Enum.Material.Glass, 0.1)
 		for _, part in ipairs(glass) do
 			part.Transparency = 0.6
 		end
+		ring(b, COLUMN_R - 1.8, COLUMN_R + 0.3, WALL_H + 7.7, 0.5, C.Trim, SEGMENTS) -- rim
 		for i = 0, 7 do -- dome ribs
 			local deg = i * 45
-			bar(b, polar(COLUMN_R - 1, deg, WALL_H + 7.5), V(0, WALL_H + 9, 0), 0.6, C.Trim)
+			bar(b, polar(COLUMN_R - 1, deg, WALL_H + 7.8), V(0, WALL_H + 9.3, 0), 0.6, C.Trim)
 		end
-		ring(b, COLUMN_R - 2, COLUMN_R, WALL_H + 0.2, 0.4, C.Trim, SEGMENTS)
+		ring(b, COLUMN_R - 2, COLUMN_R, WALL_H, 0.4, C.Trim, SEGMENTS) -- trim under the roof edge
 	end)
-	-- the ceiling also covers everything outside the dome edge (no gaps to the sky)
-	ring(b, COLUMN_R - 2, COLUMN_R, WALL_H + 7.5, 0.5, C.Roof, 24)
 
 	-- CENTRE: RIFLE STATUE ------------------------------------------------------------
 	local pitY = -PIT_DEPTH
@@ -7279,7 +7971,7 @@ function LobbyBuilder.Build()
 	-- PATHS (from the top of the steps out to each place) ------------------------------
 	local stepTop = PIT_R + 6
 	for _, deg in ipairs({ 0, 90, 180, 270 }) do
-		local frame, len = path(b, stepTop, 50, deg, 10)
+		local frame, len = path(b, stepTop, deg == 270 and 43 or 50, deg, 10) -- (west stops at the crate dais)
 		for _, s in ipairs({ -1, 1 }) do
 			lampPost(b, (frame * CFrame.new(s * 7, 0, 0)).Position)
 		end
@@ -7337,59 +8029,137 @@ function LobbyBuilder.Build()
 	end)
 	sign(model, V(24, 8, 1), CFrame.new(R - 1.6, 9, 0) * CFrame.Angles(0, math.pi / 2, 0), "1v1 DUEL", "FIND MATCH [F]  -  DUEL A PLAYER [U]")
 
-	-- WEST: CRATE SHOP ------------------------------------------------------------------------
-	local front = -48
-	b.block(V(14, 1, 30), V(-55, 0.5, 0), C.Dark) -- shop floor
-	b.block(V(14, 14, 1.4), V(-55, 7, 15), C.BuildingC, "Z") -- side walls
-	b.block(V(15, 1.4, 31.4), V(-55.5, 14.7, 0), C.Roof) -- shop roof
-	for _, z in ipairs({ -15, -5, 5, 15 }) do
-		b.block(V(1.6, 13.4, 1.6), V(front, 7.7, z), C.BuildingC) -- arch pillars
-	end
-	b.block(V(1.6, 2.2, 31.6), V(front, 13.1, 0), C.BuildingC) -- lintel
-	b.block(V(3, 3.4, 18), V(-60.5, 2.7, 0), C.Wood) -- counter
+	-- WEST: CRATE VAULT ---------------------------------------------------------------------
+	-- A round dais with the altar in the middle (the crate itself is built and
+	-- animated by each client, see CrateController), an odds board on the wall
+	-- behind it and two light pillars. Open, calm, and lit like the rest of the hall.
+	local vault = V(-53, 0, 0)
+	b.cylinder(0.5, 21, vault + V(0, 0.25, 0), C.Stone) -- lower step
+	b.cylinder(0.5, 15, vault + V(0, 0.75, 0), C.BuildingA) -- upper step
+	b.cylinder(2.2, 5, vault + V(0, 2.1, 0), C.Dark) -- altar pedestal
 	b.decor(function()
-		accent(b, b.block(V(14.2, 0.2, 30.2), V(-55, 1.05, 0), P.AccentB))
-		b.block(V(15.6, 0.9, 32), V(-55.5, 15.8, 0), C.Stone) -- cornice
-		b.block(V(3.2, 0.4, 18.2), V(-60.5, 4.55, 0), C.Stone)
-		neon(b, b.block(V(0.2, 0.3, 18), V(-58.9, 4.2, 0), P.AccentB))
-		for _, y in ipairs({ 5.6, 9.4 }) do -- shelves of crates
-			b.block(V(1.6, 0.3, 24), V(-61.8, y, 0), C.Wood)
-			for k = -2, 2 do
-				local rarity = ({ "Common", "Rare", "Epic", "Legendary" })[(k + 3) % 4 + 1]
-				local color = Config.Rarity[rarity].Color
-				b.block(V(1.4, 1.4, 1.4), V(-61.8, y + 0.85, k * 4.4), C.Dark)
-				neon(b, b.block(V(1.45, 0.15, 1.45), V(-61.8, y + 1.2, k * 4.4), color))
-			end
+		b.cylinder(0.08, 21.3, vault + V(0, 0.46, 0), C.Trim) -- step edges
+		b.cylinder(0.08, 15.3, vault + V(0, 0.96, 0), C.Trim)
+		b.cylinder(0.3, 5.6, vault + V(0, 1.15, 0), C.Metal) -- pedestal base + cap
+		b.cylinder(0.25, 5.5, vault + V(0, 3.3, 0), C.Metal)
+		-- rarity wheel inlaid round the pedestal, one tile per rarity
+		local count = #Config.Crates.Rarities
+		for k, rarity in ipairs(Config.Crates.Rarities) do
+			local a = rad((k - 1) * 360 / count + 180 / count)
+			local pos = vault + V(math.cos(a) * 5.4, 1.03, math.sin(a) * 5.4)
+			b.part(V(4.4, 0.06, 1.1), CFrame.lookAt(pos, vault + V(0, 1.03, 0)) * CFrame.Angles(0, rad(90), 0), rarity.Color)
 		end
-		for k = -7, 7 do -- striped awning
-			b.part(V(4, 0.3, 2), CFrame.new(-46.4, 11.8, k * 2) * CFrame.Angles(0, 0, rad(18)), k % 2 == 0 and P.AccentB or C.RoadWhite)
-		end
-		light(neon(b, b.block(V(10, 0.25, 0.25), V(-55, 13.8, 0), C.LampLight)), C.LampLight, 24, 1.2)
 	end)
-	sign(model, V(16, 3.6, 0.6), CFrame.new(front + 0.6, 18.2, 0) * CFrame.Angles(0, -math.pi / 2, 0), "CRATES", "RIFLE SKINS - COMING SOON", P.AccentB)
-	local spots = Instance.new("Folder")
-	spots.Name = "CrateSpots"
-	spots.Parent = model
-	for i, info in ipairs({ { -9, "Rare" }, { 0, "Legendary" }, { 9, "Epic" } }) do
-		local z, rarity = info[1], info[2]
-		local color = Config.Rarity[rarity].Color
-		local base = V(-52.5, 1, z)
-		b.cylinder(1.4, 5.4, base + V(0, 0.7, 0), C.Stone)
-		b.decor(function()
-			light(neon(b, b.cylinder(0.2, 5.7, base + V(0, 1.4, 0), color)), color, 10, 1)
-		end)
-		crate(b, base + V(0, 1.4, 0), color, 0.9)
-		local spot = Instance.new("Part")
-		spot.Name = "CrateSpot" .. i
-		spot.Anchored = true
-		spot.CanCollide = false
-		spot.CanQuery = false
-		spot.Transparency = 1
-		spot.Size = V(4, 0.2, 4)
-		spot.CFrame = CFrame.new(base + V(0, 1.5, 0))
-		spot:SetAttribute("Rarity", rarity)
-		spot.Parent = spots
+	local ringParts = b.cylinder(0.14, 5.2, vault + V(0, 3.05, 0), P.AccentA)
+	neon(b, ringParts)
+	for _, part in ipairs(ringParts) do
+		part.Name = "AltarRing" -- the client cycles it through the rarity colours
+		part.CanCollide = false
 	end
+
+	-- the altar anchor: the client builds the crate here; the prompt opens it
+	local altar = Instance.new("Part")
+	altar.Name = "CrateAltar"
+	altar.Anchored = true
+	altar.CanCollide = false
+	altar.CanQuery = false
+	altar.CanTouch = false
+	altar.Transparency = 1
+	altar.Size = V(4, 0.2, 4)
+	altar.CFrame = CFrame.lookAt(vault + V(0, 3.45, 0), vault + V(1, 3.45, 0)) -- crate front faces the hall
+	altar.Parent = model
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = "OpenCrate"
+	prompt.ActionText = "Open Crate"
+	prompt.ObjectText = "Crate Vault"
+	prompt.KeyboardKeyCode = Enum.KeyCode.X
+	prompt.HoldDuration = 0.35
+	prompt.MaxActivationDistance = 14
+	prompt.RequiresLineOfSight = false
+	prompt.UIOffset = Vector2.new(0, 40)
+	prompt.Parent = altar
+
+	-- light pillars either side of the dais
+	for _, z in ipairs({ -9, 9 }) do
+		local base = vault + V(-3.5, 1, z)
+		b.block(V(1.2, 10, 1.2), base + V(0, 5, 0), C.BuildingA)
+		b.decor(function()
+			b.block(V(1.6, 0.6, 1.6), base + V(0, 0.3, 0), C.Metal)
+			b.block(V(1.6, 0.6, 1.6), base + V(0, 9.9, 0), C.Metal)
+			light(neon(b, b.block(V(0.3, 8, 1.26), base + V(0.5, 5, 0), C.LampLight)), C.LampLight, 22, 1.1)
+		end)
+	end
+
+	-- odds board on the wall behind: one card per rarity with its chance
+	local board = Instance.new("Part")
+	board.Name = "OddsBoard"
+	board.Anchored = true
+	board.CanCollide = false
+	board.Size = V(22, 9, 0.4)
+	board.CFrame = CFrame.lookAt(V(-60.6, 8.5, 0), V(0, 8.5, 0))
+	board.Color = P.UIPanel
+	board.Material = Enum.Material.SmoothPlastic
+	board.Parent = model
+	do
+		local gui = Instance.new("SurfaceGui")
+		gui.Face = Enum.NormalId.Front
+		gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		gui.PixelsPerStud = 40
+		gui.LightInfluence = 0
+		gui.Parent = board
+		local title = Instance.new("TextLabel")
+		title.BackgroundTransparency = 1
+		title.Position = UDim2.fromScale(0.05, 0.05)
+		title.Size = UDim2.fromScale(0.9, 0.14)
+		title.Text = "CRATE ODDS"
+		title.TextScaled = true
+		title.FontFace = Font.new(Config.UI.FontFamily, Enum.FontWeight.Heavy)
+		title.TextColor3 = P.UIText
+		title.Parent = gui
+		local count = #Config.Crates.Rarities
+		for k, rarity in ipairs(Config.Crates.Rarities) do
+			local card = Instance.new("Frame")
+			card.BackgroundColor3 = P.UIPanelLight
+			card.BorderSizePixel = 0
+			card.Position = UDim2.fromScale(0.04 + (k - 1) * 0.92 / count + 0.006, 0.26)
+			card.Size = UDim2.fromScale(0.92 / count - 0.012, 0.66)
+			card.Parent = gui
+			local corner = Instance.new("UICorner")
+			corner.CornerRadius = UDim.new(0, 14)
+			corner.Parent = card
+			local bar = Instance.new("Frame")
+			bar.BackgroundColor3 = rarity.Color
+			bar.BorderSizePixel = 0
+			bar.Size = UDim2.fromScale(1, 0.12)
+			bar.Parent = card
+			local barCorner = corner:Clone()
+			barCorner.Parent = bar
+			local chance = Instance.new("TextLabel")
+			chance.BackgroundTransparency = 1
+			chance.Position = UDim2.fromScale(0.08, 0.24)
+			chance.Size = UDim2.fromScale(0.84, 0.36)
+			chance.Text = tostring(rarity.Chance) .. "%"
+			chance.TextScaled = true
+			chance.FontFace = Font.new(Config.UI.FontFamily, Enum.FontWeight.Heavy)
+			chance.TextColor3 = rarity.Color
+			chance.Parent = card
+			local name = chance:Clone()
+			name.Position = UDim2.fromScale(0.06, 0.68)
+			name.Size = UDim2.fromScale(0.88, 0.18)
+			name.Text = rarity.Name
+			name.FontFace = Font.new(Config.UI.FontFamily, Enum.FontWeight.Bold)
+			name.TextColor3 = P.UIText
+			name.Parent = card
+		end
+	end
+	b.decor(function()
+		local frame = CFrame.lookAt(V(-60.9, 8.5, 0), V(0, 8.5, 0))
+		b.part(V(22.8, 0.4, 0.5), frame * CFrame.new(0, 4.7, 0), C.Metal)
+		b.part(V(22.8, 0.4, 0.5), frame * CFrame.new(0, -4.7, 0), C.Metal)
+		b.part(V(0.4, 9.8, 0.5), frame * CFrame.new(-11.2, 0, 0), C.Metal)
+		b.part(V(0.4, 9.8, 0.5), frame * CFrame.new(11.2, 0, 0), C.Metal)
+	end)
+	sign(model, V(16, 3.2, 0.5), CFrame.lookAt(V(-60.4, 15.4, 0), V(0, 15.4, 0)), "CRATE VAULT", "OPEN CRATES  -  UNLOCK RIFLE SKINS", P.AccentB)
 
 	-- VENDING MACHINES + BINS ---------------------------------------------------------------
 	local function vending(cf, color)
@@ -7434,7 +8204,15 @@ function LobbyBuilder.Build()
 		end
 		b.block(V(30, 0.5, 0.5), V(0, WALL_H - 4, 51), C.Metal)
 	end)
-	sign(model, V(28, 10, 1), CFrame.new(0, 14, R - 2.2), "SNIPER DUEL", ("1v1  -  FIRST TO %d"):format(Config.Match.RoundsToWin))
+	local title = sign(model, V(30, 9, 1), CFrame.new(0, 14, R - 2.2), "", nil)
+	title:FindFirstChildOfClass("SurfaceGui"):Destroy()
+	Logo.OnPart(title, Enum.NormalId.Front, {
+		Layout = "Inline",
+		Color = P.UIText,
+		Accent = P.AccentA,
+		Stroke = 14,
+		Subtitle = ("1V1 SNIPER ARENA  -  FIRST TO %d"):format(Config.Match.RoundsToWin),
+	}, 40)
 
 	-- NORTH-EAST: INDOOR GARDEN ------------------------------------------------------------
 	plant(b, polar(52, 55), 1)
@@ -7464,7 +8242,8 @@ function LobbyBuilder.Build()
 			local a = k / 24 * math.pi * 2
 			local pos = centre + across * math.cos(a) * 6 + V(0, math.sin(a) * 6, 0)
 			local tangent = across * -math.sin(a) + V(0, math.cos(a), 0)
-			b.part(V(1.3, 1.3, 1.9), CFrame.lookAt(pos, pos + tangent), k % 2 == 0 and C.BuildingA or C.Trim)
+			local grow = k % 2 == 0 and 0 or 0.08
+			b.part(V(1.3 + grow, 1.3 + grow, 1.9), CFrame.lookAt(pos, pos + tangent), k % 2 == 0 and C.BuildingA or C.Trim)
 		end
 		local disc = b.cylinder(0.2, 11.2, nil, P.AccentA, nil, CFrame.lookAt(centre, centre + facing) * CFrame.Angles(0, rad(90), 0))
 		light(neon(b, disc), P.AccentA, 20, 1.2)
@@ -7534,7 +8313,7 @@ function LobbyBuilder.Build()
 			return CFrame.lookAt(offset, Vector3.new(offset.X * 2, pitY + 3.5, offset.Z * 2))
 		end,
 		KillY = -60,
-		CrateSpots = spots,
+		CrateAltar = altar,
 		DummySpots = {
 			{ Position = V(-10, 0, -110), Motion = "Static" },
 			{ Position = V(8, 0, -135), Motion = "Strafe", Amount = 8, Speed = 0.35 },
@@ -7551,7 +8330,7 @@ return LobbyBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="Script" referent="23">
+      <Item class="Script" referent="26">
         <Properties>
           <string name="Name">Main</string>
           <token name="RunContext">0</token>
@@ -7569,6 +8348,7 @@ return LobbyBuilder
 		MatchService      lobby, queue, matchmaking
 		CombatService     server-side hit validation, damage, abilities
 		BotService        computer opponent for admin "/bot" matches
+		CrateService      crate keys, opening (server-side rolls), owned skins (DataStore)
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -7591,6 +8371,7 @@ local SettingsService = require(script.Parent.SettingsService)
 local MatchService = require(script.Parent.MatchService)
 local CombatService = require(script.Parent.CombatService)
 local BotService = require(script.Parent.BotService)
+local CrateService = require(script.Parent.CrateService)
 
 LightingSetup.Apply()
 CharacterService.Init()
@@ -7598,12 +8379,13 @@ SettingsService.Init()
 CombatService.Init()
 BotService.Init(CombatService)
 MatchService.Init()
+CrateService.Init(MatchService)
 
 print("[Sniper Duel] server ready")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="24">
+      <Item class="ModuleScript" referent="27">
         <Properties>
           <string name="Name">MapBuilder</string>
           <string name="Source"><![CDATA[--[[
@@ -7936,7 +8718,7 @@ return MapBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="25">
+      <Item class="ModuleScript" referent="28">
         <Properties>
           <string name="Name">Match</string>
           <string name="Source"><![CDATA[--[[
@@ -8315,7 +9097,7 @@ return Match
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="26">
+      <Item class="ModuleScript" referent="29">
         <Properties>
           <string name="Name">MatchService</string>
           <string name="Source"><![CDATA[--[[
@@ -8341,6 +9123,7 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local PowerUps = require(ReplicatedStorage.Shared.PowerUps)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Util = require(ReplicatedStorage.Shared.Util)
+local Signal = require(ReplicatedStorage.Shared.Signal)
 local CharacterService = require(script.Parent.CharacterService)
 local MapBuilder = require(script.Parent.MapBuilder)
 local DummyService = require(script.Parent.DummyService)
@@ -8348,6 +9131,7 @@ local Match = require(script.Parent.Match)
 local BotService = require(script.Parent.BotService)
 
 local MatchService = {}
+MatchService.MatchFinished = Signal.new() -- (match) after a match ends (crates hand out keys)
 
 local lobby
 local queue = {} -- ordered list of players waiting
@@ -8475,6 +9259,7 @@ end
 ----------------------------------------------------------------------------
 local function onMatchFinished(match)
 	arenaInUse[match.Arena.Index] = nil
+	MatchService.MatchFinished:Fire(match)
 	-- remember who you just played so you can ask for a rematch
 	local a, b = match.Players[1], match.Players[2]
 	for _, pair in ipairs({ { a, b }, { b, a } }) do
@@ -8775,6 +9560,11 @@ end
 ----------------------------------------------------------------------------
 -- Init
 ----------------------------------------------------------------------------
+-- The lobby (built in Init): Model, CrateAltar, ...
+function MatchService.GetLobby()
+	return lobby
+end
+
 function MatchService.Init()
 	lobby = MapBuilder.BuildLobby()
 	DummyService.Init(lobby.DummySpots)
@@ -8874,7 +9664,7 @@ return MatchService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="27">
+      <Item class="ModuleScript" referent="30">
         <Properties>
           <string name="Name">SettingsService</string>
           <string name="Source"><![CDATA[--[[
@@ -8995,13 +9785,13 @@ return SettingsService
       </Item>
     </Item>
   </Item>
-  <Item class="SoundService" referent="28">
+  <Item class="SoundService" referent="31">
     <Properties>
       <string name="Name">SoundService</string>
       <bool name="RespectFilteringEnabled">true</bool>
     </Properties>
   </Item>
-  <Item class="StarterPlayer" referent="29">
+  <Item class="StarterPlayer" referent="32">
     <Properties>
       <string name="Name">StarterPlayer</string>
       <float name="CameraMaxZoomDistance">18</float>
@@ -9009,11 +9799,11 @@ return SettingsService
       <bool name="EnableMouseLockOption">false</bool>
       <bool name="LoadCharacterAppearance">true</bool>
     </Properties>
-    <Item class="StarterCharacterScripts" referent="30">
+    <Item class="StarterCharacterScripts" referent="33">
       <Properties>
         <string name="Name">StarterCharacterScripts</string>
       </Properties>
-      <Item class="Script" referent="31">
+      <Item class="Script" referent="34">
         <Properties>
           <string name="Name">Health</string>
           <token name="RunContext">0</token>
@@ -9028,15 +9818,15 @@ return SettingsService
         </Properties>
       </Item>
     </Item>
-    <Item class="StarterPlayerScripts" referent="32">
+    <Item class="StarterPlayerScripts" referent="35">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="Folder" referent="33">
+      <Item class="Folder" referent="36">
         <Properties>
           <string name="Name">Client</string>
         </Properties>
-        <Item class="ModuleScript" referent="34">
+        <Item class="ModuleScript" referent="37">
           <Properties>
             <string name="Name">AimAssist</string>
             <string name="Source"><![CDATA[--[[
@@ -9217,7 +10007,7 @@ return AimAssist
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="35">
+        <Item class="ModuleScript" referent="38">
           <Properties>
             <string name="Name">CameraController</string>
             <string name="Source"><![CDATA[--[[
@@ -9541,7 +10331,7 @@ return CameraController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="36">
+        <Item class="ModuleScript" referent="39">
           <Properties>
             <string name="Name">CharacterPoser</string>
             <string name="Source"><![CDATA[--[[
@@ -9673,7 +10463,7 @@ return CharacterPoser
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="37">
+        <Item class="ModuleScript" referent="40">
           <Properties>
             <string name="Name">ClientState</string>
             <string name="Source"><![CDATA[--[[
@@ -9870,7 +10660,718 @@ return ClientState
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="38">
+        <Item class="ModuleScript" referent="41">
+          <Properties>
+            <string name="Name">CrateController</string>
+            <string name="Source"><![CDATA[--[[
+	CrateController.lua  (Client.CrateController)
+
+	The crate in the lobby's crate vault, and the opening cinematic.
+
+	Idle: the crate floats over the altar, slowly turning, its glow cycling
+	through the rarity colours.
+
+	Opening (when the server sends a result over the "Crates" remote):
+	  1. INTRO    the camera swoops in, letterbox bars slide on
+	  2. CHARGE   the crate lifts and spins faster and faster, shaking, while
+	              sparks get sucked in; its glow climbs the rarity ladder
+	              (COMMON > UNCOMMON > ...) and stops on what you got.
+	              Secret fakes you out: it stalls on Legendary, goes dark,
+	              then cracks red.
+	  3. BURST    the lid blasts off, a flash, a pillar of light, a shockwave
+	              ring and a shower of sparks in the rarity colour
+	  4. REVEAL   the rifle rises out of the crate in the skin's colours and
+	              spins while ui/CrateReveal shows the rarity + skin
+	Everything is local to you; the roll itself happened on the server.
+]]
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Config = require(Shared.Config)
+local Remotes = require(Shared.Remotes)
+local CrateModel = require(Shared.CrateModel)
+local GunModel = require(Shared.GunModel)
+local ClientState = require(script.Parent.ClientState)
+local Sfx = require(script.Parent.Sfx)
+local CrateReveal = require(script.Parent.ui.CrateReveal)
+
+local CR = Config.Crates
+local player = Players.LocalPlayer
+
+local CrateController = {}
+local Controllers
+
+local rarityById, tierOf, skinById = {}, {}, {}
+for i, rarity in ipairs(CR.Rarities) do
+	rarityById[rarity.Id] = rarity
+	tierOf[rarity.Id] = i
+end
+for _, skin in ipairs(CR.Skins) do
+	skinById[skin.Id] = skin
+end
+
+local CRATE_SCALE = 1.3
+local HOVER = 0.5
+
+local altar, prompt, ring
+local crate -- CrateModel table (local to this client)
+local idleT = 0
+local lastColorSet = 0
+
+-- cinematic state
+local playing = false
+local scene -- per-opening objects (cleaned up by clearScene)
+local saved -- what we changed on the player (restored by finish)
+local pendingResult -- a result that arrived while we were busy
+local waitingAgain = false
+
+----------------------------------------------------------------------------
+-- Helpers
+----------------------------------------------------------------------------
+local function ease(x)
+	x = math.clamp(x, 0, 1)
+	return 1 - (1 - x) ^ 3
+end
+
+local function newPart(props)
+	local part = Instance.new("Part")
+	part.Anchored = true
+	part.CanCollide = false
+	part.CanQuery = false
+	part.CanTouch = false
+	part.CastShadow = false
+	part.TopSurface = Enum.SurfaceType.Smooth
+	part.BottomSurface = Enum.SurfaceType.Smooth
+	for key, value in pairs(props) do
+		part[key] = value
+	end
+	part.Parent = props.Parent or workspace
+	return part
+end
+
+-- flat ring on the floor that grows and fades
+local function shockRing(center, color, size, time)
+	local part = newPart({
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(0.12, 1, 1),
+		CFrame = CFrame.new(center) * CFrame.Angles(0, 0, math.pi / 2),
+		Color = color,
+		Material = Enum.Material.Neon,
+		Transparency = 0.15,
+	})
+	TweenService:Create(part, TweenInfo.new(time or 0.6, Enum.EasingStyle.Quint), {
+		Size = Vector3.new(0.12, size, size),
+		Transparency = 1,
+	}):Play()
+	task.delay((time or 0.6) + 0.1, function()
+		part:Destroy()
+	end)
+end
+
+local function cameraShake(amount)
+	return Vector3.new(math.random() - 0.5, math.random() - 0.5, math.random() - 0.5) * amount
+end
+
+----------------------------------------------------------------------------
+-- The display crate + idle animation
+----------------------------------------------------------------------------
+local function restPose(t)
+	return altar.CFrame * CFrame.new(0, HOVER + math.sin(t * 1.6) * 0.16, 0) * CFrame.Angles(0, math.sin(t * 0.45) * 0.4, 0)
+end
+
+local function idleColor(t)
+	-- hold each rarity colour for a moment, then blend to the next
+	local n = #CR.Rarities
+	local f = (t * 0.32) % n
+	local i = math.floor(f) + 1
+	local a = math.clamp((f - math.floor(f) - 0.65) / 0.35, 0, 1)
+	return CR.Rarities[i].Color:Lerp(CR.Rarities[i % n + 1].Color, a)
+end
+
+local function setupAltar()
+	local lobby = workspace:WaitForChild("Lobby", 60)
+	altar = lobby and lobby:WaitForChild("CrateAltar", 30)
+	if not altar then
+		return false
+	end
+	prompt = altar:FindFirstChildOfClass("ProximityPrompt")
+	for _, part in ipairs(lobby:GetDescendants()) do
+		if part.Name == "AltarRing" and part:IsA("BasePart") then
+			ring = part
+			break
+		end
+	end
+	crate = CrateModel.Build({ CFrame = restPose(0), Scale = CRATE_SCALE, Color = CR.Rarities[1].Color, Parent = workspace, Name = "LobbyCrate" })
+	return true
+end
+
+local function idle(dt)
+	if playing or not crate then
+		return
+	end
+	local camera = workspace.CurrentCamera
+	if (camera.CFrame.Position - altar.Position).Magnitude > 220 then
+		return
+	end
+	idleT += dt
+	crate.Model:PivotTo(restPose(idleT))
+	local now = os.clock()
+	if now - lastColorSet > 0.08 then
+		lastColorSet = now
+		local color = idleColor(idleT)
+		CrateModel.SetColor(crate, color)
+		if ring then
+			ring.Color = color
+		end
+	end
+	if prompt then
+		local keys = player:GetAttribute("Keys") or 0
+		prompt.ObjectText = (CR.FreeInStudio and RunService:IsStudio()) and "Free in Studio"
+			or ("%d key%s"):format(keys, keys == 1 and "" or "s")
+	end
+end
+
+----------------------------------------------------------------------------
+-- Rifle in the skin's colours
+----------------------------------------------------------------------------
+local function buildRifle(skin, rarity)
+	local model = Instance.new("Model")
+	model.Name = "CrateRifle"
+	local scale = 1.7
+	local built = GunModel.Build(model, { Scale = scale, Anchored = true, CastShadow = false, Effects = false })
+	for _, part in pairs(built.Parts) do
+		part.CanCollide = false
+		part.CanQuery = false
+		part.CanTouch = false
+	end
+	if built.UsesMesh then
+		-- textured meshes can't be recoloured: wash them in the skin colour
+		local highlight = Instance.new("Highlight")
+		highlight.FillColor = skin.Body
+		highlight.FillTransparency = 0.45
+		highlight.OutlineColor = rarity.Color
+		highlight.OutlineTransparency = 0.1
+		highlight.DepthMode = Enum.HighlightDepthMode.Occluded
+		highlight.Parent = model
+	else
+		for _, part in pairs(built.Parts) do
+			local _, s, v = part.Color:ToHSV()
+			if part.Material == Enum.Material.Neon or s > 0.45 then
+				part.Color = skin.Accent
+			elseif v < 0.38 then
+				part.Color = skin.Metal
+			else
+				part.Color = skin.Body
+			end
+		end
+	end
+	model.Parent = workspace
+	return { Model = model, Built = built, Scale = scale }
+end
+
+local function placeRifle(rifle, cf)
+	-- GunModel's grip is near the back: shift so it spins around its middle
+	GunModel.Place(rifle.Built, cf * CFrame.new(0, 0, 1.4 * rifle.Scale), rifle.Scale)
+end
+
+----------------------------------------------------------------------------
+-- Take over / give back the player's view
+----------------------------------------------------------------------------
+local function takeOver()
+	local camera = workspace.CurrentCamera
+	saved = {
+		CameraType = camera.CameraType,
+		Fov = camera.FieldOfView,
+		Guis = {},
+	}
+	Controllers.Camera.SetSuspended(true)
+	Controllers.Viewmodel.SetHidden("Crate", true)
+	ClientState.SetMenu("Crate", true)
+	camera.CameraType = Enum.CameraType.Scriptable
+	-- hide the other screens (HUD, lobby, touch controls) for a clean shot
+	local playerGui = player:FindFirstChildOfClass("PlayerGui")
+	for _, screen in ipairs(playerGui and playerGui:GetChildren() or {}) do
+		if screen:IsA("ScreenGui") and screen.Enabled and screen.Name ~= "CrateReveal" then
+			screen.Enabled = false
+			table.insert(saved.Guis, screen)
+		end
+	end
+	-- stand still
+	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	if root then
+		saved.Root = root
+		saved.RootAnchored = root.Anchored
+		root.Anchored = true
+	end
+	if prompt then
+		prompt.Enabled = false
+	end
+	local cc = Instance.new("ColorCorrectionEffect")
+	cc.Name = "CrateFX"
+	cc.Parent = Lighting
+	saved.CC = cc
+	CrateReveal.Show()
+end
+
+local function giveBack()
+	local camera = workspace.CurrentCamera
+	if saved then
+		for _, screen in ipairs(saved.Guis) do
+			if screen.Parent then
+				screen.Enabled = true
+			end
+		end
+		if saved.Root and saved.Root.Parent then
+			saved.Root.Anchored = saved.RootAnchored
+		end
+		if saved.CC then
+			saved.CC:Destroy()
+		end
+		camera.FieldOfView = saved.Fov
+	end
+	camera.CameraType = Enum.CameraType.Custom
+	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		camera.CameraSubject = humanoid
+	end
+	Controllers.Camera.SetSuspended(false)
+	Controllers.Viewmodel.SetHidden("Crate", false)
+	ClientState.SetMenu("Crate", false)
+	if prompt then
+		prompt.Enabled = true
+	end
+	CrateReveal.Hide()
+	saved = nil
+end
+
+local function clearScene()
+	if not scene then
+		return
+	end
+	if scene.Connection then
+		scene.Connection:Disconnect()
+	end
+	for _, item in ipairs(scene.Trash) do
+		item:Destroy()
+	end
+	if scene.Rifle then
+		scene.Rifle.Model:Destroy()
+	end
+	CrateModel.SetFade(crate, 0)
+	CrateModel.SetLid(crate, 0)
+	scene = nil
+end
+
+local function finish()
+	if not playing then
+		return
+	end
+	waitingAgain = false
+	local black = CrateReveal.Black(1, 0.22)
+	black.Completed:Wait()
+	clearScene()
+	giveBack()
+	playing = false
+	crate.Model:PivotTo(restPose(idleT))
+	CrateReveal.Black(0, 0.35)
+end
+
+----------------------------------------------------------------------------
+-- The cinematic
+----------------------------------------------------------------------------
+local function play(result, continuing)
+	local rarity = rarityById[result.Rarity] or CR.Rarities[1]
+	local skin = skinById[result.Skin] or CR.Skins[1]
+	local tier = tierOf[rarity.Id] or 1
+	local isSecret = rarity.Id == "Secret"
+	local big = tier >= 5
+
+	playing = true
+	if not continuing then
+		takeOver()
+	end
+	local camera = workspace.CurrentCamera
+	local altarCf = altar.CFrame
+	local center = (altarCf * CFrame.new(0, HOVER + 1.6 * CRATE_SCALE, 0)).Position
+	local camFrom = camera.CFrame
+	local fov0 = saved.Fov
+
+	scene = { Trash = {} }
+	local function trash(item)
+		table.insert(scene.Trash, item)
+		return item
+	end
+
+	-- particles: sparks sucked in during the charge, a burst on the blast
+	local fxPart = trash(newPart({ Transparency = 1, Size = Vector3.new(16, 16, 16), CFrame = CFrame.new(center) }))
+	local inward, burst
+	if Config.Effects.Particles then
+		inward = Instance.new("ParticleEmitter")
+		inward.Texture = Config.Effects.SparkTexture
+		inward.Shape = Enum.ParticleEmitterShape.Sphere
+		inward.ShapeInOut = Enum.ParticleEmitterShapeInOut.Inward
+		inward.ShapeStyle = Enum.ParticleEmitterShapeStyle.Surface
+		inward.Speed = NumberRange.new(12, 15)
+		inward.Lifetime = NumberRange.new(0.5, 0.6)
+		inward.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.1), NumberSequenceKeypoint.new(1, 0.45) })
+		inward.LightEmission = 1
+		inward.Rate = 0
+		inward.Parent = fxPart
+		local attachment = Instance.new("Attachment")
+		attachment.Parent = fxPart
+		burst = Instance.new("ParticleEmitter")
+		burst.Texture = Config.Effects.SparkTexture
+		burst.Speed = NumberRange.new(25, 60)
+		burst.SpreadAngle = Vector2.new(180, 180)
+		burst.Drag = 3
+		burst.Acceleration = Vector3.new(0, -18, 0)
+		burst.Lifetime = NumberRange.new(0.8, 1.8)
+		burst.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.6), NumberSequenceKeypoint.new(1, 0) })
+		burst.LightEmission = 1
+		burst.Rate = 0
+		burst.Parent = attachment
+	end
+
+	-- timeline
+	local tIntro = continuing and 0.35 or 1.0
+	local stepTime = 0.5
+	local steps = {} -- { time, rarity, final }
+	local climbTo = isSecret and 5 or tier
+	local stepCount = math.max(climbTo, 2) -- always build a little suspense
+	for k = 1, stepCount do
+		local r = CR.Rarities[math.min(k, climbTo)]
+		table.insert(steps, { T = tIntro + (k - 1) * stepTime, Rarity = r, Final = (k == stepCount) and not isSecret })
+	end
+	local chargeEnd = tIntro + stepCount * stepTime + (big and 0.5 or 0.25)
+	local stallStart, crackTime
+	if isSecret then
+		stallStart = chargeEnd - 0.25
+		crackTime = stallStart + 1.1
+		chargeEnd = crackTime + 0.55
+	end
+	local tBurst = chargeEnd
+	local tReveal = tBurst + 0.35
+	local fired = {}
+	local function once(key, t, now)
+		if now >= t and not fired[key] then
+			fired[key] = true
+			return true
+		end
+		return false
+	end
+
+	local color = CR.Rarities[1].Color
+	local spin, yaw = 0, 0
+	local lidStart, lidVel, lidSpin
+	local beam
+	local rifle
+	local shotFrom = altarCf * CFrame.new(3, 4.2, -12)
+	local start = os.clock()
+	if not continuing then
+		Sfx.Play("CardFlip", { Pitch = 0.6, Volume = 1.4 })
+	end
+
+	scene.Connection = RunService.RenderStepped:Connect(function(dt)
+		local t = os.clock() - start
+		CrateReveal.Update(dt)
+
+		-- rarity climb
+		for i, step in ipairs(steps) do
+			if once("step" .. i, step.T, t) then
+				color = step.Rarity.Color
+				CrateModel.SetColor(crate, color)
+				if ring then
+					ring.Color = color
+				end
+				CrateReveal.Tier(step.Rarity, step.Final)
+				Sfx.Play("CardHover", { Pitch = 0.8 + i * 0.18, Volume = 2.2 })
+				shockRing(altarCf.Position + Vector3.new(0, 0.2, 0), color, 10 + i * 3, 0.55)
+				crate.Light.Brightness = 3
+			end
+		end
+		crate.Light.Brightness = math.max(1.2, crate.Light.Brightness - dt * 6)
+		if isSecret then
+			if once("stall", stallStart, t) then
+				-- "it's over"... everything goes dark
+				CrateReveal.Stall()
+				Sfx.Play("Countdown", { Pitch = 0.5, Volume = 1.5 })
+			end
+			if t >= stallStart and t < crackTime then
+				local dim = Color3.fromRGB(30, 26, 30):Lerp(CR.Rarities[5].Color, math.random() < 0.08 and 0.6 or 0)
+				CrateModel.SetColor(crate, dim)
+				crate.Light.Brightness = 0
+			end
+			if once("crack", crackTime, t) then
+				color = rarity.Color
+				CrateModel.SetColor(crate, color)
+				if ring then
+					ring.Color = color
+				end
+				CrateReveal.Tier(rarity, true)
+				CrateReveal.Flash(color, 0.35)
+				Sfx.Play("Explosion", { Pitch = 0.5, Volume = 1.5 })
+				shockRing(altarCf.Position + Vector3.new(0, 0.2, 0), color, 36, 0.7)
+			end
+		end
+
+		-- the crate: lift, spin up, shake
+		local charge = math.clamp((t - tIntro) / (chargeEnd - tIntro), 0, 1)
+		local lift, shake = 0, 0
+		if t < tBurst then
+			lift = ease(charge) * 2.2
+			shake = (charge ^ 2) * (big and 0.32 or 0.22)
+			spin = 0.6 + charge ^ 2 * 14
+			if isSecret and t >= stallStart and t < crackTime then
+				spin, shake = 0.3, 0.02 -- the fake-out: it all winds down
+			end
+			if inward then
+				inward.Color = ColorSequence.new(color)
+				inward.Rate = t > tIntro and (20 + charge * 120) or 0
+			end
+		else
+			local after = t - tBurst
+			lift = 2.2 - ease(after / 0.8) * 1.4
+			spin = math.max(0.5, 14 * (1 - after * 1.5))
+		end
+		yaw += spin * dt
+		local pose = altarCf * CFrame.new(cameraShake(shake)) * CFrame.new(0, HOVER + lift, 0) * CFrame.Angles(0, yaw, 0)
+		crate.Model:PivotTo(pose)
+		if t < tBurst then
+			CrateModel.SetLid(crate, charge > 0.3 and math.random() * charge * 9 or 0)
+		end
+
+		-- BURST
+		if once("burst", tBurst, t) then
+			if inward then
+				inward.Rate = 0
+			end
+			if burst then
+				burst.Color = ColorSequence.new(color, Color3.new(1, 1, 1))
+				burst:Emit(60 + tier * 25)
+			end
+			lidStart = crate.Lid:GetPivot()
+			-- up and back, away from the camera (the crate's front faces the camera)
+			lidVel = Vector3.new(math.random(-4, 4), 26, 0) + altarCf.LookVector * -9
+			lidSpin = Vector3.new(math.random(4, 7), math.random(-3, 3), math.random(-2, 2))
+			CrateReveal.Flash(Color3.new(1, 1, 1), big and 0.9 or 0.6)
+			Sfx.Play("Explosion", { Pitch = 1.1, Volume = 1.3 })
+			if tier >= 4 then
+				Sfx.Play("CardLegendary", { Pitch = isSecret and 0.45 or 0.8, Volume = 1.2 })
+			end
+			shockRing(altarCf.Position + Vector3.new(0, 0.3, 0), color, 30 + tier * 8, 0.8)
+			saved.CC.TintColor = color:Lerp(Color3.new(1, 1, 1), 0.5)
+			saved.CC.Brightness = 0.5
+			saved.CC.Saturation = 0.4
+			TweenService:Create(saved.CC, TweenInfo.new(1.2), {
+				TintColor = Color3.new(1, 1, 1),
+				Brightness = 0,
+				Saturation = 0.1,
+			}):Play()
+			-- pillar of light
+			beam = trash(newPart({
+				Shape = Enum.PartType.Cylinder,
+				Size = Vector3.new(80, 0.5, 0.5),
+				CFrame = CFrame.new(center + Vector3.new(0, 40, 0)) * CFrame.Angles(0, 0, math.pi / 2),
+				Color = color,
+				Material = Enum.Material.Neon,
+				Transparency = 0.1,
+			}))
+			TweenService:Create(beam, TweenInfo.new(0.25, Enum.EasingStyle.Quint), { Size = Vector3.new(80, big and 6 or 4, big and 6 or 4) }):Play()
+			task.delay(0.3, function()
+				if beam.Parent then
+					TweenService:Create(beam, TweenInfo.new(0.9), { Size = Vector3.new(80, 1.2, 1.2), Transparency = 0.45 }):Play()
+				end
+			end)
+			-- light shafts for the top tiers
+			if big then
+				for k = 1, 6 do
+					local shaft = trash(newPart({
+						Size = Vector3.new(0.4, 30, 0.4),
+						Color = color,
+						Material = Enum.Material.Neon,
+						Transparency = 0.35,
+					}))
+					shaft:SetAttribute("Angle", k * 60)
+				end
+			end
+			local burstLight = Instance.new("PointLight")
+			burstLight.Color = color
+			burstLight.Range = 40
+			burstLight.Brightness = 8
+			burstLight.Parent = fxPart
+			TweenService:Create(burstLight, TweenInfo.new(1.5), { Brightness = 1.5, Range = 24 }):Play()
+		end
+		if lidStart then
+			local tau = t - tBurst
+			local pos = lidStart.Position + lidVel * tau + Vector3.new(0, -45, 0) * tau * tau * 0.5
+			crate.Lid:PivotTo(CFrame.new(pos) * lidStart.Rotation * CFrame.Angles(lidSpin.X * tau, lidSpin.Y * tau, lidSpin.Z * tau))
+			if tau > 0.45 then
+				CrateModel.SetFade(crate, math.clamp((tau - 0.45) / 0.4, 0, 1), true)
+			end
+		end
+		-- spinning light shafts
+		for _, item in ipairs(scene.Trash) do
+			local angle = item:GetAttribute("Angle")
+			if angle then
+				local a = math.rad(angle) + t * 0.8
+				item.CFrame = CFrame.new(center) * CFrame.Angles(0, a, 0) * CFrame.Angles(math.rad(28), 0, 0) * CFrame.new(0, 15, 0)
+			end
+		end
+
+		-- REVEAL: the rifle rises out of the crate and spins
+		if once("reveal", tReveal, t) then
+			rifle = buildRifle(skin, rarity)
+			scene.Rifle = rifle
+			CrateReveal.Reveal({
+				Rarity = rarity,
+				Skin = skin,
+				New = result.New,
+				Count = result.Count,
+				Keys = result.Keys,
+				Free = result.Free,
+				CanAgain = result.Free or (result.Keys or 0) >= CR.Cost,
+			})
+			Sfx.Play(isSecret and "Victory" or "CardPick", { Pitch = 1, Volume = 1.2 })
+		end
+		if rifle then
+			local r = t - tReveal
+			local rise = ease(r / 0.9)
+			local rifleCf = CFrame.new(center + Vector3.new(0, 0.5 + rise * 3.6 + math.sin(t * 2) * 0.15, 0))
+				* CFrame.Angles(0, t * 1.1, 0)
+				* CFrame.Angles(math.rad(-8), 0, math.rad(math.sin(t * 1.4) * 6))
+			placeRifle(rifle, rifleCf)
+		end
+
+		-- CAMERA
+		local shotCf
+		if t < tIntro then
+			local a = ease(t / tIntro)
+			local target = CFrame.lookAt(shotFrom.Position, center)
+			shotCf = camFrom:Lerp(target, a)
+		elseif t < tBurst then
+			local dolly = ease(charge) * 3.2
+			local p = (altarCf * CFrame.new(3 - charge * 1.2, 4.2 - charge * 0.6, -12 + dolly)).Position
+			shotCf = CFrame.lookAt(p, center + Vector3.new(0, lift * 0.6, 0))
+		else
+			-- pull back and drift round while the rifle shows off
+			local after = t - tBurst
+			local back = ease(after / 0.6)
+			local orbit = math.rad(math.sin(after * 0.35) * 16)
+			local local0 = CFrame.Angles(0, orbit, 0) * CFrame.new(2.2 - back * 1, 4.6 + back * 1.6, -9 - back * 4.5)
+			local p = (altarCf * local0).Position
+			shotCf = CFrame.lookAt(p, center + Vector3.new(0, 2.6 * math.min(1, after), 0))
+		end
+		local camShake = 0
+		if t < tBurst then
+			camShake = charge ^ 3 * (big and 0.18 or 0.1)
+		else
+			camShake = math.max(0, (big and 1.0 or 0.6) * (1 - (t - tBurst) / 0.7))
+		end
+		camera.CFrame = shotCf * CFrame.new(cameraShake(camShake))
+		local fov = fov0
+		if t < tBurst then
+			fov = fov0 - charge * 12
+		else
+			local after = t - tBurst
+			fov = fov0 + 10 * math.exp(-after * 3) - 2
+		end
+		camera.FieldOfView = fov
+	end)
+end
+
+----------------------------------------------------------------------------
+-- Input during the reveal
+----------------------------------------------------------------------------
+local function openAgain()
+	if not playing or waitingAgain or not CrateReveal.IsShowingButtons() then
+		return
+	end
+	waitingAgain = true
+	CrateReveal.HideCard()
+	clearScene()
+	crate.Model:PivotTo(restPose(idleT))
+	Remotes.Get("CrateOpen"):FireServer()
+	-- no answer (out of keys, too far...): give the view back
+	task.delay(2.5, function()
+		if waitingAgain then
+			finish()
+		end
+	end)
+end
+
+local function onResult(result)
+	if typeof(result) ~= "table" or result.Type ~= "Result" then
+		return
+	end
+	if not crate then
+		return
+	end
+	if playing and waitingAgain then
+		waitingAgain = false
+		play(result, true)
+	elseif not playing then
+		play(result, false)
+	else
+		pendingResult = result
+	end
+end
+
+function CrateController.Init(controllers)
+	Controllers = controllers
+end
+
+function CrateController.Start()
+	local playerGui = player:WaitForChild("PlayerGui")
+	CrateReveal.Start(playerGui)
+	CrateReveal.Again:Connect(openAgain)
+	CrateReveal.Done:Connect(finish)
+
+	UserInputService.InputBegan:Connect(function(input)
+		if not playing or not CrateReveal.IsShowingButtons() then
+			return
+		end
+		local key = input.KeyCode
+		if key == Enum.KeyCode.X or key == Enum.KeyCode.ButtonX then
+			openAgain()
+		elseif key == Enum.KeyCode.Space or key == Enum.KeyCode.Return or key == Enum.KeyCode.ButtonA or key == Enum.KeyCode.ButtonB then
+			finish()
+		end
+	end)
+
+	Remotes.Get("Crates").OnClientEvent:Connect(onResult)
+
+	-- a match starting (or dying) mid-opening ends it at once
+	ClientState.Changed:Connect(function(snapshot)
+		if playing and snapshot.InMatch then
+			task.spawn(finish)
+		end
+	end)
+
+	task.spawn(function()
+		if setupAltar() then
+			RunService.RenderStepped:Connect(idle)
+			RunService.RenderStepped:Connect(function()
+				if not playing and pendingResult then
+					local result = pendingResult
+					pendingResult = nil
+					play(result, false)
+				end
+			end)
+		end
+	end)
+end
+
+return CrateController
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="42">
           <Properties>
             <string name="Name">EffectsController</string>
             <string name="Source"><![CDATA[--[[
@@ -10500,7 +12001,7 @@ return Effects
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="39">
+        <Item class="ModuleScript" referent="43">
           <Properties>
             <string name="Name">Keybinds</string>
             <string name="Source"><![CDATA[--[[
@@ -10636,7 +12137,7 @@ return Keybinds
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="40">
+        <Item class="ModuleScript" referent="44">
           <Properties>
             <string name="Name">KillCamController</string>
             <string name="Source"><![CDATA[--[[
@@ -11006,7 +12507,7 @@ return KillCam
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="41">
+        <Item class="ModuleScript" referent="45">
           <Properties>
             <string name="Name">LightingController</string>
             <string name="Source"><![CDATA[--[[
@@ -11118,7 +12619,7 @@ return LightingController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="LocalScript" referent="42">
+        <Item class="LocalScript" referent="46">
           <Properties>
             <string name="Name">Main</string>
             <string name="Source"><![CDATA[--[[
@@ -11140,6 +12641,7 @@ return LightingController
 		AimAssist            light controller aim assist (used by CameraController)
 		KillCamController    replays your death through your killer's eyes
 		LightingController   arena / indoor lobby lighting profiles
+		CrateController      the lobby crate + its opening cinematic
 ]]
 
 local Client = script.Parent
@@ -11154,6 +12656,7 @@ local UIController = require(Client.UIController)
 local CharacterPoser = require(Client.CharacterPoser)
 local KillCamController = require(Client.KillCamController)
 local LightingController = require(Client.LightingController)
+local CrateController = require(Client.CrateController)
 
 local controllers = {
 	Camera = CameraController,
@@ -11165,6 +12668,7 @@ local controllers = {
 	Poser = CharacterPoser,
 	KillCam = KillCamController,
 	Lighting = LightingController,
+	Crates = CrateController,
 }
 
 ClientState.Init()
@@ -11179,6 +12683,7 @@ local order = {
 	CharacterPoser,
 	KillCamController,
 	LightingController,
+	CrateController,
 }
 for _, controller in ipairs(order) do
 	controller.Init(controllers)
@@ -11189,7 +12694,7 @@ end
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="43">
+        <Item class="ModuleScript" referent="47">
           <Properties>
             <string name="Name">MovementController</string>
             <string name="Source"><![CDATA[--[[
@@ -12196,7 +13701,7 @@ return Movement
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="44">
+        <Item class="ModuleScript" referent="48">
           <Properties>
             <string name="Name">Sfx</string>
             <string name="Source"><![CDATA[--[[
@@ -12253,7 +13758,7 @@ return Sfx
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="45">
+        <Item class="ModuleScript" referent="49">
           <Properties>
             <string name="Name">Spring</string>
             <string name="Source"><![CDATA[--[[
@@ -12299,7 +13804,7 @@ return Spring
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="46">
+        <Item class="ModuleScript" referent="50">
           <Properties>
             <string name="Name">UIController</string>
             <string name="Source"><![CDATA[--[[
@@ -12391,7 +13896,7 @@ return UIController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="47">
+        <Item class="ModuleScript" referent="51">
           <Properties>
             <string name="Name">ViewmodelController</string>
             <string name="Source"><![CDATA[--[[
@@ -12438,6 +13943,7 @@ local VM = Config.Viewmodel
 local player = Players.LocalPlayer
 
 local Viewmodel = {}
+local hiddenBy = {} -- [reason] = true: see Viewmodel.SetHidden
 local Controllers
 
 local rad = math.rad
@@ -12804,6 +14310,12 @@ end
 ----------------------------------------------------------------------------
 -- Public API
 ----------------------------------------------------------------------------
+-- Hide the arms + rifle while something else owns the camera (e.g. a crate
+-- opening). Each caller passes its own reason so they don't clash.
+function Viewmodel.SetHidden(reason, hidden)
+	hiddenBy[reason] = hidden or nil
+end
+
 function Viewmodel.PlayFire(scoped)
 	local kick = scoped and 0.5 or 1
 	if has("ExplosiveRounds") or has("GlassCannon") then
@@ -12909,7 +14421,7 @@ local function update(dt)
 	lastCharacter = character
 	hadGun = alive and hasGun
 
-	local shouldShow = alive and hasGun and Controllers.Camera.IsFirstPerson() and scopeAlpha < 0.92
+	local shouldShow = alive and hasGun and Controllers.Camera.IsFirstPerson() and scopeAlpha < 0.92 and next(hiddenBy) == nil
 	setVisible(shouldShow)
 	if not shouldShow then
 		for name, part in pairs(parts) do
@@ -13286,7 +14798,7 @@ return Viewmodel
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="48">
+        <Item class="ModuleScript" referent="52">
           <Properties>
             <string name="Name">WeaponController</string>
             <string name="Source"><![CDATA[--[[
@@ -13536,11 +15048,503 @@ return Weapon
 ]]></string>
           </Properties>
         </Item>
-        <Item class="Folder" referent="49">
+        <Item class="Folder" referent="53">
           <Properties>
             <string name="Name">ui</string>
           </Properties>
-          <Item class="ModuleScript" referent="50">
+          <Item class="ModuleScript" referent="54">
+            <Properties>
+              <string name="Name">CrateReveal</string>
+              <string name="Source"><![CDATA[--[[
+	CrateReveal.lua  (Client.ui.CrateReveal)
+
+	The 2D half of the crate opening (CrateController does the 3D half):
+	letterbox bars, a coloured edge glow, the rarity "climb" label, the
+	white flash, and the reveal card: the rarity name slams in over spinning
+	light rays, then the skin name, NEW / duplicate, keys left and the
+	OPEN ANOTHER / CONTINUE buttons. Legendary rains confetti; Secret glitches.
+]]
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Config = require(Shared.Config)
+local Signal = require(Shared.Signal)
+local Theme = require(script.Parent.Theme)
+local Logo = require(Shared.Logo)
+
+local P = Config.Palette
+local CR = Config.Crates
+
+local CrateReveal = {}
+CrateReveal.Again = Signal.new()
+CrateReveal.Done = Signal.new()
+
+local gui, unlocker
+local barTop, barBottom, black, flash
+local edges = {}
+local tierLabel, tierSub
+local card, rays, titleLabel, glitchA, glitchB, skinLabel, infoLabel, keysLabel, badge
+local buttons, againButton, doneButton
+local confetti = {}
+local rayAngle = 0
+local glitchUntil = 0
+local revealColor = Color3.new(1, 1, 1)
+local RAY_COUNT = 9
+
+local function font(weight)
+	return Theme.Font(weight or Enum.FontWeight.Heavy)
+end
+
+----------------------------------------------------------------------------
+-- Build
+----------------------------------------------------------------------------
+function CrateReveal.Start(playerGui)
+	gui = Theme.screen("CrateReveal", 60, playerGui)
+	gui.Enabled = false
+	unlocker = Theme.mouseUnlocker(gui)
+
+	-- edge glow: four soft gradients in the current tier colour
+	for i, info in ipairs({
+		{ UDim2.fromScale(0, 0), UDim2.fromScale(1, 0.35), 90 },
+		{ UDim2.fromScale(0, 0.65), UDim2.fromScale(1, 0.35), -90 },
+		{ UDim2.fromScale(0, 0), UDim2.fromScale(0.25, 1), 0 },
+		{ UDim2.fromScale(0.75, 0), UDim2.fromScale(0.25, 1), 180 },
+	}) do
+		local edge = Theme.new("Frame", {
+			Position = info[1],
+			Size = info[2],
+			BackgroundColor3 = Color3.new(1, 1, 1),
+			BackgroundTransparency = 1,
+			Parent = gui,
+		})
+		Theme.new("UIGradient", {
+			Rotation = info[3],
+			Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.35), NumberSequenceKeypoint.new(1, 1) }),
+			Parent = edge,
+		})
+		edges[i] = edge
+	end
+
+	-- letterbox
+	barTop = Theme.new("Frame", { Size = UDim2.fromScale(1, 0), BackgroundColor3 = Color3.new(0, 0, 0), ZIndex = 5, Parent = gui })
+	barBottom = Theme.new("Frame", {
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.fromScale(0, 1),
+		Size = UDim2.fromScale(1, 0),
+		BackgroundColor3 = Color3.new(0, 0, 0),
+		ZIndex = 5,
+		Parent = gui,
+	})
+
+	-- the climb label (COMMON... UNCOMMON... RARE...) near the bottom
+	tierLabel = Theme.label({
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.8),
+		Size = UDim2.fromScale(0.5, 0.075),
+		TextScaled = true,
+		FontFace = font(),
+		TextTransparency = 1,
+		ZIndex = 6,
+		Parent = gui,
+	})
+	Theme.stroke(tierLabel, Color3.new(0, 0, 0), 3, 0.4).ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
+	tierSub = Theme.label({
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.735),
+		Size = UDim2.fromScale(0.4, 0.03),
+		TextScaled = true,
+		Text = "OPENING CRATE",
+		FontFace = font(Enum.FontWeight.Bold),
+		TextColor3 = P.UIText,
+		TextTransparency = 1,
+		ZIndex = 6,
+		Parent = gui,
+	})
+
+	-- reveal card (no background: it floats over the 3D scene)
+	card = Theme.new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.74),
+		Size = UDim2.fromScale(1, 0.4),
+		BackgroundTransparency = 1,
+		Visible = false,
+		ZIndex = 7,
+		Parent = gui,
+	})
+	rays = Theme.new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, -0.55),
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		ZIndex = 2,
+		Parent = card,
+	})
+	for _ = 1, RAY_COUNT do
+		local ray = Theme.new("Frame", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.new(0, 46, 2.2, 0),
+			BackgroundColor3 = Color3.new(1, 1, 1),
+			BackgroundTransparency = 0.55,
+			ZIndex = 2,
+			Parent = rays,
+		})
+		Theme.new("UIGradient", {
+			Rotation = 90,
+			Transparency = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 1),
+				NumberSequenceKeypoint.new(0.42, 0.5),
+				NumberSequenceKeypoint.new(0.5, 0.15),
+				NumberSequenceKeypoint.new(0.58, 0.5),
+				NumberSequenceKeypoint.new(1, 1),
+			}),
+			Parent = ray,
+		})
+	end
+	local function title(z, color)
+		local label = Theme.label({
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.18),
+			Size = UDim2.fromScale(0.8, 0.34),
+			TextScaled = true,
+			FontFace = font(),
+			TextColor3 = color,
+			ZIndex = z,
+			Parent = card,
+		})
+		return label
+	end
+	glitchA = title(3, Color3.fromRGB(255, 30, 60))
+	glitchB = title(3, Color3.fromRGB(40, 230, 255))
+	titleLabel = title(5, Color3.new(1, 1, 1))
+	Theme.stroke(titleLabel, Color3.new(0, 0, 0), 4, 0.2).ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
+	Theme.new("UIGradient", {
+		Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(200, 200, 200)),
+		Rotation = 90,
+		Parent = titleLabel,
+	})
+	skinLabel = Theme.label({
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.42),
+		Size = UDim2.fromScale(0.6, 0.13),
+		TextScaled = true,
+		FontFace = font(),
+		ZIndex = 5,
+		Parent = card,
+	})
+	Theme.stroke(skinLabel, Color3.new(0, 0, 0), 2, 0.4).ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
+	infoLabel = Theme.label({
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.54),
+		Size = UDim2.fromScale(0.6, 0.065),
+		TextScaled = true,
+		FontFace = font(Enum.FontWeight.Bold),
+		TextColor3 = P.UIText,
+		ZIndex = 5,
+		Parent = card,
+	})
+	badge = Theme.label({
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.03),
+		Size = UDim2.fromOffset(84, 26),
+		Text = "NEW!",
+		TextSize = 18,
+		FontFace = font(),
+		TextColor3 = P.UIBackground,
+		BackgroundTransparency = 0,
+		BackgroundColor3 = P.AccentB,
+		Rotation = -6,
+		ZIndex = 6,
+		Visible = false,
+		Parent = card,
+	})
+	Theme.corner(badge, 8)
+
+	-- buttons
+	buttons = Theme.new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.74),
+		Size = UDim2.fromOffset(470, 50),
+		BackgroundTransparency = 1,
+		ZIndex = 6,
+		Parent = card,
+	})
+	Theme.new("UIListLayout", {
+		FillDirection = Enum.FillDirection.Horizontal,
+		HorizontalAlignment = Enum.HorizontalAlignment.Center,
+		Padding = UDim.new(0, 14),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Parent = buttons,
+	})
+	againButton = Theme.button({
+		Size = UDim2.fromOffset(240, 50),
+		Text = "[X]  OPEN ANOTHER",
+		TextSize = 19,
+		LayoutOrder = 1,
+		ZIndex = 6,
+		Parent = buttons,
+	})
+	doneButton = Theme.button({
+		Size = UDim2.fromOffset(200, 50),
+		Text = "[SPACE]  CONTINUE",
+		TextSize = 19,
+		BackgroundColor3 = P.UIPanelLight,
+		TextColor3 = P.UIText,
+		LayoutOrder = 2,
+		ZIndex = 6,
+		Parent = buttons,
+	})
+	Theme.stroke(doneButton, P.UIText, 1.5, 0.7)
+	keysLabel = Theme.label({
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.9),
+		Size = UDim2.fromScale(0.5, 0.05),
+		TextScaled = true,
+		FontFace = font(Enum.FontWeight.Bold),
+		TextColor3 = P.UIText,
+		TextTransparency = 0.25,
+		ZIndex = 6,
+		Parent = card,
+	})
+	againButton.Activated:Connect(function()
+		CrateReveal.Again:Fire()
+	end)
+	doneButton.Activated:Connect(function()
+		CrateReveal.Done:Fire()
+	end)
+
+	-- small logo in the corner so clips/screenshots carry the brand
+	local corner = Theme.new("Frame", {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -24, 0.02, 0),
+		Size = UDim2.fromOffset(190, 48),
+		BackgroundTransparency = 1,
+		ZIndex = 6,
+		Parent = gui,
+	})
+	Logo.Make(corner, { Layout = "Inline", Color = P.UIText, Accent = P.AccentA })
+
+	flash = Theme.new("Frame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = 1,
+		ZIndex = 20,
+		Parent = gui,
+	})
+	black = Theme.new("Frame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Color3.new(0, 0, 0),
+		BackgroundTransparency = 1,
+		ZIndex = 30,
+		Parent = gui,
+	})
+end
+
+----------------------------------------------------------------------------
+-- Pieces the controller drives
+----------------------------------------------------------------------------
+function CrateReveal.Show()
+	gui.Enabled = true
+	card.Visible = false
+	unlocker.Visible = false
+	tierLabel.TextTransparency = 1
+	tierSub.TextTransparency = 1
+	for _, edge in ipairs(edges) do
+		edge.BackgroundTransparency = 1
+	end
+	Theme.tween(barTop, 0.6, { Size = UDim2.fromScale(1, 0.1) }, Enum.EasingStyle.Quint)
+	Theme.tween(barBottom, 0.6, { Size = UDim2.fromScale(1, 0.1) }, Enum.EasingStyle.Quint)
+	Theme.tween(tierSub, 0.5, { TextTransparency = 0.3 })
+end
+
+function CrateReveal.Hide()
+	gui.Enabled = false
+	unlocker.Visible = false
+	barTop.Size = UDim2.fromScale(1, 0)
+	barBottom.Size = UDim2.fromScale(1, 0)
+	card.Visible = false
+	for _, bit in ipairs(confetti) do
+		bit.Frame:Destroy()
+	end
+	table.clear(confetti)
+end
+
+-- One step of the rarity climb.
+function CrateReveal.Tier(rarity, final)
+	tierLabel.Text = rarity.Name
+	tierLabel.TextColor3 = rarity.Color
+	tierLabel.TextTransparency = 0
+	Theme.pop(tierLabel, final and 0.45 or 0.25)
+	for _, edge in ipairs(edges) do
+		edge.BackgroundColor3 = rarity.Color
+		edge.BackgroundTransparency = final and 0.15 or 0.4
+		Theme.tween(edge, 0.45, { BackgroundTransparency = final and 0.55 or 0.75 })
+	end
+end
+
+-- The climb stalls (Secret fake-out): everything dims.
+function CrateReveal.Stall()
+	Theme.tween(tierLabel, 0.5, { TextTransparency = 0.7 })
+	for _, edge in ipairs(edges) do
+		Theme.tween(edge, 0.5, { BackgroundTransparency = 1 })
+	end
+end
+
+function CrateReveal.Flash(color, time)
+	flash.BackgroundColor3 = color or Color3.new(1, 1, 1)
+	flash.BackgroundTransparency = 0
+	Theme.tween(flash, time or 0.7, { BackgroundTransparency = 1 }, Enum.EasingStyle.Quad)
+end
+
+function CrateReveal.Black(alpha, time)
+	return Theme.tween(black, time or 0.25, { BackgroundTransparency = 1 - alpha })
+end
+
+local function spawnConfetti(colors, count)
+	local size = gui.AbsoluteSize
+	for _ = 1, count do
+		local frame = Theme.new("Frame", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Size = UDim2.fromOffset(math.random(6, 12), math.random(10, 18)),
+			BackgroundColor3 = colors[math.random(1, #colors)],
+			ZIndex = 8,
+			Parent = gui,
+		})
+		table.insert(confetti, {
+			Frame = frame,
+			Pos = Vector2.new(size.X * (0.5 + (math.random() - 0.5) * 0.2), size.Y * 0.45),
+			Vel = Vector2.new((math.random() - 0.5) * size.X * 1.4, -size.Y * (0.5 + math.random() * 0.7)),
+			Spin = (math.random() - 0.5) * 900,
+			Age = 0,
+		})
+	end
+end
+
+-- The big moment. info = { Rarity, Skin, New, Count, Keys, Free, CanAgain }
+function CrateReveal.Reveal(info)
+	local rarity, skin = info.Rarity, info.Skin
+	revealColor = rarity.Color
+	tierLabel.TextTransparency = 1
+	tierSub.TextTransparency = 1
+	card.Visible = true
+	titleLabel.Text = rarity.Name
+	glitchA.Text = rarity.Name
+	glitchB.Text = rarity.Name
+	titleLabel.TextColor3 = rarity.Color
+	glitchA.Visible = rarity.Id == "Secret"
+	glitchB.Visible = rarity.Id == "Secret"
+	glitchUntil = rarity.Id == "Secret" and os.clock() + 1.6 or 0
+	for _, ray in ipairs(rays:GetChildren()) do
+		ray.BackgroundColor3 = rarity.Color
+	end
+	rays.Visible = true
+
+	-- title slams in
+	local scale = Theme.scaleOf(titleLabel)
+	scale.Scale = 2.6
+	titleLabel.TextTransparency = 0
+	Theme.tween(scale, 0.45, { Scale = 1 }, Enum.EasingStyle.Back)
+
+	skinLabel.Text = string.upper(skin.Name)
+	skinLabel.TextColor3 = P.UIText
+	skinLabel.TextTransparency = 1
+	infoLabel.Text = info.New and "RIFLE SKIN  -  ADDED TO YOUR COLLECTION"
+		or ("RIFLE SKIN  -  DUPLICATE  x%d"):format(info.Count or 2)
+	infoLabel.TextTransparency = 1
+	badge.Visible = false
+	buttons.Visible = false
+	keysLabel.Text = info.Free and "FREE OPENS IN STUDIO" or ("%d KEY%s LEFT"):format(info.Keys or 0, info.Keys == 1 and "" or "S")
+	keysLabel.TextTransparency = 1
+
+	task.delay(0.35, function()
+		Theme.tween(skinLabel, 0.35, { TextTransparency = 0 })
+		Theme.pop(skinLabel, 0.2)
+	end)
+	task.delay(0.6, function()
+		Theme.tween(infoLabel, 0.35, { TextTransparency = 0.1 })
+		if info.New then
+			badge.Visible = true
+			Theme.pop(badge, 0.5)
+		end
+	end)
+	task.delay(1.1, function()
+		if not card.Visible then
+			return
+		end
+		buttons.Visible = true
+		againButton.Visible = info.CanAgain
+		Theme.pop(buttons, 0.12)
+		Theme.tween(keysLabel, 0.35, { TextTransparency = 0.25 })
+		unlocker.Visible = true
+	end)
+
+	local tier = 1
+	for i, r in ipairs(CR.Rarities) do
+		if r.Id == rarity.Id then
+			tier = i
+		end
+	end
+	if tier >= 5 then
+		spawnConfetti({ rarity.Color, Color3.new(1, 1, 1), rarity.Color:Lerp(Color3.new(1, 1, 1), 0.5) }, rarity.Id == "Secret" and 90 or 70)
+	elseif tier >= 3 then
+		spawnConfetti({ rarity.Color, Color3.new(1, 1, 1) }, 26)
+	end
+end
+
+function CrateReveal.HideCard()
+	card.Visible = false
+	unlocker.Visible = false
+end
+
+function CrateReveal.IsShowingButtons()
+	return card.Visible and buttons.Visible
+end
+
+function CrateReveal.Update(dt)
+	if not gui or not gui.Enabled then
+		return
+	end
+	-- rays
+	rayAngle += dt * 22
+	for i, ray in ipairs(rays:GetChildren()) do
+		ray.Rotation = rayAngle + (i - 1) * 180 / RAY_COUNT
+		ray.BackgroundTransparency = 0.55 + math.sin(os.clock() * 3 + i) * 0.08
+	end
+	-- secret glitch: RGB-split copies jitter, the title flickers
+	if os.clock() < glitchUntil then
+		local j = 9
+		glitchA.Position = UDim2.new(0.5, math.random(-j, j), 0.18, math.random(-j, j) * 0.5)
+		glitchB.Position = UDim2.new(0.5, math.random(-j, j), 0.18, math.random(-j, j) * 0.5)
+		titleLabel.TextTransparency = math.random() < 0.12 and 0.6 or 0
+		titleLabel.Position = UDim2.new(0.5, math.random(-3, 3), 0.18, 0)
+	elseif glitchA.Visible then
+		glitchA.Visible = false
+		glitchB.Visible = false
+		titleLabel.TextTransparency = 0
+		titleLabel.Position = UDim2.fromScale(0.5, 0.18)
+	end
+	-- confetti
+	for i = #confetti, 1, -1 do
+		local bit = confetti[i]
+		bit.Age += dt
+		bit.Vel = Vector2.new(bit.Vel.X * (1 - 1.2 * dt), bit.Vel.Y + gui.AbsoluteSize.Y * 1.1 * dt)
+		bit.Pos += bit.Vel * dt
+		bit.Frame.Position = UDim2.fromOffset(bit.Pos.X, bit.Pos.Y)
+		bit.Frame.Rotation += bit.Spin * dt
+		bit.Frame.BackgroundTransparency = math.clamp((bit.Age - 2.2) / 0.8, 0, 1)
+		if bit.Age > 3 then
+			bit.Frame:Destroy()
+			table.remove(confetti, i)
+		end
+	end
+end
+
+return CrateReveal
+]]></string>
+            </Properties>
+          </Item>
+          <Item class="ModuleScript" referent="55">
             <Properties>
               <string name="Name">DuelUI</string>
               <string name="Source"><![CDATA[--[[
@@ -13849,7 +15853,7 @@ return DuelUI
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="51">
+          <Item class="ModuleScript" referent="56">
             <Properties>
               <string name="Name">HUD</string>
               <string name="Source"><![CDATA[--[[
@@ -14737,7 +16741,7 @@ return HUD
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="52">
+          <Item class="ModuleScript" referent="57">
             <Properties>
               <string name="Name">Icons</string>
               <string name="Source"><![CDATA[--[[
@@ -14799,24 +16803,41 @@ return Icons
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="53">
+          <Item class="ModuleScript" referent="58">
             <Properties>
               <string name="Name">LobbyUI</string>
               <string name="Source"><![CDATA[--[[
 	LobbyUI.lua  (Client.ui.LobbyUI)
 
-	The lobby / playground screen (hidden while you're in a match). Kept
-	minimal on purpose:
-		Find match (animated "searching" state while queued)
-		Playground (free roam on the match map)
-		Play vs bot (admins)
-	The mouse is locked in first person, so each button has a key / controller
-	button (rebindable in Settings > Keyboard / Controller).
+	The lobby / playground overlay (hidden while you're in a match, where the
+	HUD takes over). Everything hugs the screen edges so the middle stays
+	clear while you walk around the lobby in first person:
+
+		top left      SNIPER DUEL wordmark (+ PLAYGROUND chip in the playground)
+		top right     player card (avatar, name) + ONLINE and KEYS chips
+		bottom left   action stack: REMATCH (after a match), FIND MATCH
+		              (animated "searching" state with timer + queue count),
+		              then Playground / Power-Up Lab / Duel / Settings /
+		              Play vs bot (admins)
+
+	The mouse is locked in first person, so every action shows its key /
+	controller button in a keycap (rebindable in Settings > Keyboard /
+	Controller).
+
+	On touch screens the stack becomes one compact row at the top centre
+	(Duel, Lab and Settings already have MobileControls buttons) so it never
+	covers the thumbstick or the fire / jump buttons.
+
+	Everything is laid out in "design pixels" on a single spacing scale (SP)
+	and multiplied by a UIScale per corner group, so it fits a 800x400 phone
+	and a 1920x1080 monitor alike.
 ]]
 
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
+local GuiService = game:GetService("GuiService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
@@ -14827,28 +16848,530 @@ local Keybinds = require(script.Parent.Parent.Keybinds)
 local ClientState = require(script.Parent.Parent.ClientState)
 
 local Palette = Config.Palette
+local player = Players.LocalPlayer
 
 local LobbyUI = {}
 local Controllers
 
-local gui, root, title, subtitle, playButton, playgroundButton, statusLabel, modeChip, spinner, rematchButton
+-- one spacing scale for everything (design pixels, before UIScale)
+local SP = { XS = 4, S = 8, M = 12, L = 16, XL = 24 }
+
+-- sizes (design pixels)
+local STACK_WIDTH = 340 -- desktop action stack
+local PRIMARY_HEIGHT = 64
+local REMATCH_HEIGHT = 44
+local ROW_HEIGHT = 36
+local ROW_GAP = 6
+local COMPACT_HEIGHT = 46 -- touch: one row of buttons
+local COMPACT_WIDTHS = { Rematch = 132, FindMatch = 184, Playground = 124, BotMatch = 72 }
+
+-- secondary buttons (desktop order). Ids are Keybinds action ids.
+local SECONDARY = {
+	{ Id = "Playground", Text = "PLAYGROUND", Hint = "FREE ROAM" },
+	{ Id = "PowerUpLab", Text = "POWER-UP LAB", Hint = "TRY BUILDS" },
+	{ Id = "DuelFriend", Text = "DUEL A PLAYER", Hint = "INVITE" },
+	{ Id = "Settings", Text = "SETTINGS", Hint = "" },
+	{ Id = "BotMatch", Text = "PLAY VS BOT", Hint = "ADMIN" },
+}
+
+local gui, root
+local scrimLeft, scrimTop
+local brand, brandMark, title, tagline, modeRow, modeChip, subtitle
+local card, cardPanel, avatar, chipRow, onlineChip, onlineLabel, keysChip, keysLabel
+local stack, statusLabel
+local primary, playButton, playgroundButton, rematchButton
+local spinner, progressTrack, progressFill, shine, timeLabel, subLabel
+local entries = {} -- [actionId] = button entry
+local groupScales = {} -- UIScale of each anchored group
+
 local shown = false
 local queued = false
+local compact = false
+local searchStart = os.clock()
+local lastSecs = -1
+local lastKeys = nil
 local lastSnapshot = { InMatch = false, Phase = "Lobby" }
 
-local function styleButton(button, active)
-	button.BackgroundColor3 = active and Palette.UIAccent or Palette.UIPanelLight
-	button.TextColor3 = active and Palette.UIBackground or Palette.UIText
+-- Same rule the server uses (MatchService isAdmin); the server still checks.
+local function canPlayBot()
+	local admin = Config.Admin or {}
+	if admin.BotForEveryone then
+		return true
+	end
+	if admin.AllowEveryoneInStudio and RunService:IsStudio() then
+		return true
+	end
+	return table.find(admin.UserIds or {}, player.UserId) ~= nil
+end
+local SHOW_BOT = canPlayBot()
+
+local function usingGamepad()
+	return UserInputService:GetLastInputType().Name:find("Gamepad") ~= nil
 end
 
--- "[F]" or "[D-RIGHT]" depending on the device you're using
-local function keyLabel(actionId)
-	local device = UserInputService:GetLastInputType().Name:find("Gamepad") and "Gamepad" or "Keyboard"
-	return "[" .. Keybinds.Label(Keybinds.Get(actionId, device)) .. "]"
+-- same rule as MobileControls (its buttons are shown exactly when this is true)
+local function isTouch()
+	return UserInputService.TouchEnabled
+		and (UserInputService:GetLastInputType() == Enum.UserInputType.Touch or not UserInputService.KeyboardEnabled)
+end
+
+-- "F" or "D-RIGHT" depending on the device you're using
+local function keyText(actionId)
+	local device = usingGamepad() and "Gamepad" or "Keyboard"
+	return Keybinds.Label(Keybinds.Get(actionId, device))
+end
+
+local function topInset()
+	local inset = 0
+	local ok, topLeft = pcall(function()
+		return GuiService:GetGuiInset()
+	end)
+	if ok and typeof(topLeft) == "Vector2" then
+		inset = topLeft.Y
+	end
+	local ok2, rect = pcall(function()
+		return GuiService.TopbarInset
+	end)
+	if ok2 and typeof(rect) == "Rect" then
+		inset = math.max(inset, rect.Max.Y)
+	end
+	return inset
+end
+
+local function formatTime(secs)
+	return string.format("%d:%02d", math.floor(secs / 60), secs % 60)
+end
+
+----------------------------------------------------------------------------
+-- Buttons
+----------------------------------------------------------------------------
+
+-- A button with a keycap chip on the left, a label and an optional hint on
+-- the right. Hover / press animate its UIScale and stroke.
+local function makeEntry(id, parent, opts)
+	opts = opts or {}
+	local textSize = opts.TextSize or 15
+	local button = Theme.new("TextButton", {
+		Name = id,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Text = "",
+		AutoButtonColor = false,
+		BackgroundColor3 = Palette.UIPanel,
+		BackgroundTransparency = 0.2,
+		Parent = parent,
+	})
+	Theme.corner(button, opts.Radius or 10)
+	local stroke = Theme.stroke(button, Palette.UIText, 1, 0.88)
+	local keySize = opts.KeySize or 12
+	local cap, capLabel = Theme.keycap("-", keySize, {
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, SP.M, 0.5, 0),
+		Parent = button,
+	})
+	local label = Theme.label({
+		Name = "Label",
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, SP.M, 0.5, opts.LabelY or 0),
+		Size = UDim2.new(1, -SP.M * 2, 0, textSize + 4),
+		TextSize = textSize,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		FontFace = Theme.Font(opts.Weight or Enum.FontWeight.Bold),
+		Parent = button,
+	})
+	local hint
+	if opts.Hint and opts.Hint ~= "" then
+		hint = Theme.label({
+			Name = "Hint",
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, -SP.M, 0.5, 0),
+			Size = UDim2.fromOffset(96, 14),
+			Text = opts.Hint,
+			TextSize = 11,
+			TextXAlignment = Enum.TextXAlignment.Right,
+			TextColor3 = Palette.UISubText,
+			FontFace = Theme.Font(Enum.FontWeight.SemiBold),
+			Parent = button,
+		})
+	end
+
+	local scale = Theme.scaleOf(button)
+	local entry = {
+		Id = id,
+		Button = button,
+		Stroke = stroke,
+		StrokeRest = 0.88,
+		Cap = cap,
+		CapLabel = capLabel,
+		KeySize = keySize,
+		Label = label,
+		LabelY = opts.LabelY or 0,
+		Hint = hint,
+		Hover = false,
+	}
+	button.MouseEnter:Connect(function()
+		entry.Hover = true
+		Theme.tween(scale, 0.15, { Scale = 1.03 })
+		Theme.tween(stroke, 0.15, { Transparency = math.min(entry.StrokeRest, 0.5) })
+	end)
+	button.MouseLeave:Connect(function()
+		entry.Hover = false
+		Theme.tween(scale, 0.15, { Scale = 1 })
+		Theme.tween(stroke, 0.15, { Transparency = entry.StrokeRest })
+	end)
+	button.MouseButton1Down:Connect(function()
+		Theme.tween(scale, 0.08, { Scale = 0.96 })
+	end)
+	button.MouseButton1Up:Connect(function()
+		Theme.tween(scale, 0.25, { Scale = entry.Hover and 1.03 or 1 }, Enum.EasingStyle.Back)
+	end)
+	entries[id] = entry
+	return entry
+end
+
+-- Sets the keycap + label of a button (and moves the label next to the cap).
+local function setEntry(entry, key, text, showKey)
+	entry.Label.Text = text
+	local x = SP.M
+	entry.Cap.Visible = showKey
+	if showKey then
+		local w = Theme.keycapWidth(key, entry.KeySize)
+		entry.Cap.Size = UDim2.fromOffset(w, math.floor(entry.KeySize * 1.85))
+		entry.CapLabel.Text = key
+		x += w + SP.S + 2
+	end
+	entry.TextX = x
+	entry.Label.Position = UDim2.new(0, x, 0.5, entry.LabelY)
+	local rightPad = entry.RightPad or SP.M
+	entry.Label.Size = UDim2.new(1, -(x + rightPad), 0, entry.Label.TextSize + 4)
+	if entry.Hint then
+		-- short keys only, so a long controller label never runs into it
+		entry.Hint.Visible = showKey and #key <= 3
+	end
+end
+
+-- Colours of a button: "primary" (accent), "gold" (AccentB), "active"
+-- (highlighted outline) or "normal" (dark panel).
+local function styleEntry(entry, style)
+	local b = entry.Button
+	if style == "primary" or style == "gold" then
+		local color = style == "gold" and Palette.AccentB or Palette.UIAccent
+		b.BackgroundColor3 = color
+		b.BackgroundTransparency = 0
+		entry.Label.TextColor3 = Palette.UIBackground
+		entry.Stroke.Color = Palette.UIText
+		entry.StrokeRest = 0.7
+		entry.Cap.BackgroundColor3 = Palette.UIBackground
+		entry.CapLabel.TextColor3 = color
+	elseif style == "active" then
+		b.BackgroundColor3 = Palette.UIPanel
+		b.BackgroundTransparency = 0.08
+		entry.Label.TextColor3 = Palette.UIAccent
+		entry.Stroke.Color = Palette.UIAccent
+		entry.StrokeRest = 0.25
+		entry.Cap.BackgroundColor3 = Palette.UIPanelLight
+		entry.CapLabel.TextColor3 = Palette.UIText
+	else
+		b.BackgroundColor3 = Palette.UIPanel
+		b.BackgroundTransparency = 0.2
+		entry.Label.TextColor3 = Palette.UIText
+		entry.Stroke.Color = Palette.UIText
+		entry.StrokeRest = 0.88
+		entry.Cap.BackgroundColor3 = Palette.UIPanelLight
+		entry.CapLabel.TextColor3 = Palette.UIText
+	end
+	entry.Stroke.Transparency = entry.Hover and math.min(entry.StrokeRest, 0.5) or entry.StrokeRest
+end
+
+----------------------------------------------------------------------------
+-- Layout
+----------------------------------------------------------------------------
+
+local function secondaryVisible(id)
+	if id == "BotMatch" then
+		return SHOW_BOT
+	end
+	if id == "Playground" then
+		return true
+	end
+	return not compact -- Lab / Duel / Settings have MobileControls buttons on touch
+end
+
+local function layoutStack()
+	local rematchOn = lastSnapshot.Rematch ~= nil
+	rematchButton.Visible = rematchOn
+
+	local function place(entry, x, y, w, h)
+		entry.Button.Visible = true
+		entry.Button.Size = UDim2.fromOffset(w, h)
+		entry.Button.Position = UDim2.fromOffset(x + w / 2, y + h / 2)
+	end
+
+	if compact then
+		-- one row at the top centre
+		local order = {}
+		if rematchOn then
+			table.insert(order, "Rematch")
+		end
+		table.insert(order, "FindMatch")
+		table.insert(order, "Playground")
+		if SHOW_BOT then
+			table.insert(order, "BotMatch")
+		end
+		for _, item in ipairs(SECONDARY) do
+			entries[item.Id].Button.Visible = false
+		end
+		local x = 0
+		for _, id in ipairs(order) do
+			local w = COMPACT_WIDTHS[id]
+			place(entries[id], x, 0, w, COMPACT_HEIGHT)
+			x += w + SP.S
+		end
+		x -= SP.S
+		statusLabel.Visible = true
+		statusLabel.Position = UDim2.fromOffset(0, COMPACT_HEIGHT + SP.S)
+		statusLabel.Size = UDim2.fromOffset(x, 16)
+		statusLabel.TextXAlignment = Enum.TextXAlignment.Center
+		stack.Size = UDim2.fromOffset(x, COMPACT_HEIGHT + SP.S + 16)
+		return x
+	else
+		-- vertical stack, bottom left
+		local y = 0
+		if rematchOn then
+			place(entries.Rematch, 0, y, STACK_WIDTH, REMATCH_HEIGHT)
+			y += REMATCH_HEIGHT + SP.S
+		end
+		place(primary, 0, y, STACK_WIDTH, PRIMARY_HEIGHT)
+		y += PRIMARY_HEIGHT + SP.M
+		for _, item in ipairs(SECONDARY) do
+			local entry = entries[item.Id]
+			if secondaryVisible(item.Id) then
+				place(entry, 0, y, STACK_WIDTH, ROW_HEIGHT)
+				y += ROW_HEIGHT + ROW_GAP
+			else
+				entry.Button.Visible = false
+			end
+		end
+		y -= ROW_GAP
+		statusLabel.Visible = false
+		stack.Size = UDim2.fromOffset(STACK_WIDTH, y)
+	end
+	return 0
+end
+
+local function layoutBrand()
+	if compact then
+		brandMark.Size = UDim2.fromOffset(30, 30)
+		title.Position = UDim2.fromOffset(30 + SP.S, 0)
+		title.Size = UDim2.fromOffset(180, 30)
+		title.TextSize = 20
+		title.Visible = true
+		tagline.Visible = false
+		modeRow.Visible = false
+		brand.Size = UDim2.fromOffset(220, 30)
+	else
+		brandMark.Size = UDim2.fromOffset(48, 48)
+		title.Position = UDim2.fromOffset(48 + SP.M, -2)
+		title.Size = UDim2.fromOffset(320, 34)
+		title.TextSize = 32
+		title.Visible = true
+		tagline.Visible = true
+		modeRow.Visible = lastSnapshot.Playground == true
+		brand.Size = UDim2.fromOffset(420, 48 + SP.M + 26)
+	end
+end
+
+local function layoutCard()
+	if compact then
+		cardPanel.Visible = false
+		onlineChip.Visible = false
+		chipRow.Position = UDim2.fromScale(1, 0)
+		card.Size = UDim2.fromOffset(200, 28)
+	else
+		cardPanel.Visible = true
+		onlineChip.Visible = true
+		chipRow.Position = UDim2.new(1, 0, 0, 56 + SP.S)
+		card.Size = UDim2.fromOffset(260, 56 + SP.S + 28)
+	end
+end
+
+-- Positions every group for the current screen size / device.
+local function relayout()
+	compact = isTouch()
+	local camera = workspace.CurrentCamera
+	local viewport = camera and camera.ViewportSize or Vector2.new(1280, 720)
+	local scale
+	if compact then
+		scale = math.clamp(math.min(viewport.X / 900, viewport.Y / 460), 0.72, 1.2)
+	else
+		scale = math.clamp(math.min(viewport.X / 1400, viewport.Y / 800), 0.6, 1.35)
+	end
+	for _, uiScale in ipairs(groupScales) do
+		uiScale.Scale = scale
+	end
+
+	local margin = math.floor((compact and SP.M or SP.XL) * scale)
+	local top = topInset() + math.floor((compact and SP.S or SP.L) * scale)
+	brand.Position = UDim2.fromOffset(margin, top)
+	card.Position = UDim2.new(1, -margin, 0, top)
+	if compact then
+		stack.AnchorPoint = Vector2.new(0.5, 0)
+		stack.Position = UDim2.new(0.5, 0, 0, top)
+	else
+		stack.AnchorPoint = Vector2.new(0, 1)
+		stack.Position = UDim2.new(0, margin, 1, -margin)
+	end
+
+	-- soft scrims so text stays readable over the 3D lobby (centre stays clear)
+	scrimLeft.Visible = not compact
+	scrimTop.Size = UDim2.new(1, 120, compact and 0.3 or 0.22, 60)
+
+	-- text sizes for the compact row
+	primary.Label.TextSize = compact and 18 or 22
+	subLabel.TextSize = compact and 11 or 12
+	primary.RightPad = compact and 36 or 112
+	timeLabel.Visible = queued and not compact
+	entries.Rematch.Label.TextSize = compact and 14 or 15
+	for _, item in ipairs(SECONDARY) do
+		entries[item.Id].Label.TextSize = compact and 14 or 15
+	end
+
+	layoutBrand()
+	layoutCard()
+	local rowWidth = layoutStack()
+	if compact then
+		-- a very wide row (rematch + bot on a small phone): keep just the mark
+		local brandRight = margin + (30 + SP.S + 150) * scale
+		local rowLeft = viewport.X / 2 - rowWidth * scale / 2
+		title.Visible = rowLeft > brandRight + SP.S
+	end
+end
+
+----------------------------------------------------------------------------
+-- State
+----------------------------------------------------------------------------
+
+local function updateSearchText()
+	local secs = math.max(0, math.floor(os.clock() - searchStart))
+	lastSecs = secs
+	local time = formatTime(secs)
+	timeLabel.Text = time
+	if compact then
+		subLabel.Text = time .. " · TAP TO CANCEL"
+	else
+		subLabel.Text = string.format("%d IN QUEUE  ·  PRESS TO CANCEL", lastSnapshot.QueueCount or 1)
+	end
+end
+
+local function refreshPrimary(snapshot)
+	local showKey = not compact
+	local count = snapshot.QueueCount or 0
+	if queued then
+		setEntry(primary, keyText("FindMatch"), "SEARCHING", showKey)
+		styleEntry(primary, "active")
+		primary.Label.TextColor3 = Palette.UIText
+		subLabel.TextColor3 = Palette.UISubText
+		subLabel.TextTransparency = 0
+		updateSearchText()
+	else
+		setEntry(primary, keyText("FindMatch"), "FIND MATCH", showKey)
+		styleEntry(primary, "primary")
+		subLabel.TextColor3 = Palette.UIBackground
+		subLabel.TextTransparency = 0.25
+		if count > 0 then
+			subLabel.Text = string.format("%d PLAYER%s WAITING", count, count == 1 and "" or "S")
+		else
+			subLabel.Text = string.format("1V1  ·  FIRST TO %d", Config.Match.RoundsToWin or 5)
+		end
+	end
+	subLabel.Position = UDim2.new(0, primary.TextX or SP.M, 0.5, compact and 10 or 12)
+	subLabel.Size = UDim2.new(1, -((primary.TextX or SP.M) + (compact and 36 or 48)), 0, 16)
+	spinner.Visible = queued
+	progressTrack.Visible = queued
+	timeLabel.Visible = queued and not compact
+	shine.Visible = not queued
+end
+
+local function refreshRematch(snapshot)
+	local rematch = snapshot.Rematch
+	local entry = entries.Rematch
+	if not rematch then
+		return
+	end
+	local name = string.upper(tostring(rematch.Name or "?"))
+	local showKey = not compact
+	if rematch.Requested then
+		setEntry(entry, keyText("Rematch"), compact and "WAITING..." or ("WAITING FOR " .. name .. "..."), showKey)
+		styleEntry(entry, "normal")
+	elseif rematch.TheyRequested then
+		setEntry(entry, keyText("Rematch"), compact and "ACCEPT" or ("ACCEPT REMATCH VS " .. name), showKey)
+		styleEntry(entry, "gold")
+	else
+		setEntry(entry, keyText("Rematch"), compact and "REMATCH" or ("REMATCH " .. name), showKey)
+		styleEntry(entry, "gold")
+	end
+end
+
+local function refreshSecondaries(snapshot)
+	local showKey = not compact
+	for _, item in ipairs(SECONDARY) do
+		local entry = entries[item.Id]
+		local text = item.Text
+		local style = "normal"
+		if item.Id == "Playground" and snapshot.Playground then
+			text = "BACK TO LOBBY"
+			style = "active"
+			if entry.Hint then
+				entry.Hint.Text = "EXIT"
+			end
+		elseif item.Id == "Playground" and entry.Hint then
+			entry.Hint.Text = item.Hint
+		end
+		if compact and item.Id == "BotMatch" then
+			text = "BOT"
+		elseif compact and item.Id == "Playground" and snapshot.Playground then
+			text = "TO LOBBY"
+		end
+		setEntry(entry, keyText(item.Id), text, showKey)
+		styleEntry(entry, style)
+	end
+end
+
+local function refreshInfo(snapshot)
+	local online = #Players:GetPlayers()
+	onlineLabel.Text = string.format("%d ONLINE", online)
+
+	-- playground chip under the wordmark (desktop) / status line (touch)
+	modeChip.Visible = snapshot.Playground == true
+	subtitle.Text = snapshot.Playground and "Free roam on the match map." or ""
+	modeRow.Visible = snapshot.Playground == true and not compact
+
+	local parts = {}
+	if snapshot.Playground then
+		table.insert(parts, "PLAYGROUND MODE")
+	end
+	table.insert(parts, string.format("%d ONLINE", online))
+	local count = snapshot.QueueCount or 0
+	if not queued and count > 0 then
+		table.insert(parts, string.format("%d IN QUEUE", count))
+	end
+	statusLabel.Text = table.concat(parts, "  ·  ")
+end
+
+local function refreshKeys()
+	local keys = tonumber(player:GetAttribute("Keys")) or 0
+	keysLabel.Text = tostring(math.floor(keys))
+	if lastKeys and keys > lastKeys and shown then
+		Theme.pop(keysChip, 0.2)
+	end
+	lastKeys = keys
 end
 
 function LobbyUI.OnState(snapshot)
 	lastSnapshot = snapshot
+	if not gui then
+		return
+	end
 	local visible = not snapshot.InMatch
 	if visible and not shown then
 		-- fade + slide the whole screen in
@@ -14864,134 +17387,358 @@ function LobbyUI.OnState(snapshot)
 		return
 	end
 
+	local wasQueued = queued
 	queued = snapshot.Queued == true
-	if queued then
-		playButton.Text = "SEARCHING...   " .. keyLabel("FindMatch") .. " CANCEL"
-		styleButton(playButton, false)
-		statusLabel.Text = "Waiting for an opponent  (" .. tostring(snapshot.QueueCount or 1) .. " in queue)"
-	else
-		playButton.Text = keyLabel("FindMatch") .. "  FIND MATCH"
-		styleButton(playButton, true)
-		local count = snapshot.QueueCount or 0
-		statusLabel.Text = count > 0 and (tostring(count) .. " player(s) waiting")
-			or ""
-	end
-	spinner.Visible = queued
-
-	-- REMATCH (after a match, for a little while)
-	local rematch = snapshot.Rematch
-	rematchButton.Visible = rematch ~= nil
-	if rematch then
-		if rematch.Requested then
-			rematchButton.Text = "WAITING FOR " .. string.upper(rematch.Name) .. "..."
-			styleButton(rematchButton, false)
-		elseif rematch.TheyRequested then
-			rematchButton.Text = keyLabel("Rematch") .. "  ACCEPT REMATCH VS " .. string.upper(rematch.Name)
-			styleButton(rematchButton, true)
-		else
-			rematchButton.Text = keyLabel("Rematch") .. "  REMATCH " .. string.upper(rematch.Name)
-			styleButton(rematchButton, true)
-		end
+	if queued and not wasQueued then
+		searchStart = os.clock()
+		lastSecs = -1
 	end
 
-	if snapshot.Playground then
-		title.Text = "PLAYGROUND"
-		subtitle.Text = "Free roam on the match map."
-		playgroundButton.Text = keyLabel("Playground") .. "  BACK TO LOBBY"
-		modeChip.Visible = true
-	else
-		title.Text = "SNIPER DUEL"
-		subtitle.Text = ""
-		playgroundButton.Text = keyLabel("Playground") .. "  PLAYGROUND"
-		modeChip.Visible = false
-	end
+	relayout()
+	refreshPrimary(snapshot)
+	refreshRematch(snapshot)
+	refreshSecondaries(snapshot)
+	refreshInfo(snapshot)
 end
 
 function LobbyUI.Init(controllers)
 	Controllers = controllers
 end
 
-function LobbyUI.Start(playerGui)
-	gui = Theme.screen("Lobby", 2, playerGui)
-	root = Theme.new("CanvasGroup", {
-		Size = UDim2.fromScale(1, 1),
-		BackgroundTransparency = 1,
-		Parent = gui,
-	})
+----------------------------------------------------------------------------
+-- Build
+----------------------------------------------------------------------------
 
-	-- Title
+-- A group anchored to a screen corner, scaled as one piece.
+local function group(name, anchor)
+	local frame = Theme.new("Frame", {
+		Name = name,
+		AnchorPoint = anchor,
+		BackgroundTransparency = 1,
+		Parent = root,
+	})
+	table.insert(groupScales, Theme.scaleOf(frame))
+	return frame
+end
+
+-- Crosshair logo mark: dark tile, accent ring, four ticks, red dot.
+local function buildMark(parent)
+	local tile = Theme.new("Frame", {
+		Name = "Mark",
+		BackgroundColor3 = Palette.UIPanel,
+		BackgroundTransparency = 0.1,
+		Parent = parent,
+	})
+	Theme.corner(tile, UDim.new(0.24, 0))
+	Theme.stroke(tile, Palette.UIAccent, 1.5, 0.55)
+	local ring = Theme.new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromScale(0.54, 0.54),
+		BackgroundTransparency = 1,
+		Parent = tile,
+	})
+	Theme.corner(ring, UDim.new(0.5, 0))
+	Theme.stroke(ring, Palette.UIAccent, 2.5, 0)
+	local ticks = {
+		{ UDim2.fromScale(0.5, 0.15), UDim2.new(0, 2, 0.2, 0) },
+		{ UDim2.fromScale(0.5, 0.85), UDim2.new(0, 2, 0.2, 0) },
+		{ UDim2.fromScale(0.15, 0.5), UDim2.new(0.2, 0, 0, 2) },
+		{ UDim2.fromScale(0.85, 0.5), UDim2.new(0.2, 0, 0, 2) },
+	}
+	for _, t in ipairs(ticks) do
+		Theme.new("Frame", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = t[1],
+			Size = t[2],
+			BackgroundColor3 = Palette.UIText,
+			Parent = tile,
+		})
+	end
+	local dot = Theme.new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromScale(0.12, 0.12),
+		BackgroundColor3 = Palette.PlayerB,
+		Parent = tile,
+	})
+	Theme.corner(dot, UDim.new(0.5, 0))
+	return tile
+end
+
+-- Little gold key glyph for the KEYS chip.
+local function buildKeyIcon(parent)
+	local icon = Theme.new("Frame", {
+		Name = "KeyIcon",
+		Size = UDim2.fromOffset(18, 18),
+		BackgroundTransparency = 1,
+		LayoutOrder = 1,
+		Parent = parent,
+	})
+	local bow = Theme.new("Frame", {
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.fromScale(0, 0.5),
+		Size = UDim2.fromOffset(9, 9),
+		BackgroundTransparency = 1,
+		Parent = icon,
+	})
+	Theme.corner(bow, UDim.new(0.5, 0))
+	Theme.stroke(bow, Palette.AccentB, 2, 0)
+	Theme.new("Frame", {
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 9, 0.5, 0),
+		Size = UDim2.fromOffset(9, 2),
+		BackgroundColor3 = Palette.AccentB,
+		Parent = icon,
+	})
+	Theme.new("Frame", {
+		Position = UDim2.new(0, 13, 0.5, 0),
+		Size = UDim2.fromOffset(2, 4),
+		BackgroundColor3 = Palette.AccentB,
+		Parent = icon,
+	})
+	Theme.new("Frame", {
+		Position = UDim2.new(0, 16, 0.5, 0),
+		Size = UDim2.fromOffset(2, 3),
+		BackgroundColor3 = Palette.AccentB,
+		Parent = icon,
+	})
+	return icon
+end
+
+-- A pill chip with a horizontal row inside (icon, value, caption).
+local function buildChip(name, parent, order, strokeColor)
+	local chip = Theme.new("Frame", {
+		Name = name,
+		Size = UDim2.fromOffset(0, 28),
+		AutomaticSize = Enum.AutomaticSize.X,
+		BackgroundColor3 = Palette.UIPanel,
+		BackgroundTransparency = 0.15,
+		LayoutOrder = order,
+		Parent = parent,
+	})
+	Theme.corner(chip, UDim.new(0.5, 0))
+	Theme.stroke(chip, strokeColor or Palette.UIText, 1, strokeColor and 0.45 or 0.88)
+	Theme.new("UIPadding", {
+		PaddingLeft = UDim.new(0, SP.M - 2),
+		PaddingRight = UDim.new(0, SP.M),
+		Parent = chip,
+	})
+	Theme.new("UIListLayout", {
+		FillDirection = Enum.FillDirection.Horizontal,
+		VerticalAlignment = Enum.VerticalAlignment.Center,
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Padding = UDim.new(0, SP.XS + 2),
+		Parent = chip,
+	})
+	return chip
+end
+
+local function buildBrand()
+	brand = group("Brand", Vector2.new(0, 0))
+	brandMark = buildMark(brand)
 	title = Theme.label({
-		Position = UDim2.fromOffset(28, 64),
-		Size = UDim2.fromOffset(500, 48),
-		Text = "SNIPER DUEL",
-		TextSize = 44,
+		Name = "Title",
+		RichText = true,
+		Text = string.format('SNIPER <font color="#%s">DUEL</font>', Palette.UIAccent:ToHex()),
+		TextSize = 32,
 		TextXAlignment = Enum.TextXAlignment.Left,
+		TextYAlignment = Enum.TextYAlignment.Center,
 		FontFace = Theme.Font(Enum.FontWeight.Heavy),
-		Parent = root,
+		Parent = brand,
 	})
-	local underline = Theme.new("Frame", {
-		Position = UDim2.fromOffset(30, 112),
-		Size = UDim2.fromOffset(70, 4),
-		BackgroundColor3 = Palette.UIAccent,
-		Parent = root,
-	})
-	Theme.corner(underline, 2)
-	subtitle = Theme.label({
-		Position = UDim2.fromOffset(30, 122),
-		Size = UDim2.fromOffset(600, 20),
-		TextSize = 15,
+	tagline = Theme.label({
+		Name = "Tagline",
+		Position = UDim2.fromOffset(48 + SP.M, 32),
+		Size = UDim2.fromOffset(320, 14),
+		Text = "1V1 SNIPER ARENA",
+		TextSize = 12,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextColor3 = Palette.UISubText,
-		FontFace = Theme.Font(Enum.FontWeight.Medium),
-		Parent = root,
+		FontFace = Theme.Font(Enum.FontWeight.SemiBold),
+		Parent = brand,
 	})
 
-	-- "PLAYGROUND" chip at the top
-	modeChip = Theme.panel({
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 64),
-		Size = UDim2.fromOffset(220, 34),
-		BackgroundColor3 = Palette.UIAccent,
+	-- "PLAYGROUND" chip + explanation under the wordmark
+	modeRow = Theme.new("Frame", {
+		Name = "Mode",
+		Position = UDim2.fromOffset(0, 48 + SP.M),
+		Size = UDim2.fromOffset(420, 26),
+		BackgroundTransparency = 1,
 		Visible = false,
-		Parent = root,
+		Parent = brand,
 	})
+	modeChip = Theme.new("Frame", {
+		Size = UDim2.fromOffset(118, 26),
+		BackgroundColor3 = Palette.AccentB,
+		Parent = modeRow,
+	})
+	Theme.corner(modeChip, UDim.new(0.5, 0))
 	Theme.label({
 		Size = UDim2.fromScale(1, 1),
-		Text = "PLAYGROUND MODE",
-		TextSize = 16,
+		Text = "PLAYGROUND",
+		TextSize = 13,
 		TextColor3 = Palette.UIBackground,
 		FontFace = Theme.Font(Enum.FontWeight.Heavy),
 		Parent = modeChip,
 	})
-
-	-- Buttons + status
-	playButton = Theme.button({
-		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, -180, 1, -64),
-		Size = UDim2.fromOffset(340, 60),
-		TextSize = 24,
-		Parent = root,
-	})
-	playgroundButton = Theme.button({
-		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 180, 1, -64),
-		Size = UDim2.fromOffset(340, 60),
-		TextSize = 24,
-		BackgroundColor3 = Palette.UIPanelLight,
+	subtitle = Theme.label({
+		Position = UDim2.fromOffset(118 + SP.S + 2, 0),
+		Size = UDim2.new(1, -(118 + SP.S + 2), 1, 0),
+		TextSize = 13,
+		TextXAlignment = Enum.TextXAlignment.Left,
 		TextColor3 = Palette.UIText,
-		Parent = root,
+		FontFace = Theme.Font(Enum.FontWeight.Medium),
+		Parent = modeRow,
 	})
-	rematchButton = Theme.button({
-		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -136),
-		Size = UDim2.fromOffset(420, 50),
-		TextSize = 20,
-		Visible = false,
-		Parent = root,
+end
+
+local function buildCard()
+	card = group("Player", Vector2.new(1, 0))
+
+	cardPanel = Theme.new("Frame", {
+		Name = "Card",
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.fromScale(1, 0),
+		Size = UDim2.fromOffset(260, 56),
+		BackgroundColor3 = Palette.UIPanel,
+		BackgroundTransparency = 0.15,
+		Parent = card,
+	})
+	Theme.corner(cardPanel, 12)
+	Theme.stroke(cardPanel, Palette.UIText, 1, 0.88)
+	avatar = Theme.new("ImageLabel", {
+		Name = "Avatar",
+		Position = UDim2.fromOffset(SP.S, SP.S),
+		Size = UDim2.fromOffset(40, 40),
+		BackgroundColor3 = Palette.UIPanelLight,
+		ScaleType = Enum.ScaleType.Crop,
+		Image = "",
+		Parent = cardPanel,
+	})
+	Theme.corner(avatar, UDim.new(0.5, 0))
+	Theme.stroke(avatar, Palette.UIAccent, 2, 0.2)
+	Theme.label({
+		Name = "DisplayName",
+		Position = UDim2.fromOffset(40 + SP.L, 9),
+		Size = UDim2.new(1, -(40 + SP.L + SP.M), 0, 20),
+		Text = player.DisplayName,
+		TextSize = 16,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		FontFace = Theme.Font(Enum.FontWeight.Bold),
+		Parent = cardPanel,
+	})
+	Theme.label({
+		Name = "UserName",
+		Position = UDim2.fromOffset(40 + SP.L, 30),
+		Size = UDim2.new(1, -(40 + SP.L + SP.M), 0, 16),
+		Text = "@" .. player.Name,
+		TextSize = 12,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		TextColor3 = Palette.UISubText,
+		FontFace = Theme.Font(Enum.FontWeight.Medium),
+		Parent = cardPanel,
+	})
+	task.spawn(function()
+		local ok, image = pcall(function()
+			return Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
+		end)
+		avatar.Image = (ok and image)
+			or ("rbxthumb://type=AvatarHeadShot&id=" .. tostring(player.UserId) .. "&w=150&h=150")
+	end)
+
+	-- chips under the card: ONLINE, KEYS (right aligned)
+	chipRow = Theme.new("Frame", {
+		Name = "Chips",
+		AnchorPoint = Vector2.new(1, 0),
+		Size = UDim2.fromOffset(260, 28),
+		BackgroundTransparency = 1,
+		Parent = card,
+	})
+	Theme.new("UIListLayout", {
+		FillDirection = Enum.FillDirection.Horizontal,
+		HorizontalAlignment = Enum.HorizontalAlignment.Right,
+		VerticalAlignment = Enum.VerticalAlignment.Center,
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Padding = UDim.new(0, SP.S),
+		Parent = chipRow,
+	})
+
+	onlineChip = buildChip("Online", chipRow, 1)
+	local dot = Theme.new("Frame", {
+		Size = UDim2.fromOffset(8, 8),
+		BackgroundColor3 = Palette.AccentA,
+		LayoutOrder = 1,
+		Parent = onlineChip,
+	})
+	Theme.corner(dot, UDim.new(0.5, 0))
+	onlineLabel = Theme.label({
+		Size = UDim2.fromOffset(0, 16),
+		AutomaticSize = Enum.AutomaticSize.X,
+		Text = "1 ONLINE",
+		TextSize = 12,
+		FontFace = Theme.Font(Enum.FontWeight.Bold),
+		LayoutOrder = 2,
+		Parent = onlineChip,
+	})
+
+	keysChip = buildChip("Keys", chipRow, 2, Palette.AccentB)
+	buildKeyIcon(keysChip)
+	keysLabel = Theme.label({
+		Size = UDim2.fromOffset(0, 18),
+		AutomaticSize = Enum.AutomaticSize.X,
+		Text = "0",
+		TextSize = 15,
+		FontFace = Theme.Font(Enum.FontWeight.Heavy),
+		LayoutOrder = 2,
+		Parent = keysChip,
+	})
+	Theme.label({
+		Size = UDim2.fromOffset(0, 16),
+		AutomaticSize = Enum.AutomaticSize.X,
+		Text = "KEYS",
+		TextSize = 11,
+		TextColor3 = Palette.UISubText,
+		FontFace = Theme.Font(Enum.FontWeight.Bold),
+		LayoutOrder = 3,
+		Parent = keysChip,
+	})
+end
+
+local function buildStack()
+	stack = group("Actions", Vector2.new(0, 1))
+
+	-- REMATCH (after a match, for a little while)
+	local rematch = makeEntry("Rematch", stack, { TextSize = 15, Weight = Enum.FontWeight.Heavy })
+	rematchButton = rematch.Button
+	rematchButton.Visible = false
+
+	-- FIND MATCH (primary)
+	primary = makeEntry("FindMatch", stack, {
+		TextSize = 22,
+		KeySize = 14,
+		Radius = 12,
+		LabelY = -8,
+		Weight = Enum.FontWeight.Heavy,
+	})
+	playButton = primary.Button
+	subLabel = Theme.label({
+		Name = "Sub",
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, SP.M, 0.5, 12),
+		Size = UDim2.new(1, -SP.M * 2, 0, 16),
+		TextSize = 12,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		FontFace = Theme.Font(Enum.FontWeight.Bold),
+		Parent = playButton,
 	})
 	spinner = Theme.new("Frame", {
-		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, 16, 0.5, 0),
+		Name = "Spinner",
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -SP.L, 0.5, 0),
 		Size = UDim2.fromOffset(22, 22),
 		BackgroundTransparency = 1,
 		Visible = false,
@@ -14999,43 +17746,146 @@ function LobbyUI.Start(playerGui)
 	})
 	Theme.corner(spinner, UDim.new(0.5, 0))
 	local spinStroke = Theme.stroke(spinner, Palette.UIAccent, 3, 0)
-	Theme.new("UIGradient", {
-		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(1, 1) }),
-		Parent = spinStroke,
+	Theme.fade(spinStroke, 0, { { 0, 0 }, { 1, 1 } })
+	timeLabel = Theme.label({
+		Name = "Time",
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -(SP.L + 22 + SP.M), 0.5, -8),
+		Size = UDim2.fromOffset(60, 22),
+		Text = "0:00",
+		TextSize = 18,
+		TextXAlignment = Enum.TextXAlignment.Right,
+		TextColor3 = Palette.UIAccent,
+		FontFace = Theme.Font(Enum.FontWeight.Heavy),
+		Visible = false,
+		Parent = playButton,
 	})
-	statusLabel = Theme.label({
+	-- indeterminate progress bar along the bottom while searching
+	progressTrack = Theme.new("Frame", {
+		Name = "Progress",
 		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -30),
-		Size = UDim2.fromOffset(700, 22),
-		TextSize = 15,
-		TextColor3 = Palette.UISubText,
-		FontFace = Theme.Font(Enum.FontWeight.Medium),
+		Position = UDim2.new(0.5, 0, 1, -5),
+		Size = UDim2.new(1, -SP.L * 2, 0, 3),
+		BackgroundColor3 = Palette.UIPanelLight,
+		ClipsDescendants = true,
+		Visible = false,
+		Parent = playButton,
+	})
+	Theme.corner(progressTrack, 2)
+	progressFill = Theme.new("Frame", {
+		Size = UDim2.fromScale(0.35, 1),
+		BackgroundColor3 = Palette.UIAccent,
+		Parent = progressTrack,
+	})
+	Theme.corner(progressFill, 2)
+	shine = Theme.shine(playButton, 1.4, true, 0.22)
+
+	-- secondary actions
+	for i, item in ipairs(SECONDARY) do
+		local entry = makeEntry(item.Id, stack, { TextSize = 15, Hint = item.Hint })
+		entry.Button.LayoutOrder = i
+	end
+	playgroundButton = entries.Playground.Button
+
+	-- status line (compact layout: online / queue / playground)
+	statusLabel = Theme.label({
+		Name = "Status",
+		Size = UDim2.fromOffset(300, 16),
+		TextSize = 12,
+		TextColor3 = Palette.UIText,
+		TextTransparency = 0.1,
+		FontFace = Theme.Font(Enum.FontWeight.SemiBold),
+		Visible = false,
+		Parent = stack,
+	})
+	Theme.new("UIStroke", {
+		Thickness = 1,
+		Transparency = 0.6,
+		Color = Palette.UIBackground,
+		Parent = statusLabel,
+	})
+end
+
+function LobbyUI.Start(playerGui)
+	gui = Theme.screen("Lobby", 2, playerGui)
+	-- keep clear of notches / rounded corners (the top bar is handled by topInset)
+	pcall(function()
+		gui.ScreenInsets = Enum.ScreenInsets.DeviceSafeInsets
+	end)
+	root = Theme.new("CanvasGroup", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		Parent = gui,
+	})
+
+	-- soft gradient scrims behind the panels (never over the centre)
+	scrimLeft = Theme.new("Frame", {
+		Name = "ScrimLeft",
+		Position = UDim2.fromOffset(-60, -60),
+		Size = UDim2.new(0.5, 60, 1, 120),
+		BackgroundColor3 = Palette.UIBackground,
+		ZIndex = 0,
 		Parent = root,
 	})
+	Theme.fade(scrimLeft, 0, { { 0, 0.3 }, { 0.45, 0.68 }, { 1, 1 } })
+	scrimTop = Theme.new("Frame", {
+		Name = "ScrimTop",
+		Position = UDim2.fromOffset(-60, -60),
+		Size = UDim2.new(1, 120, 0.22, 60),
+		BackgroundColor3 = Palette.UIBackground,
+		ZIndex = 0,
+		Parent = root,
+	})
+	Theme.fade(scrimTop, 90, { { 0, 0.35 }, { 1, 1 } })
+
+	buildBrand()
+	buildCard()
+	buildStack()
 
 	local function toggleQueue()
 		Sfx.Play("CardPick", { Volume = 0.6 })
-		Theme.pop(playButton)
+		Theme.pop(playButton, 0.06)
 		Remotes.Get("QueueToggle"):FireServer()
 	end
 	local function togglePlayground()
 		Sfx.Play("CardPick", { Volume = 0.6, Pitch = 0.8 })
-		Theme.pop(playgroundButton)
+		Theme.pop(playgroundButton, 0.06)
 		Remotes.Get("PlaygroundToggle"):FireServer()
 	end
 	local function requestRematch()
 		Sfx.Play("CardPick", { Volume = 0.6, Pitch = 1.1 })
-		Theme.pop(rematchButton)
+		Theme.pop(rematchButton, 0.06)
 		Remotes.Get("Duel"):FireServer("Rematch")
 	end
 	rematchButton.Activated:Connect(requestRematch)
 
 	local function botMatch()
 		Sfx.Play("CardPick", { Volume = 0.6, Pitch = 1.2 })
+		Theme.pop(entries.BotMatch.Button, 0.06)
 		Remotes.Get("AdminCommand"):FireServer("bot")
 	end
 	playButton.Activated:Connect(toggleQueue)
 	playgroundButton.Activated:Connect(togglePlayground)
+	entries.BotMatch.Button.Activated:Connect(botMatch)
+
+	-- Lab / Duel / Settings buttons run the same code as their keys
+	entries.PowerUpLab.Button.Activated:Connect(function()
+		Theme.pop(entries.PowerUpLab.Button, 0.06)
+		Keybinds.Press("PowerUpLab", true)
+		Keybinds.Press("PowerUpLab", false)
+	end)
+	entries.DuelFriend.Button.Activated:Connect(function()
+		Theme.pop(entries.DuelFriend.Button, 0.06)
+		if Controllers and Controllers.Duel then
+			Controllers.Duel.Open()
+		end
+	end)
+	entries.Settings.Button.Activated:Connect(function()
+		Theme.pop(entries.Settings.Button, 0.06)
+		if Controllers and Controllers.Settings then
+			Controllers.Settings.Toggle()
+		end
+	end)
 
 	local function onActionInput(input, processed)
 		if processed and UserInputService:GetFocusedTextBox() then
@@ -15060,55 +17910,59 @@ function LobbyUI.Start(playerGui)
 	UserInputService.InputBegan:Connect(onActionInput)
 	Keybinds.VirtualBegan:Connect(onActionInput)
 
-	-- Settings button
-	local settingsButton = Theme.button({
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -24, 0, 64),
-		Size = UDim2.fromOffset(150, 40),
-		Text = "SETTINGS",
-		TextSize = 15,
-		BackgroundColor3 = Palette.UIPanel,
-		TextColor3 = Palette.UIText,
-		Parent = root,
-	})
-	settingsButton.Activated:Connect(function()
-		Controllers.Settings.Toggle()
-	end)
-	local duelButton = Theme.button({
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -24, 0, 112),
-		Size = UDim2.fromOffset(150, 40),
-		Text = "DUEL A PLAYER",
-		TextSize = 15,
-		BackgroundColor3 = Palette.UIPanel,
-		TextColor3 = Palette.UIText,
-		Parent = root,
-	})
-	duelButton.Activated:Connect(function()
-		Controllers.Duel.Open()
-	end)
-
-	-- idle animations: spinner while searching, a soft pulse on the find button
+	-- idle animations: spinner, progress bar and timer while searching, a
+	-- soft pulse on the find button otherwise
 	RunService.RenderStepped:Connect(function()
 		if not gui.Enabled then
 			return
 		end
 		local t = os.clock()
-		spinner.Rotation = (t * 360) % 360
-		if not queued then
+		if queued then
+			spinner.Rotation = (t * 360) % 360
+			local p = (t * 0.7) % 1
+			progressFill.Position = UDim2.fromScale(p * 1.35 - 0.35, 0)
+			if math.floor(t - searchStart) ~= lastSecs then
+				updateSearchText()
+			end
+		else
 			local pulse = (math.sin(t * 3) + 1) / 2
-			playButton.BackgroundColor3 = Palette.UIAccent:Lerp(Color3.new(1, 1, 1), pulse * 0.12)
+			playButton.BackgroundColor3 = Palette.UIAccent:Lerp(Color3.new(1, 1, 1), pulse * 0.1)
 		end
 	end)
 
-	-- button labels follow your keybinds and the device you're using
-	ClientState.SettingsChanged:Connect(function()
-		LobbyUI.OnState(lastSnapshot)
-	end)
-	UserInputService.LastInputTypeChanged:Connect(function()
+	-- KEYS (crates): LocalPlayer attribute "Keys"
+	refreshKeys()
+	player:GetAttributeChangedSignal("Keys"):Connect(refreshKeys)
+
+	local function refreshIfShown()
 		if shown then
 			LobbyUI.OnState(lastSnapshot)
 		end
+	end
+	Players.PlayerAdded:Connect(refreshIfShown)
+	Players.PlayerRemoving:Connect(function()
+		task.defer(refreshIfShown)
+	end)
+
+	-- button labels follow your keybinds, the device you're using and the
+	-- screen size
+	ClientState.SettingsChanged:Connect(function()
+		LobbyUI.OnState(lastSnapshot)
+	end)
+	UserInputService.LastInputTypeChanged:Connect(refreshIfShown)
+	local function watchCamera()
+		local camera = workspace.CurrentCamera
+		if camera then
+			camera:GetPropertyChangedSignal("ViewportSize"):Connect(refreshIfShown)
+		end
+	end
+	watchCamera()
+	workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+		watchCamera()
+		refreshIfShown()
+	end)
+	pcall(function()
+		GuiService:GetPropertyChangedSignal("TopbarInset"):Connect(refreshIfShown)
 	end)
 
 	LobbyUI.OnState({ InMatch = false, Phase = "Lobby" })
@@ -15118,7 +17972,7 @@ return LobbyUI
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="54">
+          <Item class="ModuleScript" referent="59">
             <Properties>
               <string name="Name">MobileControls</string>
               <string name="Source"><![CDATA[--[[
@@ -15346,7 +18200,7 @@ return MobileControls
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="55">
+          <Item class="ModuleScript" referent="60">
             <Properties>
               <string name="Name">PickScreen</string>
               <string name="Source"><![CDATA[--[[
@@ -16123,7 +18977,7 @@ return PickScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="56">
+          <Item class="ModuleScript" referent="61">
             <Properties>
               <string name="Name">PowerUpLab</string>
               <string name="Source"><![CDATA[--[[
@@ -16424,7 +19278,7 @@ return PowerUpLab
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="57">
+          <Item class="ModuleScript" referent="62">
             <Properties>
               <string name="Name">SettingsMenu</string>
               <string name="Source"><![CDATA[--[[
@@ -16953,7 +19807,7 @@ return SettingsMenu
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="58">
+          <Item class="ModuleScript" referent="63">
             <Properties>
               <string name="Name">Theme</string>
               <string name="Source"><![CDATA[--[[
@@ -17186,6 +20040,53 @@ function Theme.shine(inst, duration, loop, strength)
 	return band, tween
 end
 
+-- Rough pixel width of a short upper-case keycap label ("F", "D-RIGHT"),
+-- so a keycap chip can be sized without measuring text (GothamSSm Heavy).
+function Theme.keycapWidth(text, textSize)
+	textSize = textSize or 13
+	return math.max(math.floor(textSize * 2), math.ceil(#tostring(text) * textSize * 0.7) + 12)
+end
+
+-- A small keyboard-key chip showing a binding. Returns (frame, label).
+-- `props` are applied to the frame (Position, AnchorPoint, Parent...).
+function Theme.keycap(text, textSize, props)
+	textSize = textSize or 13
+	local defaults = {
+		Name = "Keycap",
+		Size = UDim2.fromOffset(Theme.keycapWidth(text, textSize), math.floor(textSize * 1.85)),
+		BackgroundColor3 = Config.Palette.UIPanelLight,
+	}
+	for k, v in pairs(props or {}) do
+		defaults[k] = v
+	end
+	local frame = Theme.new("Frame", defaults)
+	Theme.corner(frame, 6)
+	Theme.stroke(frame, Config.Palette.UIText, 1, 0.8)
+	local label = Theme.label({
+		Name = "Key",
+		Size = UDim2.fromScale(1, 1),
+		Text = tostring(text),
+		TextSize = textSize,
+		FontFace = Theme.Font(Enum.FontWeight.Heavy),
+		Parent = frame,
+	})
+	return frame, label
+end
+
+-- A UIGradient that only fades transparency. `points` is a list of
+-- { position (0-1), transparency } pairs; rotation in degrees.
+function Theme.fade(parent, rotation, points)
+	local keypoints = {}
+	for _, p in ipairs(points) do
+		table.insert(keypoints, NumberSequenceKeypoint.new(p[1], p[2]))
+	end
+	return Theme.new("UIGradient", {
+		Rotation = rotation or 0,
+		Transparency = NumberSequence.new(keypoints),
+		Parent = parent,
+	})
+end
+
 -- A ScreenGui that ignores the top bar inset and survives respawns.
 function Theme.screen(name, displayOrder, parent)
 	return Theme.new("ScreenGui", {
@@ -17216,7 +20117,7 @@ return Theme
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="59">
+          <Item class="ModuleScript" referent="64">
             <Properties>
               <string name="Name">Toast</string>
               <string name="Source"><![CDATA[--[[
@@ -17303,7 +20204,7 @@ return Toast
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="60">
+          <Item class="ModuleScript" referent="65">
             <Properties>
               <string name="Name">VictoryScreen</string>
               <string name="Source"><![CDATA[--[[

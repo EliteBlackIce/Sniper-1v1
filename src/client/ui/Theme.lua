@@ -228,6 +228,53 @@ function Theme.shine(inst, duration, loop, strength)
 	return band, tween
 end
 
+-- Rough pixel width of a short upper-case keycap label ("F", "D-RIGHT"),
+-- so a keycap chip can be sized without measuring text (GothamSSm Heavy).
+function Theme.keycapWidth(text, textSize)
+	textSize = textSize or 13
+	return math.max(math.floor(textSize * 2), math.ceil(#tostring(text) * textSize * 0.7) + 12)
+end
+
+-- A small keyboard-key chip showing a binding. Returns (frame, label).
+-- `props` are applied to the frame (Position, AnchorPoint, Parent...).
+function Theme.keycap(text, textSize, props)
+	textSize = textSize or 13
+	local defaults = {
+		Name = "Keycap",
+		Size = UDim2.fromOffset(Theme.keycapWidth(text, textSize), math.floor(textSize * 1.85)),
+		BackgroundColor3 = Config.Palette.UIPanelLight,
+	}
+	for k, v in pairs(props or {}) do
+		defaults[k] = v
+	end
+	local frame = Theme.new("Frame", defaults)
+	Theme.corner(frame, 6)
+	Theme.stroke(frame, Config.Palette.UIText, 1, 0.8)
+	local label = Theme.label({
+		Name = "Key",
+		Size = UDim2.fromScale(1, 1),
+		Text = tostring(text),
+		TextSize = textSize,
+		FontFace = Theme.Font(Enum.FontWeight.Heavy),
+		Parent = frame,
+	})
+	return frame, label
+end
+
+-- A UIGradient that only fades transparency. `points` is a list of
+-- { position (0-1), transparency } pairs; rotation in degrees.
+function Theme.fade(parent, rotation, points)
+	local keypoints = {}
+	for _, p in ipairs(points) do
+		table.insert(keypoints, NumberSequenceKeypoint.new(p[1], p[2]))
+	end
+	return Theme.new("UIGradient", {
+		Rotation = rotation or 0,
+		Transparency = NumberSequence.new(keypoints),
+		Parent = parent,
+	})
+end
+
 -- A ScreenGui that ignores the top bar inset and survives respawns.
 function Theme.screen(name, displayOrder, parent)
 	return Theme.new("ScreenGui", {

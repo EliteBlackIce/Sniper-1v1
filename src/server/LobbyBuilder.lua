@@ -25,10 +25,9 @@
 	    sconces. The ceiling has radial beams and hanging lights.
 	  * North: a tunnel with a gate into the shooting range.
 	  * East: the duel area, a raised dais with team-coloured pads.
-	  * West: the crate shop, a storefront with arches, an awning, a counter,
-	    shelves and three crates on pedestals. It's a placeholder: each pedestal
-	    has a marker in Lobby.CrateSpots with a "Rarity" attribute, for the
-	    future crate / rifle skin system.
+	  * West: the crate vault, a round dais with the crate altar (the crate is
+	    built and animated by each client, see CrateController), the odds board
+	    and two light pillars. Lobby.CrateAltar has the "Open Crate" prompt.
 	  * South: the stage with the title sign.
 	  * Diagonals: the Playground portal, an indoor garden, a parkour corner and
 	    a wall-run wall with a low ceiling (Magnetic Boots).
@@ -40,6 +39,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local MapBuilder = require(script.Parent.MapBuilder)
+local Logo = require(ReplicatedStorage.Shared.Logo)
 
 local P = Config.Palette
 local C = Config.MapPalette
@@ -198,21 +198,6 @@ local function flowers(b, pos)
 	end)
 end
 
--- A loot crate (placeholder art).
-local function crate(b, pos, color, size)
-	size = size or 1
-	b.block(V(4.4, 3, 4.4) * size, pos + V(0, 1.5 * size, 0), C.Dark)
-	b.decor(function()
-		b.block(V(4.6, 0.9, 4.6) * size, pos + V(0, 3.4 * size, 0), color)
-		neon(b, b.block(V(4.5, 0.18, 4.5) * size, pos + V(0, 3 * size, 0), color))
-		for _, x in ipairs({ -1.5, 1.5 }) do
-			b.block(V(0.35, 3.1, 4.5) * size, pos + V(x * size, 1.5 * size, 0), C.Metal)
-		end
-		b.block(V(0.3, 1, 1) * size, pos + V(2.3 * size, 2.3 * size, 0), P.UIText)
-		neon(b, b.ball(0.5 * size, pos + V(2.45 * size, 2.3 * size, 0), color))
-	end)
-end
-
 -- A ring of blocks between radii ri and ro (an annulus), `thick` tall, top at yTop.
 -- skip(deg) can leave gaps.
 local function ring(b, ri, ro, yTop, thick, color, count, skip)
@@ -273,7 +258,7 @@ function LobbyBuilder.Build()
 		-- ...and the steps you see
 		for k = 0, 2 do
 			ring(b, PIT_R + k * 2, PIT_R + 6, -PIT_DEPTH + (k + 1) * PIT_DEPTH / 3, PIT_DEPTH / 3 + 0.02, k % 2 == 0 and C.Stone or C.Sidewalk, SEGMENTS)
-			ring(b, PIT_R + k * 2, PIT_R + k * 2 + 0.3, -PIT_DEPTH + (k + 1) * PIT_DEPTH / 3 + 0.03, 0.06, C.Trim, SEGMENTS) -- step nosing
+			ring(b, PIT_R + k * 2 - 0.08, PIT_R + k * 2 + 0.3, -PIT_DEPTH + (k + 1) * PIT_DEPTH / 3 + 0.03, 0.06, C.Trim, SEGMENTS) -- step nosing
 		end
 		-- floor pattern: radial joints and rings
 		for i = 0, 23 do
@@ -349,9 +334,29 @@ function LobbyBuilder.Build()
 				b.ball(2.6, pot + V(0, 2.4, 0), C.FoliageDark)
 				b.ball(1.8, pot + V(0.5, 3.2, 0.3), C.Foliage)
 			end
-			-- banners between columns, alternating team colours
-			local mid = polar(COLUMN_R, deg + 15, 17)
-			b.part(V(4.5, 9, 0.3), CFrame.lookAt(mid, V(0, 17, 0)), i % 2 == 0 and P.PlayerA or P.PlayerB)
+			-- banners between columns: the SNIPER DUEL logo, trimmed in team colours
+			-- (none in front of the four main signs: north, east, south, west)
+			if (deg + 15) % 90 ~= 0 then
+				local team = (i - math.floor((i + 1) / 3)) % 2 == 0 and P.PlayerA or P.PlayerB
+				local mid = polar(COLUMN_R, deg + 15, 16.5)
+				local bannerCf = CFrame.lookAt(mid, V(0, 16.5, 0))
+				local cloth = b.part(V(4.6, 10, 0.2), bannerCf, P.UIPanel)
+				for _, part in ipairs(cloth) do
+					part.Name = "Banner"
+					for _, face in ipairs({ Enum.NormalId.Front, Enum.NormalId.Back }) do
+						Logo.OnPart(part, face, { Layout = "Stacked", Color = P.UIText, Accent = team, Stroke = 9 }, 40)
+					end
+				end
+				for _, x in ipairs({ -2.18, 2.18 }) do
+					b.part(V(0.24, 10.3, 0.26), bannerCf * CFrame.new(x, 0, 0), team) -- side trims
+				end
+				b.part(V(4.84, 0.5, 0.3), bannerCf * CFrame.new(0, -5.1, 0), team) -- bottom hem
+				b.cylinder(5.6, 0.3, nil, C.Metal, nil, bannerCf * CFrame.new(0, 5.15, 0)) -- hanging rod
+				for _, x in ipairs({ -2.95, 2.95 }) do
+					b.ball(0.5, (bannerCf * CFrame.new(x, 5.15, 0)).Position, C.Trim)
+					b.part(V(0.08, WALL_H - 21.65, 0.08), bannerCf * CFrame.new(x * 0.8, 5.15 + (WALL_H - 21.65) / 2, 0), C.Metal) -- cords
+				end
+			end
 			-- radial beams under the ceiling
 			local a, c = polar(COLUMN_R, deg, WALL_H - 0.8), polar(R, deg, WALL_H - 0.8)
 			b.part(V(1.2, 1.4, (c - a).Magnitude), CFrame.lookAt((a + c) / 2, c), C.Trim)
@@ -361,25 +366,24 @@ function LobbyBuilder.Build()
 			b.block(V(2.6, 0.6, 2.6), hang - V(0, 5.2, 0), C.Dark)
 			light(neon(b, b.block(V(2, 0.3, 2), hang - V(0, 5.6, 0), C.LampLight)), C.LampLight, 32, 1.4)
 		end
-		ring(b, R - 2, R + 3, WALL_H + 0.2, 0.4, C.Trim, SEGMENTS) -- ceiling edge trim
+		ring(b, R - 2, R, WALL_H, 0.4, C.Trim, SEGMENTS) -- ceiling edge trim
 		for _, r in ipairs({ 40, 52 }) do -- ceiling beam rings (coffers)
 			ring(b, r, r + 1.2, WALL_H - 0.1, 1.2, C.Trim, SEGMENTS)
 		end
-		-- skylight drum + glass dome over the centre
-		ring(b, COLUMN_R - 1.5, COLUMN_R, WALL_H + 7, 7, C.BuildingA, SEGMENTS)
-		local glass = b.cylinder(0.5, (COLUMN_R - 0.5) * 2, V(0, WALL_H + 7.25, 0), C.Glass)
+		-- skylight drum (sitting on the roof, so no faces overlap) + glass + rim
+		ring(b, COLUMN_R - 1.5, COLUMN_R, WALL_H + 7, 5.5, C.BuildingA, SEGMENTS)
+		local glass = b.cylinder(0.3, (COLUMN_R - 0.6) * 2, V(0, WALL_H + 7.25, 0), C.Glass)
 		b.material(glass, Enum.Material.Glass, 0.1)
 		for _, part in ipairs(glass) do
 			part.Transparency = 0.6
 		end
+		ring(b, COLUMN_R - 1.8, COLUMN_R + 0.3, WALL_H + 7.7, 0.5, C.Trim, SEGMENTS) -- rim
 		for i = 0, 7 do -- dome ribs
 			local deg = i * 45
-			bar(b, polar(COLUMN_R - 1, deg, WALL_H + 7.5), V(0, WALL_H + 9, 0), 0.6, C.Trim)
+			bar(b, polar(COLUMN_R - 1, deg, WALL_H + 7.8), V(0, WALL_H + 9.3, 0), 0.6, C.Trim)
 		end
-		ring(b, COLUMN_R - 2, COLUMN_R, WALL_H + 0.2, 0.4, C.Trim, SEGMENTS)
+		ring(b, COLUMN_R - 2, COLUMN_R, WALL_H, 0.4, C.Trim, SEGMENTS) -- trim under the roof edge
 	end)
-	-- the ceiling also covers everything outside the dome edge (no gaps to the sky)
-	ring(b, COLUMN_R - 2, COLUMN_R, WALL_H + 7.5, 0.5, C.Roof, 24)
 
 	-- CENTRE: RIFLE STATUE ------------------------------------------------------------
 	local pitY = -PIT_DEPTH
@@ -445,7 +449,7 @@ function LobbyBuilder.Build()
 	-- PATHS (from the top of the steps out to each place) ------------------------------
 	local stepTop = PIT_R + 6
 	for _, deg in ipairs({ 0, 90, 180, 270 }) do
-		local frame, len = path(b, stepTop, 50, deg, 10)
+		local frame, len = path(b, stepTop, deg == 270 and 43 or 50, deg, 10) -- (west stops at the crate dais)
 		for _, s in ipairs({ -1, 1 }) do
 			lampPost(b, (frame * CFrame.new(s * 7, 0, 0)).Position)
 		end
@@ -503,59 +507,137 @@ function LobbyBuilder.Build()
 	end)
 	sign(model, V(24, 8, 1), CFrame.new(R - 1.6, 9, 0) * CFrame.Angles(0, math.pi / 2, 0), "1v1 DUEL", "FIND MATCH [F]  -  DUEL A PLAYER [U]")
 
-	-- WEST: CRATE SHOP ------------------------------------------------------------------------
-	local front = -48
-	b.block(V(14, 1, 30), V(-55, 0.5, 0), C.Dark) -- shop floor
-	b.block(V(14, 14, 1.4), V(-55, 7, 15), C.BuildingC, "Z") -- side walls
-	b.block(V(15, 1.4, 31.4), V(-55.5, 14.7, 0), C.Roof) -- shop roof
-	for _, z in ipairs({ -15, -5, 5, 15 }) do
-		b.block(V(1.6, 13.4, 1.6), V(front, 7.7, z), C.BuildingC) -- arch pillars
-	end
-	b.block(V(1.6, 2.2, 31.6), V(front, 13.1, 0), C.BuildingC) -- lintel
-	b.block(V(3, 3.4, 18), V(-60.5, 2.7, 0), C.Wood) -- counter
+	-- WEST: CRATE VAULT ---------------------------------------------------------------------
+	-- A round dais with the altar in the middle (the crate itself is built and
+	-- animated by each client, see CrateController), an odds board on the wall
+	-- behind it and two light pillars. Open, calm, and lit like the rest of the hall.
+	local vault = V(-53, 0, 0)
+	b.cylinder(0.5, 21, vault + V(0, 0.25, 0), C.Stone) -- lower step
+	b.cylinder(0.5, 15, vault + V(0, 0.75, 0), C.BuildingA) -- upper step
+	b.cylinder(2.2, 5, vault + V(0, 2.1, 0), C.Dark) -- altar pedestal
 	b.decor(function()
-		accent(b, b.block(V(14.2, 0.2, 30.2), V(-55, 1.05, 0), P.AccentB))
-		b.block(V(15.6, 0.9, 32), V(-55.5, 15.8, 0), C.Stone) -- cornice
-		b.block(V(3.2, 0.4, 18.2), V(-60.5, 4.55, 0), C.Stone)
-		neon(b, b.block(V(0.2, 0.3, 18), V(-58.9, 4.2, 0), P.AccentB))
-		for _, y in ipairs({ 5.6, 9.4 }) do -- shelves of crates
-			b.block(V(1.6, 0.3, 24), V(-61.8, y, 0), C.Wood)
-			for k = -2, 2 do
-				local rarity = ({ "Common", "Rare", "Epic", "Legendary" })[(k + 3) % 4 + 1]
-				local color = Config.Rarity[rarity].Color
-				b.block(V(1.4, 1.4, 1.4), V(-61.8, y + 0.85, k * 4.4), C.Dark)
-				neon(b, b.block(V(1.45, 0.15, 1.45), V(-61.8, y + 1.2, k * 4.4), color))
-			end
+		b.cylinder(0.08, 21.3, vault + V(0, 0.46, 0), C.Trim) -- step edges
+		b.cylinder(0.08, 15.3, vault + V(0, 0.96, 0), C.Trim)
+		b.cylinder(0.3, 5.6, vault + V(0, 1.15, 0), C.Metal) -- pedestal base + cap
+		b.cylinder(0.25, 5.5, vault + V(0, 3.3, 0), C.Metal)
+		-- rarity wheel inlaid round the pedestal, one tile per rarity
+		local count = #Config.Crates.Rarities
+		for k, rarity in ipairs(Config.Crates.Rarities) do
+			local a = rad((k - 1) * 360 / count + 180 / count)
+			local pos = vault + V(math.cos(a) * 5.4, 1.03, math.sin(a) * 5.4)
+			b.part(V(4.4, 0.06, 1.1), CFrame.lookAt(pos, vault + V(0, 1.03, 0)) * CFrame.Angles(0, rad(90), 0), rarity.Color)
 		end
-		for k = -7, 7 do -- striped awning
-			b.part(V(4, 0.3, 2), CFrame.new(-46.4, 11.8, k * 2) * CFrame.Angles(0, 0, rad(18)), k % 2 == 0 and P.AccentB or C.RoadWhite)
-		end
-		light(neon(b, b.block(V(10, 0.25, 0.25), V(-55, 13.8, 0), C.LampLight)), C.LampLight, 24, 1.2)
 	end)
-	sign(model, V(16, 3.6, 0.6), CFrame.new(front + 0.6, 18.2, 0) * CFrame.Angles(0, -math.pi / 2, 0), "CRATES", "RIFLE SKINS - COMING SOON", P.AccentB)
-	local spots = Instance.new("Folder")
-	spots.Name = "CrateSpots"
-	spots.Parent = model
-	for i, info in ipairs({ { -9, "Rare" }, { 0, "Legendary" }, { 9, "Epic" } }) do
-		local z, rarity = info[1], info[2]
-		local color = Config.Rarity[rarity].Color
-		local base = V(-52.5, 1, z)
-		b.cylinder(1.4, 5.4, base + V(0, 0.7, 0), C.Stone)
-		b.decor(function()
-			light(neon(b, b.cylinder(0.2, 5.7, base + V(0, 1.4, 0), color)), color, 10, 1)
-		end)
-		crate(b, base + V(0, 1.4, 0), color, 0.9)
-		local spot = Instance.new("Part")
-		spot.Name = "CrateSpot" .. i
-		spot.Anchored = true
-		spot.CanCollide = false
-		spot.CanQuery = false
-		spot.Transparency = 1
-		spot.Size = V(4, 0.2, 4)
-		spot.CFrame = CFrame.new(base + V(0, 1.5, 0))
-		spot:SetAttribute("Rarity", rarity)
-		spot.Parent = spots
+	local ringParts = b.cylinder(0.14, 5.2, vault + V(0, 3.05, 0), P.AccentA)
+	neon(b, ringParts)
+	for _, part in ipairs(ringParts) do
+		part.Name = "AltarRing" -- the client cycles it through the rarity colours
+		part.CanCollide = false
 	end
+
+	-- the altar anchor: the client builds the crate here; the prompt opens it
+	local altar = Instance.new("Part")
+	altar.Name = "CrateAltar"
+	altar.Anchored = true
+	altar.CanCollide = false
+	altar.CanQuery = false
+	altar.CanTouch = false
+	altar.Transparency = 1
+	altar.Size = V(4, 0.2, 4)
+	altar.CFrame = CFrame.lookAt(vault + V(0, 3.45, 0), vault + V(1, 3.45, 0)) -- crate front faces the hall
+	altar.Parent = model
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = "OpenCrate"
+	prompt.ActionText = "Open Crate"
+	prompt.ObjectText = "Crate Vault"
+	prompt.KeyboardKeyCode = Enum.KeyCode.X
+	prompt.HoldDuration = 0.35
+	prompt.MaxActivationDistance = 14
+	prompt.RequiresLineOfSight = false
+	prompt.UIOffset = Vector2.new(0, 40)
+	prompt.Parent = altar
+
+	-- light pillars either side of the dais
+	for _, z in ipairs({ -9, 9 }) do
+		local base = vault + V(-3.5, 1, z)
+		b.block(V(1.2, 10, 1.2), base + V(0, 5, 0), C.BuildingA)
+		b.decor(function()
+			b.block(V(1.6, 0.6, 1.6), base + V(0, 0.3, 0), C.Metal)
+			b.block(V(1.6, 0.6, 1.6), base + V(0, 9.9, 0), C.Metal)
+			light(neon(b, b.block(V(0.3, 8, 1.26), base + V(0.5, 5, 0), C.LampLight)), C.LampLight, 22, 1.1)
+		end)
+	end
+
+	-- odds board on the wall behind: one card per rarity with its chance
+	local board = Instance.new("Part")
+	board.Name = "OddsBoard"
+	board.Anchored = true
+	board.CanCollide = false
+	board.Size = V(22, 9, 0.4)
+	board.CFrame = CFrame.lookAt(V(-60.6, 8.5, 0), V(0, 8.5, 0))
+	board.Color = P.UIPanel
+	board.Material = Enum.Material.SmoothPlastic
+	board.Parent = model
+	do
+		local gui = Instance.new("SurfaceGui")
+		gui.Face = Enum.NormalId.Front
+		gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		gui.PixelsPerStud = 40
+		gui.LightInfluence = 0
+		gui.Parent = board
+		local title = Instance.new("TextLabel")
+		title.BackgroundTransparency = 1
+		title.Position = UDim2.fromScale(0.05, 0.05)
+		title.Size = UDim2.fromScale(0.9, 0.14)
+		title.Text = "CRATE ODDS"
+		title.TextScaled = true
+		title.FontFace = Font.new(Config.UI.FontFamily, Enum.FontWeight.Heavy)
+		title.TextColor3 = P.UIText
+		title.Parent = gui
+		local count = #Config.Crates.Rarities
+		for k, rarity in ipairs(Config.Crates.Rarities) do
+			local card = Instance.new("Frame")
+			card.BackgroundColor3 = P.UIPanelLight
+			card.BorderSizePixel = 0
+			card.Position = UDim2.fromScale(0.04 + (k - 1) * 0.92 / count + 0.006, 0.26)
+			card.Size = UDim2.fromScale(0.92 / count - 0.012, 0.66)
+			card.Parent = gui
+			local corner = Instance.new("UICorner")
+			corner.CornerRadius = UDim.new(0, 14)
+			corner.Parent = card
+			local bar = Instance.new("Frame")
+			bar.BackgroundColor3 = rarity.Color
+			bar.BorderSizePixel = 0
+			bar.Size = UDim2.fromScale(1, 0.12)
+			bar.Parent = card
+			local barCorner = corner:Clone()
+			barCorner.Parent = bar
+			local chance = Instance.new("TextLabel")
+			chance.BackgroundTransparency = 1
+			chance.Position = UDim2.fromScale(0.08, 0.24)
+			chance.Size = UDim2.fromScale(0.84, 0.36)
+			chance.Text = tostring(rarity.Chance) .. "%"
+			chance.TextScaled = true
+			chance.FontFace = Font.new(Config.UI.FontFamily, Enum.FontWeight.Heavy)
+			chance.TextColor3 = rarity.Color
+			chance.Parent = card
+			local name = chance:Clone()
+			name.Position = UDim2.fromScale(0.06, 0.68)
+			name.Size = UDim2.fromScale(0.88, 0.18)
+			name.Text = rarity.Name
+			name.FontFace = Font.new(Config.UI.FontFamily, Enum.FontWeight.Bold)
+			name.TextColor3 = P.UIText
+			name.Parent = card
+		end
+	end
+	b.decor(function()
+		local frame = CFrame.lookAt(V(-60.9, 8.5, 0), V(0, 8.5, 0))
+		b.part(V(22.8, 0.4, 0.5), frame * CFrame.new(0, 4.7, 0), C.Metal)
+		b.part(V(22.8, 0.4, 0.5), frame * CFrame.new(0, -4.7, 0), C.Metal)
+		b.part(V(0.4, 9.8, 0.5), frame * CFrame.new(-11.2, 0, 0), C.Metal)
+		b.part(V(0.4, 9.8, 0.5), frame * CFrame.new(11.2, 0, 0), C.Metal)
+	end)
+	sign(model, V(16, 3.2, 0.5), CFrame.lookAt(V(-60.4, 15.4, 0), V(0, 15.4, 0)), "CRATE VAULT", "OPEN CRATES  -  UNLOCK RIFLE SKINS", P.AccentB)
 
 	-- VENDING MACHINES + BINS ---------------------------------------------------------------
 	local function vending(cf, color)
@@ -600,7 +682,15 @@ function LobbyBuilder.Build()
 		end
 		b.block(V(30, 0.5, 0.5), V(0, WALL_H - 4, 51), C.Metal)
 	end)
-	sign(model, V(28, 10, 1), CFrame.new(0, 14, R - 2.2), "SNIPER DUEL", ("1v1  -  FIRST TO %d"):format(Config.Match.RoundsToWin))
+	local title = sign(model, V(30, 9, 1), CFrame.new(0, 14, R - 2.2), "", nil)
+	title:FindFirstChildOfClass("SurfaceGui"):Destroy()
+	Logo.OnPart(title, Enum.NormalId.Front, {
+		Layout = "Inline",
+		Color = P.UIText,
+		Accent = P.AccentA,
+		Stroke = 14,
+		Subtitle = ("1V1 SNIPER ARENA  -  FIRST TO %d"):format(Config.Match.RoundsToWin),
+	}, 40)
 
 	-- NORTH-EAST: INDOOR GARDEN ------------------------------------------------------------
 	plant(b, polar(52, 55), 1)
@@ -630,7 +720,8 @@ function LobbyBuilder.Build()
 			local a = k / 24 * math.pi * 2
 			local pos = centre + across * math.cos(a) * 6 + V(0, math.sin(a) * 6, 0)
 			local tangent = across * -math.sin(a) + V(0, math.cos(a), 0)
-			b.part(V(1.3, 1.3, 1.9), CFrame.lookAt(pos, pos + tangent), k % 2 == 0 and C.BuildingA or C.Trim)
+			local grow = k % 2 == 0 and 0 or 0.08
+			b.part(V(1.3 + grow, 1.3 + grow, 1.9), CFrame.lookAt(pos, pos + tangent), k % 2 == 0 and C.BuildingA or C.Trim)
 		end
 		local disc = b.cylinder(0.2, 11.2, nil, P.AccentA, nil, CFrame.lookAt(centre, centre + facing) * CFrame.Angles(0, rad(90), 0))
 		light(neon(b, disc), P.AccentA, 20, 1.2)
@@ -700,7 +791,7 @@ function LobbyBuilder.Build()
 			return CFrame.lookAt(offset, Vector3.new(offset.X * 2, pitY + 3.5, offset.Z * 2))
 		end,
 		KillY = -60,
-		CrateSpots = spots,
+		CrateAltar = altar,
 		DummySpots = {
 			{ Position = V(-10, 0, -110), Motion = "Static" },
 			{ Position = V(8, 0, -135), Motion = "Strafe", Amount = 8, Speed = 0.35 },

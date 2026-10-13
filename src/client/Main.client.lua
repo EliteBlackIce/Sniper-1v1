@@ -17,6 +17,7 @@
 		AimAssist            light controller aim assist (used by CameraController)
 		KillCamController    replays your death through your killer's eyes
 		LightingController   arena / indoor lobby lighting profiles
+		CrateController      the lobby crate + its opening cinematic
 ]]
 
 local Client = script.Parent
@@ -31,6 +32,7 @@ local UIController = require(Client.UIController)
 local CharacterPoser = require(Client.CharacterPoser)
 local KillCamController = require(Client.KillCamController)
 local LightingController = require(Client.LightingController)
+local CrateController = require(Client.CrateController)
 
 local controllers = {
 	Camera = CameraController,
@@ -42,6 +44,7 @@ local controllers = {
 	Poser = CharacterPoser,
 	KillCam = KillCamController,
 	Lighting = LightingController,
+	Crates = CrateController,
 }
 
 ClientState.Init()
@@ -56,6 +59,7 @@ local order = {
 	CharacterPoser,
 	KillCamController,
 	LightingController,
+	CrateController,
 }
 for _, controller in ipairs(order) do
 	controller.Init(controllers)

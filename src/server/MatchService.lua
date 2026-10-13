@@ -21,6 +21,7 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local PowerUps = require(ReplicatedStorage.Shared.PowerUps)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Util = require(ReplicatedStorage.Shared.Util)
+local Signal = require(ReplicatedStorage.Shared.Signal)
 local CharacterService = require(script.Parent.CharacterService)
 local MapBuilder = require(script.Parent.MapBuilder)
 local DummyService = require(script.Parent.DummyService)
@@ -28,6 +29,7 @@ local Match = require(script.Parent.Match)
 local BotService = require(script.Parent.BotService)
 
 local MatchService = {}
+MatchService.MatchFinished = Signal.new() -- (match) after a match ends (crates hand out keys)
 
 local lobby
 local queue = {} -- ordered list of players waiting
@@ -155,6 +157,7 @@ end
 ----------------------------------------------------------------------------
 local function onMatchFinished(match)
 	arenaInUse[match.Arena.Index] = nil
+	MatchService.MatchFinished:Fire(match)
 	-- remember who you just played so you can ask for a rematch
 	local a, b = match.Players[1], match.Players[2]
 	for _, pair in ipairs({ { a, b }, { b, a } }) do
@@ -455,6 +458,11 @@ end
 ----------------------------------------------------------------------------
 -- Init
 ----------------------------------------------------------------------------
+-- The lobby (built in Init): Model, CrateAltar, ...
+function MatchService.GetLobby()
+	return lobby
+end
+
 function MatchService.Init()
 	lobby = MapBuilder.BuildLobby()
 	DummyService.Init(lobby.DummySpots)

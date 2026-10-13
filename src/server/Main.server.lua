@@ -12,6 +12,7 @@
 		MatchService      lobby, queue, matchmaking
 		CombatService     server-side hit validation, damage, abilities
 		BotService        computer opponent for admin "/bot" matches
+		CrateService      crate keys, opening (server-side rolls), owned skins (DataStore)
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -34,6 +35,7 @@ local SettingsService = require(script.Parent.SettingsService)
 local MatchService = require(script.Parent.MatchService)
 local CombatService = require(script.Parent.CombatService)
 local BotService = require(script.Parent.BotService)
+local CrateService = require(script.Parent.CrateService)
 
 LightingSetup.Apply()
 CharacterService.Init()
@@ -41,5 +43,6 @@ SettingsService.Init()
 CombatService.Init()
 BotService.Init(CombatService)
 MatchService.Init()
+CrateService.Init(MatchService)
 
 print("[Sniper Duel] server ready")

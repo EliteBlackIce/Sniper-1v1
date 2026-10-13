@@ -2729,7 +2729,7 @@ return Util
 	   |        |door|             |door|              open end      |
 	   | [SPAWN]   wall   pillar   /[PLAZA]\\   pillar   wall  [SPAWN]|
 	   |  roof     wall           \\[centre]/            wall    roof |
-	   |  ramp> [CONTAINER] crates   low wall   crates [CONTAINER]  |
+	   |  ramp> [CONTAINER] crates  tall wall   crates [CONTAINER]  |
 	   +------------------------------------------------------------+
 
 	Only solid shapes collide; trims and floor markings are decor.
@@ -2744,7 +2744,7 @@ local V = Vector3.new
 local ArenaCrossfire = {}
 
 local LENGTH, WIDTH = 170, 120 -- floor size (X, Z)
-local WALL_HEIGHT = 60 -- tall outer walls
+local WALL_HEIGHT = 28
 
 function ArenaCrossfire.Build(b)
 	local X, Z, XZ = "X", "Z", "XZ"
@@ -2785,7 +2785,7 @@ function ArenaCrossfire.Build(b)
 	b.ramp(V(-21, 0, 0), V(1, 0, 0), 8, 3, 14, C.Stone, X)
 	b.ramp(V(0, 0, -21), V(0, 0, 1), 8, 3, 14, C.Stone, Z)
 	b.block(V(5, 8, 9), V(0, 7, 0), C.BuildingA) -- centrepiece (blocks the spawn-to-spawn line)
-	b.block(V(6, 2.5, 1.5), V(-8, 4.25, 9), P.AccentA, XZ) -- low cover on the plaza
+	b.block(V(6, 7, 1.5), V(-8, 6.5, 9), P.AccentA, XZ) -- walls on the plaza
 	b.decor(function()
 		b.block(V(26.4, 0.4, 26.4), V(0, 3.1, 0), C.Trim)
 		b.block(V(5.6, 0.6, 9.6), V(0, 11.2, 0), P.AccentB)
@@ -2793,11 +2793,11 @@ function ArenaCrossfire.Build(b)
 	end)
 
 	-- MID COVER --------------------------------------------------------------
-	b.block(V(1.5, 4, 10), V(-38, 2, 14), C.BuildingA, XZ) -- low walls
-	b.block(V(4, 9, 4), V(-30, 4.5, 0), C.BuildingA, X) -- pillars
+	b.block(V(1.5, 14, 12), V(-38, 7, 14), C.BuildingA, XZ) -- tall walls
+	b.block(V(4, 14, 4), V(-30, 7, 0), C.BuildingA, X) -- tall pillars
 	b.decor(function()
-		b.block(V(1.9, 0.5, 10.4), V(-38, 4.25, 14), P.AccentB, XZ)
-		b.block(V(4.4, 0.6, 4.4), V(-30, 9.3, 0), P.AccentB, X)
+		b.block(V(1.9, 0.5, 12.4), V(-38, 14.25, 14), P.AccentB, XZ)
+		b.block(V(4.4, 0.6, 4.4), V(-30, 14.3, 0), P.AccentB, X)
 	end)
 
 	-- NORTH: MARKET HALL (close range inside, walkable roof) -------------------
@@ -2826,7 +2826,7 @@ function ArenaCrossfire.Build(b)
 	b.ramp(V(-52, 0, -46), V(1, 0, 0), 14, 8.5, 6, P.AccentA, X) -- ramp onto it
 	b.block(V(4, 4, 4), V(-12, 2, -44), C.Wood, X) -- crates
 	b.block(V(3, 3, 3), V(-8, 1.5, -51), C.Wood, X)
-	b.block(V(12, 4, 1.5), V(0, 2, -40), C.BuildingA) -- low wall in the middle of the yard
+	b.block(V(12, 12, 1.5), V(0, 6, -40), C.BuildingA) -- tall wall in the middle of the yard
 	b.block(V(8, 8.5, 16), V(-60, 4.25, -46), C.Awning[1], X) -- container by the spawn
 	b.decor(function()
 		for k = -4, 4 do
@@ -2837,7 +2837,7 @@ function ArenaCrossfire.Build(b)
 		end
 		b.block(V(20.1, 0.5, 8.1), V(-28, 8.3, -46), C.Trim, X)
 		b.block(V(8.1, 0.5, 16.1), V(-60, 8.3, -46), C.Trim, X)
-		b.block(V(12.4, 0.5, 1.9), V(0, 4.25, -40), P.AccentB)
+		b.block(V(12.4, 0.5, 1.9), V(0, 12.25, -40), P.AccentB)
 	end)
 
 	-- Spawns (inside the spawn buildings, facing the middle)

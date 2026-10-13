@@ -415,11 +415,11 @@ both sides are identical, with three routes between the spawns:
 - **Spawn buildings** on each end (tinted with your team colour) with a
   walkable roof, with stairs on both sides, to hold your end from above.
 - **Middle**: a raised plaza with a big centrepiece that blocks the
-  spawn-to-spawn line, low cover on top, pillars and low walls around it.
+  spawn-to-spawn line, walls on top, tall pillars and tall walls around it.
 - **North**: a covered market hall. Fight up close inside (two doorways and
   an open end), or take the ramp up to its roof.
 - **South**: a container yard. A ramp gets you onto a container for height,
-  with crates and a low wall for cover.
+  with crates and a tall wall for cover.
 
 The other maps are still there: `"Simple"` (the open ramps arena),
 `"Downtown"` (the detailed city) and `"Classic"`. Each map is one file in

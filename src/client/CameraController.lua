@@ -193,7 +193,9 @@ local function update(dt)
 	landDipVelocity += (-landDip * 180 - landDipVelocity * 18) * dt
 	landDip += landDipVelocity * dt
 	if humanoid then
-		humanoid.CameraOffset = Vector3.new(0, -currentDrop + bobY + landDip, 0)
+		-- (first person sits a little behind your eyes so your real arms aren't in your face)
+		local back = firstPerson and (Config.Body.CameraBack or 0) or 0
+		humanoid.CameraOffset = Vector3.new(0, -currentDrop + bobY + landDip, back)
 	end
 
 	-- CONTROLLER LOOK: right stick, with its own sensitivity / deadzone / curve

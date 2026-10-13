@@ -3,7 +3,7 @@
 
 	The sniper rifle ("VX-7"), described once as a list of flat-coloured
 	parts and built twice:
-	  * the first-person viewmodel (ViewmodelController, scale 1)
+	  * the rifle in your hands (CharacterService builds it, BodyAnimator animates it)
 	  * the rifle other players see in your hands (CharacterService, smaller)
 
 	Look: an angular two-tone rifle (light shell over dark metal) with
@@ -27,7 +27,7 @@
 	            relative to the bolt pivot)
 	  Extra     optional { Neon = true, Transparency = n,
 	                       Anim = "Pulse" | "Flicker" | "Spin" | "Ghost" | "Speed" }
-	            (Anim is played by the viewmodel; see ViewmodelController)
+	            (Anim was played by the old first-person viewmodel)
 ]]
 
 local Config = require(script.Parent.Config)

@@ -31,7 +31,6 @@ local Config = require(Shared.Config)
 local Remotes = require(Shared.Remotes)
 local PowerUps = require(Shared.PowerUps)
 local ClientState = require(script.Parent.ClientState)
-local CharacterPoser = require(script.Parent.CharacterPoser)
 local Theme = require(script.Parent.ui.Theme)
 
 local K = Config.KillCam
@@ -156,12 +155,10 @@ end
 
 -- A copy of your real character (avatar, clothes, rifle), still rigged so it
 -- can be animated. Only the root is anchored; the kill cam moves it.
-local function makeGhost()
-	local character = player.Character
+local function copyCharacter(character)
 	if not character then
 		return nil
 	end
-	ghostAnims = readAnimations(character)
 	local wasArchivable = character.Archivable
 	character.Archivable = true
 	local ok, ghost = pcall(function()
@@ -202,6 +199,15 @@ local function makeGhost()
 	outline.Parent = ghost
 	ghost.Name = "KillCamGhost"
 	return ghost
+end
+
+-- A copy of you made at round start (before you can die).
+local function makeGhost()
+	if not player.Character then
+		return nil
+	end
+	ghostAnims = readAnimations(player.Character)
+	return copyCharacter(player.Character)
 end
 
 -- Loads idle / run / fall tracks on the ghost. Returns a function that picks
@@ -273,11 +279,35 @@ local function play(deathTime, killerName)
 	local recordedShots = table.clone(shots)
 	local drawn = {}
 
+	-- the killer: a copy of their real character, placed where they were,
+	-- seen from inside their head (only their arms + weapon show)
+	local killerCopy = copyCharacter(enemy)
+	if killerCopy then
+		killerCopy.Name = "KillCamKiller"
+		local outline = killerCopy:FindFirstChildOfClass("Highlight")
+		if outline then
+			outline:Destroy()
+		end
+		for _, part in ipairs(killerCopy:GetDescendants()) do
+			if part:IsA("BasePart") then
+				part.LocalTransparencyModifier = 1
+			elseif part:IsA("Decal") then
+				part.Transparency = 1
+			end
+		end
+		killerCopy:PivotTo(CFrame.new(samples[1].Head - Vector3.new(0, 1.5, 0)))
+		killerCopy.Parent = workspace
+		Controllers.Viewmodel.Track(killerCopy)
+	end
+	if ghost then
+		Controllers.Viewmodel.Track(ghost) -- your copy holds its weapon + aims like you did
+	end
+
 	-- the killer's arms + rifle on our camera (built before we hide them)
 	local entry = ClientState.GetOpponentEntry()
 	local owned = entry and entry.PowerUps or {}
 	local boltTime = PowerUps.ComputeStats(owned).BoltTime or 1
-	local okPuppet, puppetErr = pcall(Controllers.Viewmodel.SetPuppet, { Character = enemy, Owned = owned })
+	local okPuppet, puppetErr = pcall(Controllers.Viewmodel.SetPuppet, { Character = killerCopy, Owned = owned })
 	if not okPuppet then
 		warn("[KillCam]", puppetErr)
 	end
@@ -308,16 +338,9 @@ local function play(deathTime, killerName)
 	local rate = 1
 	local current -- the sample for this frame
 
-	-- your copy holds the rifle up and aims where you did (after the Animator)
-	local poseConnection = RunService.Stepped:Connect(function()
-		if ghost and current then
-			CharacterPoser.PoseRig(ghost, current.MyPitch or 0)
-		end
-	end)
 
 	local function stop()
 		RunService:UnbindFromRenderStep("SniperKillCam")
-		poseConnection:Disconnect()
 		-- give the camera back first, so nothing below can leave it stuck
 		camera.CameraType = oldType == Enum.CameraType.Scriptable and Enum.CameraType.Custom or oldType
 		camera.FieldOfView = oldFov
@@ -330,7 +353,12 @@ local function play(deathTime, killerName)
 		gui.Enabled = false
 		pcall(Controllers.Viewmodel.SetWeapon, ClientState.Weapon or "Sniper")
 		if ghost then
+			Controllers.Viewmodel.Untrack(ghost)
 			ghost:Destroy()
+		end
+		if killerCopy then
+			Controllers.Viewmodel.Untrack(killerCopy)
+			killerCopy:Destroy()
 		end
 		setCharacterHidden(enemy, false)
 		local ok, err = pcall(Controllers.Viewmodel.SetPuppet, nil)
@@ -365,7 +393,11 @@ local function play(deathTime, killerName)
 				end
 				lastSwing = s.Swing
 			end
-			camera.CFrame = CFrame.new(s.Head) * CFrame.fromOrientation(s.Pitch, s.Yaw, 0)
+			local eye = CFrame.new(s.Head) * CFrame.fromOrientation(s.Pitch, s.Yaw, 0)
+			camera.CFrame = eye * CFrame.new(0, 0, Config.Body.CameraBack or 0)
+			if killerCopy then
+				killerCopy:PivotTo(CFrame.new(s.Head - Vector3.new(0, 1.5, 0)) * CFrame.fromOrientation(0, s.Yaw, 0))
+			end
 			-- how fast they were moving (walk bob on their arms)
 			local before = sampleAt(at - 0.1)
 			if before then
@@ -374,6 +406,7 @@ local function play(deathTime, killerName)
 			end
 			if ghost then
 				ghost:PivotTo(s.Me)
+				ghost:SetAttribute("AimPitch", s.MyPitch or 0)
 				local prev = sampleAt(at - 0.1)
 				local speed = prev and ((s.Me.Position - prev.Me.Position) * Vector3.new(1, 0, 1)).Magnitude / 0.1 or 0
 				setGhostAnim(speed, s.MyAir, rate)

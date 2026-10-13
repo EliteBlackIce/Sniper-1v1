@@ -566,6 +566,9 @@ local function onFire(player, origin, direction, claims)
 		return
 	end
 	lastFire[player] = now
+	-- everyone's game plays the shot on your character (recoil + bolt)
+	character:SetAttribute("BoltTime", boltTime)
+	character:SetAttribute("Shot", ((character:GetAttribute("Shot") or 0) + 1) % 1000)
 
 	-- 5) trace every bullet on the server
 	local targets = getTargets(player, match)
@@ -918,7 +921,7 @@ local function onMelee(player, kind, targetModel, look)
 		end
 	end
 	lastMelee[player] = { Time = now, Kind = kind }
-	-- everyone sees the swing (CharacterPoser animates the arm)
+	-- everyone sees the swing (BodyAnimator plays it on your character)
 	character:SetAttribute("SwingKind", kind)
 	character:SetAttribute("Swing", ((character:GetAttribute("Swing") or 0) + 1) % 1000)
 
@@ -974,6 +977,28 @@ local function onMelee(player, kind, targetModel, look)
 	})
 end
 
+-- Cosmetic animation events everyone should see on your character:
+-- "Inspect" (with the variant) and "Scope" (true / false).
+local lastAnim = {}
+local INSPECT_VARIANTS = { Rifle = true, Knife = true }
+local function onAnim(player, kind, value)
+	local character = player.Character
+	if not character or typeof(kind) ~= "string" then
+		return
+	end
+	local now = os.clock()
+	lastAnim[player] = lastAnim[player] or {}
+	if now - (lastAnim[player][kind] or 0) < 0.25 then
+		return
+	end
+	lastAnim[player][kind] = now
+	if kind == "Inspect" and INSPECT_VARIANTS[value] then
+		character:SetAttribute("Inspect", ((character:GetAttribute("Inspect") or 0) + 1) % 1000)
+	elseif kind == "Scope" and typeof(value) == "boolean" then
+		character:SetAttribute("Scoped", value)
+	end
+end
+
 local lastEquip = {}
 local function onEquip(player, weapon)
 	local now = os.clock()
@@ -1018,8 +1043,10 @@ function CombatService.Init()
 	Remotes.Get("Aim").OnServerEvent:Connect(onAim)
 	Remotes.Get("Melee").OnServerEvent:Connect(onMelee)
 	Remotes.Get("Equip").OnServerEvent:Connect(onEquip)
+	Remotes.Get("Anim").OnServerEvent:Connect(onAnim)
 
 	Players.PlayerRemoving:Connect(function(player)
+		lastAnim[player] = nil
 		lastEquip[player] = nil
 		lastMelee[player] = nil
 		lastFire[player] = nil

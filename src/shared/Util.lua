@@ -81,9 +81,11 @@ local BODY_PARTS = {
 	HumanoidRootPart = true,
 }
 function Util.hitZone(partName)
-	if partName == "Head" then
+	if partName == "Head" or partName == "HitboxHead" then
 		return "Head"
-	elseif BODY_PARTS[partName] then
+	elseif partName == "HitboxLegs" then
+		return "Limb"
+	elseif BODY_PARTS[partName] or partName == "HitboxTorso" then
 		return "Body"
 	end
 	return "Limb"

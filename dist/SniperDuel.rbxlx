@@ -398,6 +398,24 @@ Config.Rarity = {
 }
 
 ----------------------------------------------------------------------------
+-- BODY: your real character holds and animates the weapons (BodyAnimator).
+-- In first person you see your own forearms and hands; everyone else sees
+-- the same animation on your whole character.
+----------------------------------------------------------------------------
+Config.Body = {
+	GunScale = 0.85, -- the rifle's size in your hands
+	RifleHip = Vector3.new(0.42, -0.78, -0.85), -- where the rifle's grip sits, from your eyes
+	RifleLeftHold = -0.55, -- how far up the rifle the left hand holds (studs, gun space)
+	CameraBack = 0.5, -- first person: the camera sits this far behind your eyes so your arms aren't in your face
+	-- Seen from outside, the same animation is played lower and a little
+	-- further out (weapons at chest / waist height, not up by the face).
+	ThirdPersonOffset = CFrame.new(0, -0.5, -0.15),
+	ShowUpperArms = false, -- first person: also draw your upper arms (they're mostly off screen)
+	MaxDistance = 300, -- other characters further away than this aren't animated
+	PitchSmoothing = 14, -- how quickly other players' aim follows their updates
+}
+
+----------------------------------------------------------------------------
 -- KNIFE (your second weapon: press 2 / scroll, or ButtonR1 on a controller)
 --   Left click  slash (alternates left / right)
 --   Right click heavy stab with a short lunge
@@ -420,13 +438,13 @@ Config.Knife = {
 	HitAngle = 55, -- the target must be within this many degrees of where you look
 	LungeSpeed = 34, -- forward push on a stab
 	EquipTime = 0.4, -- seconds after switching before you can attack
-	MoveSpeedMultiplier = 1.12, -- knife out = you run a bit faster
+	MoveSpeedMultiplier = 1.08, -- knife out = you run a bit faster
 	-- imported knife mesh (assets: CombatKnife.glb, see README)
 	UseImportedKnife = true,
 	MeshTemplate = "CombatKnife",
 	MeshYaw = nil,
 	MeshPaint = "Always", -- "Always" = flat steel blade + dark handle, "Auto" = keep imported textures
-	WorldScale = 0.75, -- the knife other players see in your hand
+	WorldScale = 1.05, -- the knife's size in your hand (you and everyone else see the same one)
 }
 
 ----------------------------------------------------------------------------
@@ -663,8 +681,8 @@ Config.Movement = {
 	-- Movement uses the same model as Source games (CS / TF2 / Titanfall):
 	-- ground friction + acceleration, and "air strafing" in the air, which is
 	-- what makes bunny hopping work.
-	RunSpeed = 30, -- normal top speed on the ground
-	SprintSpeed = 38, -- top speed while holding Shift on the ground
+	RunSpeed = 22, -- normal top speed on the ground
+	SprintSpeed = 28, -- top speed while holding Shift on the ground
 	GroundAccel = 15, -- how quickly you reach top speed (higher = snappier)
 	Friction = 7, -- ground friction (higher = stop faster)
 	StopSpeed = 10, -- below this speed friction acts as if you were going this fast
@@ -678,25 +696,25 @@ Config.Movement = {
 	CoyoteTime = 0.12, -- you can still jump this long after leaving the ground
 	AirAccel = 14, -- air strafe strength (Source uses 10-12)
 	AirSpeedCap = 4.2, -- small cap per frame = the classic strafe gain (Source: 30 units)
-	AirControlSpeed = 30, -- wish speed used in the air
+	AirControlSpeed = 22, -- wish speed used in the air
 	AirSteer = 4.5, -- holding W in the air turns your momentum toward your aim (per second)
-	AirMinSpeed = 26, -- in the air you can always accelerate up to this speed...
+	AirMinSpeed = 19, -- in the air you can always accelerate up to this speed...
 	AirLowSpeedAccel = 7, -- ...this quickly (so standing jumps aren't stuck)
-	MaxSpeed = 120, -- hard limit on horizontal speed
+	MaxSpeed = 85, -- hard limit on horizontal speed
 
 	JumpPower = 55,
 	AirJumps = 0, -- no double jump by default (the Double Jump power-up adds one)
 	AirJumpVelocity = 53,
-	AirJumpMinSpeed = 30, -- a double jump re-aims you toward your keys at least this fast
+	AirJumpMinSpeed = 22, -- a double jump re-aims you toward your keys at least this fast
 
 	-- Slide
 	SlideKey = Enum.KeyCode.C, -- LeftControl also works
 	SlideHold = false, -- false = tap C to slide (press again to stop), true = hold C
-	SlideMinSpeed = 18, -- need at least this speed to start a slide
-	SlideBoost = 12, -- speed added when the slide starts...
-	SlideBoostCap = 55, -- ...but only up to this speed (no infinite slide boosting)
+	SlideMinSpeed = 14, -- need at least this speed to start a slide
+	SlideBoost = 9, -- speed added when the slide starts...
+	SlideBoostCap = 40, -- ...but only up to this speed (no infinite slide boosting)
 	SlideFriction = 0.55, -- slide friction (much lower than running)
-	SlideEndSpeed = 16, -- slide ends below this speed
+	SlideEndSpeed = 12, -- slide ends below this speed
 	SlideSteer = 2.2, -- how much you can steer a slide
 	SlideCooldown = 0.25,
 	SlideJumpBoost = 4, -- extra speed for jumping out of a slide (up to SlideBoostCap)
@@ -706,8 +724,8 @@ Config.Movement = {
 	-- (touch the ground to recharge) plus a cooldown. Duration comes from
 	-- Config.PowerUps.WallRunner.
 	WallCheckDistance = 3.4,
-	WallRunMinSpeed = 18,
-	WallRunMaxSpeed = 32, -- you never go faster than this on a wall
+	WallRunMinSpeed = 14,
+	WallRunMaxSpeed = 24, -- you never go faster than this on a wall
 	WallRunDrag = 0.5, -- fraction of speed lost per second on the wall
 	WallRunStartLift = 3, -- small upward pop when you latch on
 	WallRunGravity = 45, -- how quickly you sink while wall running
@@ -1131,7 +1149,7 @@ return CrateModel
 
 	The sniper rifle ("VX-7"), described once as a list of flat-coloured
 	parts and built twice:
-	  * the first-person viewmodel (ViewmodelController, scale 1)
+	  * the rifle in your hands (CharacterService builds it, BodyAnimator animates it)
 	  * the rifle other players see in your hands (CharacterService, smaller)
 
 	Look: an angular two-tone rifle (light shell over dark metal) with
@@ -1155,7 +1173,7 @@ return CrateModel
 	            relative to the bolt pivot)
 	  Extra     optional { Neon = true, Transparency = n,
 	                       Anim = "Pulse" | "Flicker" | "Spin" | "Ghost" | "Speed" }
-	            (Anim is played by the viewmodel; see ViewmodelController)
+	            (Anim was played by the old first-person viewmodel)
 ]]
 
 local Config = require(script.Parent.Config)
@@ -2006,7 +2024,7 @@ return GunModel
           <string name="Source"><![CDATA[--[[
 	KnifeModel.lua  (ReplicatedStorage.Shared.KnifeModel)
 
-	The combat knife: first person (ViewmodelController) and in other
+	The combat knife: in your real character's hand (BodyAnimator) and in other
 	players' hands (CharacterService "WorldKnife").
 
 	If a model named Config.Knife.MeshTemplate ("CombatKnife") is in
@@ -3280,6 +3298,7 @@ Remotes.Names = {
 	"Crates", -- S->C  crate results + your keys / skins
 	"Equip", -- C->S  switch weapon: "Sniper" / "Knife"
 	"Melee", -- C->S  knife swing: kind ("Slash" / "Stab"), what it hit, look direction
+	"Anim", -- C->S  cosmetic animation events others should see ("Inspect", "Scope")
 }
 
 local FOLDER_NAME = "Remotes"
@@ -3477,9 +3496,11 @@ local BODY_PARTS = {
 	HumanoidRootPart = true,
 }
 function Util.hitZone(partName)
-	if partName == "Head" then
+	if partName == "Head" or partName == "HitboxHead" then
 		return "Head"
-	elseif BODY_PARTS[partName] then
+	elseif partName == "HitboxLegs" then
+		return "Limb"
+	elseif BODY_PARTS[partName] or partName == "HitboxTorso" then
 		return "Body"
 	end
 	return "Limb"
@@ -6064,12 +6085,44 @@ CharacterService.Bots = {} -- [bot] = true
 ----------------------------------------------------------------------------
 -- Styling
 ----------------------------------------------------------------------------
-local WORLD_GUN_SCALE = 0.8
+-- An invisible part the weapon hangs off. Its Motor6D "WeaponGrip" joins it
+-- to the right hand; BodyAnimator (on every client) animates that joint so
+-- the weapon goes exactly where the animation says, and your real arms
+-- reach for it.
+local function weaponRoot(model, hand, cf)
+	local root = Instance.new("Part")
+	root.Name = "WeaponRoot"
+	root.Size = Vector3.one * 0.1
+	root.Transparency = 1
+	root.CanCollide = false
+	root.CanQuery = false
+	root.CanTouch = false
+	root.Massless = true
+	root.CastShadow = false
+	root.CFrame = cf
+	root.Parent = model
+	local grip = Instance.new("Motor6D")
+	grip.Name = "WeaponGrip"
+	grip.Part0 = hand
+	grip.Part1 = root
+	grip.C0 = hand.CFrame:Inverse() * cf -- (the rest pose, before any animation)
+	grip.C1 = CFrame.new()
+	grip.Parent = root
+	return root
+end
 
--- The rifle other players see in your hands (same model as your viewmodel,
--- a bit smaller). The barrel points along the hand's -Y axis, so when the
--- client's aim pose raises the arm forward (CharacterPoser), the gun points
--- where you're looking.
+local function weldTo(root, part)
+	part.Anchored = false
+	part.Massless = true
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = root
+	weld.Part1 = part
+	weld.Parent = part
+end
+
+-- The rifle in your hands (the same model and power-up attachments for
+-- you and everyone else). The bolt hangs off its own joint so it can be
+-- worked when you chamber a round.
 -- powerUps ({ [id] = stacks }) adds each power-up's attachment + effects.
 local function addWorldGun(character, powerUps)
 	local hand = character:FindFirstChild("RightHand") or character:FindFirstChild("Right Arm")
@@ -6080,24 +6133,52 @@ local function addWorldGun(character, powerUps)
 	if old then
 		old:Destroy()
 	end
+	local scale = Config.Body.GunScale
 	local gun = Instance.new("Model")
 	gun.Name = "WorldGun"
-	local built = GunModel.Build(gun, { Scale = WORLD_GUN_SCALE, CastShadow = true, PowerUps = powerUps })
+	local built = GunModel.Build(gun, { Scale = scale, CastShadow = true, PowerUps = powerUps })
 
 	local grip = hand.CFrame * CFrame.new(0, -0.15, 0) * CFrame.Angles(math.rad(-90), 0, 0)
-	GunModel.Place(built, grip, WORLD_GUN_SCALE)
-	for _, part in pairs(built.Parts) do
-		local weld = Instance.new("WeldConstraint")
-		weld.Part0 = hand
-		weld.Part1 = part
-		weld.Parent = part
+	GunModel.Place(built, grip, scale)
+	local root = weaponRoot(gun, hand, grip)
+	root:SetAttribute("Profile", built.UsesMesh and "Mesh" or "Parts")
+
+	-- the bolt: its own little root on a joint at the bolt pivot
+	local pivot = grip * CFrame.new(built.Profile.BoltPivot.Position * scale)
+	local boltRoot
+	for name in pairs(built.Bolt) do
+		if not boltRoot then
+			boltRoot = Instance.new("Part")
+			boltRoot.Name = "BoltRoot"
+			boltRoot.Size = Vector3.one * 0.05
+			boltRoot.Transparency = 1
+			boltRoot.CanCollide = false
+			boltRoot.CanQuery = false
+			boltRoot.CanTouch = false
+			boltRoot.Massless = true
+			boltRoot.CFrame = pivot
+			boltRoot.Parent = gun
+			local joint = Instance.new("Motor6D")
+			joint.Name = "BoltJoint"
+			joint.Part0 = root
+			joint.Part1 = boltRoot
+			joint.C0 = root.CFrame:Inverse() * pivot
+			joint.C1 = CFrame.new()
+			joint.Parent = root
+		end
+		weldTo(boltRoot, built.Parts[name])
+	end
+	for name, part in pairs(built.Parts) do
+		if not built.Bolt[name] then
+			weldTo(root, part)
+		end
 	end
 
 	-- tracers seen by other players start here (WorldGun.Barrel.Muzzle)
 	local muzzle = Instance.new("Attachment")
 	muzzle.Name = "Muzzle"
 	muzzle.Parent = built.Parts.Barrel
-	muzzle.WorldCFrame = grip * CFrame.new(built.Profile.Muzzle.Position * WORLD_GUN_SCALE)
+	muzzle.WorldCFrame = grip * CFrame.new(built.Profile.Muzzle.Position * scale)
 
 	for _, part in ipairs(gun:GetDescendants()) do
 		if part:IsA("BasePart") then
@@ -6108,8 +6189,8 @@ local function addWorldGun(character, powerUps)
 	CharacterService.ShowWeapon(character)
 end
 
--- The knife in your hand (hidden until you switch to it). Blade along the
--- hand's -Y, like the rifle, so the aim pose points it forward.
+-- The knife (hidden until you switch to it), jointed to the hand the same
+-- way so it can be flipped, tossed and caught.
 local function addWorldKnife(character)
 	local hand = character:FindFirstChild("RightHand") or character:FindFirstChild("Right Arm")
 	if not hand or not Config.Knife.Enabled then
@@ -6126,15 +6207,60 @@ local function addWorldKnife(character)
 	local grip = hand.CFrame * CFrame.new(0, -0.15, 0) * CFrame.Angles(math.rad(-90), 0, 0)
 	local origin = grip * CFrame.new(KnifeModel.Grip.Position * -scale)
 	KnifeModel.Place(built, origin)
+	local root = weaponRoot(knife, hand, origin) -- the knife's origin: the middle of the handle
 	for _, part in pairs(built.Parts) do
-		local weld = Instance.new("WeldConstraint")
-		weld.Part0 = hand
-		weld.Part1 = part
-		weld.Parent = part
-		part:SetAttribute("BaseTransparency", part.Transparency)
+		weldTo(root, part)
+	end
+	for _, part in ipairs(knife:GetDescendants()) do
+		if part:IsA("BasePart") then
+			part:SetAttribute("BaseTransparency", part.Transparency)
+		end
 	end
 	knife.Parent = character
 	CharacterService.ShowWeapon(character)
+end
+
+----------------------------------------------------------------------------
+-- Hitboxes: three fixed boxes, the same size for every avatar. Bullets and
+-- the knife only hit these (head = headshot, body, legs); the real body
+-- parts, arms and accessories are ignored, so swinging arms and bulky
+-- avatar meshes never eat or steal a shot.
+----------------------------------------------------------------------------
+local HITBOXES = {
+	{ Name = "HitboxHead", Parts = { "Head" }, Size = Vector3.new(1.3, 1.3, 1.3), Offset = CFrame.new(0, 0, 0) },
+	{ Name = "HitboxTorso", Parts = { "UpperTorso", "Torso" }, Size = Vector3.new(2.1, 2.3, 1.2), Offset = CFrame.new(0, -0.35, 0) },
+	{ Name = "HitboxLegs", Parts = { "LowerTorso", "Torso" }, Size = Vector3.new(2.0, 2.3, 1.1), Offset = CFrame.new(0, -1.35, 0) },
+}
+
+local function addHitboxes(character)
+	for _, item in ipairs(character:GetDescendants()) do
+		if item:IsA("BasePart") and not item:FindFirstAncestor("WorldGun") and not item:FindFirstAncestor("WorldKnife") then
+			item.CanQuery = false
+		end
+	end
+	for _, info in ipairs(HITBOXES) do
+		local attach
+		for _, name in ipairs(info.Parts) do
+			attach = attach or character:FindFirstChild(name)
+		end
+		if attach and not character:FindFirstChild(info.Name) then
+			local box = Instance.new("Part")
+			box.Name = info.Name
+			box.Size = info.Size
+			box.Transparency = 1
+			box.CanCollide = false
+			box.CanTouch = false
+			box.CanQuery = true
+			box.Massless = true
+			box.CastShadow = false
+			box.CFrame = attach.CFrame * info.Offset
+			local weld = Instance.new("WeldConstraint")
+			weld.Part0 = attach
+			weld.Part1 = box
+			weld.Parent = box
+			box.Parent = character
+		end
+	end
 end
 
 -- Shows the weapon in the "Weapon" attribute ("Sniper" or "Knife") and hides
@@ -6289,6 +6415,7 @@ function CharacterService.Spawn(player, cframe, options)
 
 	CharacterService.Style(character, options.Color or Palette.LobbyPlayer, player)
 	character:SetAttribute("Weapon", "Sniper") -- every life starts with the rifle out
+	addHitboxes(character)
 	addWorldGun(character, options.PowerUps)
 	addWorldKnife(character)
 
@@ -6983,6 +7110,9 @@ local function onFire(player, origin, direction, claims)
 		return
 	end
 	lastFire[player] = now
+	-- everyone's game plays the shot on your character (recoil + bolt)
+	character:SetAttribute("BoltTime", boltTime)
+	character:SetAttribute("Shot", ((character:GetAttribute("Shot") or 0) + 1) % 1000)
 
 	-- 5) trace every bullet on the server
 	local targets = getTargets(player, match)
@@ -7335,7 +7465,7 @@ local function onMelee(player, kind, targetModel, look)
 		end
 	end
 	lastMelee[player] = { Time = now, Kind = kind }
-	-- everyone sees the swing (CharacterPoser animates the arm)
+	-- everyone sees the swing (BodyAnimator plays it on your character)
 	character:SetAttribute("SwingKind", kind)
 	character:SetAttribute("Swing", ((character:GetAttribute("Swing") or 0) + 1) % 1000)
 
@@ -7391,6 +7521,28 @@ local function onMelee(player, kind, targetModel, look)
 	})
 end
 
+-- Cosmetic animation events everyone should see on your character:
+-- "Inspect" (with the variant) and "Scope" (true / false).
+local lastAnim = {}
+local INSPECT_VARIANTS = { Rifle = true, Knife = true }
+local function onAnim(player, kind, value)
+	local character = player.Character
+	if not character or typeof(kind) ~= "string" then
+		return
+	end
+	local now = os.clock()
+	lastAnim[player] = lastAnim[player] or {}
+	if now - (lastAnim[player][kind] or 0) < 0.25 then
+		return
+	end
+	lastAnim[player][kind] = now
+	if kind == "Inspect" and INSPECT_VARIANTS[value] then
+		character:SetAttribute("Inspect", ((character:GetAttribute("Inspect") or 0) + 1) % 1000)
+	elseif kind == "Scope" and typeof(value) == "boolean" then
+		character:SetAttribute("Scoped", value)
+	end
+end
+
 local lastEquip = {}
 local function onEquip(player, weapon)
 	local now = os.clock()
@@ -7435,8 +7587,10 @@ function CombatService.Init()
 	Remotes.Get("Aim").OnServerEvent:Connect(onAim)
 	Remotes.Get("Melee").OnServerEvent:Connect(onMelee)
 	Remotes.Get("Equip").OnServerEvent:Connect(onEquip)
+	Remotes.Get("Anim").OnServerEvent:Connect(onAnim)
 
 	Players.PlayerRemoving:Connect(function(player)
+		lastAnim[player] = nil
 		lastEquip[player] = nil
 		lastMelee[player] = nil
 		lastFire[player] = nil
@@ -10602,6 +10756,774 @@ return AimAssist
         </Item>
         <Item class="ModuleScript" referent="39">
           <Properties>
+            <string name="Name">BodyAnimator</string>
+            <string name="Source"><![CDATA[--[[
+	BodyAnimator.lua  (Client.BodyAnimator)
+
+	Your real character holds and animates the weapons. No separate
+	viewmodel: in first person you see your own forearms and hands (copied
+	from nothing; they're your character's actual parts), and everyone else
+	sees the same animation on your whole character.
+
+	Every frame (RunService.Stepped, right after Roblox's walk / run
+	animations) for every character near you:
+	  1. work out where its eyes are and where it's looking
+	       you            the camera (first person)
+	       other players  their head + the "AimPitch" they send (smoothed)
+	  2. WeaponAnim says where the weapon, the hands and the body go
+	  3. BodyRig twists the torso, bends the real arms (IK) and puts the
+	     weapon (jointed to the right hand) exactly in place
+	Other players' shots, knife swings, inspects and weapon switches come in
+	as character attributes (set by the server), so everyone plays the same
+	moves at the same time.
+
+	This module also keeps the old Controllers.Viewmodel API (PlayFire,
+	PlayBolt, SetWeapon, PlayKnife, GetMuzzlePosition, SetHidden...).
+]]
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Config = require(Shared.Config)
+local GunModel = require(Shared.GunModel)
+local KnifeModel = require(Shared.KnifeModel)
+local Remotes = require(Shared.Remotes)
+local Util = require(Shared.Util)
+local ClientState = require(script.Parent.ClientState)
+local Spring = require(script.Parent.Spring)
+local Sfx = require(script.Parent.Sfx)
+local Keybinds = require(script.Parent.Keybinds)
+local WeaponAnim = require(script.Parent.WeaponAnim)
+local BodyRig = require(script.Parent.BodyRig)
+
+local B = Config.Body
+local VM = Config.Viewmodel
+local player = Players.LocalPlayer
+local rad = math.rad
+
+local BodyAnimator = {}
+local Controllers
+
+local entries = setmetatable({}, { __mode = "k" }) -- [character] = entry
+local extra = {} -- extra models to animate (the kill cam's copy of you)
+local hiddenBy = {} -- [reason] = true: hide your first-person arms + weapon
+local localState = WeaponAnim.New()
+local puppet -- { Character, State } while the kill cam plays through someone's eyes
+
+local swaySpring = Spring.new(140, 16)
+local bobTime, sprintAlpha = 0, 0
+local lastScoped = false
+
+----------------------------------------------------------------------------
+-- Helpers
+----------------------------------------------------------------------------
+local function now()
+	return os.clock()
+end
+
+local function getEntry(model)
+	local entry = entries[model]
+	if entry then
+		return entry
+	end
+	local rig = BodyRig.Find(model)
+	if not rig then
+		return nil
+	end
+	entry = { Rig = rig, State = WeaponAnim.New(), Pitch = 0, Seen = {}, Weapons = {} }
+	entry.State.EquipStart = -10
+	entries[model] = entry
+	return entry
+end
+
+local function weaponFor(entry, name)
+	local cached = entry.Weapons[name]
+	if cached and cached.Model.Parent and cached.Root.Parent then
+		return cached
+	end
+	cached = BodyRig.FindWeapon(entry.Rig, name)
+	entry.Weapons[name] = cached
+	return cached
+end
+
+local function profileFor(entry)
+	local gun = weaponFor(entry, "WorldGun")
+	local kind = gun and gun.Root:GetAttribute("Profile")
+	return kind == "Mesh" and GunModel.MeshProfile or GunModel.PartsProfile
+end
+
+local function stateFor(model)
+	if puppet and model == puppet.Character then
+		return puppet.State
+	end
+	if model == player.Character then
+		return localState
+	end
+	local entry = entries[model]
+	return entry and entry.State
+end
+
+-- The state the API calls act on: the kill cam's puppet, or you.
+local function activeState()
+	return puppet and puppet.State or localState
+end
+
+-- Shots, swings, inspects and switches of OTHER characters, from attributes.
+local function syncEvents(entry, model, t)
+	local state = entry.State
+	local seen = entry.Seen
+	local weapon = model:GetAttribute("Weapon") or "Sniper"
+	if seen.Weapon == nil then
+		state.Weapon = weapon == "Knife" and "Knife" or "Sniper"
+	elseif weapon ~= seen.Weapon then
+		WeaponAnim.SetWeapon(state, weapon, t)
+	end
+	seen.Weapon = weapon
+
+	local swing = model:GetAttribute("Swing")
+	if seen.Swing ~= nil and swing ~= seen.Swing and state.Weapon == "Knife" then
+		local kind = model:GetAttribute("SwingKind") or "Slash"
+		WeaponAnim.Knife(state, kind, t, (swing or 0) % 2 == 0 and 1 or -1)
+	end
+	seen.Swing = swing
+
+	local shot = model:GetAttribute("Shot")
+	if seen.Shot ~= nil and shot ~= seen.Shot then
+		WeaponAnim.Fire(state, t)
+		local bolt = model:GetAttribute("BoltTime") or 1
+		WeaponAnim.Bolt(state, t + 0.12, math.max(bolt - 0.12, 0.2))
+	end
+	seen.Shot = shot
+
+	local inspect = model:GetAttribute("Inspect")
+	if seen.Inspect ~= nil and inspect ~= seen.Inspect then
+		WeaponAnim.Inspect(state, t)
+	end
+	seen.Inspect = inspect
+end
+
+-- Eyes looking the way a character's root faces, pitched by its aim.
+local function headView(rig, pitch)
+	local root = rig.Root.CFrame
+	local look = root.LookVector
+	local yaw = math.atan2(-look.X, -look.Z)
+	return CFrame.new(root.Position + root.UpVector * 1.5) * CFrame.Angles(0, yaw, 0) * CFrame.Angles(pitch, 0, 0)
+end
+
+local function isAlive(model)
+	local humanoid = model:FindFirstChildOfClass("Humanoid")
+	return humanoid ~= nil and humanoid.Health > 0
+end
+
+----------------------------------------------------------------------------
+-- Per frame: pose every character
+----------------------------------------------------------------------------
+local function animate(model, dt, t, camera)
+	local entry = getEntry(model)
+	if not entry then
+		return
+	end
+	local rig = entry.Rig
+	local isLocal = model == player.Character
+	local isPuppet = puppet ~= nil and model == puppet.Character
+	local state = stateFor(model)
+	if not isLocal and not isPuppet then
+		syncEvents(entry, model, t)
+	end
+
+	local view, pitch
+	local ctx = { Profile = profileFor(entry) }
+	local firstPerson = isLocal and Controllers.Camera.IsFirstPerson() and not puppet
+	if firstPerson or isPuppet then
+		local cam = camera.CFrame
+		pitch = math.asin(math.clamp(cam.LookVector.Y, -1, 1))
+		view = cam * CFrame.new(0, 0, -(B.CameraBack or 0)) -- the eyes, in front of the camera
+		if firstPerson then
+			-- face exactly where you look (before physics, so arms and camera agree)
+			local root = rig.Root
+			local look = Util.flat(cam.LookVector)
+			if look.Magnitude > 0.05 then
+				root.CFrame = CFrame.lookAt(root.Position, root.Position + look)
+			end
+			-- sway (lags behind the mouse) and walk bob
+			local movement = Controllers.Movement
+			local delta = UserInputService:GetMouseDelta()
+			local scope = Controllers.Weapon.GetScopeAlpha()
+			local swayScale = (1 - scope * 0.9) * VM.SwayAmount
+			swaySpring.Target = Vector3.new(
+				math.clamp(-delta.Y * swayScale, -5, 5),
+				math.clamp(-delta.X * swayScale, -5, 5),
+				math.clamp(-delta.X * swayScale * 0.7, -4, 4)
+			)
+			local sway = swaySpring:Update(dt)
+			local speed = movement.GetSpeed()
+			local running = movement.IsGrounded() and speed > 2 and movement.GetMode() == "Ground"
+			if running then
+				bobTime += dt * (7 + speed * 0.2)
+			end
+			local bob = running and math.clamp(speed / Config.Movement.RunSpeed, 0, 1.4) * (1 - scope) * VM.BobAmount or 0
+			sprintAlpha = Util.lerp(sprintAlpha, movement.IsSprinting() and scope < 0.1 and 1 or 0, Util.smooth(10, dt))
+			view = view
+				* CFrame.new(math.sin(bobTime) * 0.05 * bob, math.sin(bobTime * 2) * 0.035 * bob, 0)
+				* CFrame.Angles(rad(sway.X), rad(sway.Y), rad(sway.Z) + math.sin(bobTime) * rad(2) * bob)
+			ctx.Sprint = sprintAlpha
+			ctx.Scope = scope
+		end
+	else
+		-- seen from outside: the aim they send, smoothed
+		local target = model:GetAttribute("AimPitch") or 0
+		entry.Pitch = Util.lerp(entry.Pitch, target, Util.smooth(B.PitchSmoothing, dt))
+		pitch = entry.Pitch
+		view = headView(rig, pitch) * B.ThirdPersonOffset
+		local vel = rig.Root.AssemblyLinearVelocity
+		local speed = Vector3.new(vel.X, 0, vel.Z).Magnitude
+		entry.Sprint = Util.lerp(entry.Sprint or 0, speed > Config.Movement.RunSpeed * 1.08 and 1 or 0, Util.smooth(6, dt))
+		ctx.Sprint = entry.Sprint
+		ctx.Scope = model:GetAttribute("Scoped") and 1 or 0
+	end
+
+	local anim = WeaponAnim.Evaluate(state, t, ctx)
+	local weapon = weaponFor(entry, state.Weapon == "Knife" and "WorldKnife" or "WorldGun")
+	BodyRig.Solve(rig, view, anim, { Pitch = pitch, Weapon = weapon })
+end
+
+local function step(dt)
+	local camera = workspace.CurrentCamera
+	if not camera then
+		return
+	end
+	local t = now()
+	local done = {}
+	local function try(model)
+		if not model or done[model] or not model.Parent then
+			return
+		end
+		done[model] = true
+		if not isAlive(model) and not extra[model] then
+			return
+		end
+		local root = model:FindFirstChild("HumanoidRootPart")
+		if not root or (root.Position - camera.CFrame.Position).Magnitude > B.MaxDistance then
+			return
+		end
+		local ok, err = pcall(animate, model, dt, t, camera)
+		if not ok then
+			warn("[BodyAnimator]", err)
+		end
+	end
+	for _, other in ipairs(Players:GetPlayers()) do
+		try(other.Character)
+	end
+	local opponent = ClientState.Snapshot.InMatch and ClientState.GetOpponentPlayer()
+	if typeof(opponent) == "table" then
+		try(opponent.Character) -- a bot
+	end
+	for model in pairs(extra) do
+		try(model)
+	end
+end
+
+-- First person: show your own forearms, hands and weapon (Roblox hides your
+-- whole character in first person); hide them while scoped or in menus.
+local ARM_PARTS = { "RightLowerArm", "RightHand", "LeftLowerArm", "LeftHand" }
+local UPPER_ARMS = { "RightUpperArm", "LeftUpperArm" }
+local function showArms(model, shown)
+	local value = shown and 0 or 1
+	for _, name in ipairs(ARM_PARTS) do
+		local part = model:FindFirstChild(name)
+		if part then
+			part.LocalTransparencyModifier = value
+		end
+	end
+	if B.ShowUpperArms then
+		for _, name in ipairs(UPPER_ARMS) do
+			local part = model:FindFirstChild(name)
+			if part then
+				part.LocalTransparencyModifier = value
+			end
+		end
+	end
+	local state = stateFor(model)
+	local weaponName = state and state.Weapon == "Knife" and "WorldKnife" or "WorldGun"
+	for _, name in ipairs({ "WorldGun", "WorldKnife" }) do
+		local weapon = model:FindFirstChild(name)
+		for _, part in ipairs(weapon and weapon:GetDescendants() or {}) do
+			if part:IsA("BasePart") then
+				part.LocalTransparencyModifier = (shown and name == weaponName) and 0 or 1
+			end
+		end
+	end
+end
+
+local function updateVisibility()
+	local character = player.Character
+	if puppet and puppet.Character and puppet.Character.Parent then
+		showArms(puppet.Character, next(hiddenBy) == nil)
+	end
+	if not character then
+		return
+	end
+	local firstPerson = Controllers.Camera.IsFirstPerson() and not puppet
+	if firstPerson then
+		local scope = Controllers.Weapon.GetScopeAlpha()
+		local shown = isAlive(character) and next(hiddenBy) == nil and scope < 0.92 and ClientState.HasGun()
+		showArms(character, shown)
+	end
+	-- tell everyone when you're aiming down the scope
+	local scoped = Controllers.Weapon.GetScopeAlpha() > 0.5
+	if scoped ~= lastScoped then
+		lastScoped = scoped
+		Remotes.Get("Anim"):FireServer("Scope", scoped)
+	end
+end
+
+----------------------------------------------------------------------------
+-- API (the old Viewmodel API, so everything else keeps working)
+----------------------------------------------------------------------------
+function BodyAnimator.SetHidden(reason, hidden)
+	hiddenBy[reason] = hidden or nil
+end
+
+function BodyAnimator.PlayFire()
+	WeaponAnim.Fire(activeState(), now())
+end
+
+function BodyAnimator.PlayBolt(duration)
+	local delay = math.min(0.12, duration * 0.3)
+	WeaponAnim.Bolt(activeState(), now() + delay, math.max(duration - delay, 0.15))
+end
+
+function BodyAnimator.PlayEquip()
+	local state = activeState()
+	if state.Weapon ~= "Knife" then
+		state.EquipStart = now()
+	end
+end
+
+function BodyAnimator.PlayKill() end
+
+function BodyAnimator.SetWeapon(name)
+	local state = activeState()
+	if WeaponAnim.SetWeapon(state, name, now()) and not puppet then
+		if state.Weapon == "Knife" then
+			Sfx.Play("CardPick", { Pitch = 1.15, Volume = 0.7 }) -- unsheathe
+			task.delay(0.15, Sfx.Play, "CardFlip", { Pitch = 1.3, Volume = 0.5 }) -- the flip
+			task.delay(0.39, Sfx.Play, "Bolt", { Pitch = 1.6, Volume = 0.5 }) -- caught
+		else
+			Sfx.Play("Bolt", { Pitch = 1.3, Volume = 0.6 })
+		end
+	end
+end
+
+function BodyAnimator.GetWeapon()
+	return activeState().Weapon
+end
+
+-- "Slash", "Stab" or "Inspect"
+function BodyAnimator.PlayKnife(kind)
+	local state = activeState()
+	local t = now()
+	if kind == "Inspect" then
+		if WeaponAnim.Inspect(state, t) and not puppet then
+			local length = WeaponAnim.Clips.Inspect.Length
+			Sfx.Play("CardHover", { Pitch = 0.8, Volume = 1.2 })
+			task.delay(length * 0.29, Sfx.Play, "CardFlip", { Pitch = 1.1, Volume = 0.8 })
+			task.delay(length * 0.5, Sfx.Play, "Bolt", { Pitch = 1.5, Volume = 0.7 })
+			task.delay(length * 0.62, Sfx.Play, "CardFlip", { Pitch = 1.5, Volume = 0.5 })
+		end
+		return
+	end
+	WeaponAnim.Knife(state, kind, t)
+end
+
+local function weaponRootOf(model, name)
+	local weapon = model and model:FindFirstChild(name)
+	return weapon and weapon:FindFirstChild("WeaponRoot")
+end
+
+function BodyAnimator.GetKnifeTip()
+	local root = weaponRootOf(puppet and puppet.Character or player.Character, "WorldKnife")
+	if root then
+		return (root.CFrame * CFrame.new(KnifeModel.Tip * Config.Knife.WorldScale)).Position
+	end
+	return workspace.CurrentCamera.CFrame.Position
+end
+
+function BodyAnimator.GetMuzzlePosition()
+	local model = puppet and puppet.Character or player.Character
+	local gun = model and model:FindFirstChild("WorldGun")
+	local barrel = gun and gun:FindFirstChild("Barrel")
+	local muzzle = barrel and barrel:FindFirstChild("Muzzle")
+	if muzzle then
+		return muzzle.WorldPosition
+	end
+	return workspace.CurrentCamera.CFrame.Position
+end
+
+function BodyAnimator.GetLeftHandPosition()
+	local hand = player.Character and player.Character:FindFirstChild("LeftHand")
+	return hand and hand.Position or workspace.CurrentCamera.CFrame.Position
+end
+
+-- Kill cam: play through someone's eyes, their real arms in view.
+-- info = { Character = Model, Owned = {...} } or nil to stop.
+function BodyAnimator.SetPuppet(info)
+	if puppet and puppet.Character and puppet.Character.Parent then
+		showArms(puppet.Character, false)
+	end
+	if info and info.Character then
+		local state = WeaponAnim.New()
+		state.Weapon = info.Character:GetAttribute("Weapon") == "Knife" and "Knife" or "Sniper"
+		puppet = { Character = info.Character, State = state }
+	else
+		puppet = nil
+	end
+end
+
+function BodyAnimator.SetPuppetSpeed() end
+
+-- Animate an extra model (e.g. the kill cam's copy of you). It reads its
+-- "AimPitch" / "Weapon" attributes like any other character.
+function BodyAnimator.Track(model)
+	extra[model] = true
+end
+
+function BodyAnimator.Untrack(model)
+	extra[model] = nil
+	entries[model] = nil
+end
+
+function BodyAnimator.Init(controllers)
+	Controllers = controllers
+end
+
+function BodyAnimator.Start()
+	-- after Roblox's Animator has posed everyone this frame
+	RunService.Stepped:Connect(step)
+	-- after the camera (and its first-person hiding) each frame
+	RunService:BindToRenderStep("BodyFirstPerson", Enum.RenderPriority.Camera.Value + 5, updateVisibility)
+
+	-- inspect (V): the rifle or the knife; everyone sees it
+	local function onInput(input, processed)
+		if processed and UserInputService:GetFocusedTextBox() then
+			return
+		end
+		if Keybinds.Matches("Inspect", input) and not puppet and not ClientState.MenuOpen and ClientState.HasGun() then
+			local state = localState
+			if state.Weapon == "Knife" then
+				BodyAnimator.PlayKnife("Inspect")
+				Remotes.Get("Anim"):FireServer("Inspect", "Knife")
+			elseif WeaponAnim.Inspect(state, now()) then
+				Sfx.Play("CardHover", { Pitch = 0.8, Volume = 1.2 })
+				Remotes.Get("Anim"):FireServer("Inspect", "Rifle")
+			end
+		end
+	end
+	UserInputService.InputBegan:Connect(onInput)
+	Keybinds.VirtualBegan:Connect(onInput)
+
+	-- a new life: rifle out, equip from the hip
+	player.CharacterAdded:Connect(function()
+		localState = WeaponAnim.New()
+		localState.EquipStart = now()
+	end)
+end
+
+return BodyAnimator
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="40">
+          <Properties>
+            <string name="Name">BodyRig</string>
+            <string name="Source"><![CDATA[--[[
+	BodyRig.lua  (Client.BodyRig)
+
+	Bends a real R15 character (the one you spawn in) to hold a weapon: the
+	maths only, no RunService, so it also runs in previews.
+
+		local rig = BodyRig.Find(character)        -- nil if it isn't R15
+		BodyRig.Solve(rig, view, anim, weights)    -- sets every Motor6D.Transform
+
+	view   = where the eyes are and where they look (CFrame)
+	anim   = WeaponAnim.Evaluate output (view-space weapon + hands + body)
+
+	How it works:
+	  1. Hips + waist + neck: twist / lean / dip from anim.Body, plus the aim
+	     pitch shared between waist and neck.
+	  2. Both arms: two-bone IK from the real shoulder to the hand target
+	     (elbows bend out and down), then the wrist turns the hand to match.
+	     Bone lengths come from the character's own joints, so any R15
+	     avatar works.
+	  3. The weapon is jointed to the right hand (Motor6D "WeaponGrip" made
+	     by the server); its Transform puts it exactly where the animation
+	     says, wherever the hand ended up.
+	  4. Legs: only during a lunge (anim.Body.Step), blended over the walk.
+
+	Motor6D maths: Part1 = Part0 * C0 * Transform * C1:Inverse().
+]]
+
+local BodyRig = {}
+
+local V = Vector3.new
+local rad = math.rad
+
+local MOTORS = {
+	Root = "LowerTorso",
+	Waist = "UpperTorso",
+	Neck = "Head",
+	RightShoulder = "RightUpperArm",
+	RightElbow = "RightLowerArm",
+	RightWrist = "RightHand",
+	LeftShoulder = "LeftUpperArm",
+	LeftElbow = "LeftLowerArm",
+	LeftWrist = "LeftHand",
+	RightHip = "RightUpperLeg",
+	RightKnee = "RightLowerLeg",
+	LeftHip = "LeftUpperLeg",
+	LeftKnee = "LeftLowerLeg",
+}
+
+-- The rig's joints, or nil if this isn't an R15 character.
+function BodyRig.Find(character)
+	local motors = {}
+	for motorName, partName in pairs(MOTORS) do
+		local part = character:FindFirstChild(partName)
+		local motor = part and part:FindFirstChild(motorName)
+		if not (motor and motor:IsA("Motor6D")) then
+			return nil
+		end
+		motors[motorName] = motor
+	end
+	local root = character:FindFirstChild("HumanoidRootPart")
+	if not root then
+		return nil
+	end
+	local rig = { Character = character, Root = root, Motors = motors, Base = {}, Set = {} }
+	local function length(a, b)
+		return (a.C1.Position - b.C0.Position).Magnitude -- joint to joint inside one part
+	end
+	rig.Upper = length(motors.RightShoulder, motors.RightElbow)
+	rig.Lower = length(motors.RightElbow, motors.RightWrist)
+	rig.LeftUpper = length(motors.LeftShoulder, motors.LeftElbow)
+	rig.LeftLower = length(motors.LeftElbow, motors.LeftWrist)
+	return rig
+end
+
+-- The current weapon joint on the right hand (made by CharacterService).
+function BodyRig.FindWeapon(rig, name)
+	local model = rig.Character:FindFirstChild(name)
+	local root = model and model:FindFirstChild("WeaponRoot")
+	if not root then
+		return nil
+	end
+	local grip = root:FindFirstChild("WeaponGrip")
+	if not grip or not grip:IsA("Motor6D") then
+		return nil
+	end
+	return {
+		Model = model,
+		Root = root,
+		Grip = grip,
+		GripToRoot = root:GetAttribute("GripToRoot") or CFrame.new(),
+		Bolt = root:FindFirstChild("BoltJoint"),
+	}
+end
+
+-- An orthonormal frame whose Y is `along` and whose X is as close to `x` as possible.
+local function frame(along, x)
+	local y = along.Unit
+	local xx = x - y * x:Dot(y)
+	if xx.Magnitude < 1e-4 then
+		xx = math.abs(y.X) < 0.9 and V(1, 0, 0) or V(0, 0, 1)
+		xx = xx - y * xx:Dot(y)
+	end
+	xx = xx.Unit
+	return CFrame.fromMatrix(Vector3.zero, xx, y, xx:Cross(y))
+end
+
+-- Child part CFrame -> the motor Transform that puts it there.
+local function place(motor, parentCF, childCF)
+	motor.Transform = (parentCF * motor.C0):Inverse() * childCF * motor.C1
+end
+BodyRig.Place = place
+
+-- World CFrame of a motor's Part1 given its Part0 CFrame and its Transform.
+local function child(motor, parentCF, transform)
+	return parentCF * motor.C0 * (transform or motor.Transform) * motor.C1:Inverse()
+end
+BodyRig.Child = child
+
+--[[
+	Two-bone IK for one arm. Returns the hand's world CFrame.
+	torso: UpperTorso CFrame; target: where the hand should be (world);
+	pole: which way the elbow should point (world direction).
+]]
+local function solveArm(torso, shoulder, elbow, wrist, upperLen, lowerLen, target, pole)
+	local S = (torso * shoulder.C0).Position
+	local W = (target * wrist.C1).Position -- where the wrist joint has to be
+	local toW = W - S
+	local d = math.clamp(toW.Magnitude, math.abs(upperLen - lowerLen) + 0.01, upperLen + lowerLen - 0.002)
+	local dir = toW.Magnitude > 1e-4 and toW.Unit or V(0, -1, 0)
+	local cosA = math.clamp((upperLen * upperLen + d * d - lowerLen * lowerLen) / (2 * upperLen * d), -1, 1)
+	local sinA = math.sqrt(1 - cosA * cosA)
+	local side = pole - dir * pole:Dot(dir)
+	side = side.Magnitude > 1e-4 and side.Unit or V(0, -1, 0)
+	local E = S + dir * upperLen * cosA + side * upperLen * sinA
+	local Wr = E + (S + dir * d - E).Unit * lowerLen -- the wrist we can actually reach
+
+	-- the elbow hinges round each arm part's X axis: positive bends the forearm forward
+	local upperDir = (E - S).Unit
+	local lowerDir = (Wr - E).Unit
+	local hinge = upperDir:Cross(lowerDir)
+	if hinge.Magnitude < 1e-3 then
+		hinge = upperDir:Cross(pole)
+	end
+	hinge = hinge.Magnitude > 1e-4 and hinge.Unit or V(1, 0, 0)
+
+	-- upper arm: its shoulder->elbow line along upperDir, X along the hinge
+	local boneU = elbow.C0.Position - shoulder.C1.Position -- (upper arm space)
+	local R1 = frame(-upperDir, hinge) * frame(-boneU, V(1, 0, 0)):Inverse()
+	local upperCF = CFrame.new(S) * R1 * CFrame.new(-shoulder.C1.Position)
+	place(shoulder, torso, upperCF)
+
+	-- lower arm
+	local Ea = (upperCF * elbow.C0).Position
+	local boneL = wrist.C0.Position - elbow.C1.Position
+	local R2 = frame(-lowerDir, hinge) * frame(-boneL, V(1, 0, 0)):Inverse()
+	local lowerCF = CFrame.new(Ea) * R2 * CFrame.new(-elbow.C1.Position)
+	place(elbow, upperCF, lowerCF)
+
+	-- hand: the target's rotation, hung from the wrist we reached
+	local Wa = (lowerCF * wrist.C0).Position
+	local handCF = CFrame.new(Wa) * target.Rotation * CFrame.new(-wrist.C1.Position)
+	place(wrist, lowerCF, handCF)
+	return handCF
+end
+
+-- What the walk / idle animation wants for a joint this frame. (If nothing
+-- animated it since we last wrote it, that's still our own value, so use the
+-- base we saved instead of stacking on top of ourselves.)
+local function base(rig, name)
+	local motor = rig.Motors[name]
+	if rig.Set[name] and motor.Transform == rig.Set[name] then
+		return rig.Base[name]
+	end
+	rig.Base[name] = motor.Transform
+	return motor.Transform
+end
+
+local function set(rig, name, transform)
+	rig.Motors[name].Transform = transform
+	rig.Set[name] = transform
+end
+
+--[[
+	view: eye CFrame (world); anim: WeaponAnim output; opts:
+	  Pitch       aim pitch (radians) shared out to the waist and neck
+	  Weapon      BodyRig.FindWeapon result for the weapon in hand (or nil)
+	  LegWeight   0..1 how much the lunge pose replaces the walk (default anim.Body.Step)
+	Returns { RightHand = CFrame, LeftHand = CFrame, Weapon = CFrame }
+]]
+function BodyRig.Solve(rig, view, anim, opts)
+	opts = opts or {}
+	local m = rig.Motors
+	local body = anim.Body or {}
+	local pitch = opts.Pitch or 0
+	local rootCF = rig.Root.CFrame
+
+	-- hips: dip, push forward, lean (on top of the walk animation)
+	local step = math.clamp(body.Step or 0, 0, 1)
+	local rootT = base(rig, "Root")
+		* CFrame.new(0, -(body.Dip or 0), -(body.Forward or 0))
+		* CFrame.Angles(-rad(body.Lean or 0) * 0.5, 0, 0)
+	set(rig, "Root", rootT)
+	local lower = child(m.Root, rootCF, rootT)
+
+	-- waist: twist (+Yaw = turn right), lean forward, and part of the aim pitch
+	local waistT = CFrame.Angles(pitch * 0.35 - rad(body.Lean or 0) * 0.5 + rad(body.Pitch or 0), -rad(body.Yaw or 0), rad(body.Roll or 0))
+	m.Waist.Transform = waistT
+	local torso = child(m.Waist, lower, waistT)
+
+	-- neck: the rest of the pitch, turned back against the waist twist
+	local neckT = CFrame.Angles(pitch * 0.45 + rad(body.NeckPitch or 0), rad(body.Yaw or 0) * 0.7 + rad(body.NeckYaw or 0), -rad(body.Roll or 0) * 0.7)
+	m.Neck.Transform = neckT
+
+	-- arms
+	local rightTarget = view * anim.Right
+	local leftTarget = view * anim.Left
+	local down = -view.UpVector
+	local rightPole = (view.RightVector * 0.7 + down - view.LookVector * 0.15).Unit
+	local leftPole = (-view.RightVector * 0.7 + down - view.LookVector * 0.15).Unit
+	local rightHand = solveArm(torso, m.RightShoulder, m.RightElbow, m.RightWrist, rig.Upper, rig.Lower, rightTarget, rightPole)
+	local leftHand = solveArm(torso, m.LeftShoulder, m.LeftElbow, m.LeftWrist, rig.LeftUpper, rig.LeftLower, leftTarget, leftPole)
+
+	-- the weapon, exactly where the animation wants it
+	local weaponCF = view * anim.Weapon
+	local weapon = opts.Weapon
+	if weapon then
+		local rootCFW = weaponCF * weapon.GripToRoot
+		weapon.Grip.Transform = (rightHand * weapon.Grip.C0):Inverse() * rootCFW * weapon.Grip.C1
+		if weapon.Bolt then
+			weapon.Bolt.Transform = anim.Bolt or CFrame.new()
+		end
+	end
+
+	-- legs: step into a lunge (front leg forward and bent, back leg trailing)
+	local legs = {
+		RightHip = CFrame.Angles(rad(38), 0, 0),
+		RightKnee = CFrame.Angles(rad(-40), 0, 0),
+		LeftHip = CFrame.Angles(rad(-28), 0, 0),
+		LeftKnee = CFrame.Angles(rad(-25), 0, 0),
+	}
+	for name, pose in pairs(legs) do
+		if step > 0.01 then
+			set(rig, name, base(rig, name):Lerp(pose, step * (opts.LegWeight or 1)))
+		elseif rig.Set[name] then
+			-- lunge over: hand the leg back to the walk animation
+			m[name].Transform = base(rig, name)
+			rig.Set[name] = nil
+		end
+	end
+
+	return { RightHand = rightHand, LeftHand = leftHand, Weapon = weaponCF, Torso = torso, Lower = lower }
+end
+
+-- Every part's world CFrame from the root and the current Transforms
+-- (for previews; Roblox does this itself in game).
+function BodyRig.Pose(rig)
+	local out = { HumanoidRootPart = rig.Root.CFrame }
+	local m = rig.Motors
+	local order = {
+		{ "Root", "HumanoidRootPart", "LowerTorso" },
+		{ "Waist", "LowerTorso", "UpperTorso" },
+		{ "Neck", "UpperTorso", "Head" },
+		{ "RightShoulder", "UpperTorso", "RightUpperArm" },
+		{ "RightElbow", "RightUpperArm", "RightLowerArm" },
+		{ "RightWrist", "RightLowerArm", "RightHand" },
+		{ "LeftShoulder", "UpperTorso", "LeftUpperArm" },
+		{ "LeftElbow", "LeftUpperArm", "LeftLowerArm" },
+		{ "LeftWrist", "LeftLowerArm", "LeftHand" },
+		{ "RightHip", "LowerTorso", "RightUpperLeg" },
+		{ "RightKnee", "RightUpperLeg", "RightLowerLeg" },
+		{ "LeftHip", "LowerTorso", "LeftUpperLeg" },
+		{ "LeftKnee", "LeftUpperLeg", "LeftLowerLeg" },
+	}
+	for _, j in ipairs(order) do
+		out[j[3]] = child(m[j[1]], out[j[2]])
+	end
+	return out
+end
+
+return BodyRig
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="41">
+          <Properties>
             <string name="Name">CameraController</string>
             <string name="Source"><![CDATA[--[[
 	CameraController.lua  (Client.CameraController)
@@ -10798,7 +11720,9 @@ local function update(dt)
 	landDipVelocity += (-landDip * 180 - landDipVelocity * 18) * dt
 	landDip += landDipVelocity * dt
 	if humanoid then
-		humanoid.CameraOffset = Vector3.new(0, -currentDrop + bobY + landDip, 0)
+		-- (first person sits a little behind your eyes so your real arms aren't in your face)
+		local back = firstPerson and (Config.Body.CameraBack or 0) or 0
+		humanoid.CameraOffset = Vector3.new(0, -currentDrop + bobY + landDip, back)
 	end
 
 	-- CONTROLLER LOOK: right stick, with its own sensitivity / deadzone / curve
@@ -10924,196 +11848,7 @@ return CameraController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="40">
-          <Properties>
-            <string name="Name">CharacterPoser</string>
-            <string name="Source"><![CDATA[--[[
-	CharacterPoser.lua  (Client.CharacterPoser)
-
-	Third-person "holding a sniper" pose for every OTHER player you can see:
-	arms raised holding the rifle, pointing where that player is looking (up
-	or down), head and chest following the aim. Legs keep Roblox's normal
-	run / jump / fall animations.
-
-	How: each frame, after Roblox's Animator has posed the character, we
-	override the arm / neck / waist Motor6D.Transform values (R15 rigs).
-	Your own look pitch is sent to the server a few times a second and stored
-	as the character attribute "AimPitch", so everyone sees it.
-]]
-
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-local Remotes = require(ReplicatedStorage:WaitForChild("Shared").Remotes)
-local ClientState = require(script.Parent.ClientState)
-
-local player = Players.LocalPlayer
-local rad = math.rad
-
-local CharacterPoser = {}
-
-local SEND_INTERVAL = 0.1
-local cache = {} -- [character] = { motors }
-local swings = {} -- [character] = { Count, Start, Kind } (knife swings, from the server's "Swing" attribute)
-
--- 0..1 progress of the knife swing playing on this character (nil = none)
-local function swingProgress(character)
-	local count = character:GetAttribute("Swing")
-	if count == nil then
-		return nil
-	end
-	local state = swings[character]
-	if not state then
-		swings[character] = { Count = count, Start = -10 }
-		return nil
-	end
-	if state.Count ~= count then
-		state.Count = count
-		state.Start = os.clock()
-		state.Kind = character:GetAttribute("SwingKind")
-	end
-	local length = state.Kind == "Stab" and 0.5 or 0.32
-	local t = (os.clock() - state.Start) / length
-	return (t >= 0 and t < 1) and t or nil, state.Kind
-end
-
-local function getMotors(character)
-	local motors = cache[character]
-	if motors then
-		return motors
-	end
-	local function find(partName, motorName)
-		local part = character:FindFirstChild(partName)
-		return part and part:FindFirstChild(motorName)
-	end
-	motors = {
-		RightShoulder = find("RightUpperArm", "RightShoulder"),
-		RightElbow = find("RightLowerArm", "RightElbow"),
-		LeftShoulder = find("LeftUpperArm", "LeftShoulder"),
-		LeftElbow = find("LeftLowerArm", "LeftElbow"),
-		Waist = find("UpperTorso", "Waist"),
-		Neck = find("Head", "Neck"),
-	}
-	if not motors.RightShoulder then
-		return nil -- not an R15 rig (yet)
-	end
-	cache[character] = motors
-	character.AncestryChanged:Connect(function(_, parent)
-		if not parent then
-			cache[character] = nil
-			swings[character] = nil
-		end
-	end)
-	return motors
-end
-
-local function pose(character, pitchOverride)
-	local humanoid = character:FindFirstChildOfClass("Humanoid")
-	if not humanoid or humanoid.Health <= 0 or not character:FindFirstChild("WorldGun") then
-		return
-	end
-	local motors = getMotors(character)
-	if not motors then
-		return
-	end
-	local pitch = pitchOverride or character:GetAttribute("AimPitch") or 0
-
-	-- KNIFE: right arm forward and low, blade pointing ahead; swings and
-	-- stabs play when the server bumps the "Swing" attribute. The left arm
-	-- keeps the normal run animation.
-	if character:GetAttribute("Weapon") == "Knife" then
-		local t, kind = swingProgress(character)
-		local yaw, lift, elbow = rad(10), rad(62) + pitch * 0.6, rad(35)
-		if t then
-			local w = math.sin(t * math.pi)
-			if kind == "Stab" then
-				lift += rad(30) * w
-				elbow = elbow * (1 - w)
-			else
-				yaw = rad(55) - t * rad(110) -- sweep across
-				lift += rad(25) * w
-			end
-		end
-		motors.RightShoulder.Transform = CFrame.Angles(0, yaw, 0) * CFrame.Angles(lift, 0, 0)
-		if motors.RightElbow then
-			motors.RightElbow.Transform = CFrame.Angles(elbow, 0, 0)
-		end
-		if motors.Waist then
-			motors.Waist.Transform = CFrame.Angles(pitch * 0.25, t and kind ~= "Stab" and (rad(20) - t * rad(40)) or 0, 0)
-		end
-		if motors.Neck then
-			motors.Neck.Transform = CFrame.Angles(pitch * 0.5, 0, 0)
-		end
-		return
-	end
-	local armPitch = pitch * 0.75 -- the waist adds the rest
-
-	-- right arm: straight forward holding the grip
-	motors.RightShoulder.Transform = CFrame.Angles(0, rad(12), 0) * CFrame.Angles(rad(90) + armPitch, 0, 0)
-	if motors.RightElbow then
-		motors.RightElbow.Transform = CFrame.Angles(rad(12), 0, 0)
-	end
-	-- left arm: reaches across to hold the handguard
-	if motors.LeftShoulder then
-		motors.LeftShoulder.Transform = CFrame.Angles(0, rad(-42), 0) * CFrame.Angles(rad(96) + armPitch, 0, 0)
-	end
-	if motors.LeftElbow then
-		motors.LeftElbow.Transform = CFrame.Angles(rad(28), 0, 0)
-	end
-	if motors.Waist then
-		motors.Waist.Transform = CFrame.Angles(pitch * 0.25, 0, 0)
-	end
-	if motors.Neck then
-		motors.Neck.Transform = CFrame.Angles(pitch * 0.5, 0, 0)
-	end
-end
-
--- Poses any R15 rig holding a rifle (used by the kill cam's copy of you).
-function CharacterPoser.PoseRig(character, pitch)
-	pose(character, pitch)
-end
-
-function CharacterPoser.Init() end
-
-function CharacterPoser.Start()
-	-- override the animation pose every frame (Stepped runs after the Animator)
-	RunService.Stepped:Connect(function()
-		for _, other in ipairs(Players:GetPlayers()) do
-			if other ~= player and other.Character then
-				pose(other.Character)
-			end
-		end
-		-- and the bot, if you're fighting one
-		local opponent = ClientState.Snapshot.InMatch and ClientState.GetOpponentPlayer()
-		if typeof(opponent) == "table" and opponent.Character then
-			pose(opponent.Character)
-		end
-	end)
-
-	-- send our own look pitch
-	local aim = Remotes.Get("Aim")
-	local lastSent = 0
-	task.spawn(function()
-		while true do
-			task.wait(SEND_INTERVAL)
-			local camera = workspace.CurrentCamera
-			if camera and player.Character then
-				local pitch = math.asin(math.clamp(camera.CFrame.LookVector.Y, -1, 1))
-				if math.abs(pitch - lastSent) > 0.03 then
-					lastSent = pitch
-					aim:FireServer(pitch)
-				end
-			end
-		end
-	end)
-end
-
-return CharacterPoser
-]]></string>
-          </Properties>
-        </Item>
-        <Item class="ModuleScript" referent="41">
+        <Item class="ModuleScript" referent="42">
           <Properties>
             <string name="Name">ClientState</string>
             <string name="Source"><![CDATA[--[[
@@ -11311,7 +12046,7 @@ return ClientState
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="42">
+        <Item class="ModuleScript" referent="43">
           <Properties>
             <string name="Name">CrateController</string>
             <string name="Source"><![CDATA[--[[
@@ -12047,7 +12782,7 @@ return CrateController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="43">
+        <Item class="ModuleScript" referent="44">
           <Properties>
             <string name="Name">EffectsController</string>
             <string name="Source"><![CDATA[--[[
@@ -12688,7 +13423,7 @@ return Effects
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="44">
+        <Item class="ModuleScript" referent="45">
           <Properties>
             <string name="Name">Keybinds</string>
             <string name="Source"><![CDATA[--[[
@@ -12827,7 +13562,7 @@ return Keybinds
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="45">
+        <Item class="ModuleScript" referent="46">
           <Properties>
             <string name="Name">KillCamController</string>
             <string name="Source"><![CDATA[--[[
@@ -12863,7 +13598,6 @@ local Config = require(Shared.Config)
 local Remotes = require(Shared.Remotes)
 local PowerUps = require(Shared.PowerUps)
 local ClientState = require(script.Parent.ClientState)
-local CharacterPoser = require(script.Parent.CharacterPoser)
 local Theme = require(script.Parent.ui.Theme)
 
 local K = Config.KillCam
@@ -12988,12 +13722,10 @@ end
 
 -- A copy of your real character (avatar, clothes, rifle), still rigged so it
 -- can be animated. Only the root is anchored; the kill cam moves it.
-local function makeGhost()
-	local character = player.Character
+local function copyCharacter(character)
 	if not character then
 		return nil
 	end
-	ghostAnims = readAnimations(character)
 	local wasArchivable = character.Archivable
 	character.Archivable = true
 	local ok, ghost = pcall(function()
@@ -13034,6 +13766,15 @@ local function makeGhost()
 	outline.Parent = ghost
 	ghost.Name = "KillCamGhost"
 	return ghost
+end
+
+-- A copy of you made at round start (before you can die).
+local function makeGhost()
+	if not player.Character then
+		return nil
+	end
+	ghostAnims = readAnimations(player.Character)
+	return copyCharacter(player.Character)
 end
 
 -- Loads idle / run / fall tracks on the ghost. Returns a function that picks
@@ -13105,11 +13846,35 @@ local function play(deathTime, killerName)
 	local recordedShots = table.clone(shots)
 	local drawn = {}
 
+	-- the killer: a copy of their real character, placed where they were,
+	-- seen from inside their head (only their arms + weapon show)
+	local killerCopy = copyCharacter(enemy)
+	if killerCopy then
+		killerCopy.Name = "KillCamKiller"
+		local outline = killerCopy:FindFirstChildOfClass("Highlight")
+		if outline then
+			outline:Destroy()
+		end
+		for _, part in ipairs(killerCopy:GetDescendants()) do
+			if part:IsA("BasePart") then
+				part.LocalTransparencyModifier = 1
+			elseif part:IsA("Decal") then
+				part.Transparency = 1
+			end
+		end
+		killerCopy:PivotTo(CFrame.new(samples[1].Head - Vector3.new(0, 1.5, 0)))
+		killerCopy.Parent = workspace
+		Controllers.Viewmodel.Track(killerCopy)
+	end
+	if ghost then
+		Controllers.Viewmodel.Track(ghost) -- your copy holds its weapon + aims like you did
+	end
+
 	-- the killer's arms + rifle on our camera (built before we hide them)
 	local entry = ClientState.GetOpponentEntry()
 	local owned = entry and entry.PowerUps or {}
 	local boltTime = PowerUps.ComputeStats(owned).BoltTime or 1
-	local okPuppet, puppetErr = pcall(Controllers.Viewmodel.SetPuppet, { Character = enemy, Owned = owned })
+	local okPuppet, puppetErr = pcall(Controllers.Viewmodel.SetPuppet, { Character = killerCopy, Owned = owned })
 	if not okPuppet then
 		warn("[KillCam]", puppetErr)
 	end
@@ -13140,16 +13905,9 @@ local function play(deathTime, killerName)
 	local rate = 1
 	local current -- the sample for this frame
 
-	-- your copy holds the rifle up and aims where you did (after the Animator)
-	local poseConnection = RunService.Stepped:Connect(function()
-		if ghost and current then
-			CharacterPoser.PoseRig(ghost, current.MyPitch or 0)
-		end
-	end)
 
 	local function stop()
 		RunService:UnbindFromRenderStep("SniperKillCam")
-		poseConnection:Disconnect()
 		-- give the camera back first, so nothing below can leave it stuck
 		camera.CameraType = oldType == Enum.CameraType.Scriptable and Enum.CameraType.Custom or oldType
 		camera.FieldOfView = oldFov
@@ -13162,7 +13920,12 @@ local function play(deathTime, killerName)
 		gui.Enabled = false
 		pcall(Controllers.Viewmodel.SetWeapon, ClientState.Weapon or "Sniper")
 		if ghost then
+			Controllers.Viewmodel.Untrack(ghost)
 			ghost:Destroy()
+		end
+		if killerCopy then
+			Controllers.Viewmodel.Untrack(killerCopy)
+			killerCopy:Destroy()
 		end
 		setCharacterHidden(enemy, false)
 		local ok, err = pcall(Controllers.Viewmodel.SetPuppet, nil)
@@ -13197,7 +13960,11 @@ local function play(deathTime, killerName)
 				end
 				lastSwing = s.Swing
 			end
-			camera.CFrame = CFrame.new(s.Head) * CFrame.fromOrientation(s.Pitch, s.Yaw, 0)
+			local eye = CFrame.new(s.Head) * CFrame.fromOrientation(s.Pitch, s.Yaw, 0)
+			camera.CFrame = eye * CFrame.new(0, 0, Config.Body.CameraBack or 0)
+			if killerCopy then
+				killerCopy:PivotTo(CFrame.new(s.Head - Vector3.new(0, 1.5, 0)) * CFrame.fromOrientation(0, s.Yaw, 0))
+			end
 			-- how fast they were moving (walk bob on their arms)
 			local before = sampleAt(at - 0.1)
 			if before then
@@ -13206,6 +13973,7 @@ local function play(deathTime, killerName)
 			end
 			if ghost then
 				ghost:PivotTo(s.Me)
+				ghost:SetAttribute("AimPitch", s.MyPitch or 0)
 				local prev = sampleAt(at - 0.1)
 				local speed = prev and ((s.Me.Position - prev.Me.Position) * Vector3.new(1, 0, 1)).Magnitude / 0.1 or 0
 				setGhostAnim(speed, s.MyAir, rate)
@@ -13360,205 +14128,6 @@ function KillCam.Start()
 end
 
 return KillCam
-]]></string>
-          </Properties>
-        </Item>
-        <Item class="ModuleScript" referent="46">
-          <Properties>
-            <string name="Name">KnifeAnim</string>
-            <string name="Source"><![CDATA[--[[
-	KnifeAnim.lua  (Client.KnifeAnim)
-
-	The knife's first-person animation maths, used by ViewmodelController:
-	poses in camera space for idle / sprint / equip / slash / stab / inspect
-	(toss and catch, or twirl), and a two-bone IK solve for the arms. Pure
-	CFrame maths (no instances), so it can be previewed outside Roblox.
-
-	Knife space: origin = the middle of the handle, blade toward -Z, edge -Y.
-]]
-
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-local Shared = ReplicatedStorage:WaitForChild("Shared")
-local Config = require(Shared.Config)
-local KnifeModel = require(Shared.KnifeModel)
-
-local KnifeAnim = {}
-
-local rad = math.rad
-local KN = Config.Knife
-
-local function easeOutBack(t)
-	local c1, c3 = 1.4, 2.4
-	return 1 + c3 * (t - 1) ^ 3 + c1 * (t - 1) ^ 2
-end
-
-local function smoothstep(t)
-	return t * t * (3 - 2 * t)
-end
-
--- A knife pose from where the handle is, which way the blade points and
--- which way the cutting edge faces (camera space: +X right, +Y up, -Z ahead).
-local function knifeCF(pos, blade, edge)
-	local z = -blade.Unit -- knife -Z = blade
-	local y = -(edge - z * edge:Dot(z)).Unit -- knife -Y = edge, made square to the blade
-	local x = y:Cross(z)
-	return CFrame.fromMatrix(pos, x, y, z)
-end
-local V = Vector3.new
-
-local KNIFE_IDLE = knifeCF(V(0.62, -0.55, -1.3), V(-0.5, 0.42, -0.75), V(-0.25, -1, 0))
-local KNIFE_SPRINT = knifeCF(V(0.55, -0.85, -1.0), V(-0.35, -0.15, -0.9), V(0, -1, 0))
-local KNIFE_EQUIP = knifeCF(V(0.6, -1.5, -0.6), V(0, -1, 0.2), V(-1, 0, 0))
-local SLASH_KEYS = {
-	-- right to left, edge first, the blade lying across your view
-	[1] = {
-		knifeCF(V(1.0, -0.15, -1.05), V(0.2, 0.65, -0.75), V(-1, 0, 0)),
-		knifeCF(V(0.1, -0.35, -1.5), V(-0.75, 0.25, -0.6), V(-1, -0.2, 0.3)),
-		knifeCF(V(-0.7, -0.7, -1.0), V(-0.6, -0.45, -0.6), V(-1, -0.5, 0)),
-	},
-	-- backhand, left to right
-	[-1] = {
-		knifeCF(V(-0.35, -0.25, -1.1), V(-0.6, 0.45, -0.65), V(1, 0, 0)),
-		knifeCF(V(0.2, -0.35, -1.5), V(0.7, 0.2, -0.7), V(1, -0.2, 0.3)),
-		knifeCF(V(0.95, -0.7, -0.95), V(0.6, -0.45, -0.6), V(1, -0.5, 0)),
-	},
-}
-local STAB_BACK = knifeCF(V(0.75, -0.4, -0.75), V(-0.15, 0.3, -1), V(0, -1, 0))
-local STAB_OUT = knifeCF(V(0.2, -0.3, -2.0), V(-0.25, 0.12, -1), V(0, -1, 0))
-local TOSS_HOLD = knifeCF(V(0.32, -0.62, -1.3), V(-0.1, 1, -0.25), V(-1, 0, 0)) -- blade up, flat side to you
-local ADMIRE = knifeCF(V(0.12, -0.42, -1.15), V(-1, 0.15, -0.2), V(0, -1, 0)) -- blade across, side on
-local HAND_ON_KNIFE = KnifeModel.Grip * CFrame.Angles(rad(100), 0, 0) -- hand +Y points back to the wrist
-local LEFT_GUARD = CFrame.new(-0.72, -1.02, -1.0) * CFrame.Angles(rad(60), rad(-15), rad(25))
-local R_SHOULDER = Vector3.new(0.95, -1.25, 0.55)
-local L_SHOULDER = Vector3.new(-0.95, -1.25, 0.55)
-local UPPER, LOWER = 1.05, 1.0
-
-local function lerpKeys(a, b, c, x)
-	if x < 0.5 then
-		return a:Lerp(b, x * 2)
-	end
-	return b:Lerp(c, (x - 0.5) * 2)
-end
-
--- Two-bone IK: the elbow for a shoulder S reaching wrist W, bending toward `pole`.
-function KnifeAnim.SolveElbow(S, W, pole)
-	local toW = W - S
-	local d = math.clamp(toW.Magnitude, 0.05, UPPER + LOWER - 0.01)
-	local dir = toW.Unit
-	local cosA = math.clamp((UPPER * UPPER + d * d - LOWER * LOWER) / (2 * UPPER * d), -1, 1)
-	local sinA = math.sqrt(1 - cosA * cosA)
-	local side = pole - dir * pole:Dot(dir)
-	side = side.Magnitude > 1e-3 and side.Unit or Vector3.new(0, -1, 0)
-	return S + dir * UPPER * cosA + side * UPPER * sinA
-end
-
--- Knife pose (camera space) for animation state `a` at time t. Returns
--- knifeCF, handCF, free (knife in the air). onEvent(name) fires for sounds.
-function KnifeAnim.Pose(a, t, base, onEvent)
-	onEvent = onEvent or function() end
-	local u = t - a.Start
-	if a.Kind == "Equip" then
-		local e = math.clamp(u / KN.EquipTime, 0, 1)
-		local pose = KNIFE_EQUIP:Lerp(base, easeOutBack(e)) * CFrame.Angles((1 - smoothstep(e)) * math.pi * 2, 0, 0)
-		return pose, pose * HAND_ON_KNIFE, false
-	elseif a.Kind == "Slash" then
-		local x = u / KN.SlashTime
-		local k = SLASH_KEYS[a.Side or 1]
-		local pose
-		if x < 0.18 then
-			pose = base:Lerp(k[1], smoothstep(x / 0.18))
-		elseif x < 0.48 then
-			pose = lerpKeys(k[1], k[2], k[3], smoothstep((x - 0.18) / 0.3))
-		elseif x < 1 then
-			pose = k[3]:Lerp(base, smoothstep((x - 0.48) / 0.52))
-		else
-			a.Kind = "Idle"
-			pose = base
-		end
-		return pose, pose * HAND_ON_KNIFE, false
-	elseif a.Kind == "Stab" then
-		local x = u / KN.StabTime
-		local pose
-		if x < 0.26 then
-			pose = base:Lerp(STAB_BACK, smoothstep(x / 0.26))
-		elseif x < 0.4 then
-			local y = (x - 0.26) / 0.14
-			pose = STAB_BACK:Lerp(STAB_OUT, 1 - (1 - y) * (1 - y))
-		elseif x < 0.53 then
-			pose = STAB_OUT * CFrame.new(0, 0, math.sin((x - 0.4) / 0.13 * math.pi) * 0.04)
-		elseif x < 1 then
-			pose = STAB_OUT:Lerp(base, smoothstep((x - 0.53) / 0.47))
-		else
-			a.Kind = "Idle"
-			pose = base
-		end
-		return pose, pose * HAND_ON_KNIFE, false
-	elseif a.Kind == "Inspect" and a.Variant == "Toss" then
-		a.Length = 2.2
-		local hold = TOSS_HOLD
-		if u < 0.25 then
-			local pose = base:Lerp(hold, smoothstep(u / 0.25))
-			return pose, pose * HAND_ON_KNIFE, false
-		elseif u < 0.95 then
-			-- up it goes, flipping end over end twice; the hand waits to catch it
-			if not a.Tossed then
-				a.Tossed = true
-				onEvent("Toss")
-			end
-			local f = (u - 0.25) / 0.7
-			local height = 4 * 1.15 * f * (1 - f)
-			local pose = CFrame.new(hold.Position + Vector3.new(0, height, 0))
-				* hold.Rotation
-				* CFrame.Angles(-f * math.pi * 4, f * rad(20), 0)
-			local hand = hold * CFrame.new(0, -0.08 * math.sin(f * math.pi), 0) * HAND_ON_KNIFE
-			return pose, hand, true
-		elseif u < 1.1 then
-			if not a.Caught then
-				a.Caught = true
-				onEvent("Catch")
-			end
-			local pose = hold * CFrame.new(0, -0.12 * math.sin((u - 0.95) / 0.15 * math.pi), 0)
-			return pose, pose * HAND_ON_KNIFE, false
-		elseif u < 1.9 then
-			local f = (u - 1.1) / 0.8
-			local pose = hold:Lerp(ADMIRE, smoothstep(math.min(f * 2, 1))) * CFrame.Angles(0, 0, math.pi * smoothstep(f))
-			return pose, pose * HAND_ON_KNIFE, false
-		elseif u < 2.2 then
-			local pose = (ADMIRE * CFrame.Angles(0, 0, math.pi)):Lerp(base, smoothstep((u - 1.9) / 0.3))
-			return pose, pose * HAND_ON_KNIFE, false
-		end
-		a.Kind = "Idle"
-		return base, base * HAND_ON_KNIFE, false
-	elseif a.Kind == "Inspect" then
-		-- twirl: three quick spins round the grip, then a flip into the hand
-		a.Length = 1.6
-		if u < 1.6 then
-			local w = math.sin(math.clamp(u / 1.6, 0, 1) * math.pi)
-			local spin = smoothstep(math.clamp((u - 0.15) / 1.1, 0, 1)) * math.pi * 6
-			local lift = CFrame.new(-0.15 * w, 0.18 * w, 0.1 * w) * CFrame.Angles(0, rad(-25) * w, 0)
-			local pose = base * lift * CFrame.new(KnifeModel.Grip.Position) * CFrame.Angles(-spin, 0, 0)
-				* CFrame.new(-KnifeModel.Grip.Position)
-			if not a.Tossed and u > 0.2 then
-				a.Tossed = true
-				onEvent("Twirl")
-			end
-			return pose, base * lift * HAND_ON_KNIFE, false
-		end
-		a.Kind = "Idle"
-		return base, base * HAND_ON_KNIFE, false
-	end
-	return base, base * HAND_ON_KNIFE, false
-end
-
-KnifeAnim.Idle = KNIFE_IDLE
-KnifeAnim.Sprint = KNIFE_SPRINT
-KnifeAnim.HandOnKnife = HAND_ON_KNIFE
-KnifeAnim.LeftGuard = LEFT_GUARD
-KnifeAnim.RightShoulder = R_SHOULDER
-KnifeAnim.LeftShoulder = L_SHOULDER
-
-return KnifeAnim
 ]]></string>
           </Properties>
         </Item>
@@ -14021,11 +14590,10 @@ return LightingController
 		ClientState          latest match snapshot, my power-up stats, settings
 		CameraController     first-person lock, FOV, tilt, recoil, sensitivity
 		MovementController   bhop / sprint / slide / wall run (power-up) / grapple
-		ViewmodelController  arms + sniper attached to the camera
+		BodyAnimator         your real character holds + animates the weapons (everyone's, every frame)
 		WeaponController     scope + fire (sends shots to the server)
 		EffectsController    tracers, explosions, ropes, screen tints
 		UIController         all screens (ui/ folder)
-		CharacterPoser       third-person rifle-holding pose for other players
 		AimAssist            light controller aim assist (used by CameraController)
 		KillCamController    replays your death through your killer's eyes
 		LightingController   arena / indoor lobby lighting profiles
@@ -14038,11 +14606,10 @@ local Client = script.Parent
 local ClientState = require(Client.ClientState)
 local CameraController = require(Client.CameraController)
 local MovementController = require(Client.MovementController)
-local ViewmodelController = require(Client.ViewmodelController)
+local BodyAnimator = require(Client.BodyAnimator)
 local WeaponController = require(Client.WeaponController)
 local EffectsController = require(Client.EffectsController)
 local UIController = require(Client.UIController)
-local CharacterPoser = require(Client.CharacterPoser)
 local KillCamController = require(Client.KillCamController)
 local LightingController = require(Client.LightingController)
 local CrateController = require(Client.CrateController)
@@ -14051,11 +14618,11 @@ local KnifeController = require(Client.KnifeController)
 local controllers = {
 	Camera = CameraController,
 	Movement = MovementController,
-	Viewmodel = ViewmodelController,
+	Viewmodel = BodyAnimator, -- (the old name; everything calls it this)
+	Body = BodyAnimator,
 	Weapon = WeaponController,
 	Effects = EffectsController,
 	UI = UIController,
-	Poser = CharacterPoser,
 	KillCam = KillCamController,
 	Lighting = LightingController,
 	Crates = CrateController,
@@ -14067,11 +14634,10 @@ ClientState.Init()
 local order = {
 	CameraController,
 	MovementController,
-	ViewmodelController,
+	BodyAnimator,
 	WeaponController,
 	EffectsController,
 	UIController,
-	CharacterPoser,
 	KillCamController,
 	LightingController,
 	CrateController,
@@ -15291,1135 +15857,489 @@ return UIController
         </Item>
         <Item class="ModuleScript" referent="54">
           <Properties>
-            <string name="Name">ViewmodelController</string>
+            <string name="Name">WeaponAnim</string>
             <string name="Source"><![CDATA[--[[
-	ViewmodelController.lua  (Client.ViewmodelController)
+	WeaponAnim.lua  (Client.WeaponAnim)
 
-	First-person arms + sniper, built from flat-coloured parts and attached to
-	the camera. Only YOU see it (it lives inside workspace.CurrentCamera).
-	The rifle itself comes from Shared/GunModel (same model other players see).
+	Every weapon animation, as pure maths (no instances), so the SAME motion
+	plays on your character in first person and on everyone else's screen.
 
-	All animation is procedural (no animation assets needed):
-		equip     gun swings up into view when you spawn
-		sway      lags behind mouse movement
-		bob       figure-8 walk/run bob, stronger when sprinting
-		jump/land gun dips when you jump and slams down when you land hard
-		dash      gun pulls back
-		poses     lowered while sprinting, canted while sliding, tilted on wall runs
-		recoil    kick back + up, muzzle flash
-		bolt      right hand leaves the grip, works the bolt, comes back
-		aim       slides to the centre when scoping, then hides behind the scope
-		inspect   press V to admire the rifle
-	knife   when the knife is out (KnifeController): flip-in equip, alternating
-	        slashes, a wind-up stab, and two inspects (toss it up and catch
-	        it, or twirl it in your fingers). The arms follow the knife with
-	        two-bone IK from fixed shoulders.
-	power-ups your power-ups change how it moves (see "Power-up animation
-	          styles" below): spin-cocking, heavy kicks, twirls, kill flourishes...
+	For a moment in time it returns, in "view space" (the eye: +X right,
+	+Y up, -Z where you look):
+		Weapon     where the rifle's grip / the knife's handle is
+		Right      where the right hand goes (nil = on the weapon's grip)
+		Left       where the left hand goes
+		Body       { Yaw, Pitch, Roll (degrees, the waist), Lean (degrees),
+		             Dip / Forward (studs, the hips), Step (0-1, lunge legs) }
+		Bolt       the bolt's offset (rifle)
+	BodyAnimator then bends your real arms (IK), twists your torso and puts
+	the weapon there.
 
-	Gun space: origin = right hand on the grip, +X right, +Y up, -Z forward.
+	Knife moves are keyframed and played back on smooth splines (positions
+	and rotations both), so they flow instead of stopping at each pose.
 ]]
 
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
-local GunModel = require(Shared.GunModel)
 local KnifeModel = require(Shared.KnifeModel)
-local KnifeAnim = require(script.Parent.KnifeAnim)
-local Util = require(Shared.Util)
-local ClientState = require(script.Parent.ClientState)
-local Spring = require(script.Parent.Spring)
-local Sfx = require(script.Parent.Sfx)
-local Keybinds = require(script.Parent.Keybinds)
-local Remotes = require(Shared.Remotes)
 
-local Palette = Config.Palette
-local VM = Config.Viewmodel
-local player = Players.LocalPlayer
-
-local Viewmodel = {}
-local hiddenBy = {} -- [reason] = true: see Viewmodel.SetHidden
-local puppet -- { Character, Owned, Speed } while the kill cam borrows the viewmodel (Viewmodel.SetPuppet)
-
--- The power-ups the shown rifle has: yours, or the killer's during the kill cam.
-local function currentOwned()
-	return puppet and puppet.Owned or ClientState.Owned or {}
-end
-local Controllers
+local WeaponAnim = {}
 
 local rad = math.rad
-
--- Where the grip sits in camera space when hip-firing / aiming down the scope.
-local HIP_OFFSET = CFrame.new(0.62, -0.7, -1.1)
-local SPRINT_POSE = CFrame.new(-0.1, -0.22, 0.15) * CFrame.Angles(rad(-16), rad(38), rad(14))
-local EQUIP_POSE = CFrame.new(0.15, -1.2, 0.45) * CFrame.Angles(rad(-55), rad(25), rad(20))
-
--- Hands (gun space)
-local RIGHT_GRIP = CFrame.new(0, -0.22, 0.18) * CFrame.Angles(rad(-18), 0, 0)
--- Arm joints (gun space). Shoulders sit behind the camera, out of view.
-local RIGHT_ELBOW = Vector3.new(0.42, -0.62, 0.78)
-local RIGHT_SHOULDER = Vector3.new(0.95, -1.1, 1.9)
-local LEFT_ELBOW = Vector3.new(-0.42, -0.62, -0.55)
-local LEFT_SHOULDER = Vector3.new(-1.0, -1.05, 0.95)
-
-local model
-local gun -- result of GunModel.Build
-local knife -- result of KnifeModel.Build
-local weapon = "Sniper" -- "Sniper" or "Knife" (Viewmodel.SetWeapon)
-local knifeAnim = { Kind = "Equip", Start = -10, Side = 1, Variant = "Toss" }
-local applyWeaponVisibility -- (defined with setVisible below)
-local parts = {} -- extra parts: hands, arms, flash
-local visible = false
-
-local swaySpring = Spring.new(140, 16) -- rotation (degrees)
-local recoilSpring = Spring.new(220, 18) -- X = pitch, Y = push back, Z = roll
-local moveSpring = Spring.new(150, 13) -- position offset from jumps / landings / dashes
-local bobTime = 0
-local sprintAlpha, slideAlpha, wallAlpha, airOffset = 0, 0, 0, 0
-local wallRetract = 0 -- studs the gun is pulled back because a wall is in front of you
-local retractParams = RaycastParams.new()
-retractParams.FilterType = Enum.RaycastFilterType.Exclude
-local boltStart, boltDuration = 0, 0
-local boltSoundPlayed = true
-local equipStart = -10
-local inspectStart, inspecting = 0, false
-local flashUntil = 0
-local lastCharacter
-local hadGun = false
+local V = Vector3.new
+local KN = Config.Knife
+local B = Config.Body
 
 ----------------------------------------------------------------------------
--- Building
+-- Maths helpers
 ----------------------------------------------------------------------------
-local function addPart(name, size, color, shape)
-	local part = Instance.new("Part")
-	part.Name = name
-	part.Size = size
-	part.Color = color
-	part.Material = Enum.Material.SmoothPlastic
-	part.Anchored = true
-	part.CanCollide = false
-	part.CanQuery = false
-	part.CanTouch = false
-	part.CastShadow = false
-	if shape then
-		part.Shape = shape
-	end
-	part.Parent = model
-	parts[name] = part
-	return part
+local function clamp01(x)
+	return math.clamp(x, 0, 1)
 end
-
--- A string that changes whenever your power-ups change.
-local function ownedSignature(owned)
-	local list = {}
-	for id, stacks in pairs(owned) do
-		table.insert(list, id .. "=" .. stacks)
-	end
-	table.sort(list)
-	return table.concat(list, ",")
-end
-local builtSignature = nil
-local builtLevel = 0
-
-local function setGunEffects(on)
-	for _, part in pairs(gun.Parts) do
-		for _, child in ipairs(part:GetChildren()) do
-			if child:IsA("ParticleEmitter") or child:IsA("PointLight") then
-				child.Enabled = on
-			end
-		end
-	end
-end
-
--- (Re)builds the rifle with an attachment for every power-up you own.
--- Returns true if you gained something (so we can show it off).
-local function buildGun()
-	local owned = currentOwned()
-	local signature = ownedSignature(owned) .. (GunModel.FindTemplate() and "|mesh" or "")
-	if gun and signature == builtSignature then
-		return false
-	end
-	if gun then
-		for _, part in pairs(gun.Parts) do
-			part:Destroy()
-		end
-	end
-	builtSignature = signature
-	gun = GunModel.Build(model, { Anchored = true, PowerUps = owned })
-	applyWeaponVisibility() -- (hidden while the knife is out)
-	local level = GunModel.PowerLevel(owned)
-	local gained = level > builtLevel
-	builtLevel = level
-	return gained
-end
-
-local function buildKnife()
-	if knife then
-		for _, part in pairs(knife.Parts) do
-			part:Destroy()
-		end
-	end
-	knife = KnifeModel.Build(model, { Anchored = true })
-	for _, part in pairs(knife.Parts) do
-		part.LocalTransparencyModifier = (visible and weapon == "Knife") and 0 or 1
-	end
-end
-
-local function build()
-	model = Instance.new("Model")
-	model.Name = "Viewmodel"
-	buildGun()
-	buildKnife()
-
-	-- Gloved hands
-	for _, side in ipairs({ "Right", "Left" }) do
-		addPart(side .. "Palm", Vector3.new(0.21, 0.27, 0.25), Palette.Glove)
-		addPart(side .. "Fingers", Vector3.new(0.22, 0.23, 0.08), Palette.Glove)
-		addPart(side .. "Thumb", Vector3.new(0.07, 0.07, 0.19), Palette.Glove)
-		addPart(side .. "Cuff", Vector3.new(0.3, 0.3, 0.14), Palette.SleeveCuff)
-		addPart(side .. "Forearm", Vector3.new(0.27, 0.27, 1), Palette.Sleeve)
-		addPart(side .. "Elbow", Vector3.new(0.3, 0.3, 0.3), Palette.Sleeve, Enum.PartType.Ball)
-		addPart(side .. "UpperArm", Vector3.new(0.32, 0.32, 1), Palette.Sleeve)
-	end
-	-- the left palm lies flat under the handguard
-	parts.LeftPalm.Size = Vector3.new(0.27, 0.1, 0.33)
-	parts.LeftFingers.Size = Vector3.new(0.06, 0.2, 0.28)
-	parts.LeftThumb.Size = Vector3.new(0.06, 0.14, 0.2)
-
-	-- Muzzle flash (a flat star)
-	addPart("FlashCore", Vector3.new(0.4, 0.4, 0.4), Palette.MuzzleFlash, Enum.PartType.Ball)
-	addPart("FlashA", Vector3.new(0.07, 0.9, 0.07), Palette.MuzzleFlash)
-	addPart("FlashB", Vector3.new(0.9, 0.07, 0.07), Palette.MuzzleFlash)
-	addPart("FlashLong", Vector3.new(0.12, 0.12, 0.7), Palette.MuzzleFlash)
-	for _, name in ipairs({ "FlashCore", "FlashA", "FlashB", "FlashLong" }) do
-		if Config.Effects.NeonEffects then
-			parts[name].Material = Enum.Material.Neon -- glows with bloom
-		end
-	end
-	-- a light that flashes with each shot (lights up your arms and the room)
-	local light = Instance.new("PointLight")
-	light.Name = "MuzzleLight"
-	light.Color = Palette.MuzzleFlash
-	light.Range = 14
-	light.Brightness = 0
-	light.Shadows = false
-	light.Parent = parts.FlashCore
-
-	model.Parent = workspace.CurrentCamera
-end
-
-----------------------------------------------------------------------------
--- Avatar arms (Config.Viewmodel.UseAvatarArms)
-----------------------------------------------------------------------------
---[[
-	Your first-person arms are a copy of your own avatar's arms: skin
-	colour, shirt and all. The copy sits in a little model with a Humanoid
-	(that's what makes the shirt show up), is scaled down to
-	ArmThickness so it fits the rifle, and each part is stretched between
-	the same shoulder / elbow / hand points the plain arms use. If your
-	character has no R15 arms, the plain gloved arms are used instead.
-]]
-local ARM_NAMES = { "RightUpperArm", "RightLowerArm", "RightHand", "LeftUpperArm", "LeftLowerArm", "LeftHand" }
-local BLOCK_PIECES = { "Palm", "Fingers", "Thumb", "Cuff", "Forearm", "Elbow", "UpperArm" }
-local avatarArms -- { Model, Parts = {[name] = part}, Base = {[name] = original size} }
-
-local function setBlockArms(shown)
-	for _, side in ipairs({ "Right", "Left" }) do
-		for _, piece in ipairs(BLOCK_PIECES) do
-			local part = parts[side .. piece]
-			if part then
-				part.Transparency = shown and 0 or 1
-			end
-		end
-	end
-end
-
-local function buildAvatarArms(character)
-	if avatarArms then
-		avatarArms.Model:Destroy()
-		avatarArms = nil
-	end
-	if not Config.Viewmodel.UseAvatarArms or not character then
-		setBlockArms(true)
-		return
-	end
-	for _, name in ipairs(ARM_NAMES) do
-		if not character:FindFirstChild(name) then
-			setBlockArms(true)
-			return
-		end
-	end
-	local rig = Instance.new("Model")
-	rig.Name = "AvatarArms"
-	local humanoid = Instance.new("Humanoid")
-	humanoid.RigType = Enum.HumanoidRigType.R15
-	humanoid.RequiresNeck = false
-	humanoid.BreakJointsOnDeath = false
-	humanoid.EvaluateStateMachine = false
-	humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
-	humanoid.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
-	humanoid.Parent = rig
-	for _, item in ipairs(character:GetChildren()) do
-		if item:IsA("Shirt") or item:IsA("BodyColors") then
-			item:Clone().Parent = rig
-		end
-	end
-	local armParts, base = {}, {}
-	for _, name in ipairs(ARM_NAMES) do
-		local source = character[name]
-		local ok, part = pcall(function()
-			return source:Clone()
-		end)
-		if not ok or not part then
-			rig:Destroy()
-			setBlockArms(true)
-			return
-		end
-		for _, child in ipairs(part:GetChildren()) do
-			if not (child:IsA("SurfaceAppearance") or child:IsA("SpecialMesh") or child:IsA("Decal") or child:IsA("Texture")) then
-				child:Destroy()
-			end
-		end
-		part.Anchored = true
-		part.CanCollide = false
-		part.CanQuery = false
-		part.CanTouch = false
-		part.CastShadow = false
-		part.Massless = true
-		part.Transparency = 0
-		part.Parent = rig
-		armParts[name] = part
-		base[name] = source.Size
-	end
-	for _, part in pairs(armParts) do
-		part.LocalTransparencyModifier = visible and 0 or 1
-	end
-	rig.Parent = model
-	avatarArms = { Model = rig, Parts = armParts, Base = base }
-	setBlockArms(false)
-end
-
--- CFrame (gun space) for an avatar limb stretched from a to b, `thick` studs wide.
-local function avatarLimb(name, a, b, thick)
-	local part, base = avatarArms.Parts[name], avatarArms.Base[name]
-	-- rounded so the mesh isn't resized every frame (that can hitch)
-	local length = math.max(math.floor((b - a).Magnitude * 20 + 0.5) / 20, 0.05)
-	local k = thick / math.max(base.X, 0.01)
-	local size = Vector3.new(base.X * k, length, base.Z * k)
-	if (part.Size - size).Magnitude > 0.001 then
-		part.Size = size
-	end
-	-- the limb's -Y runs from a (shoulder end) to b (hand end)
-	return CFrame.lookAt((a + b) / 2, b) * CFrame.Angles(rad(90), 0, 0)
-end
-
--- CFrame-free helper: scales an avatar hand to fit and returns its size.
-local function avatarHandSize(name, width)
-	local part, base = avatarArms.Parts[name], avatarArms.Base[name]
-	local size = base * (width / math.max(base.X, 0.01))
-	if (part.Size - size).Magnitude > 0.001 then
-		part.Size = size
-	end
-	return size
-end
-
--- CFrame for a limb part stretched between points a and b.
-local function limbBetween(part, a, b)
-	local length = math.max((b - a).Magnitude, 0.05)
-	if math.abs(part.Size.Z - length) > 0.001 then
-		part.Size = Vector3.new(part.Size.X, part.Size.Y, length)
-	end
-	return CFrame.lookAt((a + b) / 2, b)
-end
-
-----------------------------------------------------------------------------
--- Animation helpers
-----------------------------------------------------------------------------
-local function easeOutBack(t)
-	local c1, c3 = 1.4, 2.4
-	return 1 + c3 * (t - 1) ^ 3 + c1 * (t - 1) ^ 2
-end
-
-local function seg(t, a, b)
-	return math.clamp((t - a) / (b - a), 0, 1)
-end
-
 local function smoothstep(t)
+	t = clamp01(t)
 	return t * t * (3 - 2 * t)
 end
+local function easeOutBack(t)
+	t = clamp01(t)
+	local c1, c3 = 1.5, 2.5
+	return 1 + c3 * (t - 1) ^ 3 + c1 * (t - 1) ^ 2
+end
+local function seg(t, a, b)
+	return clamp01((t - a) / (b - a))
+end
 
--- Bolt cycle for progress t (0-1).
--- Returns: bolt pivot CFrame (gun space), right hand CFrame (gun space), gun roll.
-local function boltPose(t)
-	-- reach (0-.15) lift (.15-.3) pull (.3-.5) push (.5-.68) lower (.68-.8) return (.8-1)
+-- A pose from where the handle is, which way the blade (or barrel) points
+-- and which way the edge (or the gun's underside) faces.
+local function aim(pos, forward, down)
+	local z = -forward.Unit
+	local y = -(down - z * down:Dot(z)).Unit
+	return CFrame.fromMatrix(pos, y:Cross(z), y, z)
+end
+WeaponAnim.Aim = aim
+
+-- quaternion helpers for smooth rotation splines
+local function toQuat(cf)
+	local _, _, _, r00, r01, r02, r10, r11, r12, r20, r21, r22 = cf:GetComponents()
+	local trace = r00 + r11 + r22
+	local w, x, y, z
+	if trace > 0 then
+		local s = math.sqrt(trace + 1) * 2
+		w, x, y, z = 0.25 * s, (r21 - r12) / s, (r02 - r20) / s, (r10 - r01) / s
+	elseif r00 > r11 and r00 > r22 then
+		local s = math.sqrt(1 + r00 - r11 - r22) * 2
+		w, x, y, z = (r21 - r12) / s, 0.25 * s, (r01 + r10) / s, (r02 + r20) / s
+	elseif r11 > r22 then
+		local s = math.sqrt(1 + r11 - r00 - r22) * 2
+		w, x, y, z = (r02 - r20) / s, (r01 + r10) / s, 0.25 * s, (r12 + r21) / s
+	else
+		local s = math.sqrt(1 + r22 - r00 - r11) * 2
+		w, x, y, z = (r10 - r01) / s, (r02 + r20) / s, (r12 + r21) / s, 0.25 * s
+	end
+	return { w, x, y, z }
+end
+
+local function catmull(p0, p1, p2, p3, t)
+	local t2, t3 = t * t, t * t * t
+	-- (scalars on the right so it works for numbers and Vector3s alike)
+	return (p1 * 2 + (p2 - p0) * t + (p0 * 2 - p1 * 5 + p2 * 4 - p3) * t2 + (p1 * 3 - p0 - p2 * 3 + p3) * t3) * 0.5
+end
+
+-- Smooth curve through a list of CFrames (Catmull-Rom on position and on
+-- the rotation's quaternion), at u = 0..1 between key i and key i + 1.
+local function splineCF(cfs, i, u)
+	local n = #cfs
+	local a, b, c, d = cfs[math.max(i - 1, 1)], cfs[i], cfs[math.min(i + 1, n)], cfs[math.min(i + 2, n)]
+	local pos = catmull(a.Position, b.Position, c.Position, d.Position, u)
+	local q = { toQuat(a), toQuat(b), toQuat(c), toQuat(d) }
+	for k = 2, 4 do -- keep every quaternion on the same side as the one before
+		local dot = 0
+		for j = 1, 4 do
+			dot += q[k][j] * q[k - 1][j]
+		end
+		if dot < 0 then
+			for j = 1, 4 do
+				q[k][j] = -q[k][j]
+			end
+		end
+	end
+	local out, len = {}, 0
+	for j = 1, 4 do
+		out[j] = catmull(q[1][j], q[2][j], q[3][j], q[4][j], u)
+		len += out[j] * out[j]
+	end
+	len = math.sqrt(len)
+	if len < 1e-6 then
+		return b:Lerp(c, u)
+	end
+	return CFrame.new(pos.X, pos.Y, pos.Z, out[2] / len, out[3] / len, out[4] / len, out[1] / len)
+end
+
+local BODY_KEYS = { "Yaw", "Pitch", "Roll", "Lean", "Dip", "Forward", "Step", "NeckYaw", "NeckPitch" }
+
+-- Plays a clip: keys = { { T, Weapon = CFrame | "BASE", Left = CFrame?, Body = {...}, Ease? } }
+-- Returns weaponCF, leftCF (or nil), body table.
+local function playClip(clip, u, base, baseLeft)
+	local keys = clip.Keys
+	local n = #keys
+	local i = 1
+	while i < n - 1 and u > keys[i + 1].T do
+		i += 1
+	end
+	local k1, k2 = keys[i], keys[i + 1]
+	local x = clamp01((u - k1.T) / math.max(k2.T - k1.T, 1e-4))
+	if k2.Ease == "Snap" then
+		x = 1 - (1 - x) ^ 2.6 -- fast start, soft landing (strikes)
+	elseif k2.Ease == "Wind" then
+		x = x * x * (2 - x) * 0.5 + x * 0.5
+	end
+	local weapons, lefts = {}, {}
+	for k, key in ipairs(keys) do
+		weapons[k] = key.Weapon == "BASE" and base or key.Weapon
+		lefts[k] = key.Left or baseLeft
+	end
+	local weapon = splineCF(weapons, i, x)
+	local left = splineCF(lefts, i, x)
+	local body = {}
+	for _, name in ipairs(BODY_KEYS) do
+		local function at(k)
+			local key = keys[math.clamp(k, 1, n)]
+			return key.Body and key.Body[name] or 0
+		end
+		body[name] = catmull(at(i - 1), at(i), at(i + 1), at(i + 2), x)
+	end
+	return weapon, left, body
+end
+
+----------------------------------------------------------------------------
+-- RIFLE (gun space: origin = right hand on the grip, -Z = the barrel)
+----------------------------------------------------------------------------
+local G = B.GunScale
+local RIFLE_HIP = CFrame.new(B.RifleHip)
+local RIFLE_SPRINT = RIFLE_HIP * CFrame.new(-0.12, -0.22, 0.2) * CFrame.Angles(rad(-18), rad(40), rad(16))
+local RIFLE_EQUIP = RIFLE_HIP * CFrame.new(0.15, -1.1, 0.4) * CFrame.Angles(rad(-55), rad(25), rad(20))
+-- the pistol grip goes through the fist; the forearm comes from behind it
+local RIGHT_ON_GRIP = CFrame.new(0, -0.18 * G, 0.12 * G) * CFrame.Angles(rad(70), 0, 0)
+local LEFT_GUARD_KNIFE = aim(V(-0.75, -1.15, -0.95), V(0.35, 0.55, -0.75), V(0.2, -0.2, 0.9))
+
+local function rifleLeft(profile)
+	-- (R15 arms are short for their shoulder width, so the left hand holds
+	-- just ahead of the trigger guard, where it can actually reach)
+	return CFrame.new(0, profile.LeftHold.Position.Y * G - 0.04, B.RifleLeftHold) * CFrame.Angles(0, 0, rad(95))
+end
+
+-- bolt cycle: reach (0-.15) lift (.15-.3) pull (.3-.5) push (.5-.68) lower (.68-.8) back (.8-1)
+local function boltState(profile, t)
 	local lift = smoothstep(seg(t, 0.15, 0.3)) - smoothstep(seg(t, 0.68, 0.8))
 	local pull = smoothstep(seg(t, 0.3, 0.5)) - smoothstep(seg(t, 0.5, 0.68))
-	-- the bolt turns up around the bore line, then slides back and forward
-	local profile = gun.Profile
-	local pivot = profile.BoltPivot
-		* CFrame.new(0, 0, pull * profile.BoltTravel)
-		* CFrame.Angles(0, 0, rad(profile.BoltLift) * lift)
-	local onKnob = pivot * profile.KnobHold * CFrame.Angles(0, 0, rad(-25))
+	local bolt = CFrame.new(0, 0, pull * profile.BoltTravel * G) * CFrame.Angles(0, 0, rad(profile.BoltLift) * lift)
+	local pivot = CFrame.new(profile.BoltPivot.Position * G) * bolt
+	local knob = pivot * CFrame.new(profile.KnobHold.Position * G) * CFrame.Angles(rad(60), 0, rad(-25))
 	local reach = smoothstep(seg(t, 0, 0.15))
 	local back = smoothstep(seg(t, 0.8, 1))
 	local hand
 	if t <= 0 or t >= 1 then
-		hand = RIGHT_GRIP
+		hand = RIGHT_ON_GRIP
 	elseif t < 0.15 then
-		hand = RIGHT_GRIP:Lerp(onKnob, reach)
+		hand = RIGHT_ON_GRIP:Lerp(knob, reach)
 	elseif t < 0.8 then
-		hand = onKnob
+		hand = knob
 	else
-		hand = onKnob:Lerp(RIGHT_GRIP, back)
+		hand = knob:Lerp(RIGHT_ON_GRIP, back)
 	end
-	local roll = math.sin(math.clamp(t, 0, 1) * math.pi) * rad(16)
-	return pivot, hand, roll
+	local roll = math.sin(clamp01(t) * math.pi) * rad(18)
+	return bolt, hand, roll
 end
 
-----------------------------------------------------------------------------
--- Power-up animation styles
-----------------------------------------------------------------------------
---[[
-	Your power-ups change how the rifle moves:
-	  fire     Explosive Rounds / Glass Cannon: heavy kick that shoves the rifle back
-	           Split Shot: double kick   Hair Trigger / Quickdraw: short snappy kick
-	           Static Charge: the rifle buzzes with electricity for a moment
-	  bolt     Hair Trigger / Quickdraw: spin-cock (the rifle spins round the barrel)
-	           Bullet Time: smooth bolt with the rifle tilted up to admire it
-	           Explosive Rounds / Split Shot: heavy pump, pulled back toward you
-	           Ricochet / Pinball: the rifle bounces while you work the bolt
-	  equip    Quickdraw: twirls into your hands   Ghost Round: phases in
-	  idle     Ghost Round: floats   Momentum Rounds: leans with your speed
-	           Static Charge: random twitches   Vampire: heartbeat pulse
-	  kills    Ricochet / Pinball: barrel spin   Explosive Rounds: tilts up to blow
-	           the smoke away   Vampire: pulls the rifle in   otherwise: a nod
-	  inspect  with power-ups: turns the rifle both ways to show the attachments
-]]
-local function has(id)
-	return (currentOwned()[id] or 0) > 0
-end
-
-local boltStyle, equipStyle = "Normal", "Normal"
-local flourish, flourishStart = nil, -10
-local jitterUntil, nextTwitch = 0, 0
-
-local function chooseBoltStyle()
-	if has("HairTrigger") or has("Quickdraw") then
-		return "Spin"
-	elseif has("BulletTime") then
-		return "Admire"
-	elseif has("ExplosiveRounds") or has("SplitShot") then
-		return "Heavy"
-	elseif has("Ricochet") or has("Pinball") then
-		return "Bounce"
+local function rifle(state, t, ctx)
+	local profile = ctx.Profile
+	local base = RIFLE_HIP:Lerp(RIFLE_SPRINT, ctx.Sprint or 0)
+	-- equip: swings up into view
+	local e = clamp01((t - state.EquipStart) / (Config.Viewmodel.EquipTime or 0.35))
+	local pose = RIFLE_EQUIP:Lerp(base, easeOutBack(e))
+	-- recoil: a sharp kick up and back that settles
+	local f = t - state.FireStart
+	if f >= 0 and f < 0.6 then
+		local kick = math.exp(-f * 11) * (1 - math.exp(-f * 90))
+		pose = pose * CFrame.new(0, 0.03 * kick, 0.28 * kick) * CFrame.Angles(rad(12) * kick, 0, rad(3) * kick)
 	end
-	return "Normal"
-end
-
--- Rotation around the barrel (gun space)
-local function aroundBarrel(angle)
-	local axis = CFrame.new(0, gun.Profile.BarrelY, 0)
-	return axis * CFrame.Angles(0, 0, angle) * axis:Inverse()
-end
-
-----------------------------------------------------------------------------
--- Public API
-----------------------------------------------------------------------------
--- Hide the arms + rifle while something else owns the camera (e.g. a crate
--- opening). Each caller passes its own reason so they don't clash.
-function Viewmodel.SetHidden(reason, hidden)
-	hiddenBy[reason] = hidden or nil
-end
-
--- The kill cam replays the fight through your killer's eyes: show THEIR
--- arms (from their avatar) holding THEIR rifle (with their power-ups).
--- info = { Character = Model, Owned = { [id] = stacks } }, or nil to stop.
-function Viewmodel.SetPuppet(info)
-	puppet = info
-	builtSignature = nil -- rebuild the rifle for whoever is holding it
-	buildGun()
-	if info then
-		buildAvatarArms(info.Character or nil) -- killer gone: plain arms
-	else
-		buildAvatarArms(player.Character)
+	-- inspect (V): turn it to show both sides
+	local body = { Yaw = -8, Pitch = 0 }
+	local it = (t - state.InspectStart) / 2.4
+	if it >= 0 and it < 1 and state.InspectKind == "Rifle" then
+		local w = math.sin(it * math.pi) ^ 0.7
+		local turn = math.sin(it * math.pi * 2)
+		pose = pose * CFrame.new(-0.35 * w, 0.2 * w, 0.3 * w) * CFrame.Angles(rad(12) * w, rad(60) * turn * w, rad(-30) * w)
+		body.NeckPitch = -8 * w
 	end
-	inspecting = false
-	flourish = nil
-end
-
--- Switches what's in your hands ("Sniper" or "Knife") and plays its equip.
-function Viewmodel.SetWeapon(name)
-	if name ~= "Knife" then
-		name = "Sniper"
+	-- bolt
+	local bt = state.BoltLength > 0 and (t - state.BoltStart) / state.BoltLength or 1
+	local bolt, hand, roll = CFrame.new(), RIGHT_ON_GRIP, 0
+	if bt >= 0 and bt < 1 then
+		bolt, hand, roll = boltState(profile, bt)
+		pose = pose * CFrame.Angles(0, 0, -roll)
 	end
-	if name == weapon then
-		return
+	-- scope: bring the scope up to your eye
+	local scope = ctx.Scope or 0
+	if scope > 0 then
+		local eye = profile.ScopeEye * G
+		local ads = CFrame.new(-eye.X, -eye.Y, -eye.Z - 0.35)
+		pose = pose:Lerp(ads, smoothstep(scope))
 	end
-	weapon = name
-	inspecting = false
-	flourish = nil
-	if weapon == "Knife" then
-		knifeAnim = { Kind = "Equip", Start = os.clock(), Side = 1 }
-		Sfx.Play("CardPick", { Pitch = 1.15, Volume = 0.7 }) -- unsheathe
-	else
-		Viewmodel.PlayEquip()
+	if f >= 0 and f < 0.25 then
+		body.Pitch = 3 * math.exp(-f * 12)
 	end
-	applyWeaponVisibility()
-end
-
-function Viewmodel.GetWeapon()
-	return weapon
-end
-
--- Knife moves: "Slash" (alternates sides), "Stab", "Inspect".
-function Viewmodel.PlayKnife(kind)
-	local side = knifeAnim.Side or 1
-	if kind == "Slash" then
-		side = -side
-	elseif kind == "Inspect" then
-		if knifeAnim.Kind ~= "Idle" and os.clock() - knifeAnim.Start < (knifeAnim.Length or 0) then
-			return -- finish what you're doing first
-		end
-	end
-	knifeAnim = {
-		Kind = kind,
-		Start = os.clock(),
-		Side = side,
-		Variant = kind == "Inspect" and (math.random() < 0.65 and "Toss" or "Twirl") or nil,
+	return {
+		Weapon = pose,
+		Right = pose * hand,
+		Left = pose * rifleLeft(profile),
+		Body = body,
+		Bolt = bolt,
 	}
 end
 
--- The knife's tip in the world (for spark effects).
-local knifeWorld -- the knife's origin CFrame last frame
-function Viewmodel.GetKnifeTip()
-	if knifeWorld then
-		return (knifeWorld * CFrame.new(KnifeModel.Tip)).Position
-	end
-	return workspace.CurrentCamera.CFrame.Position
-end
-
--- Kill cam: how fast the killer was moving (for the walk bob).
-function Viewmodel.SetPuppetSpeed(speed)
-	if puppet then
-		puppet.Speed = speed
-	end
-end
-
-function Viewmodel.PlayFire(scoped)
-	local kick = scoped and 0.5 or 1
-	if has("ExplosiveRounds") or has("GlassCannon") then
-		kick *= 1.5
-		moveSpring:Impulse(Vector3.new(0, 0.8, scoped and 1.5 or 4.5))
-	elseif has("HairTrigger") or has("Quickdraw") then
-		kick *= 0.7
-	end
-	recoilSpring:Impulse(Vector3.new(22 * kick, 9 * kick, (math.random() - 0.5) * 8))
-	if has("SplitShot") then
-		task.delay(0.07, function()
-			recoilSpring:Impulse(Vector3.new(12 * kick, 5 * kick, (math.random() - 0.5) * 12))
-		end)
-	end
-	if has("StaticCharge") then
-		jitterUntil = os.clock() + 0.3
-	end
-	flashUntil = os.clock() + 0.05
-	inspecting = false
-end
-
-function Viewmodel.PlayBolt(duration)
-	boltStart = os.clock()
-	boltDuration = duration
-	boltSoundPlayed = false
-	boltStyle = chooseBoltStyle()
-end
-
-function Viewmodel.PlayEquip()
-	equipStart = os.clock()
-	inspecting = false
-	equipStyle = has("Quickdraw") and "Twirl" or (has("GhostRound") and "Phase" or "Normal")
-	Sfx.Play("Bolt", { Pitch = 1.3, Volume = 0.6 })
-end
-
--- A little flourish after a kill (plays once the bolt is cycled).
-function Viewmodel.PlayKill()
-	if has("Ricochet") or has("Pinball") then
-		flourish = "Spin"
-	elseif has("ExplosiveRounds") then
-		flourish = "Blow"
-	elseif has("Vampire") then
-		flourish = "Feed"
-	else
-		flourish = "Nod"
-	end
-	flourishStart = math.max(os.clock() + 0.1, boltStart + boltDuration)
-end
-
-function Viewmodel.GetMuzzlePosition()
-	if gun and gun.Parts.Receiver then
-		local grip = gun.Parts.Receiver.CFrame * gun.Offsets.Receiver:Inverse()
-		return (grip * gun.Profile.Muzzle).Position
-	end
-	return workspace.CurrentCamera.CFrame.Position
-end
-
-function Viewmodel.GetLeftHandPosition()
-	return parts.LeftPalm and parts.LeftPalm.Position or workspace.CurrentCamera.CFrame.Position
-end
-
--- Shows the rifle or the knife (whichever is out), if the viewmodel is shown.
-function applyWeaponVisibility()
-	local v = visible
-	local gunShown = v and weapon ~= "Knife"
-	for _, part in pairs(gun.Parts) do
-		part.LocalTransparencyModifier = gunShown and 0 or 1
-	end
-	setGunEffects(gunShown)
-	for _, part in pairs(knife and knife.Parts or {}) do
-		part.LocalTransparencyModifier = (v and weapon == "Knife") and 0 or 1
-	end
-end
-
-local function setVisible(v)
-	if v == visible then
-		return
-	end
-	visible = v
-	applyWeaponVisibility()
-	for name, part in pairs(parts) do
-		if not name:find("Flash") then
-			part.LocalTransparencyModifier = v and 0 or 1
-		end
-	end
-	if avatarArms then
-		for _, part in pairs(avatarArms.Parts) do
-			part.LocalTransparencyModifier = v and 0 or 1
-		end
-	end
-end
-
 ----------------------------------------------------------------------------
--- Knife (camera space poses; the knife origin = middle of the handle)
+-- KNIFE (knife space: origin = middle of the handle, blade -Z, edge -Y)
 ----------------------------------------------------------------------------
-local KN = Config.Knife
-local solveElbow = KnifeAnim.SolveElbow
-local KNIFE_IDLE, KNIFE_SPRINT = KnifeAnim.Idle, KnifeAnim.Sprint
-local LEFT_GUARD = KnifeAnim.LeftGuard
-local R_SHOULDER, L_SHOULDER = KnifeAnim.RightShoulder, KnifeAnim.LeftShoulder
-local KNIFE_SOUNDS = {
-	Toss = { "CardFlip", { Pitch = 1.1, Volume = 0.8 } },
-	Catch = { "Bolt", { Pitch = 1.5, Volume = 0.7 } },
-	Twirl = { "CardFlip", { Pitch = 1.4, Volume = 0.6 } },
+local KS = KN.WorldScale
+local KNIFE_IDLE = aim(V(0.5, -0.88, -1.05), V(-0.35, 0.5, -0.8), V(-0.35, -0.8, 0.3))
+local KNIFE_SPRINT = aim(V(0.6, -1.15, -0.8), V(-0.2, -0.1, -1), V(0, -1, 0.1))
+-- the fist closes round the handle; the forearm comes from the edge side
+local HAND_ON_KNIFE = CFrame.new(KnifeModel.Grip.Position * KS) * CFrame.Angles(0, 0, math.pi) * CFrame.Angles(rad(-15), 0, 0)
+
+-- left hand: up in a guard, fist loose
+local GUARD = LEFT_GUARD_KNIFE
+local GUARD_OUT = aim(V(-1.0, -0.95, -0.85), V(0.2, 0.6, -0.8), V(0.3, -0.2, 0.9))
+local GUARD_BACK = aim(V(-0.6, -1.25, -0.5), V(0.4, 0.4, -0.8), V(0.2, -0.3, 0.9))
+
+local CLIPS = {}
+
+-- Draw: up from the hip, a full flip in the air, caught into the grip.
+CLIPS.Equip = {
+	Length = 0.75,
+	Toss = { From = 0.2, To = 0.52, Height = 0.55, Spins = -1, Catch = 3 },
+	Keys = {
+		{ T = 0, Weapon = aim(V(0.75, -1.7, -0.45), V(0, -1, 0.3), V(-1, 0, 0)), Left = GUARD_BACK },
+		{ T = 0.2, Weapon = aim(V(0.55, -0.85, -1.05), V(-0.1, 0.25, -1), V(0, -1, 0)), Body = { Yaw = 8, NeckPitch = -6 } },
+		{ T = 0.52, Weapon = aim(V(0.5, -0.62, -1.2), V(-0.3, 0.5, -0.8), V(-0.3, -0.8, 0.3)), Body = { Yaw = 4, NeckPitch = -4 } },
+		{ T = 0.75, Weapon = "BASE" },
+	},
 }
-local function knifePose(t, base)
-	return KnifeAnim.Pose(knifeAnim, t, base, function(name)
-		local sound = KNIFE_SOUNDS[name]
-		if sound then
-			Sfx.Play(sound[1], sound[2])
-		end
-	end)
+
+-- Slash, forehand: cock it high on the right, rip across to the lower left
+-- with the whole upper body, follow through, settle.
+CLIPS.SlashA = {
+	Length = KN.SlashTime,
+	Keys = {
+		{ T = 0, Weapon = "BASE" },
+		{ T = 0.22, Weapon = aim(V(1.15, -0.05, -0.85), V(0.45, 0.75, -0.45), V(-1, 0.1, 0)), Left = GUARD_OUT, Ease = "Wind",
+			Body = { Yaw = 30, Roll = -6, Lean = -4 } },
+		{ T = 0.36, Weapon = aim(V(0.15, -0.3, -1.6), V(-0.85, 0.2, -0.5), V(-1, -0.25, 0.3)), Ease = "Snap",
+			Body = { Yaw = -10, Lean = 6, Dip = 0.1 } },
+		{ T = 0.48, Weapon = aim(V(-1.05, -0.9, -0.8), V(-0.6, -0.6, -0.5), V(-0.6, -1, 0.3)), Left = GUARD_BACK,
+			Body = { Yaw = -38, Roll = 8, Lean = 10, Dip = 0.18 } },
+		{ T = 0.6, Weapon = aim(V(-1.15, -1.0, -0.65), V(-0.5, -0.7, -0.4), V(-0.5, -1, 0.4)),
+			Body = { Yaw = -42, Roll = 9, Lean = 9, Dip = 0.16 } },
+		{ T = 1, Weapon = "BASE" },
+	},
+}
+
+-- Slash, backhand: wound up across your chest, whips out to the right.
+CLIPS.SlashB = {
+	Length = KN.SlashTime,
+	Keys = {
+		{ T = 0, Weapon = "BASE" },
+		{ T = 0.22, Weapon = aim(V(-0.45, -0.15, -0.95), V(-0.55, 0.75, -0.4), V(1, 0.1, 0)), Left = GUARD_BACK, Ease = "Wind",
+			Body = { Yaw = -28, Roll = 6, Lean = -3 } },
+		{ T = 0.36, Weapon = aim(V(0.4, -0.3, -1.6), V(0.85, 0.15, -0.5), V(1, -0.25, 0.3)), Ease = "Snap",
+			Body = { Yaw = 8, Lean = 6, Dip = 0.1 } },
+		{ T = 0.48, Weapon = aim(V(1.3, -0.85, -0.8), V(0.6, -0.55, -0.5), V(0.6, -1, 0.3)), Left = GUARD_OUT,
+			Body = { Yaw = 36, Roll = -8, Lean = 9, Dip = 0.16 } },
+		{ T = 0.6, Weapon = aim(V(1.35, -0.95, -0.65), V(0.5, -0.65, -0.45), V(0.5, -1, 0.4)),
+			Body = { Yaw = 38, Roll = -8, Lean = 8, Dip = 0.14 } },
+		{ T = 1, Weapon = "BASE" },
+	},
+}
+
+-- Stab: draw it back by the shoulder, lunge and drive it straight in,
+-- twist, rip it out, recover.
+CLIPS.Stab = {
+	Length = KN.StabTime,
+	Keys = {
+		{ T = 0, Weapon = "BASE" },
+		{ T = 0.24, Weapon = aim(V(1.0, -0.6, -0.65), V(-0.05, 0.3, -1), V(0, -1, 0)), Left = GUARD_OUT, Ease = "Wind",
+			Body = { Yaw = 22, Lean = -8, Dip = 0.05 } },
+		{ T = 0.37, Weapon = aim(V(0.12, -0.25, -2.25), V(-0.12, 0.04, -1), V(0, -1, 0)), Left = GUARD_BACK, Ease = "Snap",
+			Body = { Yaw = -14, Lean = 22, Dip = 0.5, Forward = 0.6, Step = 1 } },
+		{ T = 0.5, Weapon = aim(V(0.14, -0.28, -2.2), V(-0.12, 0.04, -1), V(-1, -0.4, 0)),
+			Body = { Yaw = -16, Lean = 22, Dip = 0.5, Forward = 0.6, Step = 1 } },
+		{ T = 0.64, Weapon = aim(V(0.45, -0.4, -1.4), V(-0.2, 0.25, -1), V(-0.4, -1, 0)),
+			Body = { Yaw = -6, Lean = 10, Dip = 0.25, Forward = 0.3, Step = 0.5 } },
+		{ T = 1, Weapon = "BASE" },
+	},
+}
+
+-- Inspect: turn the blade to the light, flip it over, toss it end over end
+-- and catch it, roll it into a reverse grip, flip it back.
+local SHOW = aim(V(0.25, -0.42, -1.15), V(-1, 0.25, -0.25), V(0, -1, 0))
+local SHOW_FLIP = SHOW * CFrame.Angles(0, 0, math.pi)
+local TOSS_HOLD = aim(V(0.35, -0.6, -1.25), V(-0.1, 1, -0.25), V(-1, 0, 0))
+local REVERSE = aim(V(0.45, -0.5, -1.1), V(-0.1, -1, -0.3), V(0, 0.3, -1))
+CLIPS.Inspect = {
+	Length = 2.9,
+	Toss = { From = 0.29, To = 0.5, Height = 1.25, Spins = -2, Catch = 6 },
+	Keys = {
+		{ T = 0, Weapon = "BASE" },
+		{ T = 0.1, Weapon = SHOW, Body = { NeckPitch = -10, NeckYaw = 6 } },
+		{ T = 0.2, Weapon = SHOW_FLIP, Body = { NeckPitch = -10, NeckYaw = 8 } },
+		{ T = 0.26, Weapon = TOSS_HOLD * CFrame.new(0, -0.12, 0), Body = { NeckPitch = -6 } },
+		{ T = 0.29, Weapon = TOSS_HOLD, Body = { NeckPitch = 4 } },
+		{ T = 0.5, Weapon = TOSS_HOLD, Body = { NeckPitch = 8 } },
+		{ T = 0.55, Weapon = TOSS_HOLD * CFrame.new(0, -0.15, 0), Body = { NeckPitch = -2, Dip = 0.05 } },
+		{ T = 0.68, Weapon = REVERSE, Body = { NeckPitch = -8, Yaw = 6 } },
+		{ T = 0.8, Weapon = REVERSE * CFrame.Angles(0, rad(-160), 0), Body = { NeckPitch = -8, Yaw = 8 } },
+		{ T = 0.9, Weapon = KNIFE_IDLE * CFrame.Angles(rad(-25), 0, 0) },
+		{ T = 1, Weapon = "BASE" },
+	},
+}
+
+-- The knife airborne between Toss.From and Toss.To (key index Toss.Catch
+-- is where it's caught): rises and falls, spinning end over end.
+local function tossPose(clip, u, launch, catch)
+	local toss = clip.Toss
+	local f = seg(u, toss.From, toss.To)
+	local pos = launch.Position:Lerp(catch.Position, f) + V(0, 4 * toss.Height * f * (1 - f), 0)
+	local rot = launch.Rotation:Lerp(catch.Rotation, f) * CFrame.Angles(toss.Spins * math.pi * 2 * smoothstep(f), 0, 0)
+	return CFrame.new(pos) * rot
 end
 
-local function placeArm(side, camCF, list, cframes, shoulder, handCF, pole)
-	local thick = Config.Viewmodel.ArmThickness or 0.3
-	local function put(part, cf)
-		if part then
-			table.insert(list, part)
-			table.insert(cframes, camCF * cf)
-		end
-	end
-	if avatarArms then
-		local size = avatarHandSize(side .. "Hand", thick * 0.95)
-		local wrist = (handCF * CFrame.new(0, size.Y / 2, 0)).Position
-		local elbow = solveElbow(shoulder, wrist, pole)
-		put(avatarArms.Parts[side .. "Hand"], handCF)
-		put(avatarArms.Parts[side .. "LowerArm"], avatarLimb(side .. "LowerArm", elbow, wrist, thick * 0.9))
-		put(avatarArms.Parts[side .. "UpperArm"], avatarLimb(side .. "UpperArm", shoulder, elbow, thick))
-	else
-		local wrist = (handCF * CFrame.new(0, 0.17, 0)).Position
-		local elbow = solveElbow(shoulder, wrist, pole)
-		put(parts[side .. "Palm"], handCF)
-		put(parts[side .. "Fingers"], handCF * CFrame.new(0, -0.12, -0.06))
-		put(parts[side .. "Thumb"], handCF * CFrame.new(side == "Right" and -0.12 or 0.12, 0.02, -0.06))
-		put(parts[side .. "Cuff"], limbBetween(parts[side .. "Cuff"], wrist, wrist + (elbow - wrist).Unit * 0.14))
-		put(parts[side .. "Forearm"], limbBetween(parts[side .. "Forearm"], elbow, wrist))
-		put(parts[side .. "Elbow"], CFrame.new(elbow))
-		put(parts[side .. "UpperArm"], limbBetween(parts[side .. "UpperArm"], shoulder, elbow))
-	end
-end
-
-local function updateKnife(dt, camera, t, sway, bobPos, bobRoll, shouldShow)
-	recoilSpring:Update(dt)
-	local kick = moveSpring:Update(dt)
-	local base = KNIFE_IDLE:Lerp(KNIFE_SPRINT, sprintAlpha)
+local function knife(state, t, ctx)
+	local base = KNIFE_IDLE:Lerp(KNIFE_SPRINT, ctx.Sprint or 0)
 		* CFrame.new(0, math.sin(t * 1.6) * 0.012, 0)
-		* CFrame.Angles(rad(math.sin(t * 1.1) * 1.2), 0, 0)
-	local pose, hand, free = knifePose(t, base)
-	local motion = CFrame.new(bobPos.X + kick.X, bobPos.Y + airOffset + kick.Y, kick.Z)
-		* CFrame.Angles(rad(sway.X * 0.8), rad(sway.Y * 0.8), rad(sway.Z * 0.6) + bobRoll)
-	local camCF = camera.CFrame * motion
-	knifeWorld = camCF * pose
-	if not shouldShow then
-		return
+		* CFrame.Angles(rad(math.sin(t * 1.1) * 1.5), 0, rad(math.sin(t * 0.8) * 1.2))
+	local action = state.Action
+	local clip = action and CLIPS[action.Clip]
+	local weapon, left, body = base, GUARD, {}
+	local right
+	if clip then
+		local u = (t - action.Start) / clip.Length
+		if u >= 1 then
+			state.Action = nil
+		else
+			weapon, left, body = playClip(clip, u, base, GUARD)
+			local toss = clip.Toss
+			if toss and u > toss.From and u < toss.To then
+				-- in the air: the hand waits at the catch point
+				local launchKey, catchKey
+				for _, key in ipairs(clip.Keys) do
+					if math.abs(key.T - toss.From) < 1e-6 then
+						launchKey = key
+					end
+				end
+				catchKey = clip.Keys[toss.Catch]
+				local launch = launchKey and launchKey.Weapon ~= "BASE" and launchKey.Weapon or base
+				local catch = catchKey.Weapon ~= "BASE" and catchKey.Weapon or base
+				right = catch * HAND_ON_KNIFE * CFrame.new(0, -0.06 * math.sin(seg(u, toss.From, toss.To) * math.pi), 0)
+				weapon = tossPose(clip, u, launch, catch)
+			end
+		end
 	end
-	local list, cframes = {}, {}
-	for name, part in pairs(knife.Parts) do
-		table.insert(list, part)
-		table.insert(cframes, knifeWorld * knife.Offsets[name])
-	end
-	-- the shoulder leans into stabs and slashes a little
-	local lean = (pose.Position - KNIFE_IDLE.Position) * 0.35
-	placeArm("Right", camCF, list, cframes, R_SHOULDER + lean, hand, Vector3.new(0.6, -1, 0.2))
-	local left = LEFT_GUARD * CFrame.new(-lean.X * 0.4, 0, -lean.Z * 0.3)
-	if free then
-		left = left * CFrame.new(0.1, 0.12, -0.1) -- ready to help catch
-	end
-	placeArm("Left", camCF, list, cframes, L_SHOULDER, left, Vector3.new(-0.6, -1, 0.2))
-	for _, name in ipairs({ "FlashCore", "FlashA", "FlashB", "FlashLong" }) do
-		parts[name].LocalTransparencyModifier = 1
-	end
-	if parts.FlashCore:FindFirstChild("MuzzleLight") then
-		parts.FlashCore.MuzzleLight.Brightness = 0
-	end
-	workspace:BulkMoveTo(list, cframes, Enum.BulkMoveMode.FireCFrameChanged)
+	-- the knife is held a little higher with the weapon out of a sprint
+	return {
+		Weapon = weapon,
+		Right = right or weapon * HAND_ON_KNIFE,
+		Left = left,
+		Body = body,
+	}
 end
 
 ----------------------------------------------------------------------------
--- Per-frame update
+-- State + public API
 ----------------------------------------------------------------------------
-local function update(dt)
-	local camera = workspace.CurrentCamera
-	if model.Parent ~= camera then
-		model.Parent = camera
-	end
-
-	local character = player.Character
-	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-	local root = character and character:FindFirstChild("HumanoidRootPart")
-	local alive = humanoid ~= nil and humanoid.Health > 0
-	local hasGun = ClientState.HasGun()
-	local scopeAlpha = Controllers.Weapon.GetScopeAlpha()
-	if puppet then
-		-- kill cam: the killer's arms + rifle on the replay camera
-		alive, hasGun, scopeAlpha = true, true, 0
-	end
-
-	-- replay the equip animation on a new life / when the gun comes back
-	if not puppet and alive and hasGun and (character ~= lastCharacter or not hadGun) then
-		Viewmodel.PlayEquip()
-	end
-	if not puppet then
-		lastCharacter = character
-		hadGun = alive and hasGun
-	end
-
-	local firstPerson = puppet ~= nil or Controllers.Camera.IsFirstPerson()
-	local shouldShow = alive and hasGun and firstPerson and scopeAlpha < 0.92 and next(hiddenBy) == nil
-	setVisible(shouldShow)
-	if not shouldShow then
-		for name, part in pairs(parts) do
-			if name:find("Flash") then
-				part.LocalTransparencyModifier = 1
-			end
-		end
-		if not hasGun then
-			return
-		end
-	end
-
-	local movement = Controllers.Movement
-	local mode = movement.GetMode()
-	local speed = movement.GetSpeed()
-	local grounded = movement.IsGrounded()
-	if puppet then
-		mode, speed, grounded = "Ground", puppet.Speed or 0, true
-	end
-	local t = os.clock()
-
-	-- SWAY from mouse movement
-	local delta = UserInputService:GetMouseDelta()
-	local swayScale = (1 - scopeAlpha * 0.85) * VM.SwayAmount
-	swaySpring.Target = Vector3.new(
-		math.clamp(-delta.Y * swayScale, -5, 5),
-		math.clamp(-delta.X * swayScale, -5, 5),
-		math.clamp(-delta.X * swayScale * 0.7, -4, 4)
-	)
-	local sway = swaySpring:Update(dt)
-
-	-- BOB: figure-8 while running on the ground
-	local running = grounded and speed > 2 and mode == "Ground"
-	if running then
-		bobTime += dt * (7 + speed * 0.2)
-	end
-	local bobAmount = running and math.clamp(speed / Config.Movement.RunSpeed, 0, 1.4) * (1 - scopeAlpha * 0.9) * VM.BobAmount or 0
-	local idle = math.sin(t * 1.7) * 0.012
-	local bobPos = Vector3.new(math.sin(bobTime) * 0.05, math.sin(bobTime * 2) * 0.035 + idle, 0) * bobAmount
-	local bobRoll = math.sin(bobTime) * rad(2.2) * bobAmount
-
-	if weapon == "Knife" then
-		local sprinting = movement.IsSprinting() and not puppet
-		sprintAlpha = Util.lerp(sprintAlpha, sprinting and 1 or 0, Util.smooth(10, dt))
-		local vy = root and root.AssemblyLinearVelocity.Y or 0
-		airOffset = Util.lerp(airOffset, grounded and 0 or math.clamp(-vy * 0.0025, -0.1, 0.1), Util.smooth(8, dt))
-		updateKnife(dt, camera, t, sway, bobPos, bobRoll, shouldShow)
-		return
-	end
-
-	-- POSES
-	local boltT = boltDuration > 0 and (t - boltStart) / boltDuration or 1
-	local cycling = boltT < 1
-	local sprinting = movement.IsSprinting() and scopeAlpha < 0.1 and not cycling
-	sprinting = sprinting and not puppet
-	sprintAlpha = Util.lerp(sprintAlpha, sprinting and 1 or 0, Util.smooth(10, dt))
-	slideAlpha = Util.lerp(slideAlpha, mode == "Slide" and 1 or 0, Util.smooth(12, dt))
-	wallAlpha = Util.lerp(wallAlpha, puppet and 0 or movement.GetWallSide(), Util.smooth(10, dt))
-	local vy = root and root.AssemblyLinearVelocity.Y or 0
-	airOffset = Util.lerp(airOffset, grounded and 0 or math.clamp(-vy * 0.0025, -0.1, 0.1), Util.smooth(8, dt))
-
-	-- EQUIP
-	local equipTime = equipStyle == "Twirl" and VM.EquipTime * 1.4 or VM.EquipTime
-	local equipT = math.clamp((t - equipStart) / equipTime, 0, 1)
-	local equipPose = EQUIP_POSE:Lerp(CFrame.identity, easeOutBack(equipT))
-	if equipStyle == "Twirl" then
-		equipPose *= CFrame.Angles(0, (1 - smoothstep(equipT)) * math.pi * 2, 0)
-	end
-	local phaseFade = equipStyle == "Phase" and (1 - smoothstep(equipT)) or 0
-
-	-- INSPECT (V)
-	local inspectPose = CFrame.identity
-	if inspecting then
-		local it = (t - inspectStart) / 2.4
-		if it >= 1 or scopeAlpha > 0.05 or cycling then
-			inspecting = false
-		else
-			local w = math.sin(it * math.pi) ^ 0.7
-			local wiggle = math.sin(it * math.pi * 3) * 0.08 * w
-			if GunModel.PowerLevel(currentOwned()) > 0 then
-				-- show off the attachments: turn it one way, then the other
-				local turn = math.sin(it * math.pi * 2)
-				inspectPose = CFrame.new(-0.4 * w, 0.22 * w, 0.35 * w)
-					* CFrame.Angles(rad(14) * w + wiggle, rad(70) * turn * w, rad(-30) * w)
-			else
-				inspectPose = CFrame.new(-0.4 * w, 0.2 * w, 0.3 * w)
-					* CFrame.Angles(rad(12) * w + wiggle, rad(55) * w, rad(-40) * w)
-			end
-		end
-	end
-
-	-- SPRINGS
-	local recoil = recoilSpring:Update(dt)
-	local kick = moveSpring:Update(dt)
-
-	-- BOLT
-	local boltPivot, rightHand, boltRoll = boltPose(math.clamp(boltT, 0, 1))
-
-	-- POWER-UP STYLES (see the table above PlayFire)
-	local styleOffset = CFrame.identity
-	if cycling then
-		local bt = math.clamp(boltT, 0, 1)
-		local w = math.sin(bt * math.pi)
-		if boltStyle == "Spin" then
-			-- no hand on the bolt: the rifle spins once round the barrel instead
-			rightHand, boltPivot, boltRoll = RIGHT_GRIP, gun.Profile.BoltPivot, 0
-			styleOffset = aroundBarrel(-smoothstep(bt) * math.pi * 2)
-		elseif boltStyle == "Admire" then
-			styleOffset = CFrame.new(-0.1 * w, 0.14 * w, 0.12 * w) * CFrame.Angles(rad(16) * w, rad(-14) * w, 0)
-		elseif boltStyle == "Heavy" then
-			styleOffset = CFrame.new(0, -0.1 * w, 0.4 * w) * CFrame.Angles(rad(-10) * w, 0, 0)
-		elseif boltStyle == "Bounce" then
-			styleOffset = CFrame.new(0, math.abs(math.sin(bt * math.pi * 3)) * 0.14 * (1 - bt), 0)
-		end
-	end
-	local calm = 1 - scopeAlpha
-	local idlePose = CFrame.identity
-	if has("GhostRound") then
-		idlePose *= CFrame.new(math.sin(t * 0.9) * 0.03 * calm, math.sin(t * 1.3) * 0.035 * calm, 0)
-			* CFrame.Angles(0, 0, math.sin(t * 0.7) * rad(2) * calm)
-	end
-	if has("MomentumRounds") then
-		local lean = math.clamp((speed - 30) / 40, 0, 1) * calm
-		idlePose *= CFrame.Angles(rad(-6) * lean, 0, rad(6) * lean)
-	end
-	if has("Vampire") then
-		local beat = t % 1.1
-		local pulse = math.exp(-((beat - 0.1) / 0.05) ^ 2) + 0.6 * math.exp(-((beat - 0.32) / 0.05) ^ 2)
-		idlePose *= CFrame.new(0, 0, -0.035 * pulse * calm)
-	end
-	if has("StaticCharge") and t > nextTwitch then
-		nextTwitch = t + 1.2 + math.random() * 2
-		recoilSpring:Impulse(Vector3.new((math.random() - 0.5) * 8, 0, (math.random() - 0.5) * 14) * calm)
-	end
-	if t < jitterUntil then
-		idlePose *= CFrame.Angles(rad((math.random() - 0.5) * 3), rad((math.random() - 0.5) * 3), 0)
-	end
-	-- kill flourish
-	local flourishPose = CFrame.identity
-	if flourish and t >= flourishStart then
-		local ft = (t - flourishStart) / 0.75
-		if ft >= 1 then
-			flourish = nil
-		else
-			local w = math.sin(ft * math.pi) * calm
-			if flourish == "Spin" then
-				flourishPose = aroundBarrel(smoothstep(ft) * math.pi * 2 * calm)
-			elseif flourish == "Blow" then
-				flourishPose = CFrame.new(-0.25 * w, 0.28 * w, 0.3 * w) * CFrame.Angles(rad(38) * w, rad(25) * w, 0)
-			elseif flourish == "Feed" then
-				flourishPose = CFrame.new(-0.22 * w, -0.05 * w, 0.4 * w) * CFrame.Angles(0, rad(30) * w, rad(-22) * w)
-			else
-				flourishPose = CFrame.Angles(rad(-9) * w, 0, rad(4) * w)
-			end
-		end
-	end
-	if cycling and not boltSoundPlayed and boltT > 0.3 then
-		boltSoundPlayed = true
-		Sfx.Play("Bolt")
-	end
-
-	-- Combine everything into the grip CFrame (camera space -> world)
-	-- WALL RETRACT: if a wall is closer than the end of the barrel, pull the
-	-- rifle back and tilt it up so it never pokes through walls
-	local exclude = { camera }
-	if character then
-		table.insert(exclude, character)
-	end
-	if puppet and puppet.Character then
-		table.insert(exclude, puppet.Character) -- the kill cam rides inside the killer's head
-	end
-	local ghost = workspace:FindFirstChild("KillCamGhost")
-	if puppet and ghost then
-		table.insert(exclude, ghost)
-	end
-	local effects = workspace:FindFirstChild("Effects")
-	if effects then
-		table.insert(exclude, effects)
-	end
-	retractParams.FilterDescendantsInstances = exclude
-	local reach = 5.4
-	local wallHit = workspace:Raycast(camera.CFrame.Position, camera.CFrame.LookVector * reach, retractParams)
-	local wantRetract = wallHit and math.clamp(reach - wallHit.Distance, 0, 3.6) or 0
-	wallRetract = Util.lerp(wallRetract, wantRetract * (1 - scopeAlpha), Util.smooth(14, dt))
-	local retractAlpha = wallRetract / 3.6
-
-	local eye = gun.Profile.ScopeEye
-	local adsOffset = CFrame.new(-eye.X, -eye.Y, -0.55 - eye.Z)
-	local base = HIP_OFFSET:Lerp(adsOffset, scopeAlpha)
-		* CFrame.new(0.1 * retractAlpha, -0.15 * retractAlpha, wallRetract)
-		* CFrame.Angles(rad(28) * retractAlpha, rad(12) * retractAlpha, rad(-10) * retractAlpha)
-	local pose = CFrame.identity:Lerp(SPRINT_POSE, sprintAlpha)
-		* CFrame.new(0, -0.14 * slideAlpha, 0.05 * slideAlpha)
-		* CFrame.Angles(0, 0, rad(-18) * slideAlpha)
-		* CFrame.Angles(0, 0, rad(9) * wallAlpha)
-	local grip = camera.CFrame
-		* base
-		* equipPose
-		* inspectPose
-		* pose
-		* CFrame.new(bobPos.X + kick.X, bobPos.Y + airOffset + kick.Y, kick.Z + recoil.Y * 0.02)
-		* CFrame.Angles(rad(sway.X + recoil.X * 0.35), rad(sway.Y), rad(sway.Z + recoil.Z * 0.3) + bobRoll)
-		* CFrame.Angles(0, 0, -boltRoll)
-		* idlePose
-		* flourishPose
-		* styleOffset
-
-	local list, cframes = {}, {}
-	local function put(part, cf)
-		table.insert(list, part)
-		table.insert(cframes, cf)
-	end
-
-	-- Gun (bolt parts follow the animated bolt pivot; power-up parts animate)
-	local boltWorld = grip * boltPivot
-	local fast = math.clamp((speed - 30) / 40, 0, 1)
-	for name, part in pairs(gun.Parts) do
-		local offset = gun.Offsets[name]
-		local anim = gun.Anims[name]
-		if anim then
-			local base = gun.BaseTransparency[name]
-			local fade = 0
-			if anim == "Spin" then
-				offset = aroundBarrel(t * 3) * offset
-			elseif anim == "Tick" then
-				offset = offset * CFrame.Angles(-t * 2, 0, 0)
-			elseif anim == "Turn" then
-				offset = CFrame.new(offset.Position) * CFrame.Angles(0, t * 2.5, 0) * offset.Rotation
-			elseif anim == "Pulse" then
-				fade = 0.3 * (1 + math.sin(t * 4)) / 2
-			elseif anim == "Ghost" then
-				fade = 0.5 * (1 + math.sin(t * 6 + offset.Position.Z * 8)) / 2
-			elseif anim == "Flicker" then
-				fade = math.random() < 0.25 and 0.85 or 0
-			elseif anim == "Speed" then
-				fade = 0.85 * (1 - fast)
-			end
-			if shouldShow then
-				part.LocalTransparencyModifier = math.min(1, math.max(fade / math.max(1 - base, 0.01), phaseFade))
-			end
-		elseif shouldShow and (phaseFade > 0 or part.LocalTransparencyModifier ~= 0) then
-			part.LocalTransparencyModifier = phaseFade -- Ghost Round equip: phase in
-		end
-		put(part, (gun.Bolt[name] and boltWorld or grip) * offset)
-	end
-	-- glow lines breathe, and flare white for a moment when you fire
-	local flare = math.clamp((flashUntil - t) / 0.05, 0, 1)
-	local glow = gun.GlowColor:Lerp(Color3.new(1, 1, 1), 0.12 * (1 + math.sin(t * 2.4)) / 2 + flare * 0.6)
-	for _, part in ipairs(gun.Glow) do
-		part.Color = glow
-	end
-
-	-- Right hand + arm
-	local rh = grip * rightHand
-	put(parts.RightPalm, rh)
-	put(parts.RightFingers, rh * CFrame.new(0, -0.02, -0.15))
-	put(parts.RightThumb, rh * CFrame.new(-0.12, 0.07, -0.06))
-	local rWrist = (rightHand * CFrame.new(0, -0.04, 0.17)).Position
-	put(parts.RightCuff, grip * limbBetween(parts.RightCuff, rWrist, rWrist + (RIGHT_ELBOW - rWrist).Unit * 0.14))
-	put(parts.RightForearm, grip * limbBetween(parts.RightForearm, RIGHT_ELBOW, rWrist))
-	put(parts.RightElbow, grip * CFrame.new(RIGHT_ELBOW))
-	put(parts.RightUpperArm, grip * limbBetween(parts.RightUpperArm, RIGHT_SHOULDER, RIGHT_ELBOW))
-
-	-- Left hand + arm (holds the handguard)
-	local LEFT_HOLD = gun.Profile.LeftHold
-	local lh = grip * LEFT_HOLD
-	put(parts.LeftPalm, lh)
-	put(parts.LeftFingers, lh * CFrame.new(0.155, 0.09, 0))
-	put(parts.LeftThumb, lh * CFrame.new(-0.155, 0.07, 0.02))
-	local lWrist = (LEFT_HOLD * CFrame.new(-0.05, -0.06, 0.2)).Position
-	put(parts.LeftCuff, grip * limbBetween(parts.LeftCuff, lWrist, lWrist + (LEFT_ELBOW - lWrist).Unit * 0.14))
-	put(parts.LeftForearm, grip * limbBetween(parts.LeftForearm, LEFT_ELBOW, lWrist))
-	put(parts.LeftElbow, grip * CFrame.new(LEFT_ELBOW))
-	put(parts.LeftUpperArm, grip * limbBetween(parts.LeftUpperArm, LEFT_SHOULDER, LEFT_ELBOW))
-
-	-- Avatar arms (replace the plain arms above when available)
-	if avatarArms then
-		local thick = Config.Viewmodel.ArmThickness or 0.3
-		local hide = visible and 0 or 1
-		for _, part in pairs(avatarArms.Parts) do
-			part.LocalTransparencyModifier = hide
-		end
-		-- right: hand on the grip (or the bolt), wrist at the top of the hand
-		local rSize = avatarHandSize("RightHand", thick * 0.95)
-		local rHandCF = rightHand * CFrame.new(0, -0.02, 0)
-		local rWristA = (rHandCF * CFrame.new(0, rSize.Y / 2, 0)).Position
-		put(avatarArms.Parts.RightHand, grip * rHandCF)
-		put(avatarArms.Parts.RightLowerArm, grip * avatarLimb("RightLowerArm", RIGHT_ELBOW, rWristA, thick * 0.9))
-		put(avatarArms.Parts.RightUpperArm, grip * avatarLimb("RightUpperArm", RIGHT_SHOULDER, RIGHT_ELBOW, thick))
-		-- left: palm up under the handguard, fingers curled toward the right
-		local lSize = avatarHandSize("LeftHand", thick * 0.95)
-		local lHandCF = LEFT_HOLD * CFrame.new(0, -0.03, 0) * CFrame.Angles(0, 0, rad(90))
-		local lWristA = (lHandCF * CFrame.new(0, lSize.Y / 2, 0)).Position
-		put(avatarArms.Parts.LeftHand, grip * lHandCF)
-		put(avatarArms.Parts.LeftLowerArm, grip * avatarLimb("LeftLowerArm", LEFT_ELBOW, lWristA, thick * 0.9))
-		put(avatarArms.Parts.LeftUpperArm, grip * avatarLimb("LeftUpperArm", LEFT_SHOULDER, LEFT_ELBOW, thick))
-	end
-
-	-- Muzzle flash
-	local flashing = shouldShow and t < flashUntil
-	local muzzle = grip * gun.Profile.Muzzle * CFrame.Angles(0, 0, math.random() * math.pi)
-	for _, name in ipairs({ "FlashCore", "FlashA", "FlashB", "FlashLong" }) do
-		parts[name].LocalTransparencyModifier = flashing and 0 or 1
-	end
-	if Config.Effects.Lights then
-		parts.FlashCore.MuzzleLight.Brightness = flashing and 7 or 0
-	end
-	put(parts.FlashCore, muzzle * CFrame.new(0, 0, -0.15))
-	put(parts.FlashA, muzzle * CFrame.new(0, 0, -0.15))
-	put(parts.FlashB, muzzle * CFrame.new(0, 0, -0.15))
-	put(parts.FlashLong, muzzle * CFrame.new(0, 0, -0.45))
-
-	workspace:BulkMoveTo(list, cframes, Enum.BulkMoveMode.FireCFrameChanged)
+function WeaponAnim.New()
+	return {
+		Weapon = "Sniper",
+		EquipStart = -10,
+		FireStart = -10,
+		BoltStart = -10,
+		BoltLength = 0,
+		InspectStart = -10,
+		InspectKind = nil,
+		Action = nil, -- knife clip { Clip, Start }
+		SwingSide = 1,
+	}
 end
 
-function Viewmodel.Init(controllers)
-	Controllers = controllers
+function WeaponAnim.SetWeapon(state, weapon, t)
+	if weapon ~= "Knife" then
+		weapon = "Sniper"
+	end
+	if state.Weapon == weapon then
+		return false
+	end
+	state.Weapon = weapon
+	state.EquipStart = t
+	state.InspectStart = -10
+	state.Action = weapon == "Knife" and { Clip = "Equip", Start = t } or nil
+	return true
 end
 
-function Viewmodel.Start()
-	build()
-	visible = true
-	setVisible(false)
-
-	-- movement reactions
-	Controllers.Movement.Jumped:Connect(function()
-		moveSpring:Impulse(Vector3.new(0, -2.2, 0))
-	end)
-	Controllers.Movement.Landed:Connect(function(fallSpeed)
-		local strength = math.clamp((fallSpeed - 25) / 60, 0.08, 1.6)
-		moveSpring:Impulse(Vector3.new(0, -3.5 * strength, 0))
-		recoilSpring:Impulse(Vector3.new(-10 * strength, 0, 0))
-	end)
-	Controllers.Movement.Slid:Connect(function()
-		moveSpring:Impulse(Vector3.new(0, -1.5, 2.5))
-	end)
-
-	local function onActionInput(input, processed)
-		if processed and UserInputService:GetFocusedTextBox() then
-			return
-		end
-		if Keybinds.Matches("Inspect", input) and visible and weapon == "Knife" and not puppet then
-			Viewmodel.PlayKnife("Inspect")
-			return
-		end
-		if Keybinds.Matches("Inspect", input) and visible and not inspecting and not puppet then
-			inspecting = true
-			inspectStart = os.clock()
-			Sfx.Play("CardHover", { Pitch = 0.8, Volume = 1.5 })
-		end
-	end
-	UserInputService.InputBegan:Connect(onActionInput)
-	Keybinds.VirtualBegan:Connect(onActionInput)
-
-	-- your avatar's arms (rebuilt for every new character / appearance)
-	local function refreshArms()
-		task.defer(function()
-			buildAvatarArms(puppet and puppet.Character or player.Character)
-		end)
-	end
-	player.CharacterAppearanceLoaded:Connect(refreshArms)
-	player.CharacterAdded:Connect(function()
-		task.delay(1, refreshArms) -- in case the appearance event already fired
-	end)
-	if player.Character then
-		refreshArms()
-	end
-
-	-- kills play a flourish
-	Remotes.Get("HitConfirm").OnClientEvent:Connect(function(info)
-		if typeof(info) == "table" and info.Killed and visible then
-			Viewmodel.PlayKill()
-		end
-	end)
-
-	-- the imported rifle can arrive a moment after we start
-	local function onRifleChanged(child)
-		if child.Name == (Config.Viewmodel.MeshTemplate or "SniperRifle") then
-			task.defer(buildGun)
-			task.delay(1, buildGun) -- its meshes may replicate a moment later
-		elseif child.Name == (Config.Knife.MeshTemplate or "CombatKnife") then
-			task.defer(buildKnife)
-			task.delay(1, buildKnife)
-		end
-	end
-	ReplicatedStorage.ChildAdded:Connect(onRifleChanged)
-	ReplicatedStorage.ChildRemoved:Connect(onRifleChanged)
-
-	-- new power-up = new attachment on the rifle; show it off with an inspect
-	ClientState.Changed:Connect(function()
-		if buildGun() and visible and not inspecting then
-			inspecting = true
-			inspectStart = os.clock()
-			Sfx.Play("CardPick", { Pitch = 1.3, Volume = 0.6 })
-		end
-	end)
-
-	-- after the camera controller (Camera + 1) so we use the final camera CFrame
-	RunService:BindToRenderStep("SniperViewmodel", Enum.RenderPriority.Camera.Value + 2, update)
+function WeaponAnim.Fire(state, t)
+	state.FireStart = t
+	state.InspectStart = -10
 end
 
-return Viewmodel
+function WeaponAnim.Bolt(state, t, length)
+	state.BoltStart = t
+	state.BoltLength = length
+end
+
+-- kind: "Slash" (alternates forehand / backhand) or "Stab"; side forces a slash direction
+function WeaponAnim.Knife(state, kind, t, side)
+	if kind == "Slash" then
+		state.SwingSide = side or -state.SwingSide
+		state.Action = { Clip = state.SwingSide > 0 and "SlashA" or "SlashB", Start = t }
+	elseif kind == "Stab" then
+		state.Action = { Clip = "Stab", Start = t }
+	end
+end
+
+-- Returns false if something else is playing.
+function WeaponAnim.Inspect(state, t)
+	if state.Weapon == "Knife" then
+		if state.Action then
+			return false
+		end
+		state.Action = { Clip = "Inspect", Start = t }
+	else
+		if t - state.InspectStart < 2.4 or t - state.BoltStart < state.BoltLength then
+			return false
+		end
+		state.InspectStart = t
+		state.InspectKind = "Rifle"
+	end
+	return true
+end
+
+function WeaponAnim.IsBusy(state, t)
+	return state.Action ~= nil or t - state.BoltStart < state.BoltLength
+end
+
+-- ctx: { Sprint = 0..1, Scope = 0..1, Profile = gun profile }
+function WeaponAnim.Evaluate(state, t, ctx)
+	if state.Weapon == "Knife" then
+		return knife(state, t, ctx)
+	end
+	return rifle(state, t, ctx)
+end
+
+-- (for previews / tests)
+WeaponAnim.Clips = CLIPS
+WeaponAnim.KnifeIdle = KNIFE_IDLE
+
+return WeaponAnim
 ]]></string>
           </Properties>
         </Item>

@@ -1,7 +1,7 @@
 --[[
 	KnifeModel.lua  (ReplicatedStorage.Shared.KnifeModel)
 
-	The combat knife: first person (ViewmodelController) and in other
+	The combat knife: in your real character's hand (BodyAnimator) and in other
 	players' hands (CharacterService "WorldKnife").
 
 	If a model named Config.Knife.MeshTemplate ("CombatKnife") is in

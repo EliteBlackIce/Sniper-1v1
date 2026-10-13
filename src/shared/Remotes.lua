@@ -40,6 +40,7 @@ Remotes.Names = {
 	"Crates", -- S->C  crate results + your keys / skins
 	"Equip", -- C->S  switch weapon: "Sniper" / "Knife"
 	"Melee", -- C->S  knife swing: kind ("Slash" / "Stab"), what it hit, look direction
+	"Anim", -- C->S  cosmetic animation events others should see ("Inspect", "Scope")
 }
 
 local FOLDER_NAME = "Remotes"

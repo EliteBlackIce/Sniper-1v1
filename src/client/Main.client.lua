@@ -9,11 +9,10 @@
 		ClientState          latest match snapshot, my power-up stats, settings
 		CameraController     first-person lock, FOV, tilt, recoil, sensitivity
 		MovementController   bhop / sprint / slide / wall run (power-up) / grapple
-		ViewmodelController  arms + sniper attached to the camera
+		BodyAnimator         your real character holds + animates the weapons (everyone's, every frame)
 		WeaponController     scope + fire (sends shots to the server)
 		EffectsController    tracers, explosions, ropes, screen tints
 		UIController         all screens (ui/ folder)
-		CharacterPoser       third-person rifle-holding pose for other players
 		AimAssist            light controller aim assist (used by CameraController)
 		KillCamController    replays your death through your killer's eyes
 		LightingController   arena / indoor lobby lighting profiles
@@ -26,11 +25,10 @@ local Client = script.Parent
 local ClientState = require(Client.ClientState)
 local CameraController = require(Client.CameraController)
 local MovementController = require(Client.MovementController)
-local ViewmodelController = require(Client.ViewmodelController)
+local BodyAnimator = require(Client.BodyAnimator)
 local WeaponController = require(Client.WeaponController)
 local EffectsController = require(Client.EffectsController)
 local UIController = require(Client.UIController)
-local CharacterPoser = require(Client.CharacterPoser)
 local KillCamController = require(Client.KillCamController)
 local LightingController = require(Client.LightingController)
 local CrateController = require(Client.CrateController)
@@ -39,11 +37,11 @@ local KnifeController = require(Client.KnifeController)
 local controllers = {
 	Camera = CameraController,
 	Movement = MovementController,
-	Viewmodel = ViewmodelController,
+	Viewmodel = BodyAnimator, -- (the old name; everything calls it this)
+	Body = BodyAnimator,
 	Weapon = WeaponController,
 	Effects = EffectsController,
 	UI = UIController,
-	Poser = CharacterPoser,
 	KillCam = KillCamController,
 	Lighting = LightingController,
 	Crates = CrateController,
@@ -55,11 +53,10 @@ ClientState.Init()
 local order = {
 	CameraController,
 	MovementController,
-	ViewmodelController,
+	BodyAnimator,
 	WeaponController,
 	EffectsController,
 	UIController,
-	CharacterPoser,
 	KillCamController,
 	LightingController,
 	CrateController,

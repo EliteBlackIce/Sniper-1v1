@@ -52,14 +52,14 @@ src/client/                -> StarterPlayerScripts.Client
   Keybinds.lua                every rebindable action + its keyboard / controller default
   CameraController.lua        first-person lock, FOV kicks, tilt, recoil, sensitivity
   MovementController.lua      bhop, air control, sprint, slide, wall run, grapple...
-  ViewmodelController.lua     arms + sniper on the camera (sway, bob, recoil, bolt)
   WeaponController.lua        scope + fire, local tracers, sends shots to the server
-  CharacterPoser.lua          third-person rifle-holding pose for other players
   EffectsController.lua       tracers, explosions, ropes, wallhack pulse, screen tints
   LightingController.lua      blends arena / indoor lobby lighting (Config.Lighting)
   CrateController.lua         the lobby crate + its opening cinematic
   KnifeController.lua         the knife: switching, slashes, stabs, hit checks
-  KnifeAnim.lua               the knife's first-person poses + arm IK
+  BodyAnimator.lua            your real character holds + animates the weapons (everyone's, every frame)
+  WeaponAnim.lua              every weapon animation (rifle + knife moves, spline keyframes)
+  BodyRig.lua                 bends a real R15 character: torso twist, arm IK, weapon joint
   UIController.lua            creates all screens
   Sfx.lua, Spring.lua         sound + spring helpers
   ui/
@@ -412,18 +412,52 @@ in a DataStore (in Studio this needs Game Settings > Security > "Enable Studio
 Access to API Services"). Rarities, odds, key rewards and the skin list are in
 `Config.Crates`. Skins are collected for now; equipping them is the next step.
 
+## Your character does the animations
+
+There's no separate first-person "viewmodel" any more: **your real
+character** holds the rifle and the knife.
+- In first person you see your own forearms and hands (your avatar's real
+  arm parts, with your shirt and skin). The camera sits half a stud behind
+  your eyes (`Config.Body.CameraBack`) so they aren't in your face.
+- Every move bends your actual body: the arms reach for the weapon with
+  two-bone IK (elbows bend naturally), the torso twists and leans, the head
+  follows your aim, and the legs step into a stab.
+- Everyone sees the same animation on your character: shots (recoil + the
+  bolt), knife swings, stabs, inspects and weapon switches are synced by the
+  server, so other players and the kill cam show exactly what you did. Seen
+  from outside, weapons are held a bit lower (chest / waist height,
+  `Config.Body.ThirdPersonOffset`).
+- The rifle and knife are jointed to your right hand, so the knife can be
+  flipped, tossed and caught and the bolt really slides.
+- The kill cam uses copies of both real characters: you watch through the
+  killer's eyes with their real arms and weapon, and your copy runs, jumps,
+  aims and holds its weapon like you did.
+
+Code: `BodyAnimator.lua` (runs it), `WeaponAnim.lua` (all the moves),
+`BodyRig.lua` (the joint maths).
+
+## Hitboxes
+
+Every character gets three invisible boxes, the same size for every avatar:
+head (headshot), body and legs. Bullets and the knife only hit those; real
+body parts, arms and accessories are ignored, so swinging arms or bulky
+avatar meshes never block or steal a shot.
+
 ## The knife
 
 Press **2** (or scroll, or RB on a controller) to pull out the knife; **1**
 or scroll again goes back to the rifle. Every life starts with the rifle.
-- **Slash** (left click): fast swings that alternate right-to-left and
-  left-to-right, with a glowing trail on the blade. 40 damage.
-- **Stab** (right click): wind up, then thrust with a short lunge forward.
+- **Draw**: up from the hip, a full flip in the air, caught in your grip.
+- **Slash** (left click): cocked high, then ripped across with your whole
+  upper body twisting into it, a follow-through and a settle. Alternates
+  forehand and backhand, with a glowing trail on the blade. 40 damage.
+- **Stab** (right click): drawn back by the shoulder, then a lunge where you
+  lean in, dip and step forward, drive it in, twist, and rip it out.
   70 damage, a bit more reach.
 - **Backstab**: any hit from behind is a kill ("BACKSTAB" banner).
-- **Inspect** (V): toss it up end over end and catch it, then turn it to
-  show both sides; or a fast twirl round your fingers.
-- With the knife out you run 12% faster, and the rifle can't fire.
+- **Inspect** (V): turn the blade to the light and flip it over, toss it up
+  end over end and catch it, roll it into a reverse grip and spin it back.
+- With the knife out you run 8% faster, and the rifle can't fire.
 - Your arms follow the knife (two-bone IK from your shoulders), so slashes
   and stabs move your whole arm. Other players see the knife in your hand,
   held forward, and see your swings and stabs; the kill cam replays knife
@@ -433,8 +467,6 @@ or scroll again goes back to the rifle. Every life starts with the rifle.
   be in range, in front of you and not behind a wall.
 
 All the numbers are in `Config.Knife`. Code: `KnifeController.lua`
-(input + hit checks), `KnifeAnim.lua` (poses), `KnifeModel.lua` (the knife),
-the knife mode in `ViewmodelController.lua`, and `onMelee` in `CombatService.lua`.
 
 ## Duels, rematches and the kill cam
 
@@ -474,10 +506,11 @@ You play as your own Roblox avatar (`Config.Player.UseAvatars`):
 - Everyone is loaded at the standard body size (height, width, proportions),
   so nobody gets a smaller or bigger hitbox from their avatar. Faces,
   clothes, hair and accessories all show.
-- Hats, hair and other accessories don't stop bullets. Only the body counts.
+- Hats, hair and other accessories don't stop bullets: only the three
+  hitboxes count (head, body, legs; see "Hitboxes").
 - In a match, a blue or red outline shows which side each player is on.
-- Your first-person arms are your avatar's arms, with your skin colour and
-  shirt (`Config.Viewmodel.UseAvatarArms`), scaled to fit the rifle.
+- In first person you see your character's real forearms and hands (see
+  "Your character does the animations").
 - Bots keep the flat team-coloured look. Set `UseAvatars = false` for the
   flat one-colour characters everywhere.
 
@@ -521,8 +554,7 @@ Play a full match against a computer opponent, e.g. to test builds.
 - Stairs and fire escapes walk on a smooth invisible ramp under the visible
   steps; landings have invisible rails so you can't fall off.
 - Tree leaves don't block movement but do block bullets and sight.
-- The viewmodel pulls back when you stand against a wall, so the rifle never
-  pokes through it.
+- Bullets only hit the fixed head / body / legs hitboxes (see "Hitboxes").
 
 ## Playground mode
 

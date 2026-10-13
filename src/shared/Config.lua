@@ -124,6 +124,24 @@ Config.Rarity = {
 }
 
 ----------------------------------------------------------------------------
+-- BODY: your real character holds and animates the weapons (BodyAnimator).
+-- In first person you see your own forearms and hands; everyone else sees
+-- the same animation on your whole character.
+----------------------------------------------------------------------------
+Config.Body = {
+	GunScale = 0.85, -- the rifle's size in your hands
+	RifleHip = Vector3.new(0.42, -0.78, -0.85), -- where the rifle's grip sits, from your eyes
+	RifleLeftHold = -0.55, -- how far up the rifle the left hand holds (studs, gun space)
+	CameraBack = 0.5, -- first person: the camera sits this far behind your eyes so your arms aren't in your face
+	-- Seen from outside, the same animation is played lower and a little
+	-- further out (weapons at chest / waist height, not up by the face).
+	ThirdPersonOffset = CFrame.new(0, -0.5, -0.15),
+	ShowUpperArms = false, -- first person: also draw your upper arms (they're mostly off screen)
+	MaxDistance = 300, -- other characters further away than this aren't animated
+	PitchSmoothing = 14, -- how quickly other players' aim follows their updates
+}
+
+----------------------------------------------------------------------------
 -- KNIFE (your second weapon: press 2 / scroll, or ButtonR1 on a controller)
 --   Left click  slash (alternates left / right)
 --   Right click heavy stab with a short lunge
@@ -146,13 +164,13 @@ Config.Knife = {
 	HitAngle = 55, -- the target must be within this many degrees of where you look
 	LungeSpeed = 34, -- forward push on a stab
 	EquipTime = 0.4, -- seconds after switching before you can attack
-	MoveSpeedMultiplier = 1.12, -- knife out = you run a bit faster
+	MoveSpeedMultiplier = 1.08, -- knife out = you run a bit faster
 	-- imported knife mesh (assets: CombatKnife.glb, see README)
 	UseImportedKnife = true,
 	MeshTemplate = "CombatKnife",
 	MeshYaw = nil,
 	MeshPaint = "Always", -- "Always" = flat steel blade + dark handle, "Auto" = keep imported textures
-	WorldScale = 0.75, -- the knife other players see in your hand
+	WorldScale = 1.05, -- the knife's size in your hand (you and everyone else see the same one)
 }
 
 ----------------------------------------------------------------------------
@@ -389,8 +407,8 @@ Config.Movement = {
 	-- Movement uses the same model as Source games (CS / TF2 / Titanfall):
 	-- ground friction + acceleration, and "air strafing" in the air, which is
 	-- what makes bunny hopping work.
-	RunSpeed = 30, -- normal top speed on the ground
-	SprintSpeed = 38, -- top speed while holding Shift on the ground
+	RunSpeed = 22, -- normal top speed on the ground
+	SprintSpeed = 28, -- top speed while holding Shift on the ground
 	GroundAccel = 15, -- how quickly you reach top speed (higher = snappier)
 	Friction = 7, -- ground friction (higher = stop faster)
 	StopSpeed = 10, -- below this speed friction acts as if you were going this fast
@@ -404,25 +422,25 @@ Config.Movement = {
 	CoyoteTime = 0.12, -- you can still jump this long after leaving the ground
 	AirAccel = 14, -- air strafe strength (Source uses 10-12)
 	AirSpeedCap = 4.2, -- small cap per frame = the classic strafe gain (Source: 30 units)
-	AirControlSpeed = 30, -- wish speed used in the air
+	AirControlSpeed = 22, -- wish speed used in the air
 	AirSteer = 4.5, -- holding W in the air turns your momentum toward your aim (per second)
-	AirMinSpeed = 26, -- in the air you can always accelerate up to this speed...
+	AirMinSpeed = 19, -- in the air you can always accelerate up to this speed...
 	AirLowSpeedAccel = 7, -- ...this quickly (so standing jumps aren't stuck)
-	MaxSpeed = 120, -- hard limit on horizontal speed
+	MaxSpeed = 85, -- hard limit on horizontal speed
 
 	JumpPower = 55,
 	AirJumps = 0, -- no double jump by default (the Double Jump power-up adds one)
 	AirJumpVelocity = 53,
-	AirJumpMinSpeed = 30, -- a double jump re-aims you toward your keys at least this fast
+	AirJumpMinSpeed = 22, -- a double jump re-aims you toward your keys at least this fast
 
 	-- Slide
 	SlideKey = Enum.KeyCode.C, -- LeftControl also works
 	SlideHold = false, -- false = tap C to slide (press again to stop), true = hold C
-	SlideMinSpeed = 18, -- need at least this speed to start a slide
-	SlideBoost = 12, -- speed added when the slide starts...
-	SlideBoostCap = 55, -- ...but only up to this speed (no infinite slide boosting)
+	SlideMinSpeed = 14, -- need at least this speed to start a slide
+	SlideBoost = 9, -- speed added when the slide starts...
+	SlideBoostCap = 40, -- ...but only up to this speed (no infinite slide boosting)
 	SlideFriction = 0.55, -- slide friction (much lower than running)
-	SlideEndSpeed = 16, -- slide ends below this speed
+	SlideEndSpeed = 12, -- slide ends below this speed
 	SlideSteer = 2.2, -- how much you can steer a slide
 	SlideCooldown = 0.25,
 	SlideJumpBoost = 4, -- extra speed for jumping out of a slide (up to SlideBoostCap)
@@ -432,8 +450,8 @@ Config.Movement = {
 	-- (touch the ground to recharge) plus a cooldown. Duration comes from
 	-- Config.PowerUps.WallRunner.
 	WallCheckDistance = 3.4,
-	WallRunMinSpeed = 18,
-	WallRunMaxSpeed = 32, -- you never go faster than this on a wall
+	WallRunMinSpeed = 14,
+	WallRunMaxSpeed = 24, -- you never go faster than this on a wall
 	WallRunDrag = 0.5, -- fraction of speed lost per second on the wall
 	WallRunStartLift = 3, -- small upward pop when you latch on
 	WallRunGravity = 45, -- how quickly you sink while wall running

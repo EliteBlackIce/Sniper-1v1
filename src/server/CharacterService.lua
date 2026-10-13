@@ -32,12 +32,44 @@ CharacterService.Bots = {} -- [bot] = true
 ----------------------------------------------------------------------------
 -- Styling
 ----------------------------------------------------------------------------
-local WORLD_GUN_SCALE = 0.8
+-- An invisible part the weapon hangs off. Its Motor6D "WeaponGrip" joins it
+-- to the right hand; BodyAnimator (on every client) animates that joint so
+-- the weapon goes exactly where the animation says, and your real arms
+-- reach for it.
+local function weaponRoot(model, hand, cf)
+	local root = Instance.new("Part")
+	root.Name = "WeaponRoot"
+	root.Size = Vector3.one * 0.1
+	root.Transparency = 1
+	root.CanCollide = false
+	root.CanQuery = false
+	root.CanTouch = false
+	root.Massless = true
+	root.CastShadow = false
+	root.CFrame = cf
+	root.Parent = model
+	local grip = Instance.new("Motor6D")
+	grip.Name = "WeaponGrip"
+	grip.Part0 = hand
+	grip.Part1 = root
+	grip.C0 = hand.CFrame:Inverse() * cf -- (the rest pose, before any animation)
+	grip.C1 = CFrame.new()
+	grip.Parent = root
+	return root
+end
 
--- The rifle other players see in your hands (same model as your viewmodel,
--- a bit smaller). The barrel points along the hand's -Y axis, so when the
--- client's aim pose raises the arm forward (CharacterPoser), the gun points
--- where you're looking.
+local function weldTo(root, part)
+	part.Anchored = false
+	part.Massless = true
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = root
+	weld.Part1 = part
+	weld.Parent = part
+end
+
+-- The rifle in your hands (the same model and power-up attachments for
+-- you and everyone else). The bolt hangs off its own joint so it can be
+-- worked when you chamber a round.
 -- powerUps ({ [id] = stacks }) adds each power-up's attachment + effects.
 local function addWorldGun(character, powerUps)
 	local hand = character:FindFirstChild("RightHand") or character:FindFirstChild("Right Arm")
@@ -48,24 +80,52 @@ local function addWorldGun(character, powerUps)
 	if old then
 		old:Destroy()
 	end
+	local scale = Config.Body.GunScale
 	local gun = Instance.new("Model")
 	gun.Name = "WorldGun"
-	local built = GunModel.Build(gun, { Scale = WORLD_GUN_SCALE, CastShadow = true, PowerUps = powerUps })
+	local built = GunModel.Build(gun, { Scale = scale, CastShadow = true, PowerUps = powerUps })
 
 	local grip = hand.CFrame * CFrame.new(0, -0.15, 0) * CFrame.Angles(math.rad(-90), 0, 0)
-	GunModel.Place(built, grip, WORLD_GUN_SCALE)
-	for _, part in pairs(built.Parts) do
-		local weld = Instance.new("WeldConstraint")
-		weld.Part0 = hand
-		weld.Part1 = part
-		weld.Parent = part
+	GunModel.Place(built, grip, scale)
+	local root = weaponRoot(gun, hand, grip)
+	root:SetAttribute("Profile", built.UsesMesh and "Mesh" or "Parts")
+
+	-- the bolt: its own little root on a joint at the bolt pivot
+	local pivot = grip * CFrame.new(built.Profile.BoltPivot.Position * scale)
+	local boltRoot
+	for name in pairs(built.Bolt) do
+		if not boltRoot then
+			boltRoot = Instance.new("Part")
+			boltRoot.Name = "BoltRoot"
+			boltRoot.Size = Vector3.one * 0.05
+			boltRoot.Transparency = 1
+			boltRoot.CanCollide = false
+			boltRoot.CanQuery = false
+			boltRoot.CanTouch = false
+			boltRoot.Massless = true
+			boltRoot.CFrame = pivot
+			boltRoot.Parent = gun
+			local joint = Instance.new("Motor6D")
+			joint.Name = "BoltJoint"
+			joint.Part0 = root
+			joint.Part1 = boltRoot
+			joint.C0 = root.CFrame:Inverse() * pivot
+			joint.C1 = CFrame.new()
+			joint.Parent = root
+		end
+		weldTo(boltRoot, built.Parts[name])
+	end
+	for name, part in pairs(built.Parts) do
+		if not built.Bolt[name] then
+			weldTo(root, part)
+		end
 	end
 
 	-- tracers seen by other players start here (WorldGun.Barrel.Muzzle)
 	local muzzle = Instance.new("Attachment")
 	muzzle.Name = "Muzzle"
 	muzzle.Parent = built.Parts.Barrel
-	muzzle.WorldCFrame = grip * CFrame.new(built.Profile.Muzzle.Position * WORLD_GUN_SCALE)
+	muzzle.WorldCFrame = grip * CFrame.new(built.Profile.Muzzle.Position * scale)
 
 	for _, part in ipairs(gun:GetDescendants()) do
 		if part:IsA("BasePart") then
@@ -76,8 +136,8 @@ local function addWorldGun(character, powerUps)
 	CharacterService.ShowWeapon(character)
 end
 
--- The knife in your hand (hidden until you switch to it). Blade along the
--- hand's -Y, like the rifle, so the aim pose points it forward.
+-- The knife (hidden until you switch to it), jointed to the hand the same
+-- way so it can be flipped, tossed and caught.
 local function addWorldKnife(character)
 	local hand = character:FindFirstChild("RightHand") or character:FindFirstChild("Right Arm")
 	if not hand or not Config.Knife.Enabled then
@@ -94,15 +154,60 @@ local function addWorldKnife(character)
 	local grip = hand.CFrame * CFrame.new(0, -0.15, 0) * CFrame.Angles(math.rad(-90), 0, 0)
 	local origin = grip * CFrame.new(KnifeModel.Grip.Position * -scale)
 	KnifeModel.Place(built, origin)
+	local root = weaponRoot(knife, hand, origin) -- the knife's origin: the middle of the handle
 	for _, part in pairs(built.Parts) do
-		local weld = Instance.new("WeldConstraint")
-		weld.Part0 = hand
-		weld.Part1 = part
-		weld.Parent = part
-		part:SetAttribute("BaseTransparency", part.Transparency)
+		weldTo(root, part)
+	end
+	for _, part in ipairs(knife:GetDescendants()) do
+		if part:IsA("BasePart") then
+			part:SetAttribute("BaseTransparency", part.Transparency)
+		end
 	end
 	knife.Parent = character
 	CharacterService.ShowWeapon(character)
+end
+
+----------------------------------------------------------------------------
+-- Hitboxes: three fixed boxes, the same size for every avatar. Bullets and
+-- the knife only hit these (head = headshot, body, legs); the real body
+-- parts, arms and accessories are ignored, so swinging arms and bulky
+-- avatar meshes never eat or steal a shot.
+----------------------------------------------------------------------------
+local HITBOXES = {
+	{ Name = "HitboxHead", Parts = { "Head" }, Size = Vector3.new(1.3, 1.3, 1.3), Offset = CFrame.new(0, 0, 0) },
+	{ Name = "HitboxTorso", Parts = { "UpperTorso", "Torso" }, Size = Vector3.new(2.1, 2.3, 1.2), Offset = CFrame.new(0, -0.35, 0) },
+	{ Name = "HitboxLegs", Parts = { "LowerTorso", "Torso" }, Size = Vector3.new(2.0, 2.3, 1.1), Offset = CFrame.new(0, -1.35, 0) },
+}
+
+local function addHitboxes(character)
+	for _, item in ipairs(character:GetDescendants()) do
+		if item:IsA("BasePart") and not item:FindFirstAncestor("WorldGun") and not item:FindFirstAncestor("WorldKnife") then
+			item.CanQuery = false
+		end
+	end
+	for _, info in ipairs(HITBOXES) do
+		local attach
+		for _, name in ipairs(info.Parts) do
+			attach = attach or character:FindFirstChild(name)
+		end
+		if attach and not character:FindFirstChild(info.Name) then
+			local box = Instance.new("Part")
+			box.Name = info.Name
+			box.Size = info.Size
+			box.Transparency = 1
+			box.CanCollide = false
+			box.CanTouch = false
+			box.CanQuery = true
+			box.Massless = true
+			box.CastShadow = false
+			box.CFrame = attach.CFrame * info.Offset
+			local weld = Instance.new("WeldConstraint")
+			weld.Part0 = attach
+			weld.Part1 = box
+			weld.Parent = box
+			box.Parent = character
+		end
+	end
 end
 
 -- Shows the weapon in the "Weapon" attribute ("Sniper" or "Knife") and hides
@@ -257,6 +362,7 @@ function CharacterService.Spawn(player, cframe, options)
 
 	CharacterService.Style(character, options.Color or Palette.LobbyPlayer, player)
 	character:SetAttribute("Weapon", "Sniper") -- every life starts with the rifle out
+	addHitboxes(character)
 	addWorldGun(character, options.PowerUps)
 	addWorldKnife(character)
 

@@ -36,7 +36,7 @@ local V = Vector3.new
 local ArenaCrossfire = {}
 
 local LENGTH, WIDTH = 170, 120 -- floor size (X, Z)
-local WALL_HEIGHT = 28
+local WALL_HEIGHT = 60 -- tall outer walls
 
 function ArenaCrossfire.Build(b)
 	local X, Z, XZ = "X", "Z", "XZ"

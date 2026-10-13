@@ -2,7 +2,7 @@
 	LightingSetup.lua  (ServerScriptService.Server.LightingSetup)
 
 	Sets up Lighting from Config.Lighting: time of day, ambient colours and the
-	post effects (Atmosphere, Bloom, ColorCorrection, SunRays).
+	post effects (Atmosphere, Bloom, ColorCorrection, SunRays) and clouds.
 
 	NOTE: Lighting.Technology = Future cannot be set from a script; it is set in
 	default.project.json (and you can double check it in Studio: Lighting >
@@ -56,6 +56,14 @@ function LightingSetup.Apply()
 	local sunRays = getOrCreate("SunRaysEffect", "SunRays")
 	for key, value in pairs(L.SunRays) do
 		sunRays[key] = value
+	end
+
+	if L.Clouds then
+		local clouds = workspace.Terrain:FindFirstChildOfClass("Clouds") or Instance.new("Clouds")
+		for key, value in pairs(L.Clouds) do
+			clouds[key] = value
+		end
+		clouds.Parent = workspace.Terrain
 	end
 
 	workspace.Gravity = Config.Movement.Gravity

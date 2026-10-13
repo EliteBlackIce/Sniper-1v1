@@ -132,7 +132,13 @@ local function getTorso(model)
 end
 
 local function knockback(player, velocity)
-	if player.Parent then
+	if Util.isBot(player) then
+		-- the server simulates bots, so push them directly
+		local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+		if root and not root.Anchored then
+			root.AssemblyLinearVelocity += velocity * Config.Movement.KnockbackScale
+		end
+	elseif player.Parent then
 		Remotes.Get("Knockback"):FireClient(player, velocity * Config.Movement.KnockbackScale)
 	end
 end
@@ -841,6 +847,16 @@ local function onAbility(player, name, data)
 			Remotes.Get("Effect"):FireClient(opponent, { Type = "GrappleEnd", UserId = player.UserId })
 		end
 	end
+end
+
+-- Bots shoot through the exact same validation and damage code as players.
+function CombatService.BotFire(bot, origin, direction)
+	onFire(bot, origin, direction, nil)
+end
+
+-- Seconds a shooter must wait between shots (their power-ups included).
+function CombatService.GetBoltTime(player, match)
+	return getStats(player, match).BoltTime
 end
 
 ----------------------------------------------------------------------------

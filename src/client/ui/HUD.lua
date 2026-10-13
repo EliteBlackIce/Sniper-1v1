@@ -24,6 +24,7 @@ local ClientState = require(script.Parent.Parent.ClientState)
 local Sfx = require(script.Parent.Parent.Sfx)
 local Theme = require(script.Parent.Theme)
 local Icons = require(script.Parent.Icons)
+local Keybinds = require(script.Parent.Parent.Keybinds)
 
 local Palette = Config.Palette
 local player = Players.LocalPlayer
@@ -678,23 +679,21 @@ local function rebuildAbilities()
 	end
 	local stats = ClientState.Stats
 	local entries = {}
+	local device = game:GetService("UserInputService"):GetLastInputType().Name:find("Gamepad") and "Gamepad" or "Keyboard"
+	local function key(actionId)
+		return Keybinds.Label(Keybinds.Get(actionId, device))
+	end
 	if stats.Grapple then
-		table.insert(entries, { Key = "E", Name = "Grapple", Cooldown = "Grapple" })
+		table.insert(entries, { Key = key("Grapple"), Name = "Grapple", Cooldown = "Grapple" })
 	end
 	if stats.Blink then
-		table.insert(entries, { Key = "R", Name = "Blink", Cooldown = "Blink" })
+		table.insert(entries, { Key = key("Blink"), Name = "Blink", Cooldown = "Blink" })
 	end
 	if stats.Decoy then
-		table.insert(entries, { Key = "Q", Name = "Decoy", Cooldown = "Decoy" })
+		table.insert(entries, { Key = key("Decoy"), Name = "Decoy", Cooldown = "Decoy" })
 	end
 	if stats.BulletTime then
-		table.insert(entries, { Key = "RMB", Name = "Bullet Time (air)", Cooldown = "BulletTime" })
-	end
-	if stats.PhantomDash then
-		table.insert(entries, { Key = "C", Name = "Phantom Step (slide)" })
-	end
-	if stats.CeilingRun then
-		table.insert(entries, { Key = "SPACE", Name = "Ceiling run (hold)" })
+		table.insert(entries, { Key = key("Scope"), Name = "Bullet Time (air)", Cooldown = "BulletTime" })
 	end
 	for i, e in ipairs(entries) do
 		local row = Theme.panel({

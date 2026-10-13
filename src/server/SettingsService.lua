@@ -44,6 +44,27 @@ local function sanitize(data)
 	if typeof(data.AimAssist) == "boolean" then
 		clean.AimAssist = data.AimAssist
 	end
+	if typeof(data.InvertY) == "boolean" then
+		clean.InvertY = data.InvertY
+	end
+	-- key binds: { Keyboard = { Action = "KeyName" }, Gamepad = { ... } }
+	if typeof(data.Binds) == "table" then
+		local binds = {}
+		for _, device in ipairs({ "Keyboard", "Gamepad" }) do
+			local list = data.Binds[device]
+			if typeof(list) == "table" then
+				binds[device] = {}
+				for action, key in pairs(list) do
+					if typeof(action) == "string" and typeof(key) == "string" and #action <= 32 and #key <= 32 then
+						if key:match("^%w+$") and action:match("^%w+$") then
+							binds[device][action] = key
+						end
+					end
+				end
+			end
+		end
+		clean.Binds = binds
+	end
 	return clean
 end
 

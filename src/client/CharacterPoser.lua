@@ -17,6 +17,7 @@ local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Remotes = require(ReplicatedStorage:WaitForChild("Shared").Remotes)
+local ClientState = require(script.Parent.ClientState)
 
 local player = Players.LocalPlayer
 local rad = math.rad
@@ -96,6 +97,11 @@ function CharacterPoser.Start()
 			if other ~= player and other.Character then
 				pose(other.Character)
 			end
+		end
+		-- and the bot, if you're fighting one
+		local opponent = ClientState.Snapshot.InMatch and ClientState.GetOpponentPlayer()
+		if typeof(opponent) == "table" and opponent.Character then
+			pose(opponent.Character)
 		end
 	end)
 

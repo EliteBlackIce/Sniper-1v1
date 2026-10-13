@@ -15,6 +15,13 @@
 		"X"   also place a copy mirrored across X = 0 (other team's side)
 		"Z"   also place a copy mirrored across Z = 0
 		"XZ"  place 4 copies (both mirrors)
+
+	Collision (clean hitboxes): only the big solid shapes collide. Detail
+	parts (window frames, railings, steps, car trim...) are built inside
+	builder.decor(...) and neither collide nor stop bullets, so they can't
+	snag you or eat shots. Stairs are an invisible smooth ramp under the
+	visible steps. builder.soft(...) parts (tree leaves) don't collide but
+	still block bullets and sight.
 ]]
 
 local Config = require(game:GetService("ReplicatedStorage").Shared.Config)
@@ -60,6 +67,51 @@ end
 local function makeBuilder(origin, parent)
 	local base = CFrame.new(origin)
 	local builder = {}
+	local mode = nil -- nil (solid) / "decor" / "soft"
+
+	local function applyMode(part)
+		if mode == "decor" or mode == "soft" then
+			part.CanCollide = false
+			part.CanTouch = false
+			part.CanQuery = mode == "soft"
+		end
+	end
+
+	-- Runs fn with every part it places marked as detail (no collision, no hits).
+	function builder.decor(fn)
+		local old = mode
+		mode = "decor"
+		fn()
+		mode = old
+	end
+
+	-- Like decor, but bullets and line of sight still stop at these parts.
+	function builder.soft(fn)
+		local old = mode
+		mode = "soft"
+		fn()
+		mode = old
+	end
+
+	-- Makes parts invisible (collision-only shapes).
+	function builder.invisible(parts)
+		for _, part in ipairs(parts) do
+			part.Transparency = 1
+			part.CastShadow = false
+		end
+		return parts
+	end
+
+	-- Sets a material (e.g. Neon for lights) on the parts.
+	function builder.material(parts, material, reflectance)
+		for _, part in ipairs(parts) do
+			part.Material = material
+			if reflectance then
+				part.Reflectance = reflectance
+			end
+		end
+		return parts
+	end
 
 	function builder.place(className, size, localCF, color, mirror, shape)
 		local cfs = { localCF }
@@ -73,7 +125,9 @@ local function makeBuilder(origin, parent)
 		end
 		local parts = {}
 		for _, cf in ipairs(cfs) do
-			table.insert(parts, newPart(className, size, base * cf, color, parent, shape))
+			local part = newPart(className, size, base * cf, color, parent, shape)
+			applyMode(part)
+			table.insert(parts, part)
 		end
 		return parts
 	end

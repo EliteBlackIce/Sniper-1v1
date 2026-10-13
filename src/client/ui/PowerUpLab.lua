@@ -24,9 +24,9 @@ local Sfx = require(script.Parent.Parent.Sfx)
 local Theme = require(script.Parent.Theme)
 local Icons = require(script.Parent.Icons)
 local PickScreen = require(script.Parent.PickScreen)
+local Keybinds = require(script.Parent.Parent.Keybinds)
 
 local Palette = Config.Palette
-local LAB_KEY = Enum.KeyCode.B
 
 local PowerUpLab = {}
 
@@ -275,7 +275,7 @@ function PowerUpLab.Start(playerGui)
 		if processed and UserInputService:GetFocusedTextBox() then
 			return
 		end
-		if input.KeyCode == LAB_KEY then
+		if Keybinds.Matches("PowerUpLab", input) then
 			if PickScreen.IsPracticeOpen() then
 				PickScreen.Close()
 			elseif isOpen then

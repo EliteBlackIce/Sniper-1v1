@@ -46,6 +46,7 @@ local Signal = require(Shared.Signal)
 local Util = require(Shared.Util)
 local ClientState = require(script.Parent.ClientState)
 local Sfx = require(script.Parent.Sfx)
+local Keybinds = require(script.Parent.Keybinds)
 
 local M = Config.Movement
 local C = Config.Camera
@@ -185,8 +186,9 @@ end
 local function makeRaycastParams()
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.RespectCanCollide = true -- leaves and other non-solid detail aren't walls or floors
 	local exclude = { character, workspace.CurrentCamera }
-	for _, name in ipairs({ "Effects", "Decoys", "Dummies" }) do
+	for _, name in ipairs({ "Effects", "Decoys", "Dummies", "Bots" }) do
 		local folder = workspace:FindFirstChild(name)
 		if folder then
 			table.insert(exclude, folder)
@@ -205,6 +207,49 @@ end
 local function setVerticalVelocity(y)
 	local v = root.AssemblyLinearVelocity
 	root.AssemblyLinearVelocity = Vector3.new(v.X, y, v.Z)
+end
+
+--[[
+	ANTI-CLIPPING: before we push the character, sweep a body-sized box in the
+	direction we're about to move. If a wall is in the way, remove the part of
+	the velocity that points into it, so we slide along walls instead of
+	shoving into (and sometimes through) them. The box starts a little above
+	the feet so curbs, steps and ramps don't count as walls.
+]]
+local function clipAgainstWalls(v, dt)
+	local speed = v.Magnitude
+	if speed < 0.5 then
+		return v
+	end
+	local params = makeRaycastParams()
+	for _ = 1, 2 do -- twice, for corners
+		speed = v.Magnitude
+		if speed < 0.5 then
+			break
+		end
+		local dir = v / speed
+		local start = root.Position + Vector3.new(0, 0.4, 0) - dir * 0.6
+		local result = workspace:Blockcast(
+			CFrame.lookAt(start, start + dir),
+			Vector3.new(1.9, 3.6, 1),
+			dir * (speed * dt + 1.4),
+			params
+		)
+		if not result or math.abs(result.Normal.Y) > 0.6 then
+			break
+		end
+		local n = Util.flat(result.Normal)
+		if n.Magnitude < 0.01 then
+			break
+		end
+		n = n.Unit
+		local into = v:Dot(n)
+		if into >= 0 then
+			break
+		end
+		v -= n * into
+	end
+	return v
 end
 
 -- True if we are falling and the ground is just below (so a Space press now
@@ -349,7 +394,7 @@ local function groundJump()
 	if mode == "Slide" and momentum.Magnitude < M.SlideBoostCap then
 		momentum += Util.safeUnit(momentum) * M.SlideJumpBoost
 	end
-	humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+	humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
 	setVerticalVelocity(jumpPower())
 	-- the Humanoid can briefly hold us down (e.g. right after landing or
 	-- mid-slide); re-apply the jump velocity for a few frames so jumps never fail
@@ -412,8 +457,9 @@ local function startBlink()
 	-- mostly horizontal: you can blink up or down a little, not straight into the floor
 	local dir = Vector3.new(look.X, math.clamp(look.Y, -0.35, 0.6), look.Z).Unit
 	local from = root.Position
-	local hit = workspace:Raycast(from, dir * s.BlinkDistance, makeRaycastParams())
-	local to = hit and (hit.Position - dir * 2.5) or (from + dir * s.BlinkDistance)
+	-- sweep a body-sized box so you can never end up inside a wall
+	local hit = workspace:Blockcast(CFrame.lookAt(from, from + dir), Vector3.new(2, 4.6, 1), dir * s.BlinkDistance, makeRaycastParams())
+	local to = hit and (from + dir * math.max(hit.Distance - 0.4, 0)) or (from + dir * s.BlinkDistance)
 	-- don't end up inside the floor
 	local floor = workspace:Raycast(to + Vector3.new(0, 3, 0), Vector3.new(0, -6, 0), makeRaycastParams())
 	if floor then
@@ -771,6 +817,11 @@ local function step(dt)
 		momentum = momentum.Unit * maxSpeed
 	end
 
+	-- never push into walls (prevents clipping / phasing through thin walls)
+	if mode ~= "WallRun" then
+		momentum = clipAgainstWalls(momentum, dt)
+	end
+
 	-- FEATHERWEIGHT power-up: cancel part of gravity while airborne
 	local gravityScale = stats().GravityScale
 	if gravityScale < 1 and mode == "Air" and not Movement.IsBulletTime() then
@@ -787,7 +838,7 @@ local function step(dt)
 	end
 	linearVelocity.PlaneVelocity = Vector2.new(drive.X, drive.Z)
 	lastDrive = drive
-	humanoid.JumpPower = jumpPower()
+	humanoid.JumpPower = 0 -- jumps are done by this script (so the Jump key can be rebound)
 
 	-- FOV kick from movement
 	local speed = momentum.Magnitude
@@ -812,7 +863,9 @@ local function onCharacterAdded(newCharacter)
 	root = newCharacter:WaitForChild("HumanoidRootPart")
 
 	humanoid.UseJumpPower = true
-	humanoid.JumpPower = M.JumpPower
+	humanoid.JumpPower = 0 -- jumps are done by this script (so the Jump key can be rebound)
+	-- Roblox's own jump is always on Space; turn it off so only our Jump bind jumps
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
 	humanoid.WalkSpeed = M.RunSpeed
 
 	local attachment = root:FindFirstChild("RootAttachment") or root:FindFirstChild("RootRigAttachment")
@@ -865,13 +918,12 @@ local function onInputBegan(input, processed)
 	if isTyping(processed) then
 		return
 	end
-	local key = input.KeyCode
-	if key == Enum.KeyCode.Space or key == Enum.KeyCode.ButtonA then
+	if Keybinds.Matches("Jump", input) then
 		jumpHeld = true
 		onJumpPressed()
-	elseif key == Enum.KeyCode.LeftShift or key == Enum.KeyCode.ButtonL3 then
+	elseif Keybinds.Matches("Sprint", input) then
 		sprintHeld = true
-	elseif key == M.SlideKey or key == Enum.KeyCode.LeftControl or key == Enum.KeyCode.ButtonB then
+	elseif Keybinds.Matches("Slide", input) then
 		slideHeld = true
 		if canMove() then
 			if mode == "Ground" then
@@ -882,7 +934,7 @@ local function onInputBegan(input, processed)
 				slidePressedAt = now() -- slide as soon as we land
 			end
 		end
-	elseif key == Enum.KeyCode.E then
+	elseif Keybinds.Matches("Grapple", input) then
 		if canMove() then
 			if grapple.Point then
 				endGrapple(false)
@@ -890,11 +942,11 @@ local function onInputBegan(input, processed)
 				startGrapple()
 			end
 		end
-	elseif key == Enum.KeyCode.R then
+	elseif Keybinds.Matches("Blink", input) then
 		if canMove() and ClientState.CanShoot() then
 			startBlink()
 		end
-	elseif key == Enum.KeyCode.Q then
+	elseif Keybinds.Matches("Decoy", input) then
 		if canMove() and ClientState.CanShoot() then
 			startDecoy()
 		end
@@ -902,12 +954,11 @@ local function onInputBegan(input, processed)
 end
 
 local function onInputEnded(input)
-	local key = input.KeyCode
-	if key == Enum.KeyCode.Space or key == Enum.KeyCode.ButtonA then
+	if Keybinds.Matches("Jump", input) then
 		jumpHeld = false
-	elseif key == Enum.KeyCode.LeftShift or key == Enum.KeyCode.ButtonL3 then
+	elseif Keybinds.Matches("Sprint", input) then
 		sprintHeld = false
-	elseif key == M.SlideKey or key == Enum.KeyCode.LeftControl or key == Enum.KeyCode.ButtonB then
+	elseif Keybinds.Matches("Slide", input) then
 		slideHeld = false
 	end
 end

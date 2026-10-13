@@ -101,9 +101,32 @@ function ClientState.GetOpponentEntry()
 	return nil
 end
 
+-- The Player with this UserId, or for a bot (server AI, not a real Player)
+-- a stand-in table { UserId, Name, DisplayName, Character, IsBot }.
+function ClientState.FindPlayer(userId)
+	local real = Players:GetPlayerByUserId(userId)
+	if real then
+		return real
+	end
+	for _, entry in ipairs(ClientState.Snapshot.Players or {}) do
+		if entry.UserId == userId and entry.IsBot then
+			local bots = workspace:FindFirstChild("Bots")
+			return {
+				UserId = entry.UserId,
+				Name = entry.Name,
+				DisplayName = entry.Name,
+				IsBot = true,
+				Character = bots and entry.CharacterName and bots:FindFirstChild(entry.CharacterName) or nil,
+			}
+		end
+	end
+	return nil
+end
+
+-- Your opponent (a Player, or a bot stand-in - see FindPlayer).
 function ClientState.GetOpponentPlayer()
 	local entry = ClientState.GetOpponentEntry()
-	return entry and Players:GetPlayerByUserId(entry.UserId) or nil
+	return entry and ClientState.FindPlayer(entry.UserId) or nil
 end
 
 function ClientState.GetSlotColor(slot)

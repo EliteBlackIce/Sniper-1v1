@@ -89,4 +89,10 @@ function Util.hitZone(partName)
 	return "Limb"
 end
 
+-- True for server-side bots (plain tables standing in for a Player).
+-- Never index .IsBot on a real Player: unknown properties throw.
+function Util.isBot(player)
+	return typeof(player) == "table" and player.IsBot == true
+end
+
 return Util

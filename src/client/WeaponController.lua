@@ -25,6 +25,7 @@ local Ballistics = require(Shared.Ballistics)
 local Util = require(Shared.Util)
 local ClientState = require(script.Parent.ClientState)
 local Sfx = require(script.Parent.Sfx)
+local Keybinds = require(script.Parent.Keybinds)
 
 local W = Config.Weapon
 local player = Players.LocalPlayer
@@ -189,9 +190,9 @@ local function onInputBegan(input, processed)
 	if isTyping(processed) then
 		return
 	end
-	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.KeyCode == Enum.KeyCode.ButtonR2 then
+	if Keybinds.Matches("Fire", input) then
 		fire()
-	elseif input.UserInputType == Enum.UserInputType.MouseButton2 or input.KeyCode == Enum.KeyCode.ButtonL2 then
+	elseif Keybinds.Matches("Scope", input) then
 		if ClientState.Settings.ToggleScope then
 			scopeHeld = not scopeHeld
 		else
@@ -201,7 +202,7 @@ local function onInputBegan(input, processed)
 end
 
 local function onInputEnded(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton2 or input.KeyCode == Enum.KeyCode.ButtonL2 then
+	if Keybinds.Matches("Scope", input) then
 		if not ClientState.Settings.ToggleScope then
 			scopeHeld = false
 		end

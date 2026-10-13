@@ -32,6 +32,8 @@ Remotes.Names = {
 	"Aim", -- C->S  where you're looking up/down (others see your aim pose)
 	"Practice", -- C->S  lobby power-up lab: add / remove / clear practice power-ups
 	"PlaygroundToggle", -- C->S  enter / leave Playground mode
+	"AdminCommand", -- C->S  admin commands (e.g. "bot" starts a match vs a bot)
+	"Notify", -- S->C  short toast message (admin command results etc.)
 }
 
 local FOLDER_NAME = "Remotes"
@@ -62,11 +64,36 @@ local function getFolder()
 	return folder
 end
 
--- Returns the RemoteEvent with this name.
+-- On the server, Get returns a thin wrapper so FireClient quietly skips
+-- bots (they're plain tables, not real Players, and have no client).
+local wrappers = {}
+local function wrap(remote)
+	local wrapper = wrappers[remote]
+	if not wrapper then
+		wrapper = {
+			Remote = remote,
+			Name = remote.Name,
+			OnServerEvent = remote.OnServerEvent,
+			FireClient = function(_, player, ...)
+				if typeof(player) == "Instance" and player.Parent then
+					remote:FireClient(player, ...)
+				end
+			end,
+			FireAllClients = function(_, ...)
+				remote:FireAllClients(...)
+			end,
+		}
+		wrappers[remote] = wrapper
+	end
+	return wrapper
+end
+
+-- Returns the RemoteEvent with this name (a bot-safe wrapper on the server).
 function Remotes.Get(name)
 	local f = getFolder()
 	if RunService:IsServer() then
-		return f:FindFirstChild(name)
+		local remote = f:FindFirstChild(name)
+		return remote and wrap(remote)
 	end
 	return f:WaitForChild(name)
 end

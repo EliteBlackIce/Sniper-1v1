@@ -269,7 +269,7 @@ end
 
 -- Enemy shot from the server: start tracers at their gun's muzzle.
 local function onEnemyShot(userId, bullets, explosive)
-	local shooter = Players:GetPlayerByUserId(userId)
+	local shooter = ClientState.FindPlayer(userId)
 	local character = shooter and shooter.Character
 	local muzzleAttachment = character
 		and character:FindFirstChild("WorldGun")
@@ -601,7 +601,7 @@ local function updateRopes(dt)
 		updateRope(localRope, Controllers.Viewmodel.GetLeftHandPosition())
 	end
 	for userId, rope in pairs(enemyRopes) do
-		local other = Players:GetPlayerByUserId(userId)
+		local other = ClientState.FindPlayer(userId)
 		local hand = other and other.Character and (other.Character:FindFirstChild("LeftHand") or other.Character:FindFirstChild("Left Arm"))
 		updateRope(rope, hand and hand.Position or nil)
 	end

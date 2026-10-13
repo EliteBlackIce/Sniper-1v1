@@ -1,0 +1,101 @@
+--[[
+	Keybinds.lua  (Client.Keybinds)
+
+	Every rebindable action with its default KEYBOARD and CONTROLLER
+	binding. Players change them in Settings (P) > Keyboard / Controller,
+	and they're saved with the other settings.
+
+	A binding is the name of an Enum.KeyCode ("Space", "ButtonA") or of a
+	mouse Enum.UserInputType ("MouseButton1").
+
+	Moving (WASD / left stick) and looking (mouse / right stick) are not
+	rebindable.
+
+	Usage:  if Keybinds.Matches("Jump", input) then ... end
+]]
+
+local ClientState = require(script.Parent.ClientState)
+
+local Keybinds = {}
+
+Keybinds.Actions = {
+	{ Id = "Fire", Name = "Fire", Keyboard = "MouseButton1", Gamepad = "ButtonR2" },
+	{ Id = "Scope", Name = "Scope", Keyboard = "MouseButton2", Gamepad = "ButtonL2" },
+	{ Id = "Jump", Name = "Jump / Bunny hop", Keyboard = "Space", Gamepad = "ButtonA" },
+	{ Id = "Slide", Name = "Slide", Keyboard = "C", Gamepad = "ButtonB" },
+	{ Id = "Sprint", Name = "Sprint", Keyboard = "LeftShift", Gamepad = "ButtonL3" },
+	{ Id = "Grapple", Name = "Grapple (power-up)", Keyboard = "E", Gamepad = "ButtonY" },
+	{ Id = "Blink", Name = "Blink (power-up)", Keyboard = "R", Gamepad = "ButtonX" },
+	{ Id = "Decoy", Name = "Decoy (power-up)", Keyboard = "Q", Gamepad = "DPadUp" },
+	{ Id = "Inspect", Name = "Inspect rifle", Keyboard = "V", Gamepad = "DPadDown" },
+	{ Id = "PowerUpLab", Name = "Power-Up Lab", Keyboard = "B", Gamepad = "DPadLeft" },
+	{ Id = "FindMatch", Name = "Find match", Keyboard = "F", Gamepad = "DPadRight" },
+	{ Id = "Playground", Name = "Playground", Keyboard = "G", Gamepad = "ButtonL1" },
+	{ Id = "BotMatch", Name = "Play vs bot (admin)", Keyboard = "N", Gamepad = "ButtonR1" },
+	{ Id = "Settings", Name = "Settings", Keyboard = "P", Gamepad = "ButtonSelect" },
+}
+
+Keybinds.ById = {}
+for _, action in ipairs(Keybinds.Actions) do
+	Keybinds.ById[action.Id] = action
+end
+
+-- The current binding name for an action on a device ("Keyboard" or "Gamepad").
+function Keybinds.Get(actionId, device)
+	local binds = ClientState.Settings.Binds
+	local custom = binds and binds[device] and binds[device][actionId]
+	local action = Keybinds.ById[actionId]
+	return custom or (action and action[device])
+end
+
+local function inputName(input)
+	local t = input.UserInputType
+	if t == Enum.UserInputType.MouseButton1 or t == Enum.UserInputType.MouseButton2 or t == Enum.UserInputType.MouseButton3 then
+		return t.Name
+	end
+	return input.KeyCode.Name
+end
+Keybinds.InputName = inputName
+
+local function isGamepad(input)
+	return input.UserInputType.Name:find("Gamepad") ~= nil
+end
+Keybinds.IsGamepad = isGamepad
+
+-- True if `input` is the key / button bound to `actionId`.
+function Keybinds.Matches(actionId, input)
+	local device = isGamepad(input) and "Gamepad" or "Keyboard"
+	local bound = Keybinds.Get(actionId, device)
+	return bound ~= nil and bound == inputName(input)
+end
+
+-- Short label for a binding ("MouseButton1" -> "LMB", "ButtonA" -> "A").
+function Keybinds.Label(name)
+	local labels = {
+		MouseButton1 = "LMB",
+		MouseButton2 = "RMB",
+		MouseButton3 = "MMB",
+		LeftShift = "L-SHIFT",
+		RightShift = "R-SHIFT",
+		LeftControl = "L-CTRL",
+		RightControl = "R-CTRL",
+		ButtonR2 = "RT / R2",
+		ButtonL2 = "LT / L2",
+		ButtonR1 = "RB / R1",
+		ButtonL1 = "LB / L1",
+		ButtonR3 = "R-STICK",
+		ButtonL3 = "L-STICK",
+		ButtonA = "A / X",
+		ButtonB = "B / O",
+		ButtonX = "X / []",
+		ButtonY = "Y / ^",
+		ButtonSelect = "SELECT",
+		DPadUp = "D-UP",
+		DPadDown = "D-DOWN",
+		DPadLeft = "D-LEFT",
+		DPadRight = "D-RIGHT",
+	}
+	return labels[name] or string.upper(name or "-")
+end
+
+return Keybinds

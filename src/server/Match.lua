@@ -16,6 +16,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local PowerUps = require(ReplicatedStorage.Shared.PowerUps)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local Util = require(ReplicatedStorage.Shared.Util)
 local CharacterService = require(script.Parent.CharacterService)
 
 local Match = {}
@@ -87,6 +88,9 @@ function Match:Snapshot()
 			Slot = slot,
 			Wins = self.Wins[player],
 			PowerUps = table.clone(self.Owned[player]),
+			-- bots aren't real Players, so clients find their body by name
+			IsBot = Util.isBot(player) or nil,
+			CharacterName = Util.isBot(player) and player.Character and player.Character.Name or nil,
 		}
 	end
 	return {
@@ -187,6 +191,14 @@ end
 
 function Match:NoteHit(attacker, victim, headshot)
 	self.LastHit[victim] = { Attacker = attacker, Headshot = headshot }
+end
+
+-- Ends the match straight away with no winner (e.g. "/endbot").
+function Match:Cancel()
+	if not self.Finished then
+		self.Aborted = true
+		self.ForfeitWinner = nil
+	end
 end
 
 function Match:OnPickCard(player, index)
@@ -300,6 +312,14 @@ function Match:Run()
 			self.Picker = loser
 			self.PickedIndex = nil
 			self:SetPhase("Pick", Config.Match.PickTime)
+			if Util.isBot(loser) then
+				-- bots "think" for a moment, then take the rarest card
+				task.delay(1.5 + math.random() * 1.5, function()
+					if self.Picker == loser and not self.PickedIndex and self.Phase == "Pick" then
+						self:OnPickCard(loser, loser:ChooseCard(cards))
+					end
+				end)
+			end
 			if not self:Wait(Config.Match.PickTime + 0.3, function()
 				return self.PickedIndex ~= nil
 			end) then

@@ -1,12 +1,13 @@
 --[[
 	LobbyUI.lua  (Client.ui.LobbyUI)
 
-	The lobby / playground screen (hidden while you're in a match):
-		[F] find a match (animated "searching" state while queued)
-		[G] enter / leave the PLAYGROUND (free roam on the match map)
-		[H] show / hide the controls list
-		[B] Power-Up Lab, [P] settings
-	The mouse is locked in first person, so everything has a key.
+	The lobby / playground screen (hidden while you're in a match). Kept
+	minimal on purpose:
+		Find match (animated "searching" state while queued)
+		Playground (free roam on the match map)
+		Play vs bot (admins)
+	The mouse is locked in first person, so each button has a key / controller
+	button (rebindable in Settings > Keyboard / Controller).
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -18,42 +19,32 @@ local Config = require(Shared.Config)
 local Remotes = require(Shared.Remotes)
 local Sfx = require(script.Parent.Parent.Sfx)
 local Theme = require(script.Parent.Theme)
+local Keybinds = require(script.Parent.Parent.Keybinds)
+local ClientState = require(script.Parent.Parent.ClientState)
 
 local Palette = Config.Palette
-local PLAYGROUND_KEY = Enum.KeyCode.G
-local CONTROLS_KEY = Enum.KeyCode.H
 
 local LobbyUI = {}
 local Controllers
 
-local gui, root, title, subtitle, controls, playButton, playgroundButton, statusLabel, modeChip, spinner
+local gui, root, title, subtitle, playButton, playgroundButton, statusLabel, modeChip, spinner
 local shown = false
 local queued = false
-local controlsVisible = true
-
-local CONTROLS = {
-	{ "WASD", "Move (hold W in the air to steer)" },
-	{ "SHIFT", "Sprint" },
-	{ "C / CTRL", "Slide (tap). Jump out of it any time" },
-	{ "SPACE", "Jump  /  Wall jump" },
-	{ "HOLD SPACE", "Bunny hop (keeps all your speed)" },
-	{ "", "Air strafe: hold A or D + turn the mouse that way" },
-	{ "", "Wall run: jump next to a wall and hold W" },
-	{ "RMB / LMB", "Scope / Fire" },
-	{ "E / Q / R", "Grapple / Decoy / Blink (power-ups)" },
-	{ "V", "Inspect rifle" },
-	{ "B", "Power-Up Lab: try any power-up" },
-	{ "G", "Playground: free roam on the match map" },
-	{ "F", "Find a match" },
-	{ "H / P", "Hide this list / Settings" },
-}
+local lastSnapshot = { InMatch = false, Phase = "Lobby" }
 
 local function styleButton(button, active)
 	button.BackgroundColor3 = active and Palette.UIAccent or Palette.UIPanelLight
 	button.TextColor3 = active and Palette.UIBackground or Palette.UIText
 end
 
+-- "[F]" or "[D-RIGHT]" depending on the device you're using
+local function keyLabel(actionId)
+	local device = UserInputService:GetLastInputType().Name:find("Gamepad") and "Gamepad" or "Keyboard"
+	return "[" .. Keybinds.Label(Keybinds.Get(actionId, device)) .. "]"
+end
+
 function LobbyUI.OnState(snapshot)
+	lastSnapshot = snapshot
 	local visible = not snapshot.InMatch
 	if visible and not shown then
 		-- fade + slide the whole screen in
@@ -71,27 +62,27 @@ function LobbyUI.OnState(snapshot)
 
 	queued = snapshot.Queued == true
 	if queued then
-		playButton.Text = "SEARCHING...   [F] CANCEL"
+		playButton.Text = "SEARCHING...   " .. keyLabel("FindMatch") .. " CANCEL"
 		styleButton(playButton, false)
 		statusLabel.Text = "Waiting for an opponent  (" .. tostring(snapshot.QueueCount or 1) .. " in queue)"
 	else
-		playButton.Text = "[F]  FIND MATCH"
+		playButton.Text = keyLabel("FindMatch") .. "  FIND MATCH"
 		styleButton(playButton, true)
 		local count = snapshot.QueueCount or 0
-		statusLabel.Text = count > 0 and (tostring(count) .. " player(s) waiting - press F to duel")
-			or ("Lose a round, pick a power-up, stack a build. First to %d wins."):format(Config.Match.RoundsToWin)
+		statusLabel.Text = count > 0 and (tostring(count) .. " player(s) waiting")
+			or ""
 	end
 	spinner.Visible = queued
 
 	if snapshot.Playground then
 		title.Text = "PLAYGROUND"
-		subtitle.Text = "Free roam on the match map. Press B to try power-ups on the dummies."
-		playgroundButton.Text = "[G]  BACK TO LOBBY"
+		subtitle.Text = "Free roam on the match map."
+		playgroundButton.Text = keyLabel("Playground") .. "  BACK TO LOBBY"
 		modeChip.Visible = true
 	else
 		title.Text = "SNIPER DUEL"
-		subtitle.Text = "Practise on the range, or press G for the Playground."
-		playgroundButton.Text = "[G]  PLAYGROUND"
+		subtitle.Text = ""
+		playgroundButton.Text = keyLabel("Playground") .. "  PLAYGROUND"
 		modeChip.Visible = false
 	end
 end
@@ -153,43 +144,6 @@ function LobbyUI.Start(playerGui)
 		Parent = modeChip,
 	})
 
-	-- Controls
-	controls = Theme.panel({
-		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, 24, 0.5, 30),
-		Size = UDim2.fromOffset(400, 28 + #CONTROLS * 26),
-		Parent = root,
-	})
-	Theme.padding(controls, 14)
-	Theme.new("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder, Parent = controls })
-	for i, c in ipairs(CONTROLS) do
-		local line = Theme.new("Frame", {
-			Size = UDim2.new(1, 0, 0, 22),
-			BackgroundTransparency = 1,
-			LayoutOrder = i,
-			Parent = controls,
-		})
-		if c[1] ~= "" then
-			local key = Theme.new("Frame", {
-				Size = UDim2.fromOffset(88, 22),
-				BackgroundColor3 = Palette.UIPanelLight,
-				Parent = line,
-			})
-			Theme.corner(key, 6)
-			Theme.label({ Size = UDim2.fromScale(1, 1), Text = c[1], TextSize = 12, Parent = key })
-		end
-		Theme.label({
-			Position = UDim2.fromOffset(98, 0),
-			Size = UDim2.new(1, -98, 1, 0),
-			Text = c[2],
-			TextSize = 14,
-			TextXAlignment = Enum.TextXAlignment.Left,
-			TextColor3 = c[1] == "" and Palette.UISubText or Palette.UIText,
-			FontFace = Theme.Font(Enum.FontWeight.Medium),
-			Parent = line,
-		})
-	end
-
 	-- Buttons + status
 	playButton = Theme.button({
 		AnchorPoint = Vector2.new(0.5, 1),
@@ -241,11 +195,9 @@ function LobbyUI.Start(playerGui)
 		Theme.pop(playgroundButton)
 		Remotes.Get("PlaygroundToggle"):FireServer()
 	end
-	local function toggleControls()
-		controlsVisible = not controlsVisible
-		Theme.tween(controls, 0.3, {
-			Position = controlsVisible and UDim2.new(0, 24, 0.5, 30) or UDim2.new(0, -440, 0.5, 30),
-		}, Enum.EasingStyle.Quint)
+	local function botMatch()
+		Sfx.Play("CardPick", { Volume = 0.6, Pitch = 1.2 })
+		Remotes.Get("AdminCommand"):FireServer("bot")
 	end
 	playButton.Activated:Connect(toggleQueue)
 	playgroundButton.Activated:Connect(togglePlayground)
@@ -257,12 +209,12 @@ function LobbyUI.Start(playerGui)
 		if not gui.Enabled then
 			return
 		end
-		if input.KeyCode == Config.Lobby.QueueKey then
+		if Keybinds.Matches("FindMatch", input) then
 			toggleQueue()
-		elseif input.KeyCode == PLAYGROUND_KEY then
+		elseif Keybinds.Matches("Playground", input) then
 			togglePlayground()
-		elseif input.KeyCode == CONTROLS_KEY then
-			toggleControls()
+		elseif Keybinds.Matches("BotMatch", input) then
+			botMatch()
 		end
 	end)
 
@@ -271,7 +223,7 @@ function LobbyUI.Start(playerGui)
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, -24, 0, 64),
 		Size = UDim2.fromOffset(150, 40),
-		Text = "SETTINGS  (P)",
+		Text = "SETTINGS",
 		TextSize = 15,
 		BackgroundColor3 = Palette.UIPanel,
 		TextColor3 = Palette.UIText,
@@ -291,6 +243,16 @@ function LobbyUI.Start(playerGui)
 		if not queued then
 			local pulse = (math.sin(t * 3) + 1) / 2
 			playButton.BackgroundColor3 = Palette.UIAccent:Lerp(Color3.new(1, 1, 1), pulse * 0.12)
+		end
+	end)
+
+	-- button labels follow your keybinds and the device you're using
+	ClientState.SettingsChanged:Connect(function()
+		LobbyUI.OnState(lastSnapshot)
+	end)
+	UserInputService.LastInputTypeChanged:Connect(function()
+		if shown then
+			LobbyUI.OnState(lastSnapshot)
 		end
 	end)
 

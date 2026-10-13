@@ -35,11 +35,13 @@ src/server/                -> ServerScriptService.Server
   MatchService.lua            lobby, queue, matchmaking, arena slots
   Match.lua                   one match: countdown, rounds, scoring, power-up picks, victory
   CombatService.lua           server-side hit validation, damage, power-up abilities
-  SettingsService.lua         saves sensitivity settings (DataStore)
+  BotService.lua              computer opponent for admin "/bot" matches (AI + fake player)
+  SettingsService.lua         saves settings + keybinds (DataStore)
 
 src/client/                -> StarterPlayerScripts.Client
   Main.client.lua             entry point, starts every controller
   ClientState.lua             latest match snapshot, my power-up stats, settings
+  Keybinds.lua                every rebindable action + its keyboard / controller default
   CameraController.lua        first-person lock, FOV kicks, tilt, recoil, sensitivity
   MovementController.lua      bhop, air control, sprint, slide, wall run, grapple...
   ViewmodelController.lua     arms + sniper on the camera (sway, bob, recoil, bolt)
@@ -54,8 +56,9 @@ src/client/                -> StarterPlayerScripts.Client
     HUD.lua                   crosshair, scope, scoreboard + power-up icons, health, banners
     PickScreen.lua            the 5-card power-up pick screen
     VictoryScreen.lua         end of match screen
-    LobbyUI.lua               PLAY / queue button, controls list
-    SettingsMenu.lua          sensitivity sliders, hold/toggle scope
+    LobbyUI.lua               find match / playground buttons (keys shown on them)
+    SettingsMenu.lua          General / Keyboard / Controller tabs: sliders, toggles, keybinds
+    Toast.lua                 short messages from the server (admin commands)
     PowerUpLab.lua            try any power-up solo in the lobby (B)
 
 src/character/             -> StarterPlayer.StarterCharacterScripts
@@ -131,7 +134,7 @@ Or search **"Rojo"** in the Studio Toolbox (Plugins tab), by *Rojo*, and install
 
 - **Lighting > Technology** should read **Future** (the project sets it; double check).
 - **Game Settings > Security > Enable Studio Access to API Services**: turn
-  on if you want sensitivity settings to save between sessions (DataStores).
+  on if you want settings and keybinds to save between sessions (DataStores).
   The game works without it; settings just won't persist.
 - Avatar type: R15 or R6 both work. R15 is recommended
   (Game Settings > Avatar).
@@ -154,14 +157,18 @@ the sniper on your own. You need a second player to start a match.
 
 ## Controls
 
+Every key below can be rebound in **Settings (P) > Keyboard** or
+**Settings > Controller** (controller defaults in brackets).
+
 | Key | Action |
 |---|---|
-| WASD | Move |
+| WASD [left stick] | Move |
+| Mouse [right stick] | Look |
 | Hold Space | **Bunny hop**: re-jump the instant you land, keeping all your speed |
 | A or D + mouse | **Air strafe**: in the air, hold A and turn left (or D and right) to gain speed |
 | Left Shift | Sprint (hold) |
 | W (in the air) | Steer your momentum toward where you look (keeps your speed) |
-| C or Left Ctrl | Slide (tap, tap again to stand). Press in the air to slide on landing. Jump out of a slide any time |
+| C [B / O] | Slide (tap, tap again to stand). Press in the air to slide on landing. Jump out of a slide any time |
 | Space | Jump / wall jump (no double jump unless you pick the Double Jump power-up) |
 | (automatic) | Wall run: jump next to a wall while moving and holding W |
 | Right mouse | Scope (hold, or toggle in settings) |
@@ -173,9 +180,13 @@ the sniper on your own. You need a second player to start a match.
 | V | Inspect your rifle |
 | B | **Power-Up Lab** (lobby / playground): try any power-up solo |
 | G | **Playground** (lobby): free roam on the match map with dummies |
-| H | Hide / show the controls list (lobby) |
-| F | Find a match / leave the queue (lobby) |
-| P | Settings (frees the mouse) |
+| F [D-pad right] | Find a match / leave the queue (lobby) |
+| N [RB / R1] | Play against a bot (admins, lobby) |
+| P [Select] | Settings (frees the mouse) |
+
+Controller defaults: RT fire, LT scope, A jump, B slide, L-stick click sprint,
+Y grapple, X blink, D-pad up decoy, D-pad down inspect, D-pad left Power-Up
+Lab, LB playground.
 
 ---
 
@@ -260,13 +271,60 @@ Files: `ArenaDowntown` (city map), `MapBuilder` (lobby + helpers), `LightingSetu
 - [ ] Climb the fire escapes (apartments 24, office tower 48, City Hall 26),
       cross the rooftop catwalk, take the stairs up to the train track and
       stand on the parked train.
-- [ ] Every part is a single flat colour (see the preview in `dist/downtown-preview.png`).
-- [ ] Every part is SmoothPlastic and one solid colour from the palette.
+- [ ] Buildings have depth: pilasters, window frames, ledges, cornices,
+      storefronts with awnings and signs (see `dist/downtown-preview.png`
+      and `dist/downtown-street.png`).
+- [ ] Run along building walls and through the streets: nothing snags you
+      (detail parts don't collide), and you can't clip into walls.
+- [ ] Everything is flat SmoothPlastic from the palette; only lights glow (Neon).
 - [ ] Shadows are crisp, the sky has a soft atmosphere, and bloom is subtle.
 - [ ] Change `Config.Palette` (e.g. `AccentA`) and press Play: map, viewmodel
       and UI colours follow.
 
 ---
+
+## Settings and keybinds
+
+Press **P** (controller: Select) or the SETTINGS button in the lobby.
+- **General**: mouse sensitivity and scoped sensitivity; controller look
+  sensitivity, scoped sensitivity, stick deadzone, invert Y and aim assist;
+  field of view; hold or toggle scope. Sliders can be dragged, or moved with
+  the D-pad on a controller.
+- **Keyboard** / **Controller**: click an action, then press the new key or
+  button (Esc cancels). RESET DEFAULTS puts everything back.
+- Settings save between sessions (DataStore; turn on API access in Studio).
+  Tune the defaults and slider ranges in `Config.SettingsDefaults`,
+  `Config.SettingsLimits` and `Config.Controller`.
+
+## Bot (admin command)
+
+Play a full match against a computer opponent, e.g. to test builds.
+- In the lobby press **N** (controller: RB), or type in chat:
+  `/bot`, `/bot easy`, `/bot normal`, `/bot hard`. `/endbot` ends the match.
+- Who counts as admin (`Config.Admin`): the game's owner (or the group owner),
+  anyone in `UserIds`, and everyone while testing in Studio
+  (`AllowEveryoneInStudio`). Set `BotForEveryone = true` to let all players
+  use it.
+- The bot runs around the map with pathfinding, strafes and hops when it sees
+  you, needs a moment to react, and its aim gets steadier the longer it tracks
+  you (faster movers are harder for it). It shoots through the same server
+  checks as players and picks power-up cards when it loses a round.
+- Difficulty numbers (reaction time, aim error, headshot chance, speed) are
+  in `Config.Bot`.
+
+## Collision and hitboxes
+
+- Walls are single solid boxes. All the detail on them (pilasters, frames,
+  glass, signs, railings, car trim...) has collision **and** bullet hits off,
+  so nothing snags you and shots aren't eaten by decoration.
+- Movement does a body-sized sweep every frame and slides you along walls
+  instead of letting you push into them (fast bunny hops and slides can't
+  tunnel through), and Blink stops short of walls.
+- Stairs and fire escapes walk on a smooth invisible ramp under the visible
+  steps; landings have invisible rails so you can't fall off.
+- Tree leaves don't block movement but do block bullets and sight.
+- The viewmodel pulls back when you stand against a wall, so the rifle never
+  pokes through it.
 
 ## Playground mode
 
@@ -327,12 +385,20 @@ Test them solo in the lobby with the **Power-Up Lab** (press B).
 
 ![Downtown](dist/downtown-preview.png)
 
+![Street level](dist/downtown-street.png)
+
 A mirrored city block (both halves identical):
 - **Avenue**: the main long lane between the spawns, broken up by a bus, cars,
   barriers and the plaza fountain.
-- **North**: apartments (24 high) and an office tower (48) joined by a
-  rooftop catwalk, both climbable by fire escape. City Hall sits in the middle
-  with a columned porch, a 26-high roof and a clock tower.
+- **North**: brick apartments with shops on the ground floor (24 high) and
+  an office tower (48), joined by a catwalk between their steel fire escapes
+  (switchback stairs with real steps, landings and railings). City Hall sits
+  in the middle with a columned porch, a pediment, a 26-high roof and a clock
+  tower.
+- **Detail**: windows with frames and sills between pilasters, cornices and
+  ledges, rooftop bulkheads, AC units and water towers, detailed cars, a taxi
+  and a bus (wheels with rims, lights, mirrors), layered trees, traffic
+  lights, lamps with banners, hydrants, benches and bins.
 - **South**: a park with hedges and billboards (wall-runnable), the elevated
   train track (a long high lane with a train in the middle), a market, a shop,
   a warehouse, climbable shipping containers and a parking lot.

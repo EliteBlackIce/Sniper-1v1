@@ -17,12 +17,16 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local GunModel = require(ReplicatedStorage.Shared.GunModel)
+local Util = require(ReplicatedStorage.Shared.Util)
 
 local Palette = Config.Palette
 local CharacterService = {}
 
 -- Called with (player, character) when a character dies. Set by MatchService.
 CharacterService.OnDied = nil
+
+-- Bots (BotService) aren't in Players, so the void check tracks them here.
+CharacterService.Bots = {} -- [bot] = true
 
 ----------------------------------------------------------------------------
 -- Styling
@@ -145,7 +149,8 @@ function CharacterService.SetFrozen(player, frozen)
 	if not frozen then
 		root.AssemblyLinearVelocity = Vector3.zero
 		pcall(function()
-			root:SetNetworkOwner(player)
+			-- bots are simulated by the server
+			root:SetNetworkOwner(if Util.isBot(player) then nil else player)
 		end)
 	end
 end
@@ -190,7 +195,11 @@ function CharacterService.Init()
 
 	-- Void check: anything that falls below its KillY dies.
 	RunService.Heartbeat:Connect(function()
-		for _, player in ipairs(Players:GetPlayers()) do
+		local everyone = Players:GetPlayers()
+		for bot in pairs(CharacterService.Bots) do
+			table.insert(everyone, bot)
+		end
+		for _, player in ipairs(everyone) do
 			local character = player.Character
 			local root = character and character:FindFirstChild("HumanoidRootPart")
 			local humanoid = character and character:FindFirstChildOfClass("Humanoid")

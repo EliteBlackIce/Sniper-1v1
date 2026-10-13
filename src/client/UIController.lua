@@ -6,9 +6,10 @@
 		HUD           crosshair, scope, scoreboard, health, banners, hitmarkers
 		PickScreen    power-up cards between rounds
 		VictoryScreen end of match
-		LobbyUI       play / queue button and controls
-		SettingsMenu  sensitivity settings (P)
+		LobbyUI       find match / playground / bot buttons
+		SettingsMenu  sliders + keybinds for mouse and controller (P)
 		PowerUpLab    try power-ups solo in the lobby (B)
+		Toast         short server messages (admin commands)
 ]]
 
 local Players = game:GetService("Players")
@@ -22,6 +23,7 @@ local VictoryScreen = require(ui.VictoryScreen)
 local LobbyUI = require(ui.LobbyUI)
 local SettingsMenu = require(ui.SettingsMenu)
 local PowerUpLab = require(ui.PowerUpLab)
+local Toast = require(ui.Toast)
 
 local UIController = {}
 
@@ -63,6 +65,7 @@ function UIController.Start()
 	LobbyUI.Start(playerGui)
 	SettingsMenu.Start(playerGui)
 	PowerUpLab.Start(playerGui)
+	Toast.Start(playerGui)
 
 	ClientState.Changed:Connect(function(snapshot, old)
 		HUD.OnState(snapshot, old)

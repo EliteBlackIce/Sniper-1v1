@@ -11,6 +11,7 @@
 		Match             one 1v1 match: rounds, scoring, power-up picks
 		MatchService      lobby, queue, matchmaking
 		CombatService     server-side hit validation, damage, abilities
+		BotService        computer opponent for admin "/bot" matches
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -23,11 +24,13 @@ local CharacterService = require(script.Parent.CharacterService)
 local SettingsService = require(script.Parent.SettingsService)
 local MatchService = require(script.Parent.MatchService)
 local CombatService = require(script.Parent.CombatService)
+local BotService = require(script.Parent.BotService)
 
 LightingSetup.Apply()
 CharacterService.Init()
 SettingsService.Init()
 CombatService.Init()
+BotService.Init(CombatService)
 MatchService.Init()
 
 print("[Sniper Duel] server ready")

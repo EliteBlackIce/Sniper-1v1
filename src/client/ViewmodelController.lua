@@ -32,6 +32,7 @@ local Util = require(Shared.Util)
 local ClientState = require(script.Parent.ClientState)
 local Spring = require(script.Parent.Spring)
 local Sfx = require(script.Parent.Sfx)
+local Keybinds = require(script.Parent.Keybinds)
 
 local Palette = Config.Palette
 local VM = Config.Viewmodel
@@ -68,6 +69,9 @@ local recoilSpring = Spring.new(220, 18) -- X = pitch, Y = push back, Z = roll
 local moveSpring = Spring.new(150, 13) -- position offset from jumps / landings / dashes
 local bobTime = 0
 local sprintAlpha, slideAlpha, wallAlpha, airOffset = 0, 0, 0, 0
+local wallRetract = 0 -- studs the gun is pulled back because a wall is in front of you
+local retractParams = RaycastParams.new()
+retractParams.FilterType = Enum.RaycastFilterType.Exclude
 local boltStart, boltDuration = 0, 0
 local boltSoundPlayed = true
 local equipStart = -10
@@ -340,7 +344,26 @@ local function update(dt)
 	end
 
 	-- Combine everything into the grip CFrame (camera space -> world)
+	-- WALL RETRACT: if a wall is closer than the end of the barrel, pull the
+	-- rifle back and tilt it up so it never pokes through walls
+	local exclude = { camera }
+	if character then
+		table.insert(exclude, character)
+	end
+	local effects = workspace:FindFirstChild("Effects")
+	if effects then
+		table.insert(exclude, effects)
+	end
+	retractParams.FilterDescendantsInstances = exclude
+	local reach = 5.4
+	local wallHit = workspace:Raycast(camera.CFrame.Position, camera.CFrame.LookVector * reach, retractParams)
+	local wantRetract = wallHit and math.clamp(reach - wallHit.Distance, 0, 3.6) or 0
+	wallRetract = Util.lerp(wallRetract, wantRetract * (1 - scopeAlpha), Util.smooth(14, dt))
+	local retractAlpha = wallRetract / 3.6
+
 	local base = HIP_OFFSET:Lerp(ADS_OFFSET, scopeAlpha)
+		* CFrame.new(0.1 * retractAlpha, -0.15 * retractAlpha, wallRetract)
+		* CFrame.Angles(rad(28) * retractAlpha, rad(12) * retractAlpha, rad(-10) * retractAlpha)
 	local pose = CFrame.identity:Lerp(SPRINT_POSE, sprintAlpha)
 		* CFrame.new(0, -0.14 * slideAlpha, 0.05 * slideAlpha)
 		* CFrame.Angles(0, 0, rad(-18) * slideAlpha)
@@ -431,7 +454,7 @@ function Viewmodel.Start()
 		if processed and UserInputService:GetFocusedTextBox() then
 			return
 		end
-		if input.KeyCode == VM.InspectKey and visible and not inspecting then
+		if Keybinds.Matches("Inspect", input) and visible and not inspecting then
 			inspecting = true
 			inspectStart = os.clock()
 			Sfx.Play("CardHover", { Pitch = 0.8, Volume = 1.5 })

@@ -88,6 +88,17 @@ Config.MapPalette = {
 	Wood = Color3.fromRGB(184, 140, 96),
 	Water = Color3.fromRGB(110, 196, 232),
 	LampLight = Color3.fromRGB(255, 240, 200),
+	Glass = Color3.fromRGB(126, 164, 198),
+	FrameDark = Color3.fromRGB(70, 76, 88),
+	Brick = Color3.fromRGB(190, 112, 92),
+	Stone = Color3.fromRGB(228, 222, 208),
+	Soil = Color3.fromRGB(104, 82, 64),
+	FoliageLight = Color3.fromRGB(140, 202, 118),
+	Tire = Color3.fromRGB(34, 36, 42),
+	Rim = Color3.fromRGB(202, 206, 214),
+	TailLight = Color3.fromRGB(230, 60, 60),
+	SignalGreen = Color3.fromRGB(80, 230, 140),
+	Hydrant = Color3.fromRGB(226, 76, 64),
 	CarColors = {
 		Color3.fromRGB(235, 92, 76),
 		Color3.fromRGB(72, 140, 230),
@@ -138,6 +149,35 @@ Config.Lobby = {
 }
 
 ----------------------------------------------------------------------------
+-- ADMIN + BOT
+-- Admins start a match against a bot with N (controller: RB) in the lobby,
+-- or by chatting "/bot", "/bot easy" or "/bot hard". "/endbot" ends it.
+----------------------------------------------------------------------------
+Config.Admin = {
+	UserIds = {}, -- extra admins, e.g. { 12345678 }
+	AllowEveryoneInStudio = true, -- anyone can use admin commands when testing in Studio
+	BotForEveryone = false, -- true = every player can start a bot match
+}
+
+-- How the bot plays at each difficulty.
+--   ReactionTime    seconds it needs to see you before it shoots
+--   AimError        degrees of aim wobble (shrinks the longer it tracks you)
+--   HeadshotChance  how often it aims for the head
+--   ExtraShotDelay  extra seconds between shots on top of the bolt time
+--   WalkSpeed       how fast it runs around
+Config.Bot = {
+	DefaultDifficulty = "Normal",
+	Difficulties = {
+		Easy = { ReactionTime = 0.95, AimError = 3.4, HeadshotChance = 0.06, ExtraShotDelay = 1.3, WalkSpeed = 22 },
+		Normal = { ReactionTime = 0.6, AimError = 1.8, HeadshotChance = 0.18, ExtraShotDelay = 0.6, WalkSpeed = 27 },
+		Hard = { ReactionTime = 0.32, AimError = 0.8, HeadshotChance = 0.38, ExtraShotDelay = 0.2, WalkSpeed = 32 },
+	},
+	PathInterval = 1.4, -- seconds between path recomputes
+	StrafeTime = { 0.5, 1.3 }, -- seconds per strafe direction while fighting
+	JumpChance = 0.18, -- chance to hop each strafe change
+}
+
+----------------------------------------------------------------------------
 -- PLAYER / HEALTH
 ----------------------------------------------------------------------------
 Config.Player = {
@@ -185,14 +225,34 @@ Config.Viewmodel = {
 
 -- Defaults for the settings menu (players can change and save these).
 Config.SettingsDefaults = {
+	-- mouse / keyboard
 	Sensitivity = 1.0, -- normal look sensitivity multiplier
 	ScopedSensitivity = 0.45, -- multiplier used while scoped
-	ToggleScope = false, -- false = hold right mouse, true = click to toggle
+	-- controller
+	ControllerSensitivity = 1.0,
+	ControllerScopedSensitivity = 0.5,
+	ControllerDeadzone = 0.15, -- right stick inputs smaller than this are ignored
+	InvertY = false, -- controller: push up to look down
+	-- general
+	FieldOfView = 82, -- your normal field of view
+	ToggleScope = false, -- false = hold to scope, true = press to toggle
 	AimAssist = true, -- controller aim assist on/off (players can change it)
+	-- Binds = { Keyboard = { [action] = "KeyName" }, Gamepad = { ... } } (see Client/Keybinds.lua)
 }
 Config.SettingsLimits = {
 	Sensitivity = { Min = 0.1, Max = 3.0 },
 	ScopedSensitivity = { Min = 0.05, Max = 2.0 },
+	ControllerSensitivity = { Min = 0.1, Max = 3.0 },
+	ControllerScopedSensitivity = { Min = 0.05, Max = 2.0 },
+	ControllerDeadzone = { Min = 0.02, Max = 0.4 },
+	FieldOfView = { Min = 65, Max = 105 },
+}
+
+-- Controller look speed (right stick), before the sensitivity setting.
+Config.Controller = {
+	TurnSpeed = 260, -- degrees per second at full stick, sensitivity 1
+	VerticalScale = 0.75, -- looking up/down is a bit slower than turning
+	ResponseCurve = 1.7, -- >1 = finer control near the centre of the stick
 }
 
 ----------------------------------------------------------------------------
@@ -441,6 +501,8 @@ Config.Lighting = {
 		TintColor = Color3.fromRGB(255, 252, 246),
 	},
 	SunRays = { Intensity = 0.06, Spread = 0.6 },
+	-- soft 3D clouds over the city (workspace.Terrain.Clouds)
+	Clouds = { Cover = 0.52, Density = 0.62, Color = Color3.fromRGB(255, 255, 255) },
 }
 
 ----------------------------------------------------------------------------

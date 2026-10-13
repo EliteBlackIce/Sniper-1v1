@@ -6,20 +6,26 @@
 	  * Pressing PLAY puts you in the queue; the first two queued players are
 	    matched into a free arena.
 	  * When a match ends, both players come back to the lobby.
+	  * Admin commands: "/bot [easy|normal|hard]" (or N in the lobby) starts a
+	    match against a bot, "/endbot" ends it (see Config.Admin).
 
 	Other services use MatchService.GetMatch(player) to find a player's match.
 ]]
 
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TextChatService = game:GetService("TextChatService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local PowerUps = require(ReplicatedStorage.Shared.PowerUps)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local Util = require(ReplicatedStorage.Shared.Util)
 local CharacterService = require(script.Parent.CharacterService)
 local MapBuilder = require(script.Parent.MapBuilder)
 local DummyService = require(script.Parent.DummyService)
 local Match = require(script.Parent.Match)
+local BotService = require(script.Parent.BotService)
 
 local MatchService = {}
 
@@ -151,7 +157,9 @@ local function onMatchFinished(match)
 		if matchByPlayer[player] == match then
 			matchByPlayer[player] = nil
 		end
-		if player.Parent then
+		if Util.isBot(player) then
+			BotService.Remove(player)
+		elseif player.Parent then
 			task.spawn(spawnInLobby, player)
 		end
 	end
@@ -182,6 +190,134 @@ local function tryStartMatches()
 	broadcastLobby()
 end
 
+----------------------------------------------------------------------------
+-- Admin commands (bot matches)
+----------------------------------------------------------------------------
+local function notify(player, text)
+	Remotes.Get("Notify"):FireClient(player, text)
+end
+
+local function isAdmin(player)
+	local admin = Config.Admin
+	if admin.BotForEveryone then
+		return true
+	end
+	if admin.AllowEveryoneInStudio and RunService:IsStudio() then
+		return true
+	end
+	if table.find(admin.UserIds, player.UserId) then
+		return true
+	end
+	if game.CreatorType == Enum.CreatorType.User then
+		return player.UserId == game.CreatorId
+	end
+	local ok, rank = pcall(function()
+		return player:GetRankInGroup(game.CreatorId)
+	end)
+	return ok and rank >= 255 -- group owner
+end
+
+-- "hard" -> "Hard" (falls back to the default difficulty)
+local function difficultyName(text)
+	if typeof(text) == "string" and #text > 0 then
+		local name = string.upper(text:sub(1, 1)) .. string.lower(text:sub(2))
+		if Config.Bot.Difficulties[name] then
+			return name
+		end
+	end
+	return Config.Bot.DefaultDifficulty
+end
+
+function MatchService.StartBotMatch(player, difficulty)
+	if matchByPlayer[player] then
+		notify(player, "Finish your current match first")
+		return
+	end
+	local arena = getFreeArena()
+	if not arena then
+		notify(player, "All arenas are busy - try again soon")
+		return
+	end
+	local index = table.find(queue, player)
+	if index then
+		table.remove(queue, index)
+	end
+	difficulty = difficultyName(difficulty)
+	local bot = BotService.Create(difficulty)
+	inPlayground[player] = nil
+	local match = Match.new(player, bot, arena, onMatchFinished)
+	matchByPlayer[player] = match
+	matchByPlayer[bot] = match
+	BotService.Attach(bot, match)
+	notify(player, "Bot match - " .. difficulty)
+	match:Start()
+	broadcastLobby()
+end
+
+local function endBotMatch(player)
+	local match = matchByPlayer[player]
+	if match and (Util.isBot(match.Players[1]) or Util.isBot(match.Players[2])) then
+		match:Cancel()
+		notify(player, "Bot match ended")
+	else
+		notify(player, "You're not in a bot match")
+	end
+end
+
+local function onAdminCommand(player, command, arg)
+	if typeof(command) ~= "string" then
+		return
+	end
+	if not isAdmin(player) then
+		notify(player, "Admins only")
+		return
+	end
+	command = string.lower(command)
+	if command == "bot" then
+		MatchService.StartBotMatch(player, arg)
+	elseif command == "endbot" then
+		endBotMatch(player)
+	end
+end
+
+-- "/bot hard" -> onAdminCommand(player, "bot", "hard")
+local function onChat(player, text)
+	local command, arg = string.match(string.lower(text), "^[/!](%a+)%s*(%a*)")
+	if command == "bot" or command == "endbot" then
+		onAdminCommand(player, command, arg)
+	end
+end
+
+local function setupChatCommands()
+	if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
+		-- new chat: registered commands (they never show up as messages)
+		local commands = TextChatService:FindFirstChild("TextChatCommands") or TextChatService
+		for _, alias in ipairs({ "/bot", "/endbot" }) do
+			local command = Instance.new("TextChatCommand")
+			command.Name = "SniperDuel" .. alias:sub(2)
+			command.PrimaryAlias = alias
+			command.Parent = commands
+			command.Triggered:Connect(function(source, text)
+				local player = Players:GetPlayerByUserId(source.UserId)
+				if player then
+					onChat(player, text)
+				end
+			end)
+		end
+	else
+		-- legacy chat
+		local function hook(player)
+			player.Chatted:Connect(function(text)
+				onChat(player, text)
+			end)
+		end
+		Players.PlayerAdded:Connect(hook)
+		for _, player in ipairs(Players:GetPlayers()) do
+			hook(player)
+		end
+	end
+end
+
 local function onQueueToggle(player)
 	if matchByPlayer[player] then
 		return
@@ -206,13 +342,15 @@ function MatchService.Init()
 		local match = matchByPlayer[player]
 		if match then
 			match:OnPlayerDied(player)
-		else
+		elseif not Util.isBot(player) then
 			-- died in the lobby (fell off): respawn shortly
 			task.delay(1.5, spawnInLobby, player)
 		end
 	end
 
 	Remotes.Get("QueueToggle").OnServerEvent:Connect(onQueueToggle)
+	Remotes.Get("AdminCommand").OnServerEvent:Connect(onAdminCommand)
+	setupChatCommands()
 
 	-- enter / leave the Playground
 	Remotes.Get("PlaygroundToggle").OnServerEvent:Connect(function(player)

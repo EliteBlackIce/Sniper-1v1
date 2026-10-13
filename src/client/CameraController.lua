@@ -18,6 +18,7 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local ContextActionService = game:GetService("ContextActionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
@@ -33,6 +34,7 @@ local CameraController = {}
 local Controllers
 
 local currentFov = C.BaseFOV
+local rightStick = Vector2.zero -- controller look stick (we handle it ourselves)
 local currentRoll = 0
 local currentDrop = 0
 local recoilLeft = 0 -- degrees of pitch still to apply
@@ -149,7 +151,7 @@ local function update(dt)
 	local scopeAlpha = weapon.GetScopeAlpha()
 
 	-- FIELD OF VIEW
-	local targetFov = C.BaseFOV + hints.FovKick
+	local targetFov = (ClientState.Settings.FieldOfView or C.BaseFOV) + hints.FovKick
 	targetFov = Util.lerp(targetFov, C.ScopeFOV, scopeAlpha)
 	fovPunch = Util.approach(fovPunch, 0, 40 * dt)
 	currentFov = Util.lerp(currentFov, targetFov, Util.smooth(C.FOVLerpSpeed, dt))
@@ -179,6 +181,30 @@ local function update(dt)
 	landDip += landDipVelocity * dt
 	if humanoid then
 		humanoid.CameraOffset = Vector3.new(0, -currentDrop + bobY + landDip, 0)
+	end
+
+	-- CONTROLLER LOOK: right stick, with its own sensitivity / deadzone / curve
+	if not ClientState.MenuOpen then
+		local dz = settings.ControllerDeadzone or 0.15
+		local mag = rightStick.Magnitude
+		if mag > dz then
+			local CC = Config.Controller
+			local amount = ((math.min(mag, 1) - dz) / (1 - dz)) ^ CC.ResponseCurve
+			local dir = rightStick.Unit * amount
+			local sens = scopeAlpha > 0.5 and settings.ControllerScopedSensitivity or settings.ControllerSensitivity
+			if movement.IsBulletTime() then
+				sens *= Config.PowerUps.BulletTime.SensitivityScale
+			end
+			local rate = math.rad(CC.TurnSpeed) * (sens or 1) * dt
+			local cf = camera.CFrame
+			local look = cf.LookVector
+			local pitch = math.asin(math.clamp(look.Y, -1, 1))
+			local newPitch = math.clamp(pitch + dir.Y * rate * CC.VerticalScale * (settings.InvertY and -1 or 1), -1.4, 1.4)
+			local flat = Util.safeUnit(Vector3.new(look.X, 0, look.Z), Vector3.new(0, 0, -1))
+			flat = CFrame.Angles(0, -dir.X * rate, 0):VectorToWorldSpace(flat)
+			local newLook = flat * math.cos(newPitch) + Vector3.new(0, math.sin(newPitch), 0)
+			camera.CFrame = CFrame.lookAt(cf.Position, cf.Position + newLook)
+		end
 	end
 
 	if firstPerson then
@@ -243,6 +269,16 @@ function CameraController.Start()
 	Controllers.Movement.Landed:Connect(CameraController.LandingDip)
 
 	AimAssist.Start()
+	-- take the right stick away from Roblox's camera so our controller
+	-- sensitivity / deadzone settings are used instead
+	ContextActionService:BindActionAtPriority("SniperControllerLook", function(_, state, input)
+		if state == Enum.UserInputState.Cancel or state == Enum.UserInputState.End then
+			rightStick = Vector2.zero
+		else
+			rightStick = Vector2.new(input.Position.X, input.Position.Y)
+		end
+		return Enum.ContextActionResult.Sink
+	end, false, Enum.ContextActionPriority.High.Value + 50, Enum.KeyCode.Thumbstick2)
 	RunService:BindToRenderStep("SniperCamera", Enum.RenderPriority.Camera.Value + 1, update)
 end
 

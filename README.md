@@ -317,17 +317,26 @@ Files: `ArenaCrossfire` (the map), `GunModel` (rifle + power-up mods), `Viewmode
 
 ![Lobby](dist/lobby-preview.png)
 
-A plaza where everyone waits between matches:
-- **Spawn dais** in the middle with a glowing ring.
-- **Shooting range** through the archway to the north, with moving dummies.
-- **Duel pads** on the east wall (find a match with F, or duel a player with U).
-- **Crate shop** on the west wall: three loot crates (Rare, Legendary, Epic)
-  on pedestals under a "CRATES - RIFLE SKINS - COMING SOON" sign. This is a
-  placeholder. Each pedestal has a marker part in `Lobby.CrateSpots` with a
-  `Rarity` attribute, ready for a crate / skin system.
-- **Stage** with the title sign to the south, a **movement park** in both
-  back corners (ramps and boxes, a ceiling, a Wall Runner wall), and trees,
-  lamps and benches.
+A round, enclosed hall (a rotunda) with a roof. Paved, lamp-lined paths lead
+from the centre to alcoves around the curved wall:
+- **Centre**: a sunken ring with smooth steps, where you spawn around a giant
+  statue of the rifle (the imported PGM 338 if you have it). A ring of
+  columns with team banners holds up a glass skylight dome.
+- **North**: a tunnel with a gate into the shooting range (moving dummies).
+- **East**: the duel area, a raised dais with team-coloured pads under a
+  canopy (find a match with F, or duel a player with U).
+- **West**: the crate shop, a storefront with arches, a striped awning, a
+  counter, shelves of crates and three display crates (Rare, Legendary,
+  Epic) on lit pedestals under a "CRATES - RIFLE SKINS - COMING SOON"
+  sign. This is a placeholder: each pedestal has a marker part in
+  `Lobby.CrateSpots` with a `Rarity` attribute, ready for a crate / skin
+  system.
+- **South**: the stage with the title sign, speakers and a light rig.
+- **Diagonals**: the Playground portal, an indoor garden with a pond, a
+  parkour corner (ramp, boxes, rising blocks) and a wall-run wall with a low
+  ceiling for Magnetic Boots.
+- The walls have framed panels, lit windows, pilasters, a cornice and lit
+  sconces; the ceiling has beams and hanging lights.
 
 It's built in `src/server/LobbyBuilder.lua`.
 

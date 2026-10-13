@@ -712,10 +712,16 @@ local function spawnDecoy(player, match, direction)
 	decoy:SetAttribute("Decoy", true)
 	decoy:SetAttribute("OwnerUserId", player.UserId)
 
-	-- the decoy only holds what you're holding
+	-- the decoy only holds what you're holding, and keeps the shape of your body
 	local unused = decoy:FindFirstChild(character:GetAttribute("Weapon") == "Knife" and "WorldGun" or "WorldKnife")
 	if unused then
 		unused:Destroy()
+	end
+	for _, name in ipairs({ "HitboxHead", "HitboxTorso", "HitboxLegs" }) do
+		local box = decoy:FindFirstChild(name)
+		if box then
+			box:Destroy() -- (the decoy's own body parts are what you can shoot)
+		end
 	end
 	for _, item in ipairs(decoy:GetDescendants()) do
 		if item:IsA("Script") or item:IsA("LocalScript") or item:IsA("Humanoid") or item:IsA("Constraint") then
@@ -728,7 +734,7 @@ local function spawnDecoy(player, match, direction)
 			part.CanCollide = false
 			part.CanTouch = false
 			part.Material = Enum.Material.SmoothPlastic
-			if part.Name ~= "HumanoidRootPart" then
+			if part.Name ~= "HumanoidRootPart" and part.Name ~= "WeaponRoot" and part.Name ~= "BoltRoot" then
 				part.Color = Config.Palette.Hologram
 				part.Transparency = 0.3
 				part.CanQuery = part.Parent == decoy -- body parts can be shot
@@ -986,6 +992,13 @@ local function onAnim(player, kind, value)
 	if not character or typeof(kind) ~= "string" then
 		return
 	end
+	if kind == "Scope" then
+		-- a state, not an event: always take the latest (it's only sent on change)
+		if typeof(value) == "boolean" then
+			character:SetAttribute("Scoped", value)
+		end
+		return
+	end
 	local now = os.clock()
 	lastAnim[player] = lastAnim[player] or {}
 	if now - (lastAnim[player][kind] or 0) < 0.25 then
@@ -994,8 +1007,6 @@ local function onAnim(player, kind, value)
 	lastAnim[player][kind] = now
 	if kind == "Inspect" and INSPECT_VARIANTS[value] then
 		character:SetAttribute("Inspect", ((character:GetAttribute("Inspect") or 0) + 1) % 1000)
-	elseif kind == "Scope" and typeof(value) == "boolean" then
-		character:SetAttribute("Scoped", value)
 	end
 end
 

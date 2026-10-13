@@ -351,7 +351,6 @@ local function play(deathTime, killerName)
 		Controllers.Camera.SetSuspended(false)
 		playing = false
 		gui.Enabled = false
-		pcall(Controllers.Viewmodel.SetWeapon, ClientState.Weapon or "Sniper")
 		if ghost then
 			Controllers.Viewmodel.Untrack(ghost)
 			ghost:Destroy()
@@ -365,6 +364,7 @@ local function play(deathTime, killerName)
 		if not ok then
 			warn("[KillCam]", err)
 		end
+		pcall(Controllers.Viewmodel.SetWeapon, ClientState.Weapon or "Sniper") -- (yours, now the puppet is gone)
 	end
 
 	-- runs just before the viewmodel (Camera + 2), so the arms use this frame's camera
@@ -394,7 +394,7 @@ local function play(deathTime, killerName)
 				lastSwing = s.Swing
 			end
 			local eye = CFrame.new(s.Head) * CFrame.fromOrientation(s.Pitch, s.Yaw, 0)
-			camera.CFrame = eye * CFrame.new(0, 0, Config.Body.CameraBack or 0)
+			camera.CFrame = eye * CFrame.new(0, 0, Controllers.Viewmodel.EyeBack or 0.5) -- framed like first person
 			if killerCopy then
 				killerCopy:PivotTo(CFrame.new(s.Head - Vector3.new(0, 1.5, 0)) * CFrame.fromOrientation(0, s.Yaw, 0))
 			end

@@ -54,6 +54,11 @@ local hiddenBy = {} -- [reason] = true: hide your first-person arms + weapon
 local localState = WeaponAnim.New()
 local puppet -- { Character, State } while the kill cam plays through someone's eyes
 
+-- Roblox's first-person camera sits 0.5 studs behind the head (its minimum
+-- zoom), plus Config.Body.CameraBack; the eyes are that far in front of it.
+local EYE_BACK = 0.5 + (B.CameraBack or 0)
+BodyAnimator.EyeBack = EYE_BACK
+
 local swaySpring = Spring.new(140, 16)
 local bobTime, sprintAlpha = 0, 0
 local lastScoped = false
@@ -181,12 +186,14 @@ local function animate(model, dt, t, camera)
 	if firstPerson or isPuppet then
 		local cam = camera.CFrame
 		pitch = math.asin(math.clamp(cam.LookVector.Y, -1, 1))
-		view = cam * CFrame.new(0, 0, -(B.CameraBack or 0)) -- the eyes, in front of the camera
+		view = cam * CFrame.new(0, 0, -EYE_BACK) -- the eyes, in front of the camera
 		if firstPerson then
-			-- face exactly where you look (before physics, so arms and camera agree)
+			-- face exactly where you look (before physics, so arms and camera agree);
+			-- not while frozen or while a cutscene owns the camera
 			local root = rig.Root
 			local look = Util.flat(cam.LookVector)
-			if look.Magnitude > 0.05 then
+			local free = not root.Anchored and not model:GetAttribute("Frozen") and camera.CameraType == Enum.CameraType.Custom
+			if look.Magnitude > 0.05 and free then
 				root.CFrame = CFrame.lookAt(root.Position, root.Position + look)
 			end
 			-- sway (lags behind the mouse) and walk bob
@@ -237,6 +244,11 @@ local function step(dt)
 		return
 	end
 	local t = now()
+	for model in pairs(entries) do
+		if not model.Parent then
+			entries[model] = nil -- (the entry points back at its model, so it'd never be collected)
+		end
+	end
 	local done = {}
 	local function try(model)
 		if not model or done[model] or not model.Parent then
@@ -270,6 +282,7 @@ end
 -- First person: show your own forearms, hands and weapon (Roblox hides your
 -- whole character in first person); hide them while scoped or in menus.
 local ARM_PARTS = { "RightLowerArm", "RightHand", "LeftLowerArm", "LeftHand" }
+local weaponParts = setmetatable({}, { __mode = "k" }) -- [weapon model] = its parts
 local UPPER_ARMS = { "RightUpperArm", "LeftUpperArm" }
 local function showArms(model, shown)
 	local value = shown and 0 or 1
@@ -289,11 +302,26 @@ local function showArms(model, shown)
 	end
 	local state = stateFor(model)
 	local weaponName = state and state.Weapon == "Knife" and "WorldKnife" or "WorldGun"
+	local isCopy = puppet ~= nil and model == puppet.Character -- (a local copy: we may set Transparency)
 	for _, name in ipairs({ "WorldGun", "WorldKnife" }) do
 		local weapon = model:FindFirstChild(name)
-		for _, part in ipairs(weapon and weapon:GetDescendants() or {}) do
-			if part:IsA("BasePart") then
-				part.LocalTransparencyModifier = (shown and name == weaponName) and 0 or 1
+		if weapon then
+			local cache = weaponParts[weapon]
+			if not cache then
+				cache = {}
+				for _, part in ipairs(weapon:GetDescendants()) do
+					if part:IsA("BasePart") then
+						table.insert(cache, part)
+					end
+				end
+				weaponParts[weapon] = cache
+			end
+			local held = name == weaponName
+			for _, part in ipairs(cache) do
+				part.LocalTransparencyModifier = (shown and held) and 0 or 1
+				if isCopy then
+					part.Transparency = held and (part:GetAttribute("BaseTransparency") or 0) or 1
+				end
 			end
 		end
 	end
@@ -443,7 +471,26 @@ end
 
 function BodyAnimator.Start()
 	-- after Roblox's Animator has posed everyone this frame
-	RunService.Stepped:Connect(step)
+	RunService.Stepped:Connect(function(_, dt)
+		step(dt)
+	end)
+
+	-- send where you're looking up / down, so others see your aim (AimPitch)
+	task.spawn(function()
+		local aim = Remotes.Get("Aim")
+		local lastSent = 0
+		while true do
+			task.wait(0.1)
+			local camera = workspace.CurrentCamera
+			if camera and player.Character then
+				local pitch = math.asin(math.clamp(camera.CFrame.LookVector.Y, -1, 1))
+				if math.abs(pitch - lastSent) > 0.03 then
+					lastSent = pitch
+					aim:FireServer(pitch)
+				end
+			end
+		end
+	end)
 	-- after the camera (and its first-person hiding) each frame
 	RunService:BindToRenderStep("BodyFirstPerson", Enum.RenderPriority.Camera.Value + 5, updateVisibility)
 

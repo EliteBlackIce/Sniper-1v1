@@ -132,7 +132,7 @@ Config.Body = {
 	GunScale = 0.85, -- the rifle's size in your hands
 	RifleHip = Vector3.new(0.42, -0.78, -0.85), -- where the rifle's grip sits, from your eyes
 	RifleLeftHold = -0.55, -- how far up the rifle the left hand holds (studs, gun space)
-	CameraBack = 0.5, -- first person: the camera sits this far behind your eyes so your arms aren't in your face
+	CameraBack = 0, -- extra distance the first-person camera sits behind your eyes (Roblox already keeps it 0.5 back)
 	-- Seen from outside, the same animation is played lower and a little
 	-- further out (weapons at chest / waist height, not up by the face).
 	ThirdPersonOffset = CFrame.new(0, -0.5, -0.15),

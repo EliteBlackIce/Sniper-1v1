@@ -17,7 +17,8 @@
         "LoadCharacterAppearance": true,
         "CameraMaxZoomDistance": 18,
         "CameraMinZoomDistance": 0.5,
-        "EnableMouseLockOption": false
+        "EnableMouseLockOption": false,
+        "GameSettingsAvatar": "R15"
       },
       "StarterPlayerScripts": {
         "Client": {

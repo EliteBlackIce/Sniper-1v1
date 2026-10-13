@@ -46,30 +46,93 @@ local MOTORS = {
 	LeftKnee = "LeftLowerLeg",
 }
 
--- The rig's joints, or nil if this isn't an R15 character.
-function BodyRig.Find(character)
-	local motors = {}
-	for motorName, partName in pairs(MOTORS) do
-		local part = character:FindFirstChild(partName)
-		local motor = part and part:FindFirstChild(motorName)
-		if not (motor and motor:IsA("Motor6D")) then
-			return nil
-		end
-		motors[motorName] = motor
+-- A joint we can pose: a Motor6D as is, or one of Roblox's newer
+-- AnimationConstraints (same maths: Part1 = Part0 * Att0 * Transform * Att1:Inverse()).
+local function joint(inst)
+	if inst:IsA("Motor6D") then
+		return inst
 	end
-	local root = character:FindFirstChild("HumanoidRootPart")
-	if not root then
+	return setmetatable({ Instance = inst }, {
+		__index = function(_, key)
+			if key == "C0" then
+				return inst.Attachment0 and inst.Attachment0.CFrame or CFrame.new()
+			elseif key == "C1" then
+				return inst.Attachment1 and inst.Attachment1.CFrame or CFrame.new()
+			elseif key == "Transform" then
+				return inst.Transform
+			end
+			return nil
+		end,
+		__newindex = function(_, key, value)
+			if key == "Transform" then
+				inst.Transform = value
+			end
+		end,
+	})
+end
+
+-- Finds the joint called `name` that moves `part`.
+local function findJoint(part, name)
+	if not part then
 		return nil
 	end
-	local rig = { Character = character, Root = root, Motors = motors, Base = {}, Set = {} }
-	local function length(a, b)
-		return (a.C1.Position - b.C0.Position).Magnitude -- joint to joint inside one part
+	local inst = part:FindFirstChild(name)
+	if inst and (inst:IsA("Motor6D") or inst:IsA("AnimationConstraint")) then
+		return joint(inst)
 	end
-	rig.Upper = length(motors.RightShoulder, motors.RightElbow)
-	rig.Lower = length(motors.RightElbow, motors.RightWrist)
-	rig.LeftUpper = length(motors.LeftShoulder, motors.LeftElbow)
-	rig.LeftLower = length(motors.LeftElbow, motors.LeftWrist)
-	return rig
+	-- newer avatars: an AnimationConstraint anywhere in the part, joining it to its parent part
+	for _, item in ipairs(part:GetChildren()) do
+		if item:IsA("AnimationConstraint") and item.Attachment1 and item.Attachment1.Parent == part then
+			return joint(item)
+		end
+	end
+	return nil
+end
+
+local R6_JOINTS = {
+	Root = { "HumanoidRootPart", "RootJoint" },
+	RightShoulder = { "Torso", "Right Shoulder" },
+	LeftShoulder = { "Torso", "Left Shoulder" },
+	Neck = { "Torso", "Neck" },
+}
+
+-- The rig's joints, or nil (and a reason) if we can't pose this character.
+function BodyRig.Find(character)
+	local root = character:FindFirstChild("HumanoidRootPart")
+	if not root then
+		return nil, "no HumanoidRootPart"
+	end
+	local motors = {}
+	local missing
+	for motorName, partName in pairs(MOTORS) do
+		local found = findJoint(character:FindFirstChild(partName), motorName)
+		if not found then
+			missing = missing or (partName .. "." .. motorName)
+		end
+		motors[motorName] = found
+	end
+	if not missing then
+		local rig = { Kind = "R15", Character = character, Root = root, Motors = motors, Base = {}, Set = {} }
+		local function length(a, b)
+			return (a.C1.Position - b.C0.Position).Magnitude -- joint to joint inside one part
+		end
+		rig.Upper = length(motors.RightShoulder, motors.RightElbow)
+		rig.Lower = length(motors.RightElbow, motors.RightWrist)
+		rig.LeftUpper = length(motors.LeftShoulder, motors.LeftElbow)
+		rig.LeftLower = length(motors.LeftElbow, motors.LeftWrist)
+		return rig
+	end
+	-- R6: one-piece arms that point at the weapon
+	local r6 = {}
+	for name, where in pairs(R6_JOINTS) do
+		local part = character:FindFirstChild(where[1])
+		local inst = part and part:FindFirstChild(where[2])
+		if not (inst and inst:IsA("Motor6D")) then
+			return nil, "missing joint " .. missing
+		end
+		r6[name] = inst
+	end
+	return { Kind = "R6", Character = character, Root = root, Motors = r6, Base = {}, Set = {} }
 end
 
 -- The current weapon joint on the right hand (made by CharacterService).
@@ -187,8 +250,36 @@ end
 	  LegWeight   0..1 how much the lunge pose replaces the walk (default anim.Body.Step)
 	Returns { RightHand = CFrame, LeftHand = CFrame, Weapon = CFrame }
 ]]
+local function solveR6(rig, view, anim, opts)
+	local m = rig.Motors
+	local rootCF = rig.Root.CFrame
+	local torso = child(m.Root, rootCF)
+	local function aimArm(motor, target)
+		local S = (torso * motor.C0).Position
+		local dir = target.Position - S
+		dir = dir.Magnitude > 1e-3 and dir.Unit or -view.UpVector
+		local armCF = CFrame.new(S) * frame(-dir, target.RightVector) * CFrame.new(-motor.C1.Position)
+		place(motor, torso, armCF) -- (the arm hangs along its -Y, so -Y points at the weapon)
+		return armCF
+	end
+	local rightArm = aimArm(m.RightShoulder, view * anim.Right)
+	aimArm(m.LeftShoulder, view * anim.Left)
+	local weaponCF = view * anim.Weapon
+	local weapon = opts.Weapon
+	if weapon then
+		weapon.Grip.Transform = (rightArm * weapon.Grip.C0):Inverse() * (weaponCF * weapon.GripToRoot) * weapon.Grip.C1
+		if weapon.Bolt then
+			weapon.Bolt.Transform = anim.Bolt or CFrame.new()
+		end
+	end
+	return { RightHand = rightArm, LeftHand = rightArm, Weapon = weaponCF }
+end
+
 function BodyRig.Solve(rig, view, anim, opts)
 	opts = opts or {}
+	if rig.Kind == "R6" then
+		return solveR6(rig, view, anim, opts)
+	end
 	local m = rig.Motors
 	local body = anim.Body or {}
 	local pitch = opts.Pitch or 0

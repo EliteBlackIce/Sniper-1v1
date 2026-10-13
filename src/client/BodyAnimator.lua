@@ -49,6 +49,8 @@ local BodyAnimator = {}
 local Controllers
 
 local entries = setmetatable({}, { __mode = "k" }) -- [character] = entry
+local warnedRig = setmetatable({}, { __mode = "k" })
+local warnedErrors = {} -- each error message once (not every frame)
 local extra = {} -- extra models to animate (the kill cam's copy of you)
 local hiddenBy = {} -- [reason] = true: hide your first-person arms + weapon
 local localState = WeaponAnim.New()
@@ -75,9 +77,20 @@ local function getEntry(model)
 	if entry then
 		return entry
 	end
-	local rig = BodyRig.Find(model)
+	local rig, why = BodyRig.Find(model)
 	if not rig then
+		if model == player.Character and not warnedRig[model] then
+			warnedRig[model] = true
+			local humanoid = model:FindFirstChildOfClass("Humanoid")
+			warn(("[BodyAnimator] can't animate your character (%s, rig type %s). Make sure Game Settings > Avatar is set to R15."):format(
+				tostring(why),
+				humanoid and humanoid.RigType.Name or "?"
+			))
+		end
 		return nil
+	end
+	if model == player.Character then
+		print(("[BodyAnimator] animating your character (%s joints)"):format(rig.Kind))
 	end
 	entry = { Rig = rig, State = WeaponAnim.New(), Pitch = 0, Seen = {}, Weapons = {} }
 	entry.State.EquipStart = -10
@@ -263,8 +276,9 @@ local function step(dt)
 			return
 		end
 		local ok, err = pcall(animate, model, dt, t, camera)
-		if not ok then
-			warn("[BodyAnimator]", err)
+		if not ok and not warnedErrors[err] then
+			warnedErrors[err] = true
+			warn("[BodyAnimator] " .. tostring(err))
 		end
 	end
 	for _, other in ipairs(Players:GetPlayers()) do

@@ -360,6 +360,12 @@ function CharacterService.Spawn(player, cframe, options)
 		return nil
 	end
 
+	if humanoid.RigType ~= Enum.HumanoidRigType.R15 then
+		warn(("[CharacterService] %s spawned as %s; the game is built for R15 (Game Settings > Avatar > R15)"):format(
+			tostring(player.Name),
+			humanoid.RigType.Name
+		))
+	end
 	CharacterService.Style(character, options.Color or Palette.LobbyPlayer, player)
 	character:SetAttribute("Weapon", "Sniper") -- every life starts with the rifle out
 	addHitboxes(character)

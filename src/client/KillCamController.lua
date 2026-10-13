@@ -12,8 +12,11 @@
 	  * Their shots (the ShotFx remote) are recorded with a timestamp.
 	  * When the server tells you that you died from a hit (Damaged with
 	    Killed = true), we replay the buffer: the camera rides along their
-	    head, a translucent copy of you stands where you were, and their
-	    shot tracers are drawn again at the right moment.
+	    head, with THEIR arms (a copy of their avatar's arms) holding THEIR
+	    rifle (with their power-ups) in view, kicking and cycling the bolt on
+	    every shot. A copy of your real character runs, jumps and aims where
+	    you did, with Roblox's normal animations and the rifle-holding pose,
+	    and their shot tracers are drawn again at the right moment.
 
 	Press Space / tap the screen to skip. Tune it in Config.KillCam.
 ]]
@@ -26,7 +29,9 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Remotes = require(Shared.Remotes)
+local PowerUps = require(Shared.PowerUps)
 local ClientState = require(script.Parent.ClientState)
+local CharacterPoser = require(script.Parent.CharacterPoser)
 local Theme = require(script.Parent.ui.Theme)
 
 local K = Config.KillCam
@@ -37,12 +42,22 @@ local KillCam = {}
 local Controllers
 
 local BUFFER_SECONDS = 4
-local samples = {} -- { T, Head (Vector3), Yaw, Pitch, Me (CFrame) }
+local samples = {} -- { T, Head (Vector3), Yaw, Pitch, Me (CFrame), MyPitch, MyAir }
 local shots = {} -- { T, Bullets, Explosive }
 local playing = false
 local stopRequested = false
 local gui, banner, killerLabel, vignette
 local ghostTemplate -- a copy of you made at the start of each round (before you can die)
+local ghostAnims = {} -- { idle = id, run = id, fall = id, ... } from your character's Animate script
+
+-- Roblox's default R15 animations, in case your character has no Animate script
+local DEFAULT_ANIMS = {
+	idle = "rbxassetid://507766388",
+	walk = "rbxassetid://507777826",
+	run = "rbxassetid://507767714",
+	jump = "rbxassetid://507765000",
+	fall = "rbxassetid://507767968",
+}
 
 local function now()
 	return os.clock()
@@ -73,12 +88,15 @@ local function record()
 		return
 	end
 	local look = enemyRoot.CFrame.LookVector
+	local myHumanoid = me:FindFirstChildOfClass("Humanoid")
 	table.insert(samples, {
 		T = now(),
 		Head = head.Position + Vector3.new(0, 0.3, 0),
 		Yaw = math.atan2(-look.X, -look.Z),
 		Pitch = enemy:GetAttribute("AimPitch") or 0,
 		Me = myRoot.CFrame,
+		MyPitch = me:GetAttribute("AimPitch") or 0,
+		MyAir = myHumanoid ~= nil and myHumanoid.FloorMaterial == Enum.Material.Air,
 	})
 	trim(samples)
 end
@@ -103,18 +121,41 @@ local function sampleAt(t)
 				Yaw = a.Yaw + yawDelta * alpha,
 				Pitch = a.Pitch + (b.Pitch - a.Pitch) * alpha,
 				Me = a.Me:Lerp(b.Me, alpha),
+				MyPitch = a.MyPitch + (b.MyPitch - a.MyPitch) * alpha,
+				MyAir = alpha < 0.5 and a.MyAir or b.MyAir,
 			}
 		end
 	end
 	return samples[count]
 end
 
--- A see-through copy of you, posed where you stood.
+-- The animation ids your character uses (its Animate script's values).
+local function readAnimations(character)
+	local found = {}
+	local animate = character:FindFirstChild("Animate")
+	if animate then
+		for name in pairs(DEFAULT_ANIMS) do
+			local value = animate:FindFirstChild(name)
+			local animation = value and value:FindFirstChildOfClass("Animation")
+			if animation and animation.AnimationId ~= "" then
+				found[name] = animation.AnimationId
+			end
+		end
+	end
+	for name, id in pairs(DEFAULT_ANIMS) do
+		found[name] = found[name] or id
+	end
+	return found
+end
+
+-- A copy of your real character (avatar, clothes, rifle), still rigged so it
+-- can be animated. Only the root is anchored; the kill cam moves it.
 local function makeGhost()
 	local character = player.Character
 	if not character then
 		return nil
 	end
+	ghostAnims = readAnimations(character)
 	local wasArchivable = character.Archivable
 	character.Archivable = true
 	local ok, ghost = pcall(function()
@@ -125,29 +166,76 @@ local function makeGhost()
 		return nil
 	end
 	for _, item in ipairs(ghost:GetDescendants()) do
-		if item:IsA("Script") or item:IsA("LocalScript") or item:IsA("Highlight") or item:IsA("ParticleEmitter") then
+		if item:IsA("Script") or item:IsA("LocalScript") or item:IsA("Highlight") or item:IsA("ParticleEmitter") or item:IsA("Sound") then
 			item:Destroy()
 		elseif item:IsA("BasePart") then
-			item.Anchored = true
+			item.Anchored = item.Name == "HumanoidRootPart"
 			item.CanCollide = false
 			item.CanQuery = false
 			item.CanTouch = false
+			item.Massless = true
 			item.LocalTransparencyModifier = 0
 		end
 	end
 	local humanoid = ghost:FindFirstChildOfClass("Humanoid")
 	if humanoid then
 		humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+		humanoid.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
 		humanoid.EvaluateStateMachine = false
+		humanoid.BreakJointsOnDeath = false
+		if not humanoid:FindFirstChildOfClass("Animator") then
+			Instance.new("Animator").Parent = humanoid
+		end
 	end
+	-- a thin outline so you can spot yourself, but it's still your character
 	local outline = Instance.new("Highlight")
-	outline.FillColor = Palette.PlayerB
-	outline.FillTransparency = 0.6
-	outline.OutlineColor = Color3.new(1, 1, 1)
+	outline.FillTransparency = 1
+	outline.OutlineColor = Palette.PlayerB
+	outline.OutlineTransparency = 0.25
 	outline.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 	outline.Parent = ghost
 	ghost.Name = "KillCamGhost"
 	return ghost
+end
+
+-- Loads idle / run / fall tracks on the ghost. Returns a function that picks
+-- the right one for the current speed.
+local function animateGhost(ghost)
+	local humanoid = ghost:FindFirstChildOfClass("Humanoid")
+	local animator = humanoid and humanoid:FindFirstChildOfClass("Animator")
+	if not animator then
+		return function() end
+	end
+	local tracks = {}
+	for _, name in ipairs({ "idle", "run", "fall" }) do
+		local animation = Instance.new("Animation")
+		animation.AnimationId = ghostAnims[name] or DEFAULT_ANIMS[name]
+		local ok, track = pcall(function()
+			return animator:LoadAnimation(animation)
+		end)
+		if ok and track then
+			track.Looped = true
+			tracks[name] = track
+		end
+	end
+	local current
+	return function(speed, inAir, rate)
+		local want = inAir and "fall" or (speed > 2 and "run" or "idle")
+		local track = tracks[want]
+		if want ~= current then
+			if current and tracks[current] then
+				tracks[current]:Stop(0.15)
+			end
+			if track then
+				track:Play(0.15)
+			end
+			current = want
+		end
+		if track then
+			local base = want == "run" and math.clamp(speed / 16, 0.5, 2.2) or 1
+			track:AdjustSpeed(base * rate)
+		end
+	end
 end
 
 local function setCharacterHidden(character, hidden)
@@ -170,11 +258,19 @@ local function play(deathTime, killerName)
 	local camera = workspace.CurrentCamera
 	local enemy = opponentCharacter()
 	local ghost = ghostTemplate and ghostTemplate:Clone()
+	local setGhostAnim = function() end
 	if ghost then
 		ghost.Parent = workspace
+		setGhostAnim = animateGhost(ghost)
 	end
 	local recordedShots = table.clone(shots)
 	local drawn = {}
+
+	-- the killer's arms + rifle on our camera (built before we hide them)
+	local entry = ClientState.GetOpponentEntry()
+	local owned = entry and entry.PowerUps or {}
+	local boltTime = PowerUps.ComputeStats(owned).BoltTime or 1
+	Controllers.Viewmodel.SetPuppet({ Character = enemy, Owned = owned })
 
 	Controllers.Camera.SetSuspended(true)
 	local oldType, oldFov = camera.CameraType, camera.FieldOfView
@@ -190,27 +286,70 @@ local function play(deathTime, killerName)
 
 	local replayT = deathTime - K.Length
 	local finish = deathTime + 0.5
-	local connection
-	connection = RunService.RenderStepped:Connect(function(dt)
+	local rate = 1
+	local current -- the sample for this frame
+
+	-- your copy holds the rifle up and aims where you did (after the Animator)
+	local poseConnection = RunService.Stepped:Connect(function()
+		if ghost and current then
+			CharacterPoser.PoseRig(ghost, current.MyPitch or 0)
+		end
+	end)
+
+	local function stop()
+		RunService:UnbindFromRenderStep("SniperKillCam")
+		poseConnection:Disconnect()
+		if ghost then
+			ghost:Destroy()
+		end
+		Controllers.Viewmodel.SetPuppet(nil)
+		setCharacterHidden(enemy, false)
+		gui.Enabled = false
+		camera.CameraType = oldType == Enum.CameraType.Scriptable and Enum.CameraType.Custom or oldType
+		camera.FieldOfView = oldFov
+		local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+		if humanoid then
+			camera.CameraSubject = humanoid
+		end
+		Controllers.Camera.SetSuspended(false)
+		playing = false
+	end
+
+	-- runs just before the viewmodel (Camera + 2), so the arms use this frame's camera
+	RunService:BindToRenderStep("SniperKillCam", Enum.RenderPriority.Camera.Value + 1, function(dt)
 		local slow = replayT > deathTime - K.SlowMoTime and replayT < deathTime + 0.3
-		replayT += dt * (slow and K.SlowMoSpeed or 1)
+		rate = slow and K.SlowMoSpeed or 1
+		replayT += dt * rate
 		vignette.BackgroundTransparency = slow and 0.6 or 0.85
-		local s = sampleAt(math.min(replayT, deathTime))
+		local at = math.min(replayT, deathTime)
+		local s = sampleAt(at)
+		current = s
 		if s then
 			camera.CFrame = CFrame.new(s.Head) * CFrame.fromOrientation(s.Pitch, s.Yaw, 0)
-			if ghost and ghost.PrimaryPart then
+			-- how fast they were moving (walk bob on their arms)
+			local before = sampleAt(at - 0.1)
+			if before then
+				local d = (s.Head - before.Head) * Vector3.new(1, 0, 1)
+				Controllers.Viewmodel.SetPuppetSpeed(d.Magnitude / 0.1)
+			end
+			if ghost then
 				ghost:PivotTo(s.Me)
-			elseif ghost then
-				local root = ghost:FindFirstChild("HumanoidRootPart")
-				if root then
-					ghost:PivotTo(s.Me * root.CFrame:ToObjectSpace(ghost:GetPivot()))
-				end
+				local prev = sampleAt(at - 0.1)
+				local speed = prev and ((s.Me.Position - prev.Me.Position) * Vector3.new(1, 0, 1)).Magnitude / 0.1 or 0
+				setGhostAnim(speed, s.MyAir, rate)
 			end
 		end
 		for i, shot in ipairs(recordedShots) do
 			if not drawn[i] and shot.T <= replayT and shot.T >= deathTime - K.Length then
 				drawn[i] = true
-				local muzzle = camera.CFrame.Position + camera.CFrame.LookVector * 1.5 - camera.CFrame.UpVector * 0.4
+				Controllers.Viewmodel.PlayFire(false)
+				task.delay(0.12 / rate, function()
+					if playing then
+						Controllers.Viewmodel.PlayBolt(boltTime / rate)
+					end
+				end)
+				local muzzle = Controllers.Viewmodel.GetMuzzlePosition()
+					or (camera.CFrame.Position + camera.CFrame.LookVector * 1.5 - camera.CFrame.UpVector * 0.4)
 				for _, bullet in ipairs(shot.Bullets) do
 					Controllers.Effects.DrawShot(bullet.Segments, bullet.Passes, bullet.EndPosition, bullet.EndNormal, muzzle, {
 						Explosive = shot.Explosive,
@@ -221,20 +360,7 @@ local function play(deathTime, killerName)
 		end
 		local phase = ClientState.Snapshot.Phase
 		if replayT >= finish or stopRequested or not ClientState.InMatch() or (phase ~= "RoundEnd" and phase ~= "Fight") then
-			connection:Disconnect()
-			if ghost then
-				ghost:Destroy()
-			end
-			setCharacterHidden(enemy, false)
-			gui.Enabled = false
-			camera.CameraType = oldType == Enum.CameraType.Scriptable and Enum.CameraType.Custom or oldType
-			camera.FieldOfView = oldFov
-			local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-			if humanoid then
-				camera.CameraSubject = humanoid
-			end
-			Controllers.Camera.SetSuspended(false)
-			playing = false
+			stop()
 		end
 	end)
 end

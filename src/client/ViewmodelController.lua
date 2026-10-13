@@ -43,6 +43,12 @@ local player = Players.LocalPlayer
 
 local Viewmodel = {}
 local hiddenBy = {} -- [reason] = true: see Viewmodel.SetHidden
+local puppet -- { Character, Owned, Speed } while the kill cam borrows the viewmodel (Viewmodel.SetPuppet)
+
+-- The power-ups the shown rifle has: yours, or the killer's during the kill cam.
+local function currentOwned()
+	return puppet and puppet.Owned or ClientState.Owned or {}
+end
 local Controllers
 
 local rad = math.rad
@@ -128,7 +134,7 @@ end
 -- (Re)builds the rifle with an attachment for every power-up you own.
 -- Returns true if you gained something (so we can show it off).
 local function buildGun()
-	local owned = ClientState.Owned or {}
+	local owned = currentOwned()
 	local signature = ownedSignature(owned) .. (GunModel.FindTemplate() and "|mesh" or "")
 	if gun and signature == builtSignature then
 		return false
@@ -380,7 +386,7 @@ end
 	  inspect  with power-ups: turns the rifle both ways to show the attachments
 ]]
 local function has(id)
-	return (ClientState.Owned[id] or 0) > 0
+	return (currentOwned()[id] or 0) > 0
 end
 
 local boltStyle, equipStyle = "Normal", "Normal"
@@ -413,6 +419,25 @@ end
 -- opening). Each caller passes its own reason so they don't clash.
 function Viewmodel.SetHidden(reason, hidden)
 	hiddenBy[reason] = hidden or nil
+end
+
+-- The kill cam replays the fight through your killer's eyes: show THEIR
+-- arms (from their avatar) holding THEIR rifle (with their power-ups).
+-- info = { Character = Model, Owned = { [id] = stacks } }, or nil to stop.
+function Viewmodel.SetPuppet(info)
+	puppet = info
+	builtSignature = nil -- rebuild the rifle for whoever is holding it
+	buildGun()
+	buildAvatarArms(info and info.Character or player.Character)
+	inspecting = false
+	flourish = nil
+end
+
+-- Kill cam: how fast the killer was moving (for the walk bob).
+function Viewmodel.SetPuppetSpeed(speed)
+	if puppet then
+		puppet.Speed = speed
+	end
 end
 
 function Viewmodel.PlayFire(scoped)
@@ -512,15 +537,22 @@ local function update(dt)
 	local alive = humanoid ~= nil and humanoid.Health > 0
 	local hasGun = ClientState.HasGun()
 	local scopeAlpha = Controllers.Weapon.GetScopeAlpha()
+	if puppet then
+		-- kill cam: the killer's arms + rifle on the replay camera
+		alive, hasGun, scopeAlpha = true, true, 0
+	end
 
 	-- replay the equip animation on a new life / when the gun comes back
-	if alive and hasGun and (character ~= lastCharacter or not hadGun) then
+	if not puppet and alive and hasGun and (character ~= lastCharacter or not hadGun) then
 		Viewmodel.PlayEquip()
 	end
-	lastCharacter = character
-	hadGun = alive and hasGun
+	if not puppet then
+		lastCharacter = character
+		hadGun = alive and hasGun
+	end
 
-	local shouldShow = alive and hasGun and Controllers.Camera.IsFirstPerson() and scopeAlpha < 0.92 and next(hiddenBy) == nil
+	local firstPerson = puppet ~= nil or Controllers.Camera.IsFirstPerson()
+	local shouldShow = alive and hasGun and firstPerson and scopeAlpha < 0.92 and next(hiddenBy) == nil
 	setVisible(shouldShow)
 	if not shouldShow then
 		for name, part in pairs(parts) do
@@ -537,6 +569,9 @@ local function update(dt)
 	local mode = movement.GetMode()
 	local speed = movement.GetSpeed()
 	local grounded = movement.IsGrounded()
+	if puppet then
+		mode, speed, grounded = "Ground", puppet.Speed or 0, true
+	end
 	local t = os.clock()
 
 	-- SWAY from mouse movement
@@ -675,6 +710,13 @@ local function update(dt)
 	local exclude = { camera }
 	if character then
 		table.insert(exclude, character)
+	end
+	if puppet and puppet.Character then
+		table.insert(exclude, puppet.Character) -- the kill cam rides inside the killer's head
+	end
+	local ghost = workspace:FindFirstChild("KillCamGhost")
+	if puppet and ghost then
+		table.insert(exclude, ghost)
 	end
 	local effects = workspace:FindFirstChild("Effects")
 	if effects then

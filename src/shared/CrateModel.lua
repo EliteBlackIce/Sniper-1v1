@@ -28,7 +28,7 @@ local METAL_DARK = Color3.fromRGB(58, 62, 72)
 -- body parts: { size, position (bottom centre = 0), colour, material, glow? }
 local BODY_PARTS = {
 	{ V(4.1, 0.26, 3.1), V(0, 0.13, 0), METAL_DARK, "Metal" }, -- foot
-	{ V(3.8, 2.14, 2.8), V(0, 1.33, 0), BODY, "SmoothPlastic" }, -- case
+	{ V(3.8, 2.12, 2.8), V(0, 1.34, 0), BODY, "SmoothPlastic" }, -- case (sits just above the foot)
 	{ V(3.86, 0.14, 2.86), V(0, 1.02, 0), nil, "Neon", true }, -- glow band
 	{ V(2.3, 1.2, 0.08), V(0, 1.5, -1.43), PANEL, "SmoothPlastic", false, "Emblem" }, -- front plate
 	{ V(0.16, 0.34, 1.3), V(-2.0, 1.62, 0), METAL, "Metal" }, -- handles
@@ -62,7 +62,7 @@ local LID_PARTS = {
 	{ V(3.4, 0.22, 2.4), V(0, 0.6, -1.5), METAL_DARK, "Metal", false, "Top" }, -- raised top
 	{ V(3.44, 0.08, 0.2), V(0, 0.74, -1.5), nil, "Neon", true }, -- glowing cross
 	{ V(0.2, 0.08, 2.44), V(0, 0.74, -1.5), nil, "Neon", true },
-	{ V(4.1, 0.12, 0.16), V(0, 0.06, -3.02), METAL, "Metal" }, -- front lip
+	{ V(4.1, 0.12, 0.16), V(0, 0.08, -3.02), METAL, "Metal" }, -- front lip
 	{ V(4.12, 0.08, 3.12), V(0, 0.32, -1.5), nil, "Neon", true }, -- glowing seam round the lid
 }
 

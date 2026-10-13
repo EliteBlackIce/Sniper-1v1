@@ -105,8 +105,11 @@ The place file can't contain meshes, so Studio has to import the rifle once:
 
 This GLB is already scaled, turned and lined up with the game's grip, scope
 and muzzle points. The hanging bipod legs are removed so they don't sit in
-your view, the textures are painted (desert-tan body, black scope and
-barrel, dark furniture), and the whole bolt (the handle plus the bolt body
+your view, and the meshes are split by colour (desert-tan body, gunmetal
+parts, black scope and barrel, dark stock with lighter details). The game
+paints each piece a flat colour (`Config.Viewmodel.MeshPaint = "Always"`),
+so the rifle is coloured even if Studio's importer drops the textures; set
+it to `"Auto"` to keep the imported textures instead. The whole bolt (the handle plus the bolt body
 inside the receiver) is a separate piece: it turns up and slides back out of
 the action when you chamber a round. If you imported an older
 version of the file, delete the old SniperRifle model and import this one
@@ -328,9 +331,11 @@ Files: `ArenaCrossfire` (the map), `GunModel` (rifle + power-up mods), `Viewmode
 
 A round, enclosed hall (a rotunda) with a roof. Paved, lamp-lined paths lead
 from the centre to alcoves around the curved wall:
-- **Centre**: a sunken ring with smooth steps, where you spawn around a giant
-  statue of the rifle (the imported PGM 338 if you have it). A ring of
-  columns holds up a glass skylight dome; between them hang banners with the
+- **Centre**: a sunken ring with smooth steps, where you spawn around the
+  monument: the SNIPER DUEL crosshair as two crossed rings (white stone and
+  metal, a teal inner band, the four ticks and a glowing core) on a tiered
+  plinth in a shallow pool, lit from below. A ring of columns holds up a
+  glass skylight dome; between them hang banners with the
   SNIPER DUEL logo, trimmed in team colours.
 - **North**: a tunnel with a gate into the shooting range (moving dummies).
 - **East**: the duel area, a raised dais with team-coloured pads under a
@@ -398,8 +403,11 @@ Access to API Services"). Rarities, odds, key rewards and the skin list are in
   when both want it, a new match starts. Against a bot, the rematch starts
   straight away at the same difficulty.
 - **Kill cam**: when your opponent kills you, you watch the last few
-  seconds again through their eyes (their position and aim, their shot
-  flying at a ghost of you), ending in slow motion. Press Space or tap to
+  seconds again through their eyes, ending in slow motion. You see THEIR
+  arms (copied from their avatar) holding THEIR rifle with their power-up
+  attachments, kicking and cycling the bolt on each shot. You are a copy of
+  your real character: it runs, stands and falls with Roblox's normal
+  animations, holds the rifle and aims where you were aiming. Press Space or tap to
   skip. Tune it in `Config.KillCam` (the pause after a kill,
   `Config.Match.RoundEndTime`, is long enough for it).
 

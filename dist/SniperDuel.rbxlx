@@ -558,6 +558,9 @@ Config.Viewmodel = {
 	UseImportedRifle = true,
 	MeshTemplate = "SniperRifle",
 	MeshYaw = nil, -- force the model's turn in degrees (0/90/180/270) if it imports facing the wrong way
+	-- "Always" = paint the rifle in flat colours (tan body, black scope, dark
+	-- stock...). "Auto" = keep the imported textures if they came through.
+	MeshPaint = "Always",
 	-- First-person arms are a copy of your avatar's arms (skin colour, shirt).
 	-- false = the plain gloved arms.
 	UseAvatarArms = true,
@@ -937,7 +940,7 @@ local METAL_DARK = Color3.fromRGB(58, 62, 72)
 -- body parts: { size, position (bottom centre = 0), colour, material, glow? }
 local BODY_PARTS = {
 	{ V(4.1, 0.26, 3.1), V(0, 0.13, 0), METAL_DARK, "Metal" }, -- foot
-	{ V(3.8, 2.14, 2.8), V(0, 1.33, 0), BODY, "SmoothPlastic" }, -- case
+	{ V(3.8, 2.12, 2.8), V(0, 1.34, 0), BODY, "SmoothPlastic" }, -- case (sits just above the foot)
 	{ V(3.86, 0.14, 2.86), V(0, 1.02, 0), nil, "Neon", true }, -- glow band
 	{ V(2.3, 1.2, 0.08), V(0, 1.5, -1.43), PANEL, "SmoothPlastic", false, "Emblem" }, -- front plate
 	{ V(0.16, 0.34, 1.3), V(-2.0, 1.62, 0), METAL, "Metal" }, -- handles
@@ -971,7 +974,7 @@ local LID_PARTS = {
 	{ V(3.4, 0.22, 2.4), V(0, 0.6, -1.5), METAL_DARK, "Metal", false, "Top" }, -- raised top
 	{ V(3.44, 0.08, 0.2), V(0, 0.74, -1.5), nil, "Neon", true }, -- glowing cross
 	{ V(0.2, 0.08, 2.44), V(0, 0.74, -1.5), nil, "Neon", true },
-	{ V(4.1, 0.12, 0.16), V(0, 0.06, -3.02), METAL, "Metal" }, -- front lip
+	{ V(4.1, 0.12, 0.16), V(0, 0.08, -3.02), METAL, "Metal" }, -- front lip
 	{ V(4.12, 0.08, 3.12), V(0, 0.32, -1.5), nil, "Neon", true }, -- glowing seam round the lid
 }
 
@@ -1287,22 +1290,40 @@ GunModel.MeshProfile = {
 	Bounds = { Min = Vector3.new(-0.1791, -0.6684, -4.201), Max = Vector3.new(0.2913, 0.6329, 1.4395) },
 }
 
--- Fallback paint for meshes that imported without textures (by name).
+-- Flat paint for the imported meshes (by name, first match wins). The GLB is
+-- split into colour regions (tan body, gunmetal bits, black scope + barrel,
+-- dark stock, lighter stock details, the bolt) so flat colours look right.
+-- Config.Viewmodel.MeshPaint: "Always" paints every mesh (the textures from
+-- Studio's importer don't always come through), "Auto" only paints meshes
+-- that arrived without a texture.
 GunModel.MeshPaint = {
-	{ Match = "scope", Color = Color3.fromRGB(44, 46, 50), Material = Enum.Material.Metal },
-	{ Match = "barrel", Color = Color3.fromRGB(44, 46, 50), Material = Enum.Material.Metal },
-	{ Match = "bolt", Color = Color3.fromRGB(70, 72, 76), Material = Enum.Material.Metal },
-	{ Match = "stock", Color = Color3.fromRGB(66, 68, 62), Material = Enum.Material.SmoothPlastic },
-	{ Match = "", Color = Color3.fromRGB(184, 160, 118), Material = Enum.Material.SmoothPlastic }, -- body: desert tan
+	{ Match = "bodymetal", Color = Color3.fromRGB(58, 60, 60), Material = Enum.Material.Metal },
+	{ Match = "scope", Color = Color3.fromRGB(38, 40, 44), Material = Enum.Material.Metal },
+	{ Match = "barrel", Color = Color3.fromRGB(38, 40, 44), Material = Enum.Material.Metal },
+	{ Match = "bolt", Color = Color3.fromRGB(84, 86, 90), Material = Enum.Material.Metal },
+	{ Match = "stockdetail", Color = Color3.fromRGB(96, 98, 92), Material = Enum.Material.SmoothPlastic },
+	{ Match = "stock", Color = Color3.fromRGB(60, 62, 58), Material = Enum.Material.SmoothPlastic },
+	{ Match = "", Color = Color3.fromRGB(190, 164, 120), Material = Enum.Material.SmoothPlastic }, -- body: desert tan
 }
 
-local function paintIfBare(part)
+local function paintMesh(part)
 	if not part:IsA("MeshPart") then
 		return
 	end
 	local textured = part.TextureID ~= "" or part:FindFirstChildOfClass("SurfaceAppearance") ~= nil
 	if textured then
-		return
+		if (Config.Viewmodel.MeshPaint or "Always") ~= "Always" then
+			return
+		end
+		-- drop the texture so the flat colour shows
+		for _, child in ipairs(part:GetChildren()) do
+			if child:IsA("SurfaceAppearance") then
+				child:Destroy()
+			end
+		end
+		pcall(function()
+			part.TextureID = ""
+		end)
 	end
 	local name = part.Name:lower()
 	for _, paint in ipairs(GunModel.MeshPaint) do
@@ -1816,7 +1837,7 @@ function GunModel.Build(parent, options)
 			end
 			part.Size = info.Size * scale
 			part.CastShadow = options.CastShadow == true
-			paintIfBare(part)
+			paintMesh(part)
 			local offset = info.Offset.Rotation + info.Offset.Position * scale
 			if info.Part.Name:lower():find("bolt") then
 				-- the bolt handle moves with the bolt pivot (see Place / the viewmodel)
@@ -7559,14 +7580,14 @@ return LightingSetup
 	         .-' PORTAL       |       GARDEN    '-.
 	       /         \        |        /           \
 	      |  CRATE ====== ( SUNKEN CENTRE ) ====== DUEL |
-	      |  SHOP          (rifle statue,          AREA |
+	      |  VAULT         (monument,              AREA |
 	       \         /     skylight dome)  \           /
 	         '-. WALL RUN     |      PARKOUR      .-'
 	              '-.______ STAGE ___________.-'
 
-	  * Centre: a sunken ring with smooth steps down, the giant rifle statue
-	    (the imported PGM 338 if you have it, otherwise the VX-7) and a ring
-	    of columns holding up a glass skylight dome. You spawn here.
+	  * Centre: a sunken ring with smooth steps down, the monument (the
+	    SNIPER DUEL crosshair as two crossed rings over a pool) and a ring of
+	    columns holding up a glass skylight dome. You spawn here.
 	  * The wall: panels with glowing trims, a plinth, a cornice and lit
 	    sconces. The ceiling has radial beams and hanging lights.
 	  * North: a tunnel with a gate into the shooting range.
@@ -7598,7 +7619,8 @@ local R = 64 -- inner radius of the hall
 local WALL_H = 26 -- ceiling height
 local PIT_R = 22 -- the sunken centre
 local PIT_DEPTH = 2.5
-local COLUMN_R = 31 -- the ring of columns holding up the skylight
+local COLUMN_R = 31 -- the edge of the skylight
+local COL_R = COLUMN_R + 1.6 -- the ring of columns (set back so their tops sit fully under the roof)
 local SEGMENTS = 72 -- more segments = smoother circles
 
 ----------------------------------------------------------------------------
@@ -7819,7 +7841,7 @@ function LobbyBuilder.Build()
 		b.cylinder(0.1, PIT_R * 2 - 2, V(0, -PIT_DEPTH + 0.05, 0), C.Stone)
 		b.cylinder(0.12, 30, V(0, -PIT_DEPTH + 0.06, 0), C.Trim)
 		b.cylinder(0.14, 29.2, V(0, -PIT_DEPTH + 0.07, 0), C.Sidewalk)
-		-- star inlay: alternating tiles around the statue
+		-- star inlay: alternating tiles around the monument
 		for i = 0, 15 do
 			local deg = i * 22.5
 			local pos = polar(11, deg, -PIT_DEPTH + 0.1)
@@ -7862,12 +7884,12 @@ function LobbyBuilder.Build()
 	ring(b, COLUMN_R - 1.5, R + 3, WALL_H + 1.5, 1.5, C.Roof, SEGMENTS)
 	for i = 0, 11 do
 		local deg = i * 30 + 15
-		b.cylinder(WALL_H, 2.6, polar(COLUMN_R, deg, WALL_H / 2), C.BuildingA) -- columns
+		b.cylinder(WALL_H, 2.6, polar(COL_R, deg, WALL_H / 2), C.BuildingA) -- columns
 	end
 	b.decor(function()
 		for i = 0, 11 do
 			local deg = i * 30 + 15
-			local base = polar(COLUMN_R, deg, 0)
+			local base = polar(COL_R, deg, 0)
 			b.block(V(3.6, 1.2, 3.6), base + V(0, 0.6, 0), C.Stone)
 			b.block(V(3.8, 1.2, 3.8), base + V(0, WALL_H - 0.6, 0), C.Stone)
 			b.cylinder(0.3, 2.9, base + V(0, 3, 0), C.Trim)
@@ -7875,7 +7897,7 @@ function LobbyBuilder.Build()
 				b.part(V(0.3, WALL_H - 4, 2.75), CFrame.new(base + V(0, WALL_H / 2, 0)) * CFrame.Angles(0, f * math.pi / 4, 0), C.Stone)
 			end
 			if i % 2 == 0 then -- potted plant at the base
-				local pot = polar(COLUMN_R - 3, deg, 0)
+				local pot = polar(COL_R - 3, deg, 0)
 				b.cylinder(1.6, 2.4, pot + V(0, 0.8, 0), C.Trim)
 				b.ball(2.6, pot + V(0, 2.4, 0), C.FoliageDark)
 				b.ball(1.8, pot + V(0.5, 3.2, 0.3), C.Foliage)
@@ -7884,7 +7906,7 @@ function LobbyBuilder.Build()
 			-- (none in front of the four main signs: north, east, south, west)
 			if (deg + 15) % 90 ~= 0 then
 				local team = (i - math.floor((i + 1) / 3)) % 2 == 0 and P.PlayerA or P.PlayerB
-				local mid = polar(COLUMN_R, deg + 15, 16.5)
+				local mid = polar(COL_R, deg + 15, 16.5)
 				local bannerCf = CFrame.lookAt(mid, V(0, 16.5, 0))
 				local cloth = b.part(V(4.6, 10, 0.2), bannerCf, P.UIPanel)
 				for _, part in ipairs(cloth) do
@@ -7893,7 +7915,7 @@ function LobbyBuilder.Build()
 						Logo.OnPart(part, face, { Layout = "Stacked", Color = P.UIText, Accent = team, Stroke = 9 }, 40)
 					end
 				end
-				for _, x in ipairs({ -2.18, 2.18 }) do
+				for _, x in ipairs({ -2.22, 2.22 }) do
 					b.part(V(0.24, 10.3, 0.26), bannerCf * CFrame.new(x, 0, 0), team) -- side trims
 				end
 				b.part(V(4.84, 0.5, 0.3), bannerCf * CFrame.new(0, -5.1, 0), team) -- bottom hem
@@ -7904,7 +7926,7 @@ function LobbyBuilder.Build()
 				end
 			end
 			-- radial beams under the ceiling
-			local a, c = polar(COLUMN_R, deg, WALL_H - 0.8), polar(R, deg, WALL_H - 0.8)
+			local a, c = polar(COL_R, deg, WALL_H - 0.8), polar(R, deg, WALL_H - 0.8)
 			b.part(V(1.2, 1.4, (c - a).Magnitude), CFrame.lookAt((a + c) / 2, c), C.Trim)
 			-- hanging light halfway along each beam
 			local hang = polar((COLUMN_R + R) / 2, deg + 15, WALL_H)
@@ -7931,28 +7953,82 @@ function LobbyBuilder.Build()
 		ring(b, COLUMN_R - 2, COLUMN_R, WALL_H, 0.4, C.Trim, SEGMENTS) -- trim under the roof edge
 	end)
 
-	-- CENTRE: RIFLE STATUE ------------------------------------------------------------
+	-- CENTRE: THE MONUMENT ------------------------------------------------------------
+	-- The SNIPER DUEL crosshair in stone and metal: two crossed rings (a
+	-- gyroscope, so it reads from every side) with the crosshair's ticks and a
+	-- glowing core, on a tiered plinth in a shallow pool.
 	local pitY = -PIT_DEPTH
-	b.cylinder(0.8, 12, V(0, pitY + 0.4, 0), C.Stone) -- statue step
-	b.cylinder(3, 8, V(0, pitY + 2.3, 0), C.BuildingA) -- pedestal
+	local POOL_R = 8
+	ring(b, POOL_R, POOL_R + 0.9, pitY + 0.9, 0.9, C.Stone, 48) -- pool wall
+	b.cylinder(0.5, POOL_R * 2 + 0.2, V(0, pitY + 0.25, 0), C.FrameDark) -- pool floor
+	b.cylinder(2.2, 6.4, V(0, pitY + 1.1, 0), C.Stone) -- plinth, lower tier
+	b.cylinder(1.4, 4.8, V(0, pitY + 2.9, 0), C.BuildingA) -- upper tier
+	local coreY = pitY + 3.6 + 6.2 -- centre of the rings
 	b.decor(function()
-		b.cylinder(0.5, 8.6, V(0, pitY + 3.6, 0), C.Trim)
-		b.cylinder(0.2, 8.8, V(0, pitY + 1.2, 0), C.Trim)
-		b.block(V(0.9, 4.2, 0.9), V(0, pitY + 5.6, 0), C.Metal) -- support post
-	end)
-	local okStatue, GunModel = pcall(require, ReplicatedStorage.Shared.GunModel)
-	if okStatue and type(GunModel) == "table" and GunModel.Build then
-		local statue = Instance.new("Model")
-		statue.Name = "RifleStatue"
-		local scale = 3
-		local built = GunModel.Build(statue, { Scale = scale, Anchored = true, CastShadow = true, Effects = false })
-		GunModel.Place(built, CFrame.new(0, pitY + 7.2, 0) * CFrame.Angles(0, rad(40), 0) * CFrame.Angles(rad(28), 0, 0), scale)
-		for _, part in pairs(built.Parts) do
-			part.CanCollide = false
+		ring(b, POOL_R - 0.15, POOL_R + 1.05, pitY + 1.0, 0.12, C.Trim, 48) -- pool coping
+		local water = b.cylinder(0.12, POOL_R * 2 - 0.1, V(0, pitY + 0.62, 0), C.Water)
+		b.material(water, Enum.Material.SmoothPlastic, 0.4)
+		for _, part in ipairs(water) do
+			part.Transparency = 0.25
 		end
-		statue.Parent = model
-	end
-	-- benches around the pit, facing the statue
+		b.cylinder(0.16, 6.7, V(0, pitY + 1.9, 0), C.Trim) -- tier bands (kept off the tops)
+		b.cylinder(0.16, 5.1, V(0, pitY + 3.2, 0), C.Trim)
+		b.cylinder(0.3, 5.2, V(0, pitY + 3.75, 0), C.Metal) -- cap
+		b.cylinder(1.2, 1.1, V(0, pitY + 4.5, 0), C.Metal) -- neck up to the rings
+		for k = 0, 3 do -- uplights round the plinth, shining on the rings
+			local pos = polar(3.6, 45 + k * 90, pitY + 2.25)
+			b.block(V(0.8, 0.12, 0.8), pos, C.Dark)
+			light(neon(b, b.block(V(0.5, 0.08, 0.5), pos + V(0, 0.08, 0), C.LampLight)), C.LampLight, 14, 1)
+		end
+
+		-- a vertical ring of `count` segments, facing `normalDeg`
+		local function vring(radius, thick, depth, normalDeg, color, count)
+			local across = outward(normalDeg + 90) -- in the ring's plane, horizontal
+			for i = 0, count - 1 do
+				local a = (i + 0.5) / count * math.pi * 2
+				local pos = V(0, coreY, 0) + across * math.cos(a) * radius + V(0, math.sin(a) * radius, 0)
+				local tangent = across * -math.sin(a) + V(0, math.cos(a), 0)
+				local length = 2 * math.pi * radius / count * 1.08
+				b.part(V(depth, thick, length), CFrame.lookAt(pos, pos + tangent), color)
+			end
+		end
+		-- the main ring (facing the stage / the range) and the crossed ring
+		vring(5.2, 0.8, 0.9, 0, C.BuildingA, 40)
+		vring(4.55, 0.25, 1.06, 0, P.AccentA, 40) -- inner accent band
+		vring(4.7, 0.6, 0.7, 90, C.Metal, 40)
+		-- the crosshair ticks: through the ring at top, bottom, left and right
+		for _, info in ipairs({ { 0, 1 }, { 0, -1 }, { 1, 0 }, { -1, 0 } }) do
+			local across = outward(90)
+			local dir = across * info[1] + V(0, info[2], 0)
+			local mid = V(0, coreY, 0) + dir * 5.2
+			local vertical = info[2] ~= 0
+			b.part(vertical and V(0.7, 3.4, 1.2) or V(3.4, 0.7, 1.2), CFrame.new(mid), C.BuildingA)
+		end
+		-- the core: a glowing ball in a small metal cage
+		light(neon(b, b.ball(1.5, V(0, coreY, 0), P.AccentA)), P.AccentA, 18, 1.2)
+		for k = 0, 2 do
+			local spin = CFrame.new(0, coreY, 0) * CFrame.Angles(0, rad(k * 60), rad(90))
+			b.cylinder(0.12, 2.3, nil, C.Metal, nil, spin)
+		end
+		-- thin spokes from the core to the ring (the crosshair's lines)
+		for _, dir in ipairs({ V(0, 1, 0), V(0, -1, 0), outward(90), -outward(90) }) do
+			local a, c = V(0, coreY, 0) + dir * 0.9, V(0, coreY, 0) + dir * 4.4
+			bar(b, a, c, 0.18, C.Metal)
+		end
+	end)
+	-- a plaque on the plinth
+	local plaque = Instance.new("Part")
+	plaque.Name = "Plaque"
+	plaque.Anchored = true
+	plaque.CanCollide = false
+	plaque.Size = V(3.4, 1.1, 0.2)
+	plaque.CFrame = CFrame.lookAt(V(0, pitY + 1.15, 3.25), V(0, pitY + 1.15, 10)) -- faces the stage side (south)
+	plaque.Color = C.Metal
+	plaque.Material = Enum.Material.Metal
+	plaque.Parent = model
+	Logo.OnPart(plaque, Enum.NormalId.Front, { Layout = "Inline", Color = P.UIText, Accent = P.AccentA, Stroke = 3 }, 60)
+
+	-- benches around the pit, facing the monument
 	for k = 0, 3 do
 		local deg = 45 + k * 90
 		bench(b, facingIn(PIT_R - 4, deg, pitY))
@@ -8062,8 +8138,10 @@ function LobbyBuilder.Build()
 	b.cylinder(0.5, 15, vault + V(0, 0.75, 0), C.BuildingA) -- upper step
 	b.cylinder(2.2, 5, vault + V(0, 2.1, 0), C.Dark) -- altar pedestal
 	b.decor(function()
-		b.cylinder(0.08, 21.3, vault + V(0, 0.46, 0), C.Trim) -- step edges
-		b.cylinder(0.08, 15.3, vault + V(0, 0.96, 0), C.Trim)
+		-- step edges: a trim band round each step, its top kept below the
+		-- step's top so the two never share a surface (that flickers)
+		b.cylinder(0.1, 21.3, vault + V(0, 0.4, 0), C.Trim)
+		b.cylinder(0.1, 15.3, vault + V(0, 0.9, 0), C.Trim)
 		b.cylinder(0.3, 5.6, vault + V(0, 1.15, 0), C.Metal) -- pedestal base + cap
 		b.cylinder(0.25, 5.5, vault + V(0, 3.3, 0), C.Metal)
 		-- rarity wheel inlaid round the pedestal, one tile per rarity
@@ -8332,7 +8410,7 @@ function LobbyBuilder.Build()
 		Model = model,
 		SpawnCFrame = function()
 			local angle = math.random() * math.pi * 2
-			local radius = 9 + math.random() * 9
+			local radius = 10.5 + math.random() * 7.5 -- outside the monument's pool
 			local offset = Vector3.new(math.cos(angle) * radius, pitY + 3.5, math.sin(angle) * radius)
 			return CFrame.lookAt(offset, Vector3.new(offset.X * 2, pitY + 3.5, offset.Z * 2))
 		end,
@@ -10416,7 +10494,7 @@ local function getMotors(character)
 	return motors
 end
 
-local function pose(character)
+local function pose(character, pitchOverride)
 	local humanoid = character:FindFirstChildOfClass("Humanoid")
 	if not humanoid or humanoid.Health <= 0 or not character:FindFirstChild("WorldGun") then
 		return
@@ -10425,7 +10503,7 @@ local function pose(character)
 	if not motors then
 		return
 	end
-	local pitch = character:GetAttribute("AimPitch") or 0
+	local pitch = pitchOverride or character:GetAttribute("AimPitch") or 0
 	local armPitch = pitch * 0.75 -- the waist adds the rest
 
 	-- right arm: straight forward holding the grip
@@ -10446,6 +10524,11 @@ local function pose(character)
 	if motors.Neck then
 		motors.Neck.Transform = CFrame.Angles(pitch * 0.5, 0, 0)
 	end
+end
+
+-- Poses any R15 rig holding a rifle (used by the kill cam's copy of you).
+function CharacterPoser.PoseRig(character, pitch)
+	pose(character, pitch)
 end
 
 function CharacterPoser.Init() end
@@ -12203,8 +12286,11 @@ return Keybinds
 	  * Their shots (the ShotFx remote) are recorded with a timestamp.
 	  * When the server tells you that you died from a hit (Damaged with
 	    Killed = true), we replay the buffer: the camera rides along their
-	    head, a translucent copy of you stands where you were, and their
-	    shot tracers are drawn again at the right moment.
+	    head, with THEIR arms (a copy of their avatar's arms) holding THEIR
+	    rifle (with their power-ups) in view, kicking and cycling the bolt on
+	    every shot. A copy of your real character runs, jumps and aims where
+	    you did, with Roblox's normal animations and the rifle-holding pose,
+	    and their shot tracers are drawn again at the right moment.
 
 	Press Space / tap the screen to skip. Tune it in Config.KillCam.
 ]]
@@ -12217,7 +12303,9 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Remotes = require(Shared.Remotes)
+local PowerUps = require(Shared.PowerUps)
 local ClientState = require(script.Parent.ClientState)
+local CharacterPoser = require(script.Parent.CharacterPoser)
 local Theme = require(script.Parent.ui.Theme)
 
 local K = Config.KillCam
@@ -12228,12 +12316,22 @@ local KillCam = {}
 local Controllers
 
 local BUFFER_SECONDS = 4
-local samples = {} -- { T, Head (Vector3), Yaw, Pitch, Me (CFrame) }
+local samples = {} -- { T, Head (Vector3), Yaw, Pitch, Me (CFrame), MyPitch, MyAir }
 local shots = {} -- { T, Bullets, Explosive }
 local playing = false
 local stopRequested = false
 local gui, banner, killerLabel, vignette
 local ghostTemplate -- a copy of you made at the start of each round (before you can die)
+local ghostAnims = {} -- { idle = id, run = id, fall = id, ... } from your character's Animate script
+
+-- Roblox's default R15 animations, in case your character has no Animate script
+local DEFAULT_ANIMS = {
+	idle = "rbxassetid://507766388",
+	walk = "rbxassetid://507777826",
+	run = "rbxassetid://507767714",
+	jump = "rbxassetid://507765000",
+	fall = "rbxassetid://507767968",
+}
 
 local function now()
 	return os.clock()
@@ -12264,12 +12362,15 @@ local function record()
 		return
 	end
 	local look = enemyRoot.CFrame.LookVector
+	local myHumanoid = me:FindFirstChildOfClass("Humanoid")
 	table.insert(samples, {
 		T = now(),
 		Head = head.Position + Vector3.new(0, 0.3, 0),
 		Yaw = math.atan2(-look.X, -look.Z),
 		Pitch = enemy:GetAttribute("AimPitch") or 0,
 		Me = myRoot.CFrame,
+		MyPitch = me:GetAttribute("AimPitch") or 0,
+		MyAir = myHumanoid ~= nil and myHumanoid.FloorMaterial == Enum.Material.Air,
 	})
 	trim(samples)
 end
@@ -12294,18 +12395,41 @@ local function sampleAt(t)
 				Yaw = a.Yaw + yawDelta * alpha,
 				Pitch = a.Pitch + (b.Pitch - a.Pitch) * alpha,
 				Me = a.Me:Lerp(b.Me, alpha),
+				MyPitch = a.MyPitch + (b.MyPitch - a.MyPitch) * alpha,
+				MyAir = alpha < 0.5 and a.MyAir or b.MyAir,
 			}
 		end
 	end
 	return samples[count]
 end
 
--- A see-through copy of you, posed where you stood.
+-- The animation ids your character uses (its Animate script's values).
+local function readAnimations(character)
+	local found = {}
+	local animate = character:FindFirstChild("Animate")
+	if animate then
+		for name in pairs(DEFAULT_ANIMS) do
+			local value = animate:FindFirstChild(name)
+			local animation = value and value:FindFirstChildOfClass("Animation")
+			if animation and animation.AnimationId ~= "" then
+				found[name] = animation.AnimationId
+			end
+		end
+	end
+	for name, id in pairs(DEFAULT_ANIMS) do
+		found[name] = found[name] or id
+	end
+	return found
+end
+
+-- A copy of your real character (avatar, clothes, rifle), still rigged so it
+-- can be animated. Only the root is anchored; the kill cam moves it.
 local function makeGhost()
 	local character = player.Character
 	if not character then
 		return nil
 	end
+	ghostAnims = readAnimations(character)
 	local wasArchivable = character.Archivable
 	character.Archivable = true
 	local ok, ghost = pcall(function()
@@ -12316,29 +12440,76 @@ local function makeGhost()
 		return nil
 	end
 	for _, item in ipairs(ghost:GetDescendants()) do
-		if item:IsA("Script") or item:IsA("LocalScript") or item:IsA("Highlight") or item:IsA("ParticleEmitter") then
+		if item:IsA("Script") or item:IsA("LocalScript") or item:IsA("Highlight") or item:IsA("ParticleEmitter") or item:IsA("Sound") then
 			item:Destroy()
 		elseif item:IsA("BasePart") then
-			item.Anchored = true
+			item.Anchored = item.Name == "HumanoidRootPart"
 			item.CanCollide = false
 			item.CanQuery = false
 			item.CanTouch = false
+			item.Massless = true
 			item.LocalTransparencyModifier = 0
 		end
 	end
 	local humanoid = ghost:FindFirstChildOfClass("Humanoid")
 	if humanoid then
 		humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+		humanoid.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
 		humanoid.EvaluateStateMachine = false
+		humanoid.BreakJointsOnDeath = false
+		if not humanoid:FindFirstChildOfClass("Animator") then
+			Instance.new("Animator").Parent = humanoid
+		end
 	end
+	-- a thin outline so you can spot yourself, but it's still your character
 	local outline = Instance.new("Highlight")
-	outline.FillColor = Palette.PlayerB
-	outline.FillTransparency = 0.6
-	outline.OutlineColor = Color3.new(1, 1, 1)
+	outline.FillTransparency = 1
+	outline.OutlineColor = Palette.PlayerB
+	outline.OutlineTransparency = 0.25
 	outline.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 	outline.Parent = ghost
 	ghost.Name = "KillCamGhost"
 	return ghost
+end
+
+-- Loads idle / run / fall tracks on the ghost. Returns a function that picks
+-- the right one for the current speed.
+local function animateGhost(ghost)
+	local humanoid = ghost:FindFirstChildOfClass("Humanoid")
+	local animator = humanoid and humanoid:FindFirstChildOfClass("Animator")
+	if not animator then
+		return function() end
+	end
+	local tracks = {}
+	for _, name in ipairs({ "idle", "run", "fall" }) do
+		local animation = Instance.new("Animation")
+		animation.AnimationId = ghostAnims[name] or DEFAULT_ANIMS[name]
+		local ok, track = pcall(function()
+			return animator:LoadAnimation(animation)
+		end)
+		if ok and track then
+			track.Looped = true
+			tracks[name] = track
+		end
+	end
+	local current
+	return function(speed, inAir, rate)
+		local want = inAir and "fall" or (speed > 2 and "run" or "idle")
+		local track = tracks[want]
+		if want ~= current then
+			if current and tracks[current] then
+				tracks[current]:Stop(0.15)
+			end
+			if track then
+				track:Play(0.15)
+			end
+			current = want
+		end
+		if track then
+			local base = want == "run" and math.clamp(speed / 16, 0.5, 2.2) or 1
+			track:AdjustSpeed(base * rate)
+		end
+	end
 end
 
 local function setCharacterHidden(character, hidden)
@@ -12361,11 +12532,19 @@ local function play(deathTime, killerName)
 	local camera = workspace.CurrentCamera
 	local enemy = opponentCharacter()
 	local ghost = ghostTemplate and ghostTemplate:Clone()
+	local setGhostAnim = function() end
 	if ghost then
 		ghost.Parent = workspace
+		setGhostAnim = animateGhost(ghost)
 	end
 	local recordedShots = table.clone(shots)
 	local drawn = {}
+
+	-- the killer's arms + rifle on our camera (built before we hide them)
+	local entry = ClientState.GetOpponentEntry()
+	local owned = entry and entry.PowerUps or {}
+	local boltTime = PowerUps.ComputeStats(owned).BoltTime or 1
+	Controllers.Viewmodel.SetPuppet({ Character = enemy, Owned = owned })
 
 	Controllers.Camera.SetSuspended(true)
 	local oldType, oldFov = camera.CameraType, camera.FieldOfView
@@ -12381,27 +12560,70 @@ local function play(deathTime, killerName)
 
 	local replayT = deathTime - K.Length
 	local finish = deathTime + 0.5
-	local connection
-	connection = RunService.RenderStepped:Connect(function(dt)
+	local rate = 1
+	local current -- the sample for this frame
+
+	-- your copy holds the rifle up and aims where you did (after the Animator)
+	local poseConnection = RunService.Stepped:Connect(function()
+		if ghost and current then
+			CharacterPoser.PoseRig(ghost, current.MyPitch or 0)
+		end
+	end)
+
+	local function stop()
+		RunService:UnbindFromRenderStep("SniperKillCam")
+		poseConnection:Disconnect()
+		if ghost then
+			ghost:Destroy()
+		end
+		Controllers.Viewmodel.SetPuppet(nil)
+		setCharacterHidden(enemy, false)
+		gui.Enabled = false
+		camera.CameraType = oldType == Enum.CameraType.Scriptable and Enum.CameraType.Custom or oldType
+		camera.FieldOfView = oldFov
+		local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+		if humanoid then
+			camera.CameraSubject = humanoid
+		end
+		Controllers.Camera.SetSuspended(false)
+		playing = false
+	end
+
+	-- runs just before the viewmodel (Camera + 2), so the arms use this frame's camera
+	RunService:BindToRenderStep("SniperKillCam", Enum.RenderPriority.Camera.Value + 1, function(dt)
 		local slow = replayT > deathTime - K.SlowMoTime and replayT < deathTime + 0.3
-		replayT += dt * (slow and K.SlowMoSpeed or 1)
+		rate = slow and K.SlowMoSpeed or 1
+		replayT += dt * rate
 		vignette.BackgroundTransparency = slow and 0.6 or 0.85
-		local s = sampleAt(math.min(replayT, deathTime))
+		local at = math.min(replayT, deathTime)
+		local s = sampleAt(at)
+		current = s
 		if s then
 			camera.CFrame = CFrame.new(s.Head) * CFrame.fromOrientation(s.Pitch, s.Yaw, 0)
-			if ghost and ghost.PrimaryPart then
+			-- how fast they were moving (walk bob on their arms)
+			local before = sampleAt(at - 0.1)
+			if before then
+				local d = (s.Head - before.Head) * Vector3.new(1, 0, 1)
+				Controllers.Viewmodel.SetPuppetSpeed(d.Magnitude / 0.1)
+			end
+			if ghost then
 				ghost:PivotTo(s.Me)
-			elseif ghost then
-				local root = ghost:FindFirstChild("HumanoidRootPart")
-				if root then
-					ghost:PivotTo(s.Me * root.CFrame:ToObjectSpace(ghost:GetPivot()))
-				end
+				local prev = sampleAt(at - 0.1)
+				local speed = prev and ((s.Me.Position - prev.Me.Position) * Vector3.new(1, 0, 1)).Magnitude / 0.1 or 0
+				setGhostAnim(speed, s.MyAir, rate)
 			end
 		end
 		for i, shot in ipairs(recordedShots) do
 			if not drawn[i] and shot.T <= replayT and shot.T >= deathTime - K.Length then
 				drawn[i] = true
-				local muzzle = camera.CFrame.Position + camera.CFrame.LookVector * 1.5 - camera.CFrame.UpVector * 0.4
+				Controllers.Viewmodel.PlayFire(false)
+				task.delay(0.12 / rate, function()
+					if playing then
+						Controllers.Viewmodel.PlayBolt(boltTime / rate)
+					end
+				end)
+				local muzzle = Controllers.Viewmodel.GetMuzzlePosition()
+					or (camera.CFrame.Position + camera.CFrame.LookVector * 1.5 - camera.CFrame.UpVector * 0.4)
 				for _, bullet in ipairs(shot.Bullets) do
 					Controllers.Effects.DrawShot(bullet.Segments, bullet.Passes, bullet.EndPosition, bullet.EndNormal, muzzle, {
 						Explosive = shot.Explosive,
@@ -12412,20 +12634,7 @@ local function play(deathTime, killerName)
 		end
 		local phase = ClientState.Snapshot.Phase
 		if replayT >= finish or stopRequested or not ClientState.InMatch() or (phase ~= "RoundEnd" and phase ~= "Fight") then
-			connection:Disconnect()
-			if ghost then
-				ghost:Destroy()
-			end
-			setCharacterHidden(enemy, false)
-			gui.Enabled = false
-			camera.CameraType = oldType == Enum.CameraType.Scriptable and Enum.CameraType.Custom or oldType
-			camera.FieldOfView = oldFov
-			local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-			if humanoid then
-				camera.CameraSubject = humanoid
-			end
-			Controllers.Camera.SetSuspended(false)
-			playing = false
+			stop()
 		end
 	end)
 end
@@ -13993,6 +14202,12 @@ local player = Players.LocalPlayer
 
 local Viewmodel = {}
 local hiddenBy = {} -- [reason] = true: see Viewmodel.SetHidden
+local puppet -- { Character, Owned, Speed } while the kill cam borrows the viewmodel (Viewmodel.SetPuppet)
+
+-- The power-ups the shown rifle has: yours, or the killer's during the kill cam.
+local function currentOwned()
+	return puppet and puppet.Owned or ClientState.Owned or {}
+end
 local Controllers
 
 local rad = math.rad
@@ -14078,7 +14293,7 @@ end
 -- (Re)builds the rifle with an attachment for every power-up you own.
 -- Returns true if you gained something (so we can show it off).
 local function buildGun()
-	local owned = ClientState.Owned or {}
+	local owned = currentOwned()
 	local signature = ownedSignature(owned) .. (GunModel.FindTemplate() and "|mesh" or "")
 	if gun and signature == builtSignature then
 		return false
@@ -14330,7 +14545,7 @@ end
 	  inspect  with power-ups: turns the rifle both ways to show the attachments
 ]]
 local function has(id)
-	return (ClientState.Owned[id] or 0) > 0
+	return (currentOwned()[id] or 0) > 0
 end
 
 local boltStyle, equipStyle = "Normal", "Normal"
@@ -14363,6 +14578,25 @@ end
 -- opening). Each caller passes its own reason so they don't clash.
 function Viewmodel.SetHidden(reason, hidden)
 	hiddenBy[reason] = hidden or nil
+end
+
+-- The kill cam replays the fight through your killer's eyes: show THEIR
+-- arms (from their avatar) holding THEIR rifle (with their power-ups).
+-- info = { Character = Model, Owned = { [id] = stacks } }, or nil to stop.
+function Viewmodel.SetPuppet(info)
+	puppet = info
+	builtSignature = nil -- rebuild the rifle for whoever is holding it
+	buildGun()
+	buildAvatarArms(info and info.Character or player.Character)
+	inspecting = false
+	flourish = nil
+end
+
+-- Kill cam: how fast the killer was moving (for the walk bob).
+function Viewmodel.SetPuppetSpeed(speed)
+	if puppet then
+		puppet.Speed = speed
+	end
 end
 
 function Viewmodel.PlayFire(scoped)
@@ -14462,15 +14696,22 @@ local function update(dt)
 	local alive = humanoid ~= nil and humanoid.Health > 0
 	local hasGun = ClientState.HasGun()
 	local scopeAlpha = Controllers.Weapon.GetScopeAlpha()
+	if puppet then
+		-- kill cam: the killer's arms + rifle on the replay camera
+		alive, hasGun, scopeAlpha = true, true, 0
+	end
 
 	-- replay the equip animation on a new life / when the gun comes back
-	if alive and hasGun and (character ~= lastCharacter or not hadGun) then
+	if not puppet and alive and hasGun and (character ~= lastCharacter or not hadGun) then
 		Viewmodel.PlayEquip()
 	end
-	lastCharacter = character
-	hadGun = alive and hasGun
+	if not puppet then
+		lastCharacter = character
+		hadGun = alive and hasGun
+	end
 
-	local shouldShow = alive and hasGun and Controllers.Camera.IsFirstPerson() and scopeAlpha < 0.92 and next(hiddenBy) == nil
+	local firstPerson = puppet ~= nil or Controllers.Camera.IsFirstPerson()
+	local shouldShow = alive and hasGun and firstPerson and scopeAlpha < 0.92 and next(hiddenBy) == nil
 	setVisible(shouldShow)
 	if not shouldShow then
 		for name, part in pairs(parts) do
@@ -14487,6 +14728,9 @@ local function update(dt)
 	local mode = movement.GetMode()
 	local speed = movement.GetSpeed()
 	local grounded = movement.IsGrounded()
+	if puppet then
+		mode, speed, grounded = "Ground", puppet.Speed or 0, true
+	end
 	local t = os.clock()
 
 	-- SWAY from mouse movement
@@ -14625,6 +14869,13 @@ local function update(dt)
 	local exclude = { camera }
 	if character then
 		table.insert(exclude, character)
+	end
+	if puppet and puppet.Character then
+		table.insert(exclude, puppet.Character) -- the kill cam rides inside the killer's head
+	end
+	local ghost = workspace:FindFirstChild("KillCamGhost")
+	if puppet and ghost then
+		table.insert(exclude, ghost)
 	end
 	local effects = workspace:FindFirstChild("Effects")
 	if effects then

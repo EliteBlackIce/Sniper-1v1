@@ -284,6 +284,9 @@ Config.Viewmodel = {
 	UseImportedRifle = true,
 	MeshTemplate = "SniperRifle",
 	MeshYaw = nil, -- force the model's turn in degrees (0/90/180/270) if it imports facing the wrong way
+	-- "Always" = paint the rifle in flat colours (tan body, black scope, dark
+	-- stock...). "Auto" = keep the imported textures if they came through.
+	MeshPaint = "Always",
 	-- First-person arms are a copy of your avatar's arms (skin colour, shirt).
 	-- false = the plain gloved arms.
 	UseAvatarArms = true,

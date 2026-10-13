@@ -56,7 +56,7 @@ local function getMotors(character)
 	return motors
 end
 
-local function pose(character)
+local function pose(character, pitchOverride)
 	local humanoid = character:FindFirstChildOfClass("Humanoid")
 	if not humanoid or humanoid.Health <= 0 or not character:FindFirstChild("WorldGun") then
 		return
@@ -65,7 +65,7 @@ local function pose(character)
 	if not motors then
 		return
 	end
-	local pitch = character:GetAttribute("AimPitch") or 0
+	local pitch = pitchOverride or character:GetAttribute("AimPitch") or 0
 	local armPitch = pitch * 0.75 -- the waist adds the rest
 
 	-- right arm: straight forward holding the grip
@@ -86,6 +86,11 @@ local function pose(character)
 	if motors.Neck then
 		motors.Neck.Transform = CFrame.Angles(pitch * 0.5, 0, 0)
 	end
+end
+
+-- Poses any R15 rig holding a rifle (used by the kill cam's copy of you).
+function CharacterPoser.PoseRig(character, pitch)
+	pose(character, pitch)
 end
 
 function CharacterPoser.Init() end

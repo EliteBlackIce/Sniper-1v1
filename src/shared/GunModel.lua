@@ -194,22 +194,40 @@ GunModel.MeshProfile = {
 	Bounds = { Min = Vector3.new(-0.1791, -0.6684, -4.201), Max = Vector3.new(0.2913, 0.6329, 1.4395) },
 }
 
--- Fallback paint for meshes that imported without textures (by name).
+-- Flat paint for the imported meshes (by name, first match wins). The GLB is
+-- split into colour regions (tan body, gunmetal bits, black scope + barrel,
+-- dark stock, lighter stock details, the bolt) so flat colours look right.
+-- Config.Viewmodel.MeshPaint: "Always" paints every mesh (the textures from
+-- Studio's importer don't always come through), "Auto" only paints meshes
+-- that arrived without a texture.
 GunModel.MeshPaint = {
-	{ Match = "scope", Color = Color3.fromRGB(44, 46, 50), Material = Enum.Material.Metal },
-	{ Match = "barrel", Color = Color3.fromRGB(44, 46, 50), Material = Enum.Material.Metal },
-	{ Match = "bolt", Color = Color3.fromRGB(70, 72, 76), Material = Enum.Material.Metal },
-	{ Match = "stock", Color = Color3.fromRGB(66, 68, 62), Material = Enum.Material.SmoothPlastic },
-	{ Match = "", Color = Color3.fromRGB(184, 160, 118), Material = Enum.Material.SmoothPlastic }, -- body: desert tan
+	{ Match = "bodymetal", Color = Color3.fromRGB(58, 60, 60), Material = Enum.Material.Metal },
+	{ Match = "scope", Color = Color3.fromRGB(38, 40, 44), Material = Enum.Material.Metal },
+	{ Match = "barrel", Color = Color3.fromRGB(38, 40, 44), Material = Enum.Material.Metal },
+	{ Match = "bolt", Color = Color3.fromRGB(84, 86, 90), Material = Enum.Material.Metal },
+	{ Match = "stockdetail", Color = Color3.fromRGB(96, 98, 92), Material = Enum.Material.SmoothPlastic },
+	{ Match = "stock", Color = Color3.fromRGB(60, 62, 58), Material = Enum.Material.SmoothPlastic },
+	{ Match = "", Color = Color3.fromRGB(190, 164, 120), Material = Enum.Material.SmoothPlastic }, -- body: desert tan
 }
 
-local function paintIfBare(part)
+local function paintMesh(part)
 	if not part:IsA("MeshPart") then
 		return
 	end
 	local textured = part.TextureID ~= "" or part:FindFirstChildOfClass("SurfaceAppearance") ~= nil
 	if textured then
-		return
+		if (Config.Viewmodel.MeshPaint or "Always") ~= "Always" then
+			return
+		end
+		-- drop the texture so the flat colour shows
+		for _, child in ipairs(part:GetChildren()) do
+			if child:IsA("SurfaceAppearance") then
+				child:Destroy()
+			end
+		end
+		pcall(function()
+			part.TextureID = ""
+		end)
 	end
 	local name = part.Name:lower()
 	for _, paint in ipairs(GunModel.MeshPaint) do
@@ -723,7 +741,7 @@ function GunModel.Build(parent, options)
 			end
 			part.Size = info.Size * scale
 			part.CastShadow = options.CastShadow == true
-			paintIfBare(part)
+			paintMesh(part)
 			local offset = info.Offset.Rotation + info.Offset.Position * scale
 			if info.Part.Name:lower():find("bolt") then
 				-- the bolt handle moves with the bolt pivot (see Place / the viewmodel)

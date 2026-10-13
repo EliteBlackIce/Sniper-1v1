@@ -260,6 +260,7 @@ local function play(deathTime, killerName)
 	local ghost = ghostTemplate and ghostTemplate:Clone()
 	local setGhostAnim = function() end
 	if ghost then
+		ghost:PivotTo(samples[1].Me) -- don't flash at the round-start spot
 		ghost.Parent = workspace
 		setGhostAnim = animateGhost(ghost)
 	end
@@ -270,7 +271,10 @@ local function play(deathTime, killerName)
 	local entry = ClientState.GetOpponentEntry()
 	local owned = entry and entry.PowerUps or {}
 	local boltTime = PowerUps.ComputeStats(owned).BoltTime or 1
-	Controllers.Viewmodel.SetPuppet({ Character = enemy, Owned = owned })
+	local okPuppet, puppetErr = pcall(Controllers.Viewmodel.SetPuppet, { Character = enemy, Owned = owned })
+	if not okPuppet then
+		warn("[KillCam]", puppetErr)
+	end
 
 	Controllers.Camera.SetSuspended(true)
 	local oldType, oldFov = camera.CameraType, camera.FieldOfView
@@ -299,12 +303,7 @@ local function play(deathTime, killerName)
 	local function stop()
 		RunService:UnbindFromRenderStep("SniperKillCam")
 		poseConnection:Disconnect()
-		if ghost then
-			ghost:Destroy()
-		end
-		Controllers.Viewmodel.SetPuppet(nil)
-		setCharacterHidden(enemy, false)
-		gui.Enabled = false
+		-- give the camera back first, so nothing below can leave it stuck
 		camera.CameraType = oldType == Enum.CameraType.Scriptable and Enum.CameraType.Custom or oldType
 		camera.FieldOfView = oldFov
 		local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
@@ -313,10 +312,28 @@ local function play(deathTime, killerName)
 		end
 		Controllers.Camera.SetSuspended(false)
 		playing = false
+		gui.Enabled = false
+		if ghost then
+			ghost:Destroy()
+		end
+		setCharacterHidden(enemy, false)
+		local ok, err = pcall(Controllers.Viewmodel.SetPuppet, nil)
+		if not ok then
+			warn("[KillCam]", err)
+		end
 	end
 
 	-- runs just before the viewmodel (Camera + 2), so the arms use this frame's camera
+	local frame
 	RunService:BindToRenderStep("SniperKillCam", Enum.RenderPriority.Camera.Value + 1, function(dt)
+		-- an error mid-replay must never leave the camera stuck
+		local ok, err = pcall(frame, dt)
+		if not ok then
+			warn("[KillCam]", err)
+			stop()
+		end
+	end)
+	frame = function(dt)
 		local slow = replayT > deathTime - K.SlowMoTime and replayT < deathTime + 0.3
 		rate = slow and K.SlowMoSpeed or 1
 		replayT += dt * rate
@@ -362,7 +379,7 @@ local function play(deathTime, killerName)
 		if replayT >= finish or stopRequested or not ClientState.InMatch() or (phase ~= "RoundEnd" and phase ~= "Fight") then
 			stop()
 		end
-	end)
+	end
 end
 
 function KillCam.IsPlaying()

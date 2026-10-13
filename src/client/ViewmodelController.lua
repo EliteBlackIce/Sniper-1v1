@@ -428,7 +428,11 @@ function Viewmodel.SetPuppet(info)
 	puppet = info
 	builtSignature = nil -- rebuild the rifle for whoever is holding it
 	buildGun()
-	buildAvatarArms(info and info.Character or player.Character)
+	if info then
+		buildAvatarArms(info.Character or nil) -- killer gone: plain arms
+	else
+		buildAvatarArms(player.Character)
+	end
 	inspecting = false
 	flourish = nil
 end
@@ -598,9 +602,10 @@ local function update(dt)
 	local boltT = boltDuration > 0 and (t - boltStart) / boltDuration or 1
 	local cycling = boltT < 1
 	local sprinting = movement.IsSprinting() and scopeAlpha < 0.1 and not cycling
+	sprinting = sprinting and not puppet
 	sprintAlpha = Util.lerp(sprintAlpha, sprinting and 1 or 0, Util.smooth(10, dt))
 	slideAlpha = Util.lerp(slideAlpha, mode == "Slide" and 1 or 0, Util.smooth(12, dt))
-	wallAlpha = Util.lerp(wallAlpha, movement.GetWallSide(), Util.smooth(10, dt))
+	wallAlpha = Util.lerp(wallAlpha, puppet and 0 or movement.GetWallSide(), Util.smooth(10, dt))
 	local vy = root and root.AssemblyLinearVelocity.Y or 0
 	airOffset = Util.lerp(airOffset, grounded and 0 or math.clamp(-vy * 0.0025, -0.1, 0.1), Util.smooth(8, dt))
 
@@ -622,7 +627,7 @@ local function update(dt)
 		else
 			local w = math.sin(it * math.pi) ^ 0.7
 			local wiggle = math.sin(it * math.pi * 3) * 0.08 * w
-			if GunModel.PowerLevel(ClientState.Owned) > 0 then
+			if GunModel.PowerLevel(currentOwned()) > 0 then
 				-- show off the attachments: turn it one way, then the other
 				local turn = math.sin(it * math.pi * 2)
 				inspectPose = CFrame.new(-0.4 * w, 0.22 * w, 0.35 * w)
@@ -884,7 +889,7 @@ function Viewmodel.Start()
 		if processed and UserInputService:GetFocusedTextBox() then
 			return
 		end
-		if Keybinds.Matches("Inspect", input) and visible and not inspecting then
+		if Keybinds.Matches("Inspect", input) and visible and not inspecting and not puppet then
 			inspecting = true
 			inspectStart = os.clock()
 			Sfx.Play("CardHover", { Pitch = 0.8, Volume = 1.5 })
@@ -895,7 +900,9 @@ function Viewmodel.Start()
 
 	-- your avatar's arms (rebuilt for every new character / appearance)
 	local function refreshArms()
-		task.defer(buildAvatarArms, player.Character)
+		task.defer(function()
+			buildAvatarArms(puppet and puppet.Character or player.Character)
+		end)
 	end
 	player.CharacterAppearanceLoaded:Connect(refreshArms)
 	player.CharacterAdded:Connect(function()

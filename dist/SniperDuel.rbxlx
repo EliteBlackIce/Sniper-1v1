@@ -8007,7 +8007,7 @@ function LobbyBuilder.Build()
 		-- the core: a glowing ball in a small metal cage
 		light(neon(b, b.ball(1.5, V(0, coreY, 0), P.AccentA)), P.AccentA, 18, 1.2)
 		for k = 0, 2 do
-			local spin = CFrame.new(0, coreY, 0) * CFrame.Angles(0, rad(k * 60), rad(90))
+			local spin = CFrame.new(0, coreY, 0) * CFrame.Angles(0, rad(k * 60), 0) -- upright discs at 0/60/120
 			b.cylinder(0.12, 2.3, nil, C.Metal, nil, spin)
 		end
 		-- thin spokes from the core to the ring (the crosshair's lines)
@@ -12534,6 +12534,7 @@ local function play(deathTime, killerName)
 	local ghost = ghostTemplate and ghostTemplate:Clone()
 	local setGhostAnim = function() end
 	if ghost then
+		ghost:PivotTo(samples[1].Me) -- don't flash at the round-start spot
 		ghost.Parent = workspace
 		setGhostAnim = animateGhost(ghost)
 	end
@@ -12544,7 +12545,10 @@ local function play(deathTime, killerName)
 	local entry = ClientState.GetOpponentEntry()
 	local owned = entry and entry.PowerUps or {}
 	local boltTime = PowerUps.ComputeStats(owned).BoltTime or 1
-	Controllers.Viewmodel.SetPuppet({ Character = enemy, Owned = owned })
+	local okPuppet, puppetErr = pcall(Controllers.Viewmodel.SetPuppet, { Character = enemy, Owned = owned })
+	if not okPuppet then
+		warn("[KillCam]", puppetErr)
+	end
 
 	Controllers.Camera.SetSuspended(true)
 	local oldType, oldFov = camera.CameraType, camera.FieldOfView
@@ -12573,12 +12577,7 @@ local function play(deathTime, killerName)
 	local function stop()
 		RunService:UnbindFromRenderStep("SniperKillCam")
 		poseConnection:Disconnect()
-		if ghost then
-			ghost:Destroy()
-		end
-		Controllers.Viewmodel.SetPuppet(nil)
-		setCharacterHidden(enemy, false)
-		gui.Enabled = false
+		-- give the camera back first, so nothing below can leave it stuck
 		camera.CameraType = oldType == Enum.CameraType.Scriptable and Enum.CameraType.Custom or oldType
 		camera.FieldOfView = oldFov
 		local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
@@ -12587,10 +12586,28 @@ local function play(deathTime, killerName)
 		end
 		Controllers.Camera.SetSuspended(false)
 		playing = false
+		gui.Enabled = false
+		if ghost then
+			ghost:Destroy()
+		end
+		setCharacterHidden(enemy, false)
+		local ok, err = pcall(Controllers.Viewmodel.SetPuppet, nil)
+		if not ok then
+			warn("[KillCam]", err)
+		end
 	end
 
 	-- runs just before the viewmodel (Camera + 2), so the arms use this frame's camera
+	local frame
 	RunService:BindToRenderStep("SniperKillCam", Enum.RenderPriority.Camera.Value + 1, function(dt)
+		-- an error mid-replay must never leave the camera stuck
+		local ok, err = pcall(frame, dt)
+		if not ok then
+			warn("[KillCam]", err)
+			stop()
+		end
+	end)
+	frame = function(dt)
 		local slow = replayT > deathTime - K.SlowMoTime and replayT < deathTime + 0.3
 		rate = slow and K.SlowMoSpeed or 1
 		replayT += dt * rate
@@ -12636,7 +12653,7 @@ local function play(deathTime, killerName)
 		if replayT >= finish or stopRequested or not ClientState.InMatch() or (phase ~= "RoundEnd" and phase ~= "Fight") then
 			stop()
 		end
-	end)
+	end
 end
 
 function KillCam.IsPlaying()
@@ -14587,7 +14604,11 @@ function Viewmodel.SetPuppet(info)
 	puppet = info
 	builtSignature = nil -- rebuild the rifle for whoever is holding it
 	buildGun()
-	buildAvatarArms(info and info.Character or player.Character)
+	if info then
+		buildAvatarArms(info.Character or nil) -- killer gone: plain arms
+	else
+		buildAvatarArms(player.Character)
+	end
 	inspecting = false
 	flourish = nil
 end
@@ -14757,9 +14778,10 @@ local function update(dt)
 	local boltT = boltDuration > 0 and (t - boltStart) / boltDuration or 1
 	local cycling = boltT < 1
 	local sprinting = movement.IsSprinting() and scopeAlpha < 0.1 and not cycling
+	sprinting = sprinting and not puppet
 	sprintAlpha = Util.lerp(sprintAlpha, sprinting and 1 or 0, Util.smooth(10, dt))
 	slideAlpha = Util.lerp(slideAlpha, mode == "Slide" and 1 or 0, Util.smooth(12, dt))
-	wallAlpha = Util.lerp(wallAlpha, movement.GetWallSide(), Util.smooth(10, dt))
+	wallAlpha = Util.lerp(wallAlpha, puppet and 0 or movement.GetWallSide(), Util.smooth(10, dt))
 	local vy = root and root.AssemblyLinearVelocity.Y or 0
 	airOffset = Util.lerp(airOffset, grounded and 0 or math.clamp(-vy * 0.0025, -0.1, 0.1), Util.smooth(8, dt))
 
@@ -14781,7 +14803,7 @@ local function update(dt)
 		else
 			local w = math.sin(it * math.pi) ^ 0.7
 			local wiggle = math.sin(it * math.pi * 3) * 0.08 * w
-			if GunModel.PowerLevel(ClientState.Owned) > 0 then
+			if GunModel.PowerLevel(currentOwned()) > 0 then
 				-- show off the attachments: turn it one way, then the other
 				local turn = math.sin(it * math.pi * 2)
 				inspectPose = CFrame.new(-0.4 * w, 0.22 * w, 0.35 * w)
@@ -15043,7 +15065,7 @@ function Viewmodel.Start()
 		if processed and UserInputService:GetFocusedTextBox() then
 			return
 		end
-		if Keybinds.Matches("Inspect", input) and visible and not inspecting then
+		if Keybinds.Matches("Inspect", input) and visible and not inspecting and not puppet then
 			inspecting = true
 			inspectStart = os.clock()
 			Sfx.Play("CardHover", { Pitch = 0.8, Volume = 1.5 })
@@ -15054,7 +15076,9 @@ function Viewmodel.Start()
 
 	-- your avatar's arms (rebuilt for every new character / appearance)
 	local function refreshArms()
-		task.defer(buildAvatarArms, player.Character)
+		task.defer(function()
+			buildAvatarArms(puppet and puppet.Character or player.Character)
+		end)
 	end
 	player.CharacterAppearanceLoaded:Connect(refreshArms)
 	player.CharacterAdded:Connect(function()

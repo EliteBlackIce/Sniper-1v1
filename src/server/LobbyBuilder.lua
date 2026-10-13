@@ -440,7 +440,7 @@ function LobbyBuilder.Build()
 		-- the core: a glowing ball in a small metal cage
 		light(neon(b, b.ball(1.5, V(0, coreY, 0), P.AccentA)), P.AccentA, 18, 1.2)
 		for k = 0, 2 do
-			local spin = CFrame.new(0, coreY, 0) * CFrame.Angles(0, rad(k * 60), rad(90))
+			local spin = CFrame.new(0, coreY, 0) * CFrame.Angles(0, rad(k * 60), 0) -- upright discs at 0/60/120
 			b.cylinder(0.12, 2.3, nil, C.Metal, nil, spin)
 		end
 		-- thin spokes from the core to the ring (the crosshair's lines)

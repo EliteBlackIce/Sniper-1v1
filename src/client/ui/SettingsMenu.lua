@@ -20,6 +20,7 @@ local SettingsMenu = {}
 local gui, panel, unlocker
 local sliders = {} -- [key] = { Set = function(value) }
 local toggleButton
+local assistButton
 local isOpen = false
 
 -- A horizontal slider bound to ClientState.Settings[key].
@@ -111,6 +112,9 @@ end
 
 local function refreshToggle()
 	toggleButton.Text = ClientState.Settings.ToggleScope and "TOGGLE" or "HOLD"
+	if assistButton then
+		assistButton.Text = ClientState.Settings.AimAssist == false and "OFF" or "ON"
+	end
 end
 
 function SettingsMenu.Open()
@@ -121,8 +125,8 @@ function SettingsMenu.Open()
 	gui.Enabled = true
 	unlocker.Visible = true
 	ClientState.SetMenu("Settings", true)
-	panel.Size = UDim2.fromOffset(420, 300)
-	Theme.tween(panel, 0.2, { Size = UDim2.fromOffset(440, 330) }, Enum.EasingStyle.Back)
+	panel.Size = UDim2.fromOffset(420, 346)
+	Theme.tween(panel, 0.2, { Size = UDim2.fromOffset(440, 376) }, Enum.EasingStyle.Back)
 end
 
 function SettingsMenu.Close()
@@ -161,7 +165,7 @@ function SettingsMenu.Start(playerGui)
 	panel = Theme.panel({
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromOffset(440, 330),
+		Size = UDim2.fromOffset(440, 376),
 		BackgroundTransparency = 0,
 		Parent = gui,
 	})
@@ -208,10 +212,39 @@ function SettingsMenu.Start(playerGui)
 	end)
 	refreshToggle()
 
+	-- controller aim assist on / off
+	local assistRow = Theme.new("Frame", {
+		Size = UDim2.new(1, 0, 0, 34),
+		BackgroundTransparency = 1,
+		LayoutOrder = 4,
+		Parent = panel,
+	})
+	Theme.label({
+		Size = UDim2.new(0.6, 0, 1, 0),
+		Text = "Aim assist (controller)",
+		TextSize = 16,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = assistRow,
+	})
+	assistButton = Theme.button({
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.fromScale(1, 0.5),
+		Size = UDim2.fromOffset(110, 32),
+		TextSize = 15,
+		BackgroundColor3 = Palette.UIPanelLight,
+		TextColor3 = Palette.UIText,
+		Parent = assistRow,
+	})
+	assistButton.Activated:Connect(function()
+		ClientState.SetSetting("AimAssist", ClientState.Settings.AimAssist == false)
+		refreshToggle()
+	end)
+	refreshToggle()
+
 	local closeButton = Theme.button({
 		Size = UDim2.new(1, 0, 0, 40),
 		Text = "DONE",
-		LayoutOrder = 4,
+		LayoutOrder = 5,
 		Parent = panel,
 	})
 	closeButton.Activated:Connect(SettingsMenu.Close)

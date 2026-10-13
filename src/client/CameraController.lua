@@ -24,6 +24,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Util = require(Shared.Util)
 local ClientState = require(script.Parent.ClientState)
+local AimAssist = require(script.Parent.AimAssist)
 
 local C = Config.Camera
 local player = Players.LocalPlayer
@@ -181,6 +182,9 @@ local function update(dt)
 	end
 
 	if firstPerson then
+		-- AIM ASSIST (controller only): slowdown + gentle pull near a target
+		AimAssist.Update(camera, dt, scopeAlpha)
+
 		-- RECOIL: apply the kick over a few frames (this really moves your aim)
 		if recoilLeft > 0.001 then
 			local step = recoilLeft * math.min(1, dt * 25)
@@ -238,6 +242,7 @@ function CameraController.Start()
 
 	Controllers.Movement.Landed:Connect(CameraController.LandingDip)
 
+	AimAssist.Start()
 	RunService:BindToRenderStep("SniperCamera", Enum.RenderPriority.Camera.Value + 1, update)
 end
 

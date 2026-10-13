@@ -41,6 +41,9 @@ local function sanitize(data)
 	if typeof(data.ToggleScope) == "boolean" then
 		clean.ToggleScope = data.ToggleScope
 	end
+	if typeof(data.AimAssist) == "boolean" then
+		clean.AimAssist = data.AimAssist
+	end
 	return clean
 end
 

@@ -14,6 +14,7 @@
 		EffectsController    tracers, explosions, ropes, screen tints
 		UIController         all screens (ui/ folder)
 		CharacterPoser       third-person rifle-holding pose for other players
+		AimAssist            light controller aim assist (used by CameraController)
 ]]
 
 local Client = script.Parent

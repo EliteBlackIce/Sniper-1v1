@@ -188,10 +188,23 @@ Config.SettingsDefaults = {
 	Sensitivity = 1.0, -- normal look sensitivity multiplier
 	ScopedSensitivity = 0.45, -- multiplier used while scoped
 	ToggleScope = false, -- false = hold right mouse, true = click to toggle
+	AimAssist = true, -- controller aim assist on/off (players can change it)
 }
 Config.SettingsLimits = {
 	Sensitivity = { Min = 0.1, Max = 3.0 },
 	ScopedSensitivity = { Min = 0.05, Max = 2.0 },
+}
+
+----------------------------------------------------------------------------
+-- AIM ASSIST (controller only, deliberately subtle)
+----------------------------------------------------------------------------
+Config.AimAssist = {
+	Enabled = true, -- master switch (players can also turn it off in settings)
+	ConeDegrees = 4.5, -- only helps when the crosshair is this close to a target (at normal FOV)
+	Slowdown = 0.3, -- aim turns up to 30% slower right on top of a target
+	PullDegreesPerSecond = 3.5, -- max gentle drift toward the body while moving / aiming
+	ScopedPullMultiplier = 0.6, -- less pull while scoped
+	Range = 900, -- studs
 }
 
 ----------------------------------------------------------------------------

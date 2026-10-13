@@ -462,10 +462,23 @@ Config.SettingsDefaults = {
 	Sensitivity = 1.0, -- normal look sensitivity multiplier
 	ScopedSensitivity = 0.45, -- multiplier used while scoped
 	ToggleScope = false, -- false = hold right mouse, true = click to toggle
+	AimAssist = true, -- controller aim assist on/off (players can change it)
 }
 Config.SettingsLimits = {
 	Sensitivity = { Min = 0.1, Max = 3.0 },
 	ScopedSensitivity = { Min = 0.05, Max = 2.0 },
+}
+
+----------------------------------------------------------------------------
+-- AIM ASSIST (controller only, deliberately subtle)
+----------------------------------------------------------------------------
+Config.AimAssist = {
+	Enabled = true, -- master switch (players can also turn it off in settings)
+	ConeDegrees = 4.5, -- only helps when the crosshair is this close to a target (at normal FOV)
+	Slowdown = 0.3, -- aim turns up to 30% slower right on top of a target
+	PullDegreesPerSecond = 3.5, -- max gentle drift toward the body while moving / aiming
+	ScopedPullMultiplier = 0.6, -- less pull while scoped
+	Range = 900, -- studs
 }
 
 ----------------------------------------------------------------------------
@@ -4854,6 +4867,9 @@ local function sanitize(data)
 	if typeof(data.ToggleScope) == "boolean" then
 		clean.ToggleScope = data.ToggleScope
 	end
+	if typeof(data.AimAssist) == "boolean" then
+		clean.AimAssist = data.AimAssist
+	end
 	return clean
 end
 
@@ -4948,6 +4964,186 @@ return SettingsService
         </Properties>
         <Item class="ModuleScript" referent="28">
           <Properties>
+            <string name="Name">AimAssist</string>
+            <string name="Source"><![CDATA[--[[
+	AimAssist.lua  (Client.AimAssist)
+
+	Light aim assist for CONTROLLER players only (mouse users never get it).
+	Two small effects, both only when the crosshair is already close to a
+	target you can actually see:
+
+	  1. Slowdown: your aim turns a bit slower while it's over / near the
+	     target, so it's easier to stay on them.
+	  2. Gentle pull: while you're moving or using the right stick, the aim
+	     drifts slightly toward the target's body (never the head, so
+	     headshots still take skill). Standing still with no input = no pull.
+
+	Targets: the enemy in a match (not while invisible), the practice
+	dummies in the lobby / playground. All numbers are in Config.AimAssist,
+	and players can turn it off in the settings menu.
+]]
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Config = require(Shared.Config)
+local ClientState = require(script.Parent.ClientState)
+
+local A = Config.AimAssist
+local player = Players.LocalPlayer
+
+local AimAssist = {}
+
+local rightStick = Vector2.zero
+local lastLook -- our look direction at the end of last frame
+
+local function usingController()
+	local last = UserInputService:GetLastInputType()
+	return last.Name:find("Gamepad") ~= nil
+end
+
+-- Points we may assist toward: the enemy's torso, or the dummies' torsos.
+local function getTargets()
+	local list = {}
+	if ClientState.InMatch() then
+		if not ClientState.IsFighting() then
+			return list
+		end
+		local opponent = ClientState.GetOpponentPlayer()
+		local character = opponent and opponent.Character
+		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+		if humanoid and humanoid.Health > 0 and not character:GetAttribute("Invisible") then
+			local torso = character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso")
+			if torso then
+				table.insert(list, { Point = torso.Position, Model = character })
+			end
+		end
+	else
+		local folder = workspace:FindFirstChild("Dummies")
+		for _, dummy in ipairs(folder and folder:GetChildren() or {}) do
+			local torso = dummy:FindFirstChild("UpperTorso")
+			if torso and not dummy:GetAttribute("Down") then
+				table.insert(list, { Point = torso.Position, Model = dummy })
+			end
+		end
+	end
+	return list
+end
+
+local function canSee(origin, target)
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	local exclude = { workspace.CurrentCamera, target.Model }
+	if player.Character then
+		table.insert(exclude, player.Character)
+	end
+	for _, name in ipairs({ "Effects", "Decoys" }) do
+		local f = workspace:FindFirstChild(name)
+		if f then
+			table.insert(exclude, f)
+		end
+	end
+	params.FilterDescendantsInstances = exclude
+	return workspace:Raycast(origin, target.Point - origin, params) == nil
+end
+
+-- Angle in radians between two unit vectors.
+local function angleBetween(a, b)
+	return math.acos(math.clamp(a:Dot(b), -1, 1))
+end
+
+-- Rotates unit vector `from` toward `to` by at most `maxAngle` radians.
+local function rotateToward(from, to, maxAngle)
+	local angle = angleBetween(from, to)
+	if angle < 1e-5 then
+		return from
+	end
+	local t = math.min(1, maxAngle / angle)
+	return from:Lerp(to, t).Unit
+end
+
+--[[
+	Called by the CameraController every frame AFTER Roblox's camera has
+	applied this frame's stick input and BEFORE recoil / roll.
+	scopeAlpha: 0 = hip fire, 1 = fully scoped.
+]]
+function AimAssist.Update(camera, dt, scopeAlpha)
+	local look = camera.CFrame.LookVector
+	local enabled = A.Enabled
+		and ClientState.Settings.AimAssist ~= false
+		and usingController()
+		and not ClientState.MenuOpen
+		and ClientState.HasGun()
+	if not enabled then
+		lastLook = look
+		return
+	end
+
+	local origin = camera.CFrame.Position
+	-- the assist cone shrinks with the field of view (smaller when scoped)
+	local cone = math.rad(A.ConeDegrees) * (camera.FieldOfView / Config.Camera.BaseFOV)
+
+	-- closest visible target inside the cone
+	local best, bestAngle, bestDir
+	for _, target in ipairs(getTargets()) do
+		local toTarget = target.Point - origin
+		local distance = toTarget.Magnitude
+		if distance > 1 and distance <= A.Range then
+			local dir = toTarget / distance
+			local angle = angleBetween(look, dir)
+			if angle <= cone and (not best or angle < bestAngle) and canSee(origin, target) then
+				best, bestAngle, bestDir = target, angle, dir
+			end
+		end
+	end
+
+	if best then
+		local closeness = 1 - bestAngle / cone -- 1 = dead centre, 0 = edge of the cone
+
+		-- 1) SLOWDOWN: undo part of this frame's turn while near the target
+		if lastLook then
+			local slow = A.Slowdown * closeness
+			local turned = angleBetween(lastLook, look)
+			if turned > 1e-5 and slow > 0 then
+				look = rotateToward(look, lastLook, turned * slow)
+			end
+		end
+
+		-- 2) PULL: a gentle drift toward the body, only while you're moving
+		--    or actively aiming (never when idle)
+		local character = player.Character
+		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+		local moving = humanoid and humanoid.MoveDirection.Magnitude > 0.1
+		local aiming = rightStick.Magnitude > 0.15
+		if moving or aiming then
+			local strength = math.rad(A.PullDegreesPerSecond) * closeness * dt
+			if scopeAlpha > 0.5 then
+				strength *= A.ScopedPullMultiplier
+			end
+			look = rotateToward(look, bestDir, strength)
+		end
+
+		camera.CFrame = CFrame.lookAt(origin, origin + look)
+	end
+	lastLook = look
+end
+
+function AimAssist.Start()
+	UserInputService.InputChanged:Connect(function(input)
+		if input.KeyCode == Enum.KeyCode.Thumbstick2 then
+			rightStick = Vector2.new(input.Position.X, input.Position.Y)
+		end
+	end)
+end
+
+return AimAssist
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="29">
+          <Properties>
             <string name="Name">CameraController</string>
             <string name="Source"><![CDATA[--[[
 	CameraController.lua  (Client.CameraController)
@@ -4975,6 +5171,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Util = require(Shared.Util)
 local ClientState = require(script.Parent.ClientState)
+local AimAssist = require(script.Parent.AimAssist)
 
 local C = Config.Camera
 local player = Players.LocalPlayer
@@ -5132,6 +5329,9 @@ local function update(dt)
 	end
 
 	if firstPerson then
+		-- AIM ASSIST (controller only): slowdown + gentle pull near a target
+		AimAssist.Update(camera, dt, scopeAlpha)
+
 		-- RECOIL: apply the kick over a few frames (this really moves your aim)
 		if recoilLeft > 0.001 then
 			local step = recoilLeft * math.min(1, dt * 25)
@@ -5189,6 +5389,7 @@ function CameraController.Start()
 
 	Controllers.Movement.Landed:Connect(CameraController.LandingDip)
 
+	AimAssist.Start()
 	RunService:BindToRenderStep("SniperCamera", Enum.RenderPriority.Camera.Value + 1, update)
 end
 
@@ -5196,7 +5397,7 @@ return CameraController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="29">
+        <Item class="ModuleScript" referent="30">
           <Properties>
             <string name="Name">CharacterPoser</string>
             <string name="Source"><![CDATA[--[[
@@ -5322,7 +5523,7 @@ return CharacterPoser
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="30">
+        <Item class="ModuleScript" referent="31">
           <Properties>
             <string name="Name">ClientState</string>
             <string name="Source"><![CDATA[--[[
@@ -5494,7 +5695,7 @@ return ClientState
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="31">
+        <Item class="ModuleScript" referent="32">
           <Properties>
             <string name="Name">EffectsController</string>
             <string name="Source"><![CDATA[--[[
@@ -6124,7 +6325,7 @@ return Effects
 ]]></string>
           </Properties>
         </Item>
-        <Item class="LocalScript" referent="32">
+        <Item class="LocalScript" referent="33">
           <Properties>
             <string name="Name">Main</string>
             <string name="Source"><![CDATA[--[[
@@ -6143,6 +6344,7 @@ return Effects
 		EffectsController    tracers, explosions, ropes, screen tints
 		UIController         all screens (ui/ folder)
 		CharacterPoser       third-person rifle-holding pose for other players
+		AimAssist            light controller aim assist (used by CameraController)
 ]]
 
 local Client = script.Parent
@@ -6186,7 +6388,7 @@ end
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="33">
+        <Item class="ModuleScript" referent="34">
           <Properties>
             <string name="Name">MovementController</string>
             <string name="Source"><![CDATA[--[[
@@ -7139,7 +7341,7 @@ return Movement
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="34">
+        <Item class="ModuleScript" referent="35">
           <Properties>
             <string name="Name">Sfx</string>
             <string name="Source"><![CDATA[--[[
@@ -7196,7 +7398,7 @@ return Sfx
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="35">
+        <Item class="ModuleScript" referent="36">
           <Properties>
             <string name="Name">Spring</string>
             <string name="Source"><![CDATA[--[[
@@ -7242,7 +7444,7 @@ return Spring
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="36">
+        <Item class="ModuleScript" referent="37">
           <Properties>
             <string name="Name">UIController</string>
             <string name="Source"><![CDATA[--[[
@@ -7323,7 +7525,7 @@ return UIController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="37">
+        <Item class="ModuleScript" referent="38">
           <Properties>
             <string name="Name">ViewmodelController</string>
             <string name="Source"><![CDATA[--[[
@@ -7774,7 +7976,7 @@ return Viewmodel
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="38">
+        <Item class="ModuleScript" referent="39">
           <Properties>
             <string name="Name">WeaponController</string>
             <string name="Source"><![CDATA[--[[
@@ -8021,11 +8223,11 @@ return Weapon
 ]]></string>
           </Properties>
         </Item>
-        <Item class="Folder" referent="39">
+        <Item class="Folder" referent="40">
           <Properties>
             <string name="Name">ui</string>
           </Properties>
-          <Item class="ModuleScript" referent="40">
+          <Item class="ModuleScript" referent="41">
             <Properties>
               <string name="Name">HUD</string>
               <string name="Source"><![CDATA[--[[
@@ -8914,7 +9116,7 @@ return HUD
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="41">
+          <Item class="ModuleScript" referent="42">
             <Properties>
               <string name="Name">Icons</string>
               <string name="Source"><![CDATA[--[[
@@ -8976,7 +9178,7 @@ return Icons
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="42">
+          <Item class="ModuleScript" referent="43">
             <Properties>
               <string name="Name">LobbyUI</string>
               <string name="Source"><![CDATA[--[[
@@ -9282,7 +9484,7 @@ return LobbyUI
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="43">
+          <Item class="ModuleScript" referent="44">
             <Properties>
               <string name="Name">PickScreen</string>
               <string name="Source"><![CDATA[--[[
@@ -10059,7 +10261,7 @@ return PickScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="44">
+          <Item class="ModuleScript" referent="45">
             <Properties>
               <string name="Name">PowerUpLab</string>
               <string name="Source"><![CDATA[--[[
@@ -10355,7 +10557,7 @@ return PowerUpLab
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="45">
+          <Item class="ModuleScript" referent="46">
             <Properties>
               <string name="Name">SettingsMenu</string>
               <string name="Source"><![CDATA[--[[
@@ -10380,6 +10582,7 @@ local SettingsMenu = {}
 local gui, panel, unlocker
 local sliders = {} -- [key] = { Set = function(value) }
 local toggleButton
+local assistButton
 local isOpen = false
 
 -- A horizontal slider bound to ClientState.Settings[key].
@@ -10471,6 +10674,9 @@ end
 
 local function refreshToggle()
 	toggleButton.Text = ClientState.Settings.ToggleScope and "TOGGLE" or "HOLD"
+	if assistButton then
+		assistButton.Text = ClientState.Settings.AimAssist == false and "OFF" or "ON"
+	end
 end
 
 function SettingsMenu.Open()
@@ -10481,8 +10687,8 @@ function SettingsMenu.Open()
 	gui.Enabled = true
 	unlocker.Visible = true
 	ClientState.SetMenu("Settings", true)
-	panel.Size = UDim2.fromOffset(420, 300)
-	Theme.tween(panel, 0.2, { Size = UDim2.fromOffset(440, 330) }, Enum.EasingStyle.Back)
+	panel.Size = UDim2.fromOffset(420, 346)
+	Theme.tween(panel, 0.2, { Size = UDim2.fromOffset(440, 376) }, Enum.EasingStyle.Back)
 end
 
 function SettingsMenu.Close()
@@ -10521,7 +10727,7 @@ function SettingsMenu.Start(playerGui)
 	panel = Theme.panel({
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromOffset(440, 330),
+		Size = UDim2.fromOffset(440, 376),
 		BackgroundTransparency = 0,
 		Parent = gui,
 	})
@@ -10568,10 +10774,39 @@ function SettingsMenu.Start(playerGui)
 	end)
 	refreshToggle()
 
+	-- controller aim assist on / off
+	local assistRow = Theme.new("Frame", {
+		Size = UDim2.new(1, 0, 0, 34),
+		BackgroundTransparency = 1,
+		LayoutOrder = 4,
+		Parent = panel,
+	})
+	Theme.label({
+		Size = UDim2.new(0.6, 0, 1, 0),
+		Text = "Aim assist (controller)",
+		TextSize = 16,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = assistRow,
+	})
+	assistButton = Theme.button({
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.fromScale(1, 0.5),
+		Size = UDim2.fromOffset(110, 32),
+		TextSize = 15,
+		BackgroundColor3 = Palette.UIPanelLight,
+		TextColor3 = Palette.UIText,
+		Parent = assistRow,
+	})
+	assistButton.Activated:Connect(function()
+		ClientState.SetSetting("AimAssist", ClientState.Settings.AimAssist == false)
+		refreshToggle()
+	end)
+	refreshToggle()
+
 	local closeButton = Theme.button({
 		Size = UDim2.new(1, 0, 0, 40),
 		Text = "DONE",
-		LayoutOrder = 4,
+		LayoutOrder = 5,
 		Parent = panel,
 	})
 	closeButton.Activated:Connect(SettingsMenu.Close)
@@ -10599,7 +10834,7 @@ return SettingsMenu
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="46">
+          <Item class="ModuleScript" referent="47">
             <Properties>
               <string name="Name">Theme</string>
               <string name="Source"><![CDATA[--[[
@@ -10862,7 +11097,7 @@ return Theme
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="47">
+          <Item class="ModuleScript" referent="48">
             <Properties>
               <string name="Name">VictoryScreen</string>
               <string name="Source"><![CDATA[--[[

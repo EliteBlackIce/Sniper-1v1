@@ -276,6 +276,19 @@ rooftops, the train, the avenue and the park. Open the **Power-Up Lab (B)** and
 try any build on the real map; press **G** again to go back to the lobby, or
 **F** to queue for a match from there.
 
+## Controller aim assist
+
+Controller players get light aim assist (mouse players never do):
+- **Slowdown**: your aim turns up to 30% slower when the crosshair is right
+  on a target, so it's easier to stay on them.
+- **Gentle pull**: while you move or use the right stick, the aim drifts
+  very slightly toward the target's body (never the head), at most about
+  3 degrees per second.
+- It only works inside a small circle around the crosshair (4.5 degrees,
+  smaller when scoped), only on targets you can actually see, and never on
+  an invisible (Phantom Step) enemy or a decoy.
+- Players can turn it off in Settings (P). Tune it in `Config.AimAssist`.
+
 ## Visual effects
 
 Glowing tracers with a travelling bullet, muzzle flash lights, impact sparks

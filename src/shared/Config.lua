@@ -62,6 +62,44 @@ Config.Palette = {
 	UIHeadshot = Color3.fromRGB(255, 70, 80),
 }
 
+-- City map colours (Downtown arena). Still flat, single-colour parts.
+Config.MapPalette = {
+	Asphalt = Color3.fromRGB(70, 74, 84),
+	RoadLine = Color3.fromRGB(250, 214, 92),
+	RoadWhite = Color3.fromRGB(236, 238, 242),
+	Sidewalk = Color3.fromRGB(214, 214, 208),
+	Curb = Color3.fromRGB(182, 184, 190),
+	Concrete = Color3.fromRGB(196, 198, 204),
+	BuildingA = Color3.fromRGB(236, 230, 218), -- warm white
+	BuildingB = Color3.fromRGB(184, 198, 216), -- cool blue-grey
+	BuildingC = Color3.fromRGB(222, 186, 158), -- sandstone
+	BuildingD = Color3.fromRGB(160, 172, 188), -- slate (city skyline)
+	BuildingE = Color3.fromRGB(205, 214, 200), -- sage
+	Trim = Color3.fromRGB(122, 130, 144),
+	Roof = Color3.fromRGB(150, 156, 168),
+	Window = Color3.fromRGB(88, 118, 150),
+	WindowLit = Color3.fromRGB(170, 205, 230),
+	Metal = Color3.fromRGB(86, 92, 104),
+	Dark = Color3.fromRGB(46, 50, 58),
+	Grass = Color3.fromRGB(142, 196, 120),
+	Foliage = Color3.fromRGB(104, 178, 110),
+	FoliageDark = Color3.fromRGB(76, 150, 96),
+	Trunk = Color3.fromRGB(128, 96, 72),
+	Wood = Color3.fromRGB(184, 140, 96),
+	Water = Color3.fromRGB(110, 196, 232),
+	LampLight = Color3.fromRGB(255, 240, 200),
+	CarColors = {
+		Color3.fromRGB(235, 92, 76),
+		Color3.fromRGB(72, 140, 230),
+		Color3.fromRGB(244, 244, 244),
+		Color3.fromRGB(56, 199, 182),
+		Color3.fromRGB(60, 64, 74),
+	},
+	Bus = Color3.fromRGB(255, 196, 77),
+	Train = Color3.fromRGB(56, 199, 182),
+	Awning = { Color3.fromRGB(235, 92, 76), Color3.fromRGB(72, 140, 230), Color3.fromRGB(255, 196, 77) },
+}
+
 -- Rarity colours (card borders, icons in the HUD) and draw weights.
 -- Weight = relative chance a card of this rarity is drawn. Higher rarities
 -- have lower weights so they appear less often.
@@ -76,7 +114,7 @@ Config.Rarity = {
 -- MATCH FLOW
 ----------------------------------------------------------------------------
 Config.Match = {
-	RoundsToWin = 4, -- best of 7
+	RoundsToWin = 5, -- first to 5 round wins (best of 9)
 	CountdownTime = 3, -- "3, 2, 1, GO"
 	RoundEndTime = 2.5, -- pause after a kill before the pick screen
 	PickTime = 15, -- seconds the loser has to pick a card
@@ -84,6 +122,7 @@ Config.Match = {
 	VictoryTime = 7, -- victory screen length before returning to lobby
 	MaxRoundTime = 150, -- if nobody dies, higher health % wins the round (tie = replay)
 	CardsPerPick = 5,
+	Map = "Downtown", -- "Downtown" (detailed city) or "Classic" (the original simple arena)
 	MaxArenas = 4, -- how many matches can run at the same time in one server
 	ArenaSpacing = 2000, -- distance between arena copies
 	VoidDepth = 80, -- falling this far below the arena floor kills you
@@ -257,30 +296,68 @@ Config.Weapon = {
 -- they use live here.
 ----------------------------------------------------------------------------
 Config.PowerUps = {
+	-- Most numbers below are "per stack": picking the same card again makes it stronger.
+
+	-- BULLET PATH
 	GhostRound = { WallsPerStack = 1 },
 	Ricochet = { BouncesPerStack = 1 },
+	SplitShot = { BulletsPerStack = 2, SpreadDegrees = 1.6 }, -- 1 + 2 = 3 bullets, 5 at 2 stacks
+	HomingRounds = { Radius = 9, RadiusPerStack = 3, TurnDegreesPerStack = 5, StepLength = 18 },
+	ExplosiveRounds = {
+		Radius = 13,
+		RadiusPerStack = 4, -- extra stacks
+		Damage = 45,
+		DamagePerStack = 15, -- extra stacks
+		Knockback = 70,
+		SelfKnockback = 55,
+	},
+	Shrapnel = { ShardsPerStack = 2, Damage = 16, Range = 60, SpreadDegrees = 40, MaxShardsPerShot = 14 },
+	StaticCharge = { Damage = 20, Radius = 7, RadiusPerStack = 2 }, -- near misses zap the enemy
+
+	-- DAMAGE
+	Pinball = { BonusPerHop = 0.35 }, -- +35% damage per bounce / wall pass, per stack
+	MomentumRounds = { BonusPerSpeed = 0.012, MaxBonus = 0.6, FreeSpeed = 30 }, -- per stack
+	SkySniper = { AirBonus = 0.2 }, -- per stack
+	GlassCannon = { DamageBonus = 0.3, HealthCost = 20 }, -- per stack
+	Marked = { Duration = 4, BonusPerStack = 0.25 },
+	HairTrigger = {}, -- a hit re-chambers your rifle instantly
+	Vampire = { HealFraction = 0.5 }, -- per stack (of damage dealt)
+
+	-- MOVEMENT
+	DoubleJump = { ExtraJumpsPerStack = 1 },
+	Adrenaline = { SpeedPerStack = 0.08 },
+	Featherweight = { GravityReductionPerStack = 0.18 },
+	SpringLegs = { JumpPerStack = 0.15 },
+	Blink = { Distance = 28, DistancePerStack = 8, Cooldown = 6 }, -- cooldown is divided by stacks
+	Grapple = { CooldownDividedByStacks = true, PullPerStack = 0.2 },
+	MagneticBoots = {},
+	RocketJump = { Radius = 9, LaunchUp = 88, LaunchAway = 28, PowerPerStack = 0.25 },
+	PhantomDash = { InvisibleTime = 0.5, TimePerStack = 0.35 },
+	ShockwaveLanding = {
+		MinFallHeight = 20,
+		Radius = 24,
+		RadiusPerStack = 6,
+		Knockback = 90,
+		KnockbackPerStack = 20,
+		DamagePerExtraStack = 20, -- stacks 2+ also deal damage
+		Cooldown = 2,
+	},
+
+	-- UTILITY / DEFENCE
 	BulletTime = {
 		Duration = 2,
+		DurationPerStack = 1, -- extra stacks
 		Cooldown = 6,
 		GravityScale = 0.15, -- fall speed multiplier while active
 		MoveScale = 0.45, -- horizontal momentum multiplier while active
 		SensitivityScale = 0.6,
 		BoltSpeedScale = 2, -- bolt cycles this many times faster while active
 	},
-	PhantomDash = { InvisibleTime = 0.5 },
-	SplitShot = { BulletsPerStack = 2, SpreadDegrees = 1.6 }, -- 1 + 2 = 3 bullets
-	RocketJump = { Radius = 9, LaunchUp = 88, LaunchAway = 28 },
-	SecondWind = { SpeedMultiplier = 1.35, BoostTime = 3 },
-	HomingRounds = { Radius = 9, TurnDegreesPerStep = 5, StepLength = 18 },
-	DoubleJump = { ExtraJumpsPerStack = 1 },
-	Quickdraw = { SpeedPerStack = 0.4 }, -- 40% faster bolt + scope
+	Quickdraw = { SpeedPerStack = 0.4 }, -- 40% faster bolt + scope (multiplies per stack)
 	ThickSkin = { HealthPerStack = 40 },
-	WallhackPulse = { Interval = 10, Duration = 1 },
-	Decoy = { Cooldown = 8, Lifetime = 4, Speed = 26 },
-	ExplosiveRounds = { Radius = 13, Damage = 45, Knockback = 70, SelfKnockback = 55 },
-	MagneticBoots = {},
-	Vampire = { HealFraction = 0.5 },
-	ShockwaveLanding = { MinFallHeight = 20, Radius = 24, Knockback = 90, Cooldown = 2 },
+	SecondWind = { SpeedMultiplier = 1.35, BoostTime = 3 }, -- one save per stack, each round
+	WallhackPulse = { Interval = 10, IntervalScalePerStack = 0.7, Duration = 1, DurationPerStack = 0.25 },
+	Decoy = { Cooldown = 8, Lifetime = 4, Speed = 26, SpreadDegrees = 30 }, -- one decoy per stack
 }
 
 ----------------------------------------------------------------------------

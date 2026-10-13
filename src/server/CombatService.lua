@@ -5,7 +5,8 @@
 
 	FIRE VALIDATION (anti-exploit)
 	  1. Arguments must be real, finite Vector3s.
-	  2. The shooter must be alive, in a match, and the round must be live.
+	  2. The shooter must be alive, and either in a live round or practising
+	     in the lobby (where only the dummies can be hurt).
 	  3. Fire rate: shots faster than the (power-up adjusted) bolt time are rejected.
 	  4. Origin: the shot must start near the shooter's head on the server.
 	  5. The server re-traces every bullet with Ballistics.Simulate (the same
@@ -20,8 +21,19 @@
 	    * the claimed point is close to where that body part really is
 	      on the server (with a small allowance for the victim's speed).
 
-	Also handles: explosions, Second Wind, Vampire, decoys, Phantom Dash,
-	Shockwave Landing, Bullet Time bookkeeping and grapple visuals.
+	DAMAGE (how power-ups stack)
+	  bullet damage = base (head / body / limb)
+	                x Glass Cannon multiplier
+	                x (1 + Sky Sniper bonus, if you're airborne)
+	                x (1 + Momentum Rounds bonus, from your speed)
+	                x (1 + Pinball bonus x bounces/wall passes before the hit)
+	                x (1 + Marked bonus, if the target is marked)
+	  Headshots are always an instant kill.
+	  Explosions, Shrapnel and Static Charge use the same shot multiplier
+	  (Glass Cannon, Sky Sniper, Momentum) and the Marked bonus.
+
+	"Targets" are the enemy player in a match, or the practice dummies in the
+	lobby, so every power-up works on the range too.
 ]]
 
 local Players = game:GetService("Players")
@@ -44,6 +56,7 @@ local CombatService = {}
 local lastFire = {} -- [player] = os.clock() of last accepted shot
 local cooldowns = {} -- [player] = { [abilityName] = os.clock() ready time }
 local bulletTimeUntil = {} -- [player] = os.clock()
+local markedUntil = {} -- [player or dummy model] = os.clock()
 
 local decoyFolder
 local effectsFolder
@@ -109,12 +122,12 @@ local function buildExclude(player)
 	return list
 end
 
-local function getTorso(character)
-	return character
+local function getTorso(model)
+	return model
 		and (
-			character:FindFirstChild("UpperTorso")
-			or character:FindFirstChild("Torso")
-			or character:FindFirstChild("HumanoidRootPart")
+			model:FindFirstChild("UpperTorso")
+			or model:FindFirstChild("Torso")
+			or model:FindFirstChild("HumanoidRootPart")
 		)
 end
 
@@ -133,32 +146,78 @@ local function popDecoy(decoy)
 	end
 end
 
+-- Random direction within `degrees` of `dir`.
+local function randomInCone(dir, degrees)
+	local angle = math.rad(degrees) * math.sqrt(math.random())
+	local spin = math.random() * math.pi * 2
+	local cf = CFrame.lookAt(Vector3.zero, dir)
+	return (cf * CFrame.Angles(0, 0, spin) * CFrame.Angles(angle, 0, 0)).LookVector
+end
+
 ----------------------------------------------------------------------------
--- Damage
+-- Targets: the enemy player in a match, or the dummies in the lobby
+----------------------------------------------------------------------------
+--[[
+	A target record: { Player = Player?, Model = Model }
+	(Player is nil for practice dummies.)
+]]
+local function getTargets(shooter, match)
+	local list = {}
+	if match then
+		local opponent = match:GetOpponent(shooter)
+		local humanoid, character = CharacterService.GetAliveHumanoid(opponent)
+		if humanoid then
+			table.insert(list, { Player = opponent, Model = character })
+		end
+	else
+		for _, dummy in ipairs(DummyService.GetDummies()) do
+			table.insert(list, { Model = dummy })
+		end
+	end
+	return list
+end
+
+local function targetForModel(targets, model)
+	for _, target in ipairs(targets) do
+		if target.Model == model then
+			return target
+		end
+	end
+	return nil
+end
+
+local function markKey(target)
+	return target.Player or target.Model
+end
+
+----------------------------------------------------------------------------
+-- Damage to players
 ----------------------------------------------------------------------------
 
 --[[
-	Deals damage from `attacker` to `victim` inside `match`.
+	Deals damage from `attacker` to the player `victim` inside `match`.
 	info = { Headshot = bool, Splash = bool }
+	Returns true if the victim died.
 ]]
 function CombatService.Damage(match, attacker, victim, amount, info)
 	info = info or {}
 	if not match:IsFighting() then
-		return
+		return false
 	end
 	local humanoid = CharacterService.GetAliveHumanoid(victim)
 	if not humanoid then
-		return
+		return false
 	end
 
 	local before = humanoid.Health
 	local after = before - amount
 
-	-- SECOND WIND: survive the first lethal hit each round
+	-- SECOND WIND: survive lethal hits (one save per stack, each round)
 	if after <= 0 then
 		local victimStats = match:GetStats(victim)
-		if victimStats.SecondWind and not match.SecondWindUsed[victim] then
-			match.SecondWindUsed[victim] = true
+		local used = match.SecondWindUsed[victim] or 0
+		if used < victimStats.SecondWindCharges then
+			match.SecondWindUsed[victim] = used + 1
 			after = 1
 			Remotes.Get("Buff"):FireClient(victim, {
 				Type = "SpeedBoost",
@@ -201,60 +260,173 @@ function CombatService.Damage(match, attacker, victim, amount, info)
 		Damage = dealt,
 		Killed = after <= 0,
 	})
+	return after <= 0
 end
 
-local function damageForPart(part)
-	local zone = Util.hitZone(part.Name)
-	if zone == "Head" then
-		return W.HeadDamage, true
-	elseif zone == "Body" then
-		return W.BodyDamage, false
+--[[
+	Damages any target (player or dummy) and handles Marked.
+	info = { Headshot, Splash }
+]]
+local function damageTarget(match, attacker, stats, target, amount, info)
+	info = info or {}
+	-- MARKED: bonus damage against a target you hit recently
+	local key = markKey(target)
+	if stats.MarkBonus > 0 and (markedUntil[key] or 0) > os.clock() then
+		amount *= 1 + stats.MarkBonus
 	end
-	return W.LimbDamage, false
+
+	if target.Player then
+		CombatService.Damage(match, attacker, target.Player, amount, info)
+	else
+		local killed = DummyService.Damage(target.Model, amount)
+		Remotes.Get("HitConfirm"):FireClient(attacker, {
+			Headshot = info.Headshot == true,
+			Killed = killed,
+			Damage = amount,
+			Splash = info.Splash == true,
+		})
+	end
+
+	if stats.MarkBonus > 0 then
+		markedUntil[key] = os.clock() + PU.Marked.Duration
+		Remotes.Get("Effect"):FireClient(attacker, {
+			Type = "Mark",
+			Target = target.Model,
+			Duration = PU.Marked.Duration,
+		})
+	end
 end
 
--- EXPLOSIVE ROUNDS: splash damage + knockback around `position`.
--- `match` is nil when practising in the lobby (then dummies take the splash).
--- `directVictim` is the player (or dummy model) the bullet hit directly.
-local function explode(match, attacker, position, directVictim)
-	local cfg = PU.ExplosiveRounds
-	sendFx(match, { Type = "Explosion", Position = position, Radius = cfg.Radius })
-
-	if not match then
-		for _, dummy in ipairs(DummyService.GetDummies()) do
-			local distance = (dummy:GetPivot().Position + Vector3.new(0, 3, 0) - position).Magnitude
-			if dummy ~= directVictim and distance <= cfg.Radius then
-				local damage = cfg.Damage * (1 - (distance / cfg.Radius) * 0.5)
-				local killed = DummyService.Damage(dummy, damage)
-				Remotes.Get("HitConfirm"):FireClient(attacker, { Killed = killed, Damage = damage, Splash = true })
+-- The part of the damage formula shared by everything a shot causes:
+-- Glass Cannon x Sky Sniper (airborne) x Momentum Rounds (speed).
+local function shotMultiplier(stats, shooterCharacter)
+	local mult = stats.DamageMultiplier
+	local root = shooterCharacter and shooterCharacter:FindFirstChild("HumanoidRootPart")
+	if root then
+		if stats.AirDamageBonus > 0 then
+			local params = RaycastParams.new()
+			params.FilterType = Enum.RaycastFilterType.Exclude
+			params.FilterDescendantsInstances = { shooterCharacter, effectsFolder, decoyFolder }
+			local airborne = workspace:Raycast(root.Position, Vector3.new(0, -4.5, 0), params) == nil
+			if airborne then
+				mult *= 1 + stats.AirDamageBonus
 			end
 		end
+		if stats.SpeedDamageBonus > 0 then
+			local cfg = PU.MomentumRounds
+			local speed = Util.flat(root.AssemblyLinearVelocity).Magnitude
+			local bonus = math.clamp((speed - cfg.FreeSpeed) * cfg.BonusPerSpeed, 0, cfg.MaxBonus)
+			mult *= 1 + bonus * stats.SpeedDamageBonus
+		end
 	end
+	return mult
+end
 
-	for _, player in ipairs(match and match.Players or { attacker }) do
-		local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-		if root then
-			local offset = root.Position - position
+local function bulletDamage(part, hops, stats, mult)
+	local zone = Util.hitZone(part.Name)
+	if zone == "Head" then
+		return W.HeadDamage, true -- always an instant kill
+	end
+	local base = zone == "Body" and W.BodyDamage or W.LimbDamage
+	-- PINBALL: more damage for every bounce / wall pass before the hit
+	return base * mult * (1 + stats.HopDamageBonus * (hops or 0)), false
+end
+
+----------------------------------------------------------------------------
+-- Shot effects: explosions, shrapnel, static charge
+----------------------------------------------------------------------------
+
+-- EXPLOSIVE ROUNDS: splash damage + knockback around `position`.
+-- `directModel` is the model the bullet hit directly (it doesn't take splash).
+local function explode(match, attacker, stats, mult, targets, position, directModel)
+	local radius = stats.ExplosionRadius
+	local cfg = PU.ExplosiveRounds
+	sendFx(match, { Type = "Explosion", Position = position, Radius = radius })
+
+	for _, target in ipairs(targets) do
+		local torso = getTorso(target.Model)
+		if torso and target.Model ~= directModel then
+			local offset = torso.Position - position
 			local distance = offset.Magnitude
-			if distance <= cfg.Radius then
-				local away = Util.safeUnit(offset + Vector3.new(0, 2, 0), Vector3.yAxis)
-				local falloff = 1 - (distance / cfg.Radius) * 0.5
-				if player == attacker then
-					knockback(player, away * cfg.SelfKnockback * falloff) -- no self damage
-				else
-					if player ~= directVictim then
-						CombatService.Damage(match, attacker, player, cfg.Damage * falloff, { Splash = true })
-					end
-					knockback(player, away * cfg.Knockback * falloff)
+			if distance <= radius then
+				local falloff = 1 - (distance / radius) * 0.5
+				damageTarget(match, attacker, stats, target, stats.ExplosionDamage * falloff * mult, { Splash = true })
+				if target.Player then
+					local away = Util.safeUnit(offset + Vector3.new(0, 2, 0), Vector3.yAxis)
+					knockback(target.Player, away * cfg.Knockback * falloff)
 				end
 			end
 		end
 	end
 
+	-- self knockback (no self damage): explosive rocket jumps!
+	local root = attacker.Character and attacker.Character:FindFirstChild("HumanoidRootPart")
+	if root then
+		local offset = root.Position - position
+		if offset.Magnitude <= radius then
+			local away = Util.safeUnit(offset + Vector3.new(0, 2, 0), Vector3.yAxis)
+			knockback(attacker, away * cfg.SelfKnockback * (1 - (offset.Magnitude / radius) * 0.5))
+		end
+	end
+
 	for _, decoy in ipairs(decoyFolder:GetChildren()) do
 		if decoy:GetAttribute("OwnerUserId") ~= attacker.UserId then
-			if (decoy:GetPivot().Position - position).Magnitude <= cfg.Radius then
+			if (decoy:GetPivot().Position - position).Magnitude <= radius then
 				popDecoy(decoy)
+			end
+		end
+	end
+end
+
+-- SHRAPNEL: shards fly out of every surface a bullet touched.
+-- Returns the shard segments for the visual effect.
+local function shrapnel(match, attacker, stats, mult, targets, impacts, exclude, budget)
+	local cfg = PU.Shrapnel
+	local segments = {}
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = exclude
+
+	for _, impact in ipairs(impacts) do
+		for _ = 1, stats.ShrapnelCount do
+			if budget.Left <= 0 then
+				return segments
+			end
+			budget.Left -= 1
+			local dir = randomInCone(impact.Direction, cfg.SpreadDegrees)
+			local start = impact.Position + impact.Normal * 0.1
+			local ray = workspace:Raycast(start, dir * cfg.Range, params)
+			local finish = ray and ray.Position or start + dir * cfg.Range
+			table.insert(segments, { From = start, To = finish })
+			if ray then
+				local target = targetForModel(targets, Ballistics.FindTargetModel(ray.Instance))
+				if target then
+					damageTarget(match, attacker, stats, target, cfg.Damage * mult, { Splash = true })
+				end
+			end
+		end
+	end
+	return segments
+end
+
+-- STATIC CHARGE: a bullet that passes close to a target zaps it.
+local function staticCharge(match, attacker, stats, mult, targets, sim, exclude, zapped)
+	for _, target in ipairs(targets) do
+		local torso = getTorso(target.Model)
+		if torso and not zapped[target.Model] then
+			local point, distance = Ballistics.ClosestOnPath(sim, torso.Position)
+			if point and distance <= stats.StaticChargeRadius then
+				-- needs a clear line from the bullet to the target
+				local params = RaycastParams.new()
+				params.FilterType = Enum.RaycastFilterType.Exclude
+				local list = table.clone(exclude)
+				table.insert(list, target.Model)
+				params.FilterDescendantsInstances = list
+				if not workspace:Raycast(point, torso.Position - point, params) then
+					zapped[target.Model] = true
+					damageTarget(match, attacker, stats, target, stats.StaticChargeDamage * mult, { Splash = true })
+					sendFx(match, { Type = "Zap", From = point, To = torso.Position })
+				end
 			end
 		end
 	end
@@ -264,15 +436,15 @@ end
 -- Fire
 ----------------------------------------------------------------------------
 
--- Checks a client's hit claim. Returns the victim's BasePart if it's believable.
-local function validateClaim(claim, victimCharacter, worldPath, homing)
+-- Checks a client's hit claim. Returns the target's BasePart if it's believable.
+local function validateClaim(claim, model, worldPath, homing)
 	if typeof(claim) ~= "table" or typeof(claim.Part) ~= "string" then
 		return nil
 	end
 	if not Util.isFiniteVector3(claim.Point) then
 		return nil
 	end
-	local part = victimCharacter:FindFirstChild(claim.Part)
+	local part = model:FindFirstChild(claim.Part)
 	if not part or not part:IsA("BasePart") then
 		return nil
 	end
@@ -284,7 +456,7 @@ local function validateClaim(claim, victimCharacter, worldPath, homing)
 	end
 
 	-- 2) and near where the body part actually is right now
-	local root = victimCharacter:FindFirstChild("HumanoidRootPart")
+	local root = model:FindFirstChild("HumanoidRootPart")
 	local speed = root and root.AssemblyLinearVelocity.Magnitude or 0
 	local targetTolerance = W.ClaimTargetTolerance + speed * W.ClaimSpeedAllowance + part.Size.Magnitude * 0.5
 	if (claim.Point - part.Position).Magnitude > targetTolerance then
@@ -313,7 +485,6 @@ local function onFire(player, origin, direction, claims)
 
 	-- 2) shooter state. No match = lobby practice range (dummies only).
 	local match = MatchService.GetMatch(player)
-	local practice = match == nil
 	if match and not match:IsFighting() then
 		return
 	end
@@ -352,25 +523,20 @@ local function onFire(player, origin, direction, claims)
 	lastFire[player] = now
 
 	-- 5) trace every bullet on the server
-	local opponent = match and match:GetOpponent(player)
-	local victimCharacter = opponent and opponent.Character
-	local victimTorso = getTorso(victimCharacter)
-	local homingTargets = victimTorso and { victimTorso.Position } or {}
-	if practice then
-		homingTargets = DummyService.GetTargets()
+	local targets = getTargets(player, match)
+	local homingTargets = {}
+	for _, target in ipairs(targets) do
+		local torso = getTorso(target.Model)
+		if torso then
+			table.insert(homingTargets, torso.Position)
+		end
 	end
 	local exclude = buildExclude(player)
-
-	-- what this shooter is allowed to damage
-	local function isTarget(model)
-		if typeof(model) ~= "Instance" or not model:IsDescendantOf(workspace) then
-			return false
-		end
-		if practice then
-			return model:GetAttribute("Dummy") == true and not model:GetAttribute("Down")
-		end
-		return model == victimCharacter
-	end
+	local mult = shotMultiplier(stats, character)
+	local shardBudget = { Left = PU.Shrapnel.MaxShardsPerShot }
+	local shardSegments = {}
+	local zapped = {}
+	local anyHit = false
 
 	local fx = {}
 	for i, dir in ipairs(Ballistics.GetShotDirections(direction.Unit, stats.Bullets)) do
@@ -382,21 +548,26 @@ local function onFire(player, origin, direction, claims)
 			HomingTargets = homingTargets,
 		})
 
-		local hitModel, hitPart, hitPos
+		local hitTarget, hitPart, hitPos, hops
 		if sim.Hit then
 			local model = sim.Hit.Model
 			if model:GetAttribute("Decoy") then
 				popDecoy(model)
-			elseif isTarget(model) then
-				hitModel, hitPart, hitPos = model, sim.Hit.Part, sim.Hit.Position
+			else
+				hitTarget = targetForModel(targets, model)
+				if hitTarget then
+					hitPart, hitPos, hops = sim.Hit.Part, sim.Hit.Position, sim.Hit.Hops
+				end
 			end
 		end
 
 		-- Lag compensation: trust a believable client claim over a server
 		-- miss or body shot (never over a server headshot).
 		local claim = claimByBullet[i]
-		if claim and isTarget(claim.Model) and not (hitPart and Util.hitZone(hitPart.Name) == "Head") then
-			local worldPath = Ballistics.Simulate({
+		local claimTarget = claim and typeof(claim.Model) == "Instance" and targetForModel(targets, claim.Model)
+		local worldPath
+		if claimTarget and not (hitPart and Util.hitZone(hitPart.Name) == "Head") then
+			worldPath = Ballistics.Simulate({
 				Origin = origin,
 				Direction = dir,
 				Stats = stats,
@@ -404,27 +575,28 @@ local function onFire(player, origin, direction, claims)
 				HomingTargets = homingTargets,
 				IgnoreTargets = true,
 			})
-			local claimed = validateClaim(claim, claim.Model, worldPath, stats.Homing)
+			local claimed = validateClaim(claim, claimTarget.Model, worldPath, stats.Homing)
 			if claimed then
-				hitModel, hitPart, hitPos = claim.Model, claimed, claim.Point
+				local _, _, claimHops = Ballistics.ClosestOnPath(worldPath, claim.Point)
+				hitTarget, hitPart, hitPos, hops = claimTarget, claimed, claim.Point, claimHops
 			end
 		end
 
-		if hitPart then
-			local damage, headshot = damageForPart(hitPart)
-			if practice then
-				local killed = DummyService.Damage(hitModel, damage)
-				Remotes.Get("HitConfirm"):FireClient(player, {
-					Headshot = headshot,
-					Killed = killed,
-					Damage = damage,
-				})
-			else
-				CombatService.Damage(match, player, opponent, damage, { Headshot = headshot })
-			end
+		if hitTarget then
+			anyHit = true
+			local damage, headshot = bulletDamage(hitPart, hops, stats, mult)
+			damageTarget(match, player, stats, hitTarget, damage, { Headshot = headshot })
+		elseif stats.StaticChargeDamage > 0 then
+			staticCharge(match, player, stats, mult, targets, sim, exclude, zapped)
 		end
+
 		if stats.Explosive then
-			explode(match, player, hitPos or sim.EndPosition, hitPart and (practice and hitModel or opponent) or nil)
+			explode(match, player, stats, mult, targets, hitPos or sim.EndPosition, hitTarget and hitTarget.Model)
+		end
+		if stats.ShrapnelCount > 0 then
+			for _, seg in ipairs(shrapnel(match, player, stats, mult, targets, sim.Impacts, exclude, shardBudget)) do
+				table.insert(shardSegments, seg)
+			end
 		end
 
 		table.insert(fx, {
@@ -436,17 +608,28 @@ local function onFire(player, origin, direction, claims)
 		})
 	end
 
+	if #shardSegments > 0 then
+		sendFx(match, { Type = "Shards", Segments = shardSegments })
+	end
+
+	-- HAIR TRIGGER: any hit re-chambers the rifle straight away
+	if anyHit and stats.HairTrigger then
+		lastFire[player] = now - boltTime
+		Remotes.Get("Buff"):FireClient(player, { Type = "Rechamber" })
+	end
+
 	-- Let others draw this shot (the shooter already drew it locally):
 	-- the opponent in a match, everyone else in the lobby when practising.
 	local shotFx = Remotes.Get("ShotFx")
 	if match then
+		local opponent = match:GetOpponent(player)
 		if opponent.Parent then
 			shotFx:FireClient(opponent, player.UserId, fx, stats.Explosive)
 		end
 	else
 		for _, other in ipairs(Players:GetPlayers()) do
 			if other ~= player and not MatchService.GetMatch(other) then
-				shotFx:FireClient(other, player.UserId, fx, false)
+				shotFx:FireClient(other, player.UserId, fx, stats.Explosive)
 			end
 		end
 	end
@@ -473,13 +656,6 @@ local function spawnDecoy(player, match, direction)
 		return
 	end
 	local cfg = PU.Decoy
-
-	-- clean old decoys from this player
-	for _, d in ipairs(decoyFolder:GetChildren()) do
-		if d:GetAttribute("OwnerUserId") == player.UserId then
-			d:Destroy()
-		end
-	end
 
 	character.Archivable = true
 	local decoy = character:Clone()
@@ -544,6 +720,21 @@ local function spawnDecoy(player, match, direction)
 	end)
 end
 
+-- Several decoys fan out around the chosen direction (one per stack).
+local function spawnDecoys(player, match, direction, count)
+	for _, d in ipairs(decoyFolder:GetChildren()) do
+		if d:GetAttribute("OwnerUserId") == player.UserId then
+			d:Destroy()
+		end
+	end
+	local spread = math.rad(PU.Decoy.SpreadDegrees)
+	for i = 1, count do
+		local offset = (i - (count + 1) / 2) * spread
+		local dir = CFrame.fromAxisAngle(Vector3.yAxis, offset):VectorToWorldSpace(direction)
+		spawnDecoy(player, match, dir)
+	end
+end
+
 local function onAbility(player, name, data)
 	if typeof(name) ~= "string" then
 		return
@@ -566,26 +757,50 @@ local function onAbility(player, name, data)
 
 	if name == "PhantomDash" and stats.PhantomDash then
 		if useCooldown(player, name, Config.Movement.DashCooldown * 0.8) then
-			CharacterService.MakeInvisible(player, PU.PhantomDash.InvisibleTime)
+			CharacterService.MakeInvisible(player, stats.PhantomTime)
 		end
 	elseif name == "Decoy" and stats.Decoy then
 		if Util.isFiniteVector3(data.Direction) and useCooldown(player, name, PU.Decoy.Cooldown * 0.95) then
-			spawnDecoy(player, match, data.Direction)
+			spawnDecoys(player, match, Util.safeUnit(Util.flat(data.Direction), Vector3.zAxis), stats.DecoyCount)
 		end
 	elseif name == "BulletTime" and stats.BulletTime then
 		if useCooldown(player, name, PU.BulletTime.Cooldown * 0.9) then
-			bulletTimeUntil[player] = os.clock() + PU.BulletTime.Duration + 0.25
+			bulletTimeUntil[player] = os.clock() + stats.BulletTimeDuration + 0.25
 		end
 	elseif name == "Shockwave" and stats.ShockwaveLanding and root then
 		if useCooldown(player, name, PU.ShockwaveLanding.Cooldown * 0.9) then
-			local cfg = PU.ShockwaveLanding
-			sendFx(match, { Type = "Shockwave", Position = root.Position, Radius = cfg.Radius })
-			local oppRoot = opponent and opponent.Character and opponent.Character:FindFirstChild("HumanoidRootPart")
-			if oppRoot then
-				local offset = oppRoot.Position - root.Position
-				if offset.Magnitude <= cfg.Radius then
-					local away = Util.safeUnit(Util.flat(offset), Vector3.xAxis)
-					knockback(opponent, (away + Vector3.new(0, 0.7, 0)).Unit * cfg.Knockback)
+			local radius = stats.ShockwaveRadius
+			sendFx(match, { Type = "Shockwave", Position = root.Position, Radius = radius })
+			for _, target in ipairs(getTargets(player, match)) do
+				local torso = getTorso(target.Model)
+				if torso then
+					local offset = torso.Position - root.Position
+					if offset.Magnitude <= radius then
+						if stats.ShockwaveDamage > 0 then
+							damageTarget(match, player, stats, target, stats.ShockwaveDamage * stats.DamageMultiplier, {
+								Splash = true,
+							})
+						end
+						if target.Player then
+							local away = Util.safeUnit(Util.flat(offset), Vector3.xAxis)
+							knockback(target.Player, (away + Vector3.new(0, 0.7, 0)).Unit * stats.ShockwaveKnockback)
+						end
+					end
+				end
+			end
+		end
+	elseif name == "Blink" and stats.Blink and root then
+		-- the client moves itself (it owns its character); we just check it's
+		-- plausible and show the effect to everyone else
+		if Util.isFiniteVector3(data.From) and Util.isFiniteVector3(data.To) then
+			if (data.To - data.From).Magnitude <= stats.BlinkDistance + 12 and useCooldown(player, name, stats.BlinkCooldown * 0.85) then
+				local fxData = { Type = "Blink", From = data.From, To = data.To, UserId = player.UserId }
+				if match then
+					if opponent.Parent then
+						Remotes.Get("Effect"):FireClient(opponent, fxData)
+					end
+				else
+					sendFx(nil, fxData)
 				end
 			end
 		end
@@ -622,6 +837,7 @@ function CombatService.Init()
 		lastFire[player] = nil
 		cooldowns[player] = nil
 		bulletTimeUntil[player] = nil
+		markedUntil[player] = nil
 		for _, d in ipairs(decoyFolder:GetChildren()) do
 			if d:GetAttribute("OwnerUserId") == player.UserId then
 				d:Destroy()

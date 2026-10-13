@@ -31,8 +31,9 @@
 
 	A simulation returns:
 	{
-		Segments = { {From = Vector3, To = Vector3, Kind = "Normal"|"Bounce"} , ... },
-		Hit = { Part, Position, Normal, Model } or nil  -- first character/decoy hit
+		Segments = { {From, To, Kind = "Normal"|"Bounce", Hops}, ... },
+		Hit = { Part, Position, Normal, Model, Hops } or nil  -- first character/decoy hit
+		Impacts = { {Position, Normal, Direction}, ... } -- surfaces touched (Shrapnel)
 		EndPosition = Vector3,                         -- where the bullet stopped
 		EndNormal = Vector3?,                          -- surface normal at the end
 		Passes = { Vector3, ... },                     -- points where it went through walls
@@ -129,22 +130,30 @@ function Ballistics.Simulate(params)
 	local ghostLeft = stats.GhostWalls or 0
 	local bouncesLeft = stats.Bounces or 0
 	local homing = stats.Homing and params.HomingTargets and #params.HomingTargets > 0
-	local homingCfg = Config.PowerUps.HomingRounds
+	local homingStep = Config.PowerUps.HomingRounds.StepLength
+	local homingRadius = stats.HomingRadius or 0
+	local homingTurn = math.rad(stats.HomingTurn or 0)
 
-	local result = { Segments = {}, Passes = {}, Hit = nil }
+	local result = { Segments = {}, Passes = {}, Impacts = {}, Hit = nil }
 	local segStart = pos
 	local segKind = "Normal"
+	local hops = 0 -- bounces + wall passes so far (Pinball damage)
 
 	local function closeSegment(toPos)
-		table.insert(result.Segments, { From = segStart, To = toPos, Kind = segKind })
+		table.insert(result.Segments, { From = segStart, To = toPos, Kind = segKind, Hops = hops })
 		segStart = toPos
+	end
+
+	-- surfaces the bullet touched (Shrapnel sprays shards from these)
+	local function addImpact(position, normal, direction)
+		table.insert(result.Impacts, { Position = position, Normal = normal, Direction = direction })
 	end
 
 	for _ = 1, MAX_ITERATIONS do
 		if remaining <= 0.01 then
 			break
 		end
-		local stepLength = homing and math.min(homingCfg.StepLength, remaining) or remaining
+		local stepLength = homing and math.min(homingStep, remaining) or remaining
 		local ray = workspace:Raycast(pos, dir * stepLength, raycastParams)
 
 		if not ray then
@@ -155,10 +164,9 @@ function Ballistics.Simulate(params)
 				local newDir = dir
 				for _, target in ipairs(params.HomingTargets) do
 					local toTarget = target - newPos
-					local closeEnough = Util.distanceToSegment(target, pos, newPos + dir * homingCfg.StepLength)
-						<= homingCfg.Radius
+					local closeEnough = Util.distanceToSegment(target, pos, newPos + dir * homingStep) <= homingRadius
 					if closeEnough and toTarget.Magnitude > 0.5 and toTarget.Unit:Dot(dir) > 0.2 then
-						newDir = rotateToward(dir, toTarget.Unit, math.rad(homingCfg.TurnDegreesPerStep))
+						newDir = rotateToward(dir, toTarget.Unit, homingTurn)
 						break
 					end
 				end
@@ -189,6 +197,7 @@ function Ballistics.Simulate(params)
 				Position = hitPos,
 				Normal = ray.Normal,
 				Model = targetModel,
+				Hops = hops,
 			}
 			result.EndPosition = hitPos
 			result.EndNormal = ray.Normal
@@ -201,18 +210,24 @@ function Ballistics.Simulate(params)
 			table.insert(exclude, ray.Instance)
 			raycastParams.FilterDescendantsInstances = exclude
 			table.insert(result.Passes, hitPos)
+			addImpact(hitPos, ray.Normal, dir)
+			closeSegment(hitPos)
+			hops += 1
 			pos = hitPos
 		elseif bouncesLeft > 0 then
 			-- Ricochet: reflect off the surface.
 			bouncesLeft -= 1
 			closeSegment(hitPos)
 			segKind = "Bounce"
+			hops += 1
 			local n = ray.Normal
 			dir = (dir - 2 * dir:Dot(n) * n).Unit
+			addImpact(hitPos, n, dir)
 			pos = hitPos + n * 0.05
 			segStart = pos
 		else
 			closeSegment(hitPos)
+			addImpact(hitPos, ray.Normal, (dir - 2 * dir:Dot(ray.Normal) * ray.Normal).Unit)
 			result.EndPosition = hitPos
 			result.EndNormal = ray.Normal
 			return result
@@ -222,6 +237,23 @@ function Ballistics.Simulate(params)
 	closeSegment(pos)
 	result.EndPosition = pos
 	return result
+end
+
+-- Closest point on a simulated path to `point`, plus the distance and the
+-- number of hops (bounces / wall passes) the bullet had made by then.
+function Ballistics.ClosestOnPath(sim, point)
+	local bestDistance, bestPoint, bestHops = math.huge, nil, 0
+	for _, seg in ipairs(sim.Segments) do
+		local ab = seg.To - seg.From
+		local len2 = ab:Dot(ab)
+		local t = len2 > 1e-6 and math.clamp((point - seg.From):Dot(ab) / len2, 0, 1) or 0
+		local closest = seg.From + ab * t
+		local distance = (point - closest).Magnitude
+		if distance < bestDistance then
+			bestDistance, bestPoint, bestHops = distance, closest, seg.Hops or 0
+		end
+	end
+	return bestPoint, bestDistance, bestHops
 end
 
 -- Shortest distance from a point to any segment of a simulated path.
@@ -304,6 +336,44 @@ Config.Palette = {
 	UIHeadshot = Color3.fromRGB(255, 70, 80),
 }
 
+-- City map colours (Downtown arena). Still flat, single-colour parts.
+Config.MapPalette = {
+	Asphalt = Color3.fromRGB(70, 74, 84),
+	RoadLine = Color3.fromRGB(250, 214, 92),
+	RoadWhite = Color3.fromRGB(236, 238, 242),
+	Sidewalk = Color3.fromRGB(214, 214, 208),
+	Curb = Color3.fromRGB(182, 184, 190),
+	Concrete = Color3.fromRGB(196, 198, 204),
+	BuildingA = Color3.fromRGB(236, 230, 218), -- warm white
+	BuildingB = Color3.fromRGB(184, 198, 216), -- cool blue-grey
+	BuildingC = Color3.fromRGB(222, 186, 158), -- sandstone
+	BuildingD = Color3.fromRGB(160, 172, 188), -- slate (city skyline)
+	BuildingE = Color3.fromRGB(205, 214, 200), -- sage
+	Trim = Color3.fromRGB(122, 130, 144),
+	Roof = Color3.fromRGB(150, 156, 168),
+	Window = Color3.fromRGB(88, 118, 150),
+	WindowLit = Color3.fromRGB(170, 205, 230),
+	Metal = Color3.fromRGB(86, 92, 104),
+	Dark = Color3.fromRGB(46, 50, 58),
+	Grass = Color3.fromRGB(142, 196, 120),
+	Foliage = Color3.fromRGB(104, 178, 110),
+	FoliageDark = Color3.fromRGB(76, 150, 96),
+	Trunk = Color3.fromRGB(128, 96, 72),
+	Wood = Color3.fromRGB(184, 140, 96),
+	Water = Color3.fromRGB(110, 196, 232),
+	LampLight = Color3.fromRGB(255, 240, 200),
+	CarColors = {
+		Color3.fromRGB(235, 92, 76),
+		Color3.fromRGB(72, 140, 230),
+		Color3.fromRGB(244, 244, 244),
+		Color3.fromRGB(56, 199, 182),
+		Color3.fromRGB(60, 64, 74),
+	},
+	Bus = Color3.fromRGB(255, 196, 77),
+	Train = Color3.fromRGB(56, 199, 182),
+	Awning = { Color3.fromRGB(235, 92, 76), Color3.fromRGB(72, 140, 230), Color3.fromRGB(255, 196, 77) },
+}
+
 -- Rarity colours (card borders, icons in the HUD) and draw weights.
 -- Weight = relative chance a card of this rarity is drawn. Higher rarities
 -- have lower weights so they appear less often.
@@ -318,7 +388,7 @@ Config.Rarity = {
 -- MATCH FLOW
 ----------------------------------------------------------------------------
 Config.Match = {
-	RoundsToWin = 4, -- best of 7
+	RoundsToWin = 5, -- first to 5 round wins (best of 9)
 	CountdownTime = 3, -- "3, 2, 1, GO"
 	RoundEndTime = 2.5, -- pause after a kill before the pick screen
 	PickTime = 15, -- seconds the loser has to pick a card
@@ -326,6 +396,7 @@ Config.Match = {
 	VictoryTime = 7, -- victory screen length before returning to lobby
 	MaxRoundTime = 150, -- if nobody dies, higher health % wins the round (tie = replay)
 	CardsPerPick = 5,
+	Map = "Downtown", -- "Downtown" (detailed city) or "Classic" (the original simple arena)
 	MaxArenas = 4, -- how many matches can run at the same time in one server
 	ArenaSpacing = 2000, -- distance between arena copies
 	VoidDepth = 80, -- falling this far below the arena floor kills you
@@ -499,30 +570,68 @@ Config.Weapon = {
 -- they use live here.
 ----------------------------------------------------------------------------
 Config.PowerUps = {
+	-- Most numbers below are "per stack": picking the same card again makes it stronger.
+
+	-- BULLET PATH
 	GhostRound = { WallsPerStack = 1 },
 	Ricochet = { BouncesPerStack = 1 },
+	SplitShot = { BulletsPerStack = 2, SpreadDegrees = 1.6 }, -- 1 + 2 = 3 bullets, 5 at 2 stacks
+	HomingRounds = { Radius = 9, RadiusPerStack = 3, TurnDegreesPerStack = 5, StepLength = 18 },
+	ExplosiveRounds = {
+		Radius = 13,
+		RadiusPerStack = 4, -- extra stacks
+		Damage = 45,
+		DamagePerStack = 15, -- extra stacks
+		Knockback = 70,
+		SelfKnockback = 55,
+	},
+	Shrapnel = { ShardsPerStack = 2, Damage = 16, Range = 60, SpreadDegrees = 40, MaxShardsPerShot = 14 },
+	StaticCharge = { Damage = 20, Radius = 7, RadiusPerStack = 2 }, -- near misses zap the enemy
+
+	-- DAMAGE
+	Pinball = { BonusPerHop = 0.35 }, -- +35% damage per bounce / wall pass, per stack
+	MomentumRounds = { BonusPerSpeed = 0.012, MaxBonus = 0.6, FreeSpeed = 30 }, -- per stack
+	SkySniper = { AirBonus = 0.2 }, -- per stack
+	GlassCannon = { DamageBonus = 0.3, HealthCost = 20 }, -- per stack
+	Marked = { Duration = 4, BonusPerStack = 0.25 },
+	HairTrigger = {}, -- a hit re-chambers your rifle instantly
+	Vampire = { HealFraction = 0.5 }, -- per stack (of damage dealt)
+
+	-- MOVEMENT
+	DoubleJump = { ExtraJumpsPerStack = 1 },
+	Adrenaline = { SpeedPerStack = 0.08 },
+	Featherweight = { GravityReductionPerStack = 0.18 },
+	SpringLegs = { JumpPerStack = 0.15 },
+	Blink = { Distance = 28, DistancePerStack = 8, Cooldown = 6 }, -- cooldown is divided by stacks
+	Grapple = { CooldownDividedByStacks = true, PullPerStack = 0.2 },
+	MagneticBoots = {},
+	RocketJump = { Radius = 9, LaunchUp = 88, LaunchAway = 28, PowerPerStack = 0.25 },
+	PhantomDash = { InvisibleTime = 0.5, TimePerStack = 0.35 },
+	ShockwaveLanding = {
+		MinFallHeight = 20,
+		Radius = 24,
+		RadiusPerStack = 6,
+		Knockback = 90,
+		KnockbackPerStack = 20,
+		DamagePerExtraStack = 20, -- stacks 2+ also deal damage
+		Cooldown = 2,
+	},
+
+	-- UTILITY / DEFENCE
 	BulletTime = {
 		Duration = 2,
+		DurationPerStack = 1, -- extra stacks
 		Cooldown = 6,
 		GravityScale = 0.15, -- fall speed multiplier while active
 		MoveScale = 0.45, -- horizontal momentum multiplier while active
 		SensitivityScale = 0.6,
 		BoltSpeedScale = 2, -- bolt cycles this many times faster while active
 	},
-	PhantomDash = { InvisibleTime = 0.5 },
-	SplitShot = { BulletsPerStack = 2, SpreadDegrees = 1.6 }, -- 1 + 2 = 3 bullets
-	RocketJump = { Radius = 9, LaunchUp = 88, LaunchAway = 28 },
-	SecondWind = { SpeedMultiplier = 1.35, BoostTime = 3 },
-	HomingRounds = { Radius = 9, TurnDegreesPerStep = 5, StepLength = 18 },
-	DoubleJump = { ExtraJumpsPerStack = 1 },
-	Quickdraw = { SpeedPerStack = 0.4 }, -- 40% faster bolt + scope
+	Quickdraw = { SpeedPerStack = 0.4 }, -- 40% faster bolt + scope (multiplies per stack)
 	ThickSkin = { HealthPerStack = 40 },
-	WallhackPulse = { Interval = 10, Duration = 1 },
-	Decoy = { Cooldown = 8, Lifetime = 4, Speed = 26 },
-	ExplosiveRounds = { Radius = 13, Damage = 45, Knockback = 70, SelfKnockback = 55 },
-	MagneticBoots = {},
-	Vampire = { HealFraction = 0.5 },
-	ShockwaveLanding = { MinFallHeight = 20, Radius = 24, Knockback = 90, Cooldown = 2 },
+	SecondWind = { SpeedMultiplier = 1.35, BoostTime = 3 }, -- one save per stack, each round
+	WallhackPulse = { Interval = 10, IntervalScalePerStack = 0.7, Duration = 1, DurationPerStack = 0.25 },
+	Decoy = { Cooldown = 8, Lifetime = 4, Speed = 26, SpreadDegrees = 30 }, -- one decoy per stack
 }
 
 ----------------------------------------------------------------------------
@@ -706,7 +815,6 @@ GunModel.Parts = {
 	{ "ScopeObjective", "Cylinder", V(0.34, 0.23, 0.23), V(0, 0.36, -1.03), nil, "GunMetal" },
 	{ "ScopeObjectiveRing", "Cylinder", V(0.04, 0.25, 0.25), V(0, 0.36, -1.18), nil, "GunAccent" },
 	{ "ScopeLensFront", "Cylinder", V(0.02, 0.2, 0.2), V(0, 0.36, -1.205), nil, "ScopeGlass" },
-	{ "ScopeFlipCap", "Block", V(0.24, 0.24, 0.03), V(0, 0.6, -1.23), V(-20, 0, 0), "GunMetal" },
 	{ "ScopeEyepiece", "Cylinder", V(0.26, 0.19, 0.19), V(0, 0.36, 0.25), nil, "GunMetal" },
 	{ "ScopeEyepieceRing", "Cylinder", V(0.05, 0.205, 0.205), V(0, 0.36, 0.17), nil, "GunMetalLight" },
 	{ "ScopeLensRear", "Cylinder", V(0.02, 0.16, 0.16), V(0, 0.36, 0.385), nil, "ScopeGlass" },
@@ -829,12 +937,24 @@ return GunModel
 		Id          unique key (used in code and saved in match state)
 		Name        shown on the card
 		Description short text shown on the card
+		Stacking    what each extra copy adds (shown on the card)
 		Rarity      "Common" | "Rare" | "Epic" | "Legendary"  (see Config.Rarity)
+		Tags        build categories shown on the card ("Bullets", "Damage", ...)
 		IconColor   background colour of the flat icon
 		Icon        list of simple shapes drawn on the icon (see "ICON SHAPES" below)
 		MaxStacks   how many times a player can own it (cards for maxed power-ups
 		            stop appearing). Picking it again adds a stack.
 		Effect      function(stats, stacks) that changes the player's stat table.
+
+	BUILDS
+	Power-ups are designed to combine. Some examples:
+	  * Pinball:    Ricochet + Pinball + Shrapnel   (every bounce adds damage AND shards)
+	  * Demolition: Explosive Rounds + Shrapnel + Split Shot (a shower of blasts)
+	  * Speedster:  Adrenaline + Momentum Rounds + Sky Sniper (bhop = more damage)
+	  * Assassin:   Ghost Round + Wallhack Pulse + Marked (shoot through walls at marked targets)
+	  * Gunslinger: Hair Trigger + Split Shot + Quickdraw (hits re-chamber instantly)
+	  * Tank:       Thick Skin + Vampire + Second Wind
+	  * Glass:      Glass Cannon x3 + Momentum Rounds (huge damage, 40 HP)
 
 	HOW EFFECTS WORK
 	All game systems (movement, sniper, server damage) read a single "stats"
@@ -843,10 +963,10 @@ return GunModel
 
 	ADDING A NEW POWER-UP
 	1. Add a new entry to Definitions.
-	2. If it only changes numbers that already exist in BaseStats (health, jumps,
-	   bolt time, bullets, bounces...) you're done.
-	3. If it needs brand new behaviour, add a new field to BaseStats, set it in
-	   your Effect, and read that field where the behaviour lives
+	2. If it only changes numbers that already exist in baseStats() (health,
+	   jumps, bolt time, bullets, bounces, damage multiplier...) you're done.
+	3. If it needs brand new behaviour, add a new field to baseStats(), set it
+	   in your Effect, and read that field where the behaviour lives
 	   (MovementController / WeaponController / CombatService).
 
 	ICON SHAPES (all positions/sizes are 0-1 of the icon square)
@@ -870,26 +990,67 @@ local PowerUps = {}
 ----------------------------------------------------------------------------
 local function baseStats()
 	return {
+		-- body
 		MaxHealth = Config.Player.MaxHealth,
-		AirJumps = Config.Movement.AirJumps,
+		LifeSteal = 0, -- fraction of damage healed
+		SecondWindCharges = 0, -- lethal hits survived per round
+
+		-- rifle
 		BoltTime = Config.Weapon.BoltTime,
 		ScopeInTime = Config.Weapon.ScopeInTime,
 		Bullets = 1,
+		HairTrigger = false, -- a hit re-chambers instantly
+
+		-- bullet path
 		GhostWalls = 0, -- walls a bullet can pass through
 		Bounces = 0, -- ricochets per bullet
 		Homing = false,
+		HomingTurn = 0, -- degrees per step
+		HomingRadius = 0,
 		Explosive = false,
+		ExplosionRadius = 0,
+		ExplosionDamage = 0,
+		ShrapnelCount = 0, -- shards per bounce / wall pass / impact
+		StaticChargeDamage = 0, -- near misses zap the enemy
+		StaticChargeRadius = 0,
+
+		-- damage
+		DamageMultiplier = 1,
+		AirDamageBonus = 0, -- extra damage while you're airborne
+		SpeedDamageBonus = 0, -- multiplier on the Momentum Rounds bonus
+		HopDamageBonus = 0, -- extra damage per bounce / wall pass before the hit
+		MarkBonus = 0, -- extra damage against a target you hit recently
+
+		-- movement
+		AirJumps = Config.Movement.AirJumps,
+		MoveSpeedMultiplier = 1,
+		GravityScale = 1,
+		JumpMultiplier = 1,
 		RocketJump = false,
-		LifeSteal = 0, -- fraction of damage healed
-		SecondWind = false,
-		BulletTime = false,
+		RocketJumpPower = 1,
 		Grapple = false,
+		GrappleCooldown = Config.Movement.GrappleCooldown,
+		GrapplePull = 1,
+		Blink = false,
+		BlinkDistance = 0,
+		BlinkCooldown = 0,
 		PhantomDash = false,
-		WallhackPulse = false,
-		Decoy = false,
+		PhantomTime = 0,
 		InfiniteWallRun = false,
 		CeilingRun = false,
 		ShockwaveLanding = false,
+		ShockwaveRadius = 0,
+		ShockwaveKnockback = 0,
+		ShockwaveDamage = 0,
+
+		-- utility
+		BulletTime = false,
+		BulletTimeDuration = 0,
+		WallhackPulse = false,
+		WallhackInterval = 0,
+		WallhackDuration = 0,
+		Decoy = false,
+		DecoyCount = 0,
 	}
 end
 
@@ -897,13 +1058,16 @@ end
 -- DEFINITIONS
 ----------------------------------------------------------------------------
 PowerUps.Definitions = {
+	-------------------------------------------------------------- BULLETS
 	{
 		Id = "GhostRound",
 		Name = "Ghost Round",
-		Description = "Bullets pass through one wall before hitting.",
+		Description = "Bullets pass through a wall before hitting.",
+		Stacking = "+1 wall per stack",
 		Rarity = "Epic",
+		Tags = { "Bullets" },
 		IconColor = Color3.fromRGB(150, 110, 255),
-		MaxStacks = 2,
+		MaxStacks = 3,
 		Icon = {
 			{ "Rect", 0.5, 0.5, 0.12, 0.7, 0 },
 			{ "Circle", 0.22, 0.5, 0.16, A = 0.45 },
@@ -916,10 +1080,12 @@ PowerUps.Definitions = {
 	{
 		Id = "Ricochet",
 		Name = "Ricochet",
-		Description = "Bullets bounce off surfaces once.",
+		Description = "Bullets bounce off surfaces.",
+		Stacking = "+1 bounce per stack",
 		Rarity = "Rare",
+		Tags = { "Bullets" },
 		IconColor = Color3.fromRGB(40, 190, 200),
-		MaxStacks = 3,
+		MaxStacks = 4,
 		Icon = {
 			{ "Rect", 0.36, 0.45, 0.12, 0.55, -30 },
 			{ "Rect", 0.64, 0.45, 0.12, 0.55, 30 },
@@ -930,60 +1096,14 @@ PowerUps.Definitions = {
 		end,
 	},
 	{
-		Id = "BulletTime",
-		Name = "Bullet Time",
-		Description = "Scope in mid-air to slow time for 2 seconds.",
-		Rarity = "Legendary",
-		IconColor = Color3.fromRGB(240, 170, 40),
-		MaxStacks = 1,
-		Icon = {
-			{ "Ring", 0.5, 0.5, 0.72, 4 },
-			{ "Rect", 0.5, 0.38, 0.08, 0.26, 0 },
-			{ "Rect", 0.6, 0.55, 0.08, 0.2, -60 },
-		},
-		Effect = function(s)
-			s.BulletTime = true
-		end,
-	},
-	{
-		Id = "GrappleHook",
-		Name = "Grapple Hook",
-		Description = "Press E to fire a hook that yanks you to any surface.",
-		Rarity = "Epic",
-		IconColor = Color3.fromRGB(230, 120, 60),
-		MaxStacks = 1,
-		Icon = {
-			{ "Rect", 0.45, 0.55, 0.08, 0.62, 45 },
-			{ "Rect", 0.7, 0.24, 0.3, 0.08, 0 },
-			{ "Rect", 0.78, 0.38, 0.08, 0.26, 0 },
-		},
-		Effect = function(s)
-			s.Grapple = true
-		end,
-	},
-	{
-		Id = "PhantomDash",
-		Name = "Phantom Dash",
-		Description = "Your air dash makes you invisible for 0.5 seconds.",
-		Rarity = "Rare",
-		IconColor = Color3.fromRGB(110, 120, 150),
-		MaxStacks = 1,
-		Icon = {
-			{ "Rect", 0.6, 0.3, 0.5, 0.09, 0 },
-			{ "Rect", 0.5, 0.5, 0.6, 0.09, 0, A = 0.35 },
-			{ "Rect", 0.4, 0.7, 0.5, 0.09, 0, A = 0.65 },
-		},
-		Effect = function(s)
-			s.PhantomDash = true
-		end,
-	},
-	{
 		Id = "SplitShot",
 		Name = "Split Shot",
 		Description = "Every shot fires 3 bullets in a tight spread.",
+		Stacking = "+2 bullets per stack",
 		Rarity = "Legendary",
+		Tags = { "Bullets" },
 		IconColor = Color3.fromRGB(255, 90, 90),
-		MaxStacks = 1,
+		MaxStacks = 2,
 		Icon = {
 			{ "Rect", 0.5, 0.5, 0.08, 0.7, 0 },
 			{ "Rect", 0.36, 0.52, 0.08, 0.66, -18 },
@@ -994,58 +1114,230 @@ PowerUps.Definitions = {
 		end,
 	},
 	{
-		Id = "RocketJump",
-		Name = "Rocket Jump",
-		Description = "Shoot at your feet to launch into the air. No self-damage.",
-		Rarity = "Rare",
-		IconColor = Color3.fromRGB(255, 140, 70),
-		MaxStacks = 1,
-		Icon = {
-			{ "Rect", 0.38, 0.36, 0.08, 0.32, -45 },
-			{ "Rect", 0.62, 0.36, 0.08, 0.32, 45 },
-			{ "Rect", 0.5, 0.62, 0.08, 0.36, 0 },
-			{ "Rect", 0.5, 0.86, 0.6, 0.06, 0, A = 0.4 },
-		},
-		Effect = function(s)
-			s.RocketJump = true
-		end,
-	},
-	{
-		Id = "SecondWind",
-		Name = "Second Wind",
-		Description = "The first time you'd die each round, survive with 1 HP and a speed boost.",
-		Rarity = "Epic",
-		IconColor = Color3.fromRGB(70, 200, 120),
-		MaxStacks = 1,
-		Icon = {
-			{ "Rect", 0.5, 0.5, 0.16, 0.6, 0 },
-			{ "Rect", 0.5, 0.5, 0.6, 0.16, 0 },
-		},
-		Effect = function(s)
-			s.SecondWind = true
-		end,
-	},
-	{
 		Id = "HomingRounds",
 		Name = "Homing Rounds",
 		Description = "Bullets curve toward the enemy when they pass close by.",
+		Stacking = "Stronger and wider curve per stack",
 		Rarity = "Legendary",
+		Tags = { "Bullets" },
 		IconColor = Color3.fromRGB(255, 70, 140),
-		MaxStacks = 1,
+		MaxStacks = 3,
 		Icon = {
 			{ "Ring", 0.5, 0.5, 0.74, 4 },
 			{ "Ring", 0.5, 0.5, 0.42, 4 },
 			{ "Circle", 0.5, 0.5, 0.14 },
 		},
-		Effect = function(s)
+		Effect = function(s, n)
+			local cfg = P.HomingRounds
 			s.Homing = true
+			s.HomingTurn = cfg.TurnDegreesPerStack * n
+			s.HomingRadius = cfg.Radius + cfg.RadiusPerStack * (n - 1)
 		end,
 	},
 	{
+		Id = "ExplosiveRounds",
+		Name = "Explosive Rounds",
+		Description = "Bullets explode on impact with splash damage and knockback.",
+		Stacking = "Bigger, harder blasts per stack",
+		Rarity = "Epic",
+		Tags = { "Bullets", "Damage" },
+		IconColor = Color3.fromRGB(255, 120, 50),
+		MaxStacks = 3,
+		Icon = {
+			{ "Rect", 0.5, 0.5, 0.5, 0.5, 0 },
+			{ "Rect", 0.5, 0.5, 0.5, 0.5, 45 },
+			{ "Circle", 0.5, 0.5, 0.24, Dark = true },
+		},
+		Effect = function(s, n)
+			local cfg = P.ExplosiveRounds
+			s.Explosive = true
+			s.ExplosionRadius = cfg.Radius + cfg.RadiusPerStack * (n - 1)
+			s.ExplosionDamage = cfg.Damage + cfg.DamagePerStack * (n - 1)
+		end,
+	},
+	{
+		Id = "Shrapnel",
+		Name = "Shrapnel",
+		Description = "Every bounce, wall pass and impact sprays 2 damaging shards.",
+		Stacking = "+2 shards per stack. Great with Ricochet",
+		Rarity = "Epic",
+		Tags = { "Bullets", "Damage" },
+		IconColor = Color3.fromRGB(230, 150, 60),
+		MaxStacks = 3,
+		Icon = {
+			{ "Rect", 0.5, 0.82, 0.7, 0.08, 0 },
+			{ "Rect", 0.32, 0.45, 0.07, 0.42, -35 },
+			{ "Rect", 0.5, 0.4, 0.07, 0.5, 0 },
+			{ "Rect", 0.68, 0.45, 0.07, 0.42, 35 },
+		},
+		Effect = function(s, n)
+			s.ShrapnelCount += P.Shrapnel.ShardsPerStack * n
+		end,
+	},
+	{
+		Id = "StaticCharge",
+		Name = "Static Charge",
+		Description = "Near misses zap the enemy for 20 damage.",
+		Stacking = "+20 damage and wider zap per stack",
+		Rarity = "Rare",
+		Tags = { "Bullets", "Damage" },
+		IconColor = Color3.fromRGB(80, 200, 255),
+		MaxStacks = 3,
+		Icon = {
+			{ "Rect", 0.56, 0.28, 0.1, 0.36, 25 },
+			{ "Rect", 0.5, 0.5, 0.4, 0.1, -10 },
+			{ "Rect", 0.44, 0.72, 0.1, 0.36, 25 },
+			{ "Ring", 0.5, 0.5, 0.86, 2, A = 0.5 },
+		},
+		Effect = function(s, n)
+			local cfg = P.StaticCharge
+			s.StaticChargeDamage += cfg.Damage * n
+			s.StaticChargeRadius = cfg.Radius + cfg.RadiusPerStack * (n - 1)
+		end,
+	},
+
+	-------------------------------------------------------------- DAMAGE
+	{
+		Id = "Pinball",
+		Name = "Pinball",
+		Description = "Bullets deal +35% damage for every bounce or wall they went through.",
+		Stacking = "+35% per hop per stack. Needs Ricochet or Ghost Round",
+		Rarity = "Rare",
+		Tags = { "Damage" },
+		IconColor = Color3.fromRGB(255, 110, 200),
+		MaxStacks = 2,
+		Icon = {
+			{ "Circle", 0.3, 0.3, 0.2 },
+			{ "Circle", 0.7, 0.45, 0.2, A = 0.35 },
+			{ "Circle", 0.4, 0.72, 0.2, A = 0.6 },
+			{ "Rect", 0.5, 0.38, 0.4, 0.06, 20 },
+			{ "Rect", 0.55, 0.6, 0.06, 0.32, 40 },
+		},
+		Effect = function(s, n)
+			s.HopDamageBonus += P.Pinball.BonusPerHop * n
+		end,
+	},
+	{
+		Id = "MomentumRounds",
+		Name = "Momentum Rounds",
+		Description = "The faster you move, the harder you hit (up to +60%).",
+		Stacking = "Bonus doubles, triples... per stack. Bunny hop!",
+		Rarity = "Rare",
+		Tags = { "Damage", "Movement" },
+		IconColor = Color3.fromRGB(255, 170, 60),
+		MaxStacks = 3,
+		Icon = {
+			{ "Rect", 0.35, 0.3, 0.4, 0.08, 0, A = 0.5 },
+			{ "Rect", 0.3, 0.5, 0.4, 0.08, 0, A = 0.3 },
+			{ "Rect", 0.35, 0.7, 0.4, 0.08, 0, A = 0.5 },
+			{ "Circle", 0.68, 0.5, 0.3 },
+		},
+		Effect = function(s, n)
+			s.SpeedDamageBonus += n
+		end,
+	},
+	{
+		Id = "SkySniper",
+		Name = "Sky Sniper",
+		Description = "+20% damage while you're in the air.",
+		Stacking = "+20% per stack",
+		Rarity = "Common",
+		Tags = { "Damage", "Movement" },
+		IconColor = Color3.fromRGB(110, 190, 255),
+		MaxStacks = 3,
+		Icon = {
+			{ "Circle", 0.5, 0.35, 0.3 },
+			{ "Rect", 0.5, 0.75, 0.7, 0.06, 0, A = 0.4 },
+			{ "Rect", 0.5, 0.35, 0.06, 0.5, 0, Dark = true },
+			{ "Rect", 0.5, 0.35, 0.5, 0.06, 0, Dark = true },
+		},
+		Effect = function(s, n)
+			s.AirDamageBonus += P.SkySniper.AirBonus * n
+		end,
+	},
+	{
+		Id = "GlassCannon",
+		Name = "Glass Cannon",
+		Description = "+30% damage, but -20 max health.",
+		Stacking = "+30% damage / -20 health per stack",
+		Rarity = "Common",
+		Tags = { "Damage" },
+		IconColor = Color3.fromRGB(200, 230, 255),
+		MaxStacks = 3,
+		Icon = {
+			{ "Rect", 0.5, 0.5, 0.42, 0.42, 45, A = 0.3 },
+			{ "Rect", 0.42, 0.42, 0.04, 0.36, 30, Dark = true },
+			{ "Rect", 0.58, 0.58, 0.04, 0.3, -20, Dark = true },
+		},
+		Effect = function(s, n)
+			s.DamageMultiplier *= 1 + P.GlassCannon.DamageBonus * n
+			s.MaxHealth -= P.GlassCannon.HealthCost * n
+		end,
+	},
+	{
+		Id = "Marked",
+		Name = "Marked",
+		Description = "Hitting the enemy marks them for 4s: they glow for you and take +25% damage.",
+		Stacking = "+25% damage per stack",
+		Rarity = "Rare",
+		Tags = { "Damage" },
+		IconColor = Color3.fromRGB(255, 80, 80),
+		MaxStacks = 3,
+		Icon = {
+			{ "Ring", 0.5, 0.5, 0.62, 4 },
+			{ "Rect", 0.5, 0.14, 0.06, 0.2, 0 },
+			{ "Rect", 0.5, 0.86, 0.06, 0.2, 0 },
+			{ "Rect", 0.14, 0.5, 0.2, 0.06, 0 },
+			{ "Rect", 0.86, 0.5, 0.2, 0.06, 0 },
+		},
+		Effect = function(s, n)
+			s.MarkBonus += P.Marked.BonusPerStack * n
+		end,
+	},
+	{
+		Id = "HairTrigger",
+		Name = "Hair Trigger",
+		Description = "Hitting the enemy instantly re-chambers your rifle.",
+		Stacking = "Doesn't stack. Amazing with Split Shot",
+		Rarity = "Epic",
+		Tags = { "Rifle" },
+		IconColor = Color3.fromRGB(240, 200, 80),
+		MaxStacks = 1,
+		Icon = {
+			{ "Rect", 0.5, 0.36, 0.5, 0.14, 0 },
+			{ "Rect", 0.62, 0.62, 0.12, 0.36, -15 },
+			{ "Ring", 0.38, 0.62, 0.26, 3 },
+		},
+		Effect = function(s)
+			s.HairTrigger = true
+		end,
+	},
+	{
+		Id = "Vampire",
+		Name = "Vampire",
+		Description = "Hitting the enemy heals you for half the damage dealt.",
+		Stacking = "+50% of damage healed per stack",
+		Rarity = "Rare",
+		Tags = { "Defence" },
+		IconColor = Color3.fromRGB(190, 40, 70),
+		MaxStacks = 3,
+		Icon = {
+			{ "Rect", 0.5, 0.42, 0.36, 0.36, 45 },
+			{ "Circle", 0.5, 0.6, 0.42 },
+		},
+		Effect = function(s, n)
+			s.LifeSteal += P.Vampire.HealFraction * n
+		end,
+	},
+
+	-------------------------------------------------------------- MOVEMENT
+	{
 		Id = "DoubleJump",
 		Name = "Double Jump",
-		Description = "Gain a mid-air jump. Stacks for even more jumps.",
+		Description = "Gain a mid-air jump.",
+		Stacking = "+1 air jump per stack",
 		Rarity = "Common",
+		Tags = { "Movement" },
 		IconColor = Color3.fromRGB(120, 170, 255),
 		MaxStacks = 3,
 		Icon = {
@@ -1059,12 +1351,214 @@ PowerUps.Definitions = {
 		end,
 	},
 	{
+		Id = "Adrenaline",
+		Name = "Adrenaline",
+		Description = "+8% movement speed (running, air strafing and top speed).",
+		Stacking = "+8% per stack",
+		Rarity = "Common",
+		Tags = { "Movement" },
+		IconColor = Color3.fromRGB(255, 120, 90),
+		MaxStacks = 3,
+		Icon = {
+			{ "Rect", 0.42, 0.5, 0.12, 0.42, 30 },
+			{ "Rect", 0.62, 0.5, 0.12, 0.42, 30, A = 0.4 },
+			{ "Rect", 0.5, 0.5, 0.7, 0.06, 0, A = 0.6 },
+		},
+		Effect = function(s, n)
+			s.MoveSpeedMultiplier *= 1 + P.Adrenaline.SpeedPerStack * n
+		end,
+	},
+	{
+		Id = "Featherweight",
+		Name = "Featherweight",
+		Description = "You fall 18% slower. Longer hops, longer air strafes.",
+		Stacking = "-18% gravity per stack",
+		Rarity = "Common",
+		Tags = { "Movement" },
+		IconColor = Color3.fromRGB(170, 220, 200),
+		MaxStacks = 3,
+		Icon = {
+			{ "Rect", 0.5, 0.5, 0.26, 0.66, 30, Round = 0.5 },
+			{ "Rect", 0.48, 0.52, 0.04, 0.6, 30, Dark = true },
+		},
+		Effect = function(s, n)
+			s.GravityScale *= math.max(0.2, 1 - P.Featherweight.GravityReductionPerStack * n)
+		end,
+	},
+	{
+		Id = "SpringLegs",
+		Name = "Spring Legs",
+		Description = "You jump 15% higher.",
+		Stacking = "+15% per stack",
+		Rarity = "Common",
+		Tags = { "Movement" },
+		IconColor = Color3.fromRGB(140, 230, 120),
+		MaxStacks = 3,
+		Icon = {
+			{ "Rect", 0.5, 0.2, 0.5, 0.08, 0 },
+			{ "Rect", 0.5, 0.35, 0.4, 0.07, 20 },
+			{ "Rect", 0.5, 0.5, 0.4, 0.07, -20 },
+			{ "Rect", 0.5, 0.65, 0.4, 0.07, 20 },
+			{ "Rect", 0.5, 0.8, 0.5, 0.08, 0 },
+		},
+		Effect = function(s, n)
+			s.JumpMultiplier *= 1 + P.SpringLegs.JumpPerStack * n
+		end,
+	},
+	{
+		Id = "Blink",
+		Name = "Blink",
+		Description = "Press R to teleport 28 studs where you're looking. Keeps your speed.",
+		Stacking = "Further and more often per stack",
+		Rarity = "Epic",
+		Tags = { "Movement" },
+		IconColor = Color3.fromRGB(160, 120, 255),
+		MaxStacks = 3,
+		Icon = {
+			{ "Circle", 0.25, 0.5, 0.22, A = 0.6 },
+			{ "Rect", 0.5, 0.5, 0.3, 0.06, 0, A = 0.4 },
+			{ "Circle", 0.75, 0.5, 0.28 },
+		},
+		Effect = function(s, n)
+			local cfg = P.Blink
+			s.Blink = true
+			s.BlinkDistance = cfg.Distance + cfg.DistancePerStack * (n - 1)
+			s.BlinkCooldown = cfg.Cooldown / n
+		end,
+	},
+	{
+		Id = "GrappleHook",
+		Name = "Grapple Hook",
+		Description = "Press E to fire a hook that yanks you to any surface.",
+		Stacking = "Shorter cooldown, faster pull per stack",
+		Rarity = "Epic",
+		Tags = { "Movement" },
+		IconColor = Color3.fromRGB(230, 120, 60),
+		MaxStacks = 2,
+		Icon = {
+			{ "Rect", 0.45, 0.55, 0.08, 0.62, 45 },
+			{ "Rect", 0.7, 0.24, 0.3, 0.08, 0 },
+			{ "Rect", 0.78, 0.38, 0.08, 0.26, 0 },
+		},
+		Effect = function(s, n)
+			s.Grapple = true
+			s.GrappleCooldown = Config.Movement.GrappleCooldown / n
+			s.GrapplePull = 1 + P.Grapple.PullPerStack * (n - 1)
+		end,
+	},
+	{
+		Id = "RocketJump",
+		Name = "Rocket Jump",
+		Description = "Shoot at your feet to launch into the air. No self-damage.",
+		Stacking = "+25% launch power per stack",
+		Rarity = "Rare",
+		Tags = { "Movement" },
+		IconColor = Color3.fromRGB(255, 140, 70),
+		MaxStacks = 2,
+		Icon = {
+			{ "Rect", 0.38, 0.36, 0.08, 0.32, -45 },
+			{ "Rect", 0.62, 0.36, 0.08, 0.32, 45 },
+			{ "Rect", 0.5, 0.62, 0.08, 0.36, 0 },
+			{ "Rect", 0.5, 0.86, 0.6, 0.06, 0, A = 0.4 },
+		},
+		Effect = function(s, n)
+			s.RocketJump = true
+			s.RocketJumpPower = 1 + P.RocketJump.PowerPerStack * (n - 1)
+		end,
+	},
+	{
+		Id = "PhantomDash",
+		Name = "Phantom Dash",
+		Description = "Your air dash makes you invisible for 0.5 seconds.",
+		Stacking = "+0.35s invisible per stack",
+		Rarity = "Rare",
+		Tags = { "Movement", "Defence" },
+		IconColor = Color3.fromRGB(110, 120, 150),
+		MaxStacks = 3,
+		Icon = {
+			{ "Rect", 0.6, 0.3, 0.5, 0.09, 0 },
+			{ "Rect", 0.5, 0.5, 0.6, 0.09, 0, A = 0.35 },
+			{ "Rect", 0.4, 0.7, 0.5, 0.09, 0, A = 0.65 },
+		},
+		Effect = function(s, n)
+			local cfg = P.PhantomDash
+			s.PhantomDash = true
+			s.PhantomTime = cfg.InvisibleTime + cfg.TimePerStack * (n - 1)
+		end,
+	},
+	{
+		Id = "MagneticBoots",
+		Name = "Magnetic Boots",
+		Description = "Wall runs last forever and you can run on ceilings (hold Space).",
+		Stacking = "Doesn't stack",
+		Rarity = "Rare",
+		Tags = { "Movement" },
+		IconColor = Color3.fromRGB(200, 70, 90),
+		MaxStacks = 1,
+		Icon = {
+			{ "Rect", 0.3, 0.45, 0.14, 0.5, 0 },
+			{ "Rect", 0.7, 0.45, 0.14, 0.5, 0 },
+			{ "Rect", 0.5, 0.74, 0.54, 0.14, 0 },
+		},
+		Effect = function(s)
+			s.InfiniteWallRun = true
+			s.CeilingRun = true
+		end,
+	},
+	{
+		Id = "ShockwaveLanding",
+		Name = "Shockwave Landing",
+		Description = "Landing from a big height knocks back a nearby enemy.",
+		Stacking = "Bigger blast per stack, and it deals damage from 2 stacks",
+		Rarity = "Epic",
+		Tags = { "Movement", "Damage" },
+		IconColor = Color3.fromRGB(130, 100, 255),
+		MaxStacks = 3,
+		Icon = {
+			{ "Rect", 0.5, 0.8, 0.8, 0.08, 0 },
+			{ "Ring", 0.5, 0.62, 0.36, 3 },
+			{ "Ring", 0.5, 0.62, 0.66, 3, A = 0.5 },
+			{ "Rect", 0.5, 0.3, 0.08, 0.3, 0 },
+		},
+		Effect = function(s, n)
+			local cfg = P.ShockwaveLanding
+			s.ShockwaveLanding = true
+			s.ShockwaveRadius = cfg.Radius + cfg.RadiusPerStack * (n - 1)
+			s.ShockwaveKnockback = cfg.Knockback + cfg.KnockbackPerStack * (n - 1)
+			s.ShockwaveDamage = cfg.DamagePerExtraStack * (n - 1)
+		end,
+	},
+
+	-------------------------------------------------------------- UTILITY / DEFENCE
+	{
+		Id = "BulletTime",
+		Name = "Bullet Time",
+		Description = "Scope in mid-air to slow time for yourself for 2 seconds.",
+		Stacking = "+1 second per stack",
+		Rarity = "Legendary",
+		Tags = { "Rifle", "Movement" },
+		IconColor = Color3.fromRGB(240, 170, 40),
+		MaxStacks = 2,
+		Icon = {
+			{ "Ring", 0.5, 0.5, 0.72, 4 },
+			{ "Rect", 0.5, 0.38, 0.08, 0.26, 0 },
+			{ "Rect", 0.6, 0.55, 0.08, 0.2, -60 },
+		},
+		Effect = function(s, n)
+			local cfg = P.BulletTime
+			s.BulletTime = true
+			s.BulletTimeDuration = cfg.Duration + cfg.DurationPerStack * (n - 1)
+		end,
+	},
+	{
 		Id = "Quickdraw",
 		Name = "Quickdraw",
 		Description = "Bolt cycle and scope-in are 40% faster.",
+		Stacking = "Another 40% faster per stack",
 		Rarity = "Common",
+		Tags = { "Rifle" },
 		IconColor = Color3.fromRGB(250, 200, 70),
-		MaxStacks = 2,
+		MaxStacks = 3,
 		Icon = {
 			{ "Rect", 0.56, 0.3, 0.1, 0.38, 25 },
 			{ "Rect", 0.5, 0.5, 0.36, 0.1, 0 },
@@ -1080,7 +1574,9 @@ PowerUps.Definitions = {
 		Id = "ThickSkin",
 		Name = "Thick Skin",
 		Description = "+40 max health.",
+		Stacking = "+40 per stack",
 		Rarity = "Common",
+		Tags = { "Defence" },
 		IconColor = Color3.fromRGB(90, 200, 150),
 		MaxStacks = 5,
 		Icon = {
@@ -1092,100 +1588,60 @@ PowerUps.Definitions = {
 		end,
 	},
 	{
+		Id = "SecondWind",
+		Name = "Second Wind",
+		Description = "The first time you'd die each round, survive with 1 HP and a speed boost.",
+		Stacking = "+1 save per round per stack",
+		Rarity = "Epic",
+		Tags = { "Defence" },
+		IconColor = Color3.fromRGB(70, 200, 120),
+		MaxStacks = 2,
+		Icon = {
+			{ "Rect", 0.5, 0.5, 0.16, 0.6, 0 },
+			{ "Rect", 0.5, 0.5, 0.6, 0.16, 0 },
+		},
+		Effect = function(s, n)
+			s.SecondWindCharges += n
+		end,
+	},
+	{
 		Id = "WallhackPulse",
 		Name = "Wallhack Pulse",
 		Description = "Every 10 seconds the enemy flashes through walls for 1 second.",
+		Stacking = "Pulses more often and for longer per stack",
 		Rarity = "Rare",
+		Tags = { "Utility" },
 		IconColor = Color3.fromRGB(80, 210, 255),
-		MaxStacks = 1,
+		MaxStacks = 3,
 		Icon = {
 			{ "Rect", 0.5, 0.5, 0.74, 0.36, 0, Round = 0.5 },
 			{ "Circle", 0.5, 0.5, 0.22, Dark = true },
 		},
-		Effect = function(s)
+		Effect = function(s, n)
+			local cfg = P.WallhackPulse
 			s.WallhackPulse = true
+			s.WallhackInterval = cfg.Interval * cfg.IntervalScalePerStack ^ (n - 1)
+			s.WallhackDuration = cfg.Duration + cfg.DurationPerStack * (n - 1)
 		end,
 	},
 	{
 		Id = "Decoy",
 		Name = "Decoy",
 		Description = "Press Q to drop a hologram of yourself that runs in a straight line.",
+		Stacking = "+1 hologram per stack (they fan out)",
 		Rarity = "Epic",
+		Tags = { "Utility" },
 		IconColor = Color3.fromRGB(100, 220, 240),
-		MaxStacks = 1,
+		MaxStacks = 3,
 		Icon = {
 			{ "Circle", 0.36, 0.3, 0.2 },
 			{ "Rect", 0.36, 0.64, 0.24, 0.36, 0 },
 			{ "Circle", 0.66, 0.3, 0.2, A = 0.55 },
 			{ "Rect", 0.66, 0.64, 0.24, 0.36, 0, A = 0.55 },
 		},
-		Effect = function(s)
-			s.Decoy = true
-		end,
-	},
-	{
-		Id = "ExplosiveRounds",
-		Name = "Explosive Rounds",
-		Description = "Bullets explode on impact with splash damage and knockback.",
-		Rarity = "Epic",
-		IconColor = Color3.fromRGB(255, 120, 50),
-		MaxStacks = 1,
-		Icon = {
-			{ "Rect", 0.5, 0.5, 0.5, 0.5, 0 },
-			{ "Rect", 0.5, 0.5, 0.5, 0.5, 45 },
-			{ "Circle", 0.5, 0.5, 0.24, Dark = true },
-		},
-		Effect = function(s)
-			s.Explosive = true
-		end,
-	},
-	{
-		Id = "MagneticBoots",
-		Name = "Magnetic Boots",
-		Description = "Wall runs last forever and you can run on ceilings (hold Space).",
-		Rarity = "Rare",
-		IconColor = Color3.fromRGB(200, 70, 90),
-		MaxStacks = 1,
-		Icon = {
-			{ "Rect", 0.3, 0.45, 0.14, 0.5, 0 },
-			{ "Rect", 0.7, 0.45, 0.14, 0.5, 0 },
-			{ "Rect", 0.5, 0.74, 0.54, 0.14, 0 },
-		},
-		Effect = function(s)
-			s.InfiniteWallRun = true
-			s.CeilingRun = true
-		end,
-	},
-	{
-		Id = "Vampire",
-		Name = "Vampire",
-		Description = "Hitting the enemy heals you for half the damage dealt.",
-		Rarity = "Rare",
-		IconColor = Color3.fromRGB(190, 40, 70),
-		MaxStacks = 2,
-		Icon = {
-			{ "Rect", 0.5, 0.42, 0.36, 0.36, 45 },
-			{ "Circle", 0.5, 0.6, 0.42 },
-		},
 		Effect = function(s, n)
-			s.LifeSteal += P.Vampire.HealFraction * n
-		end,
-	},
-	{
-		Id = "ShockwaveLanding",
-		Name = "Shockwave Landing",
-		Description = "Landing from a big height knocks back a nearby enemy.",
-		Rarity = "Epic",
-		IconColor = Color3.fromRGB(130, 100, 255),
-		MaxStacks = 1,
-		Icon = {
-			{ "Rect", 0.5, 0.8, 0.8, 0.08, 0 },
-			{ "Ring", 0.5, 0.62, 0.36, 3 },
-			{ "Ring", 0.5, 0.62, 0.66, 3, A = 0.5 },
-			{ "Rect", 0.5, 0.3, 0.08, 0.3, 0 },
-		},
-		Effect = function(s)
-			s.ShockwaveLanding = true
+			s.Decoy = true
+			s.DecoyCount = n
 		end,
 	},
 }
@@ -1216,6 +1672,7 @@ function PowerUps.ComputeStats(owned)
 			end
 		end
 	end
+	stats.MaxHealth = math.max(stats.MaxHealth, 20) -- Glass Cannon can't kill you outright
 	return stats
 end
 
@@ -1490,6 +1947,462 @@ return Util
       </Properties>
       <Item class="ModuleScript" referent="12">
         <Properties>
+          <string name="Name">ArenaDowntown</string>
+          <string name="Source"><![CDATA[--[[
+	ArenaDowntown.lua  (ServerScriptService.Server.ArenaDowntown)
+
+	"Downtown": a detailed city block built from flat-coloured parts.
+	The map is mirrored across X = 0, so both spawns are identical.
+
+	LAYOUT (top view, X = long axis, spawns at the far left / right)
+
+	        N  skyline (perimeter buildings)
+	   [Apartments]-catwalk-[Office tower]   [CITY HALL + clock tower]   (mirrored)
+	   ==== sidewalk / lamps / trees ==========================================
+	   SPAWN  >>>  bus, cars, barriers  >>>  PLAZA + FOUNTAIN  <<<  ...  SPAWN
+	   ==== sidewalk ===========================================================
+	   [park + billboard]                                     [park]
+	   ===== ELEVATED TRAIN TRACK (parked train in the middle) =====  (stairs up at both ends)
+	   [parking lot]   [market stalls]   [shop]
+	        S  skyline
+
+	Sightlines: the avenue (long, broken up by the bus/cars/fountain), the
+	train deck (long, broken by the train), rooftops (high ground).
+	Verticality: fire escapes up the apartment (24), office tower (48) and
+	city hall (26), the clock tower (55), the train deck (22) and train roof.
+	Wall runs: building faces, the bus, the train, park billboards.
+
+	Colours come from Config.MapPalette.
+]]
+
+local Config = require(game:GetService("ReplicatedStorage").Shared.Config)
+
+local C = Config.MapPalette
+local V = Vector3.new
+local rad = math.rad
+
+local ArenaDowntown = {}
+
+----------------------------------------------------------------------------
+-- PROP HELPERS (all take the builder `b` and a mirror flag `m`)
+----------------------------------------------------------------------------
+
+-- A building with a trim base, roof slab, parapet and windows.
+-- faces: list of "N","S","E","W" that get windows.
+local function building(b, cx, cz, w, d, h, color, faces, m, options)
+	options = options or {}
+	b.block(V(w, h, d), V(cx, h / 2, cz), color, m)
+	b.block(V(w + 0.4, 2, d + 0.4), V(cx, 1, cz), C.Trim, m)
+	b.block(V(w + 0.8, 0.8, d + 0.8), V(cx, h + 0.4, cz), C.Roof, m)
+	-- parapet around the roof
+	if not options.NoParapet then
+		b.block(V(w + 0.8, 1.6, 0.8), V(cx, h + 1.6, cz + d / 2), C.Roof, m)
+		b.block(V(w + 0.8, 1.6, 0.8), V(cx, h + 1.6, cz - d / 2), C.Roof, m)
+		b.block(V(0.8, 1.6, d - 0.8), V(cx + w / 2, h + 1.6, cz), C.Roof, m)
+		b.block(V(0.8, 1.6, d - 0.8), V(cx - w / 2, h + 1.6, cz), C.Roof, m)
+	end
+	-- a cornice band every few floors
+	for y = 18, h - 6, 24 do
+		b.block(V(w + 0.6, 0.6, d + 0.6), V(cx, y, cz), C.Trim, m)
+	end
+
+	-- windows
+	local spacing = options.WindowSpacing or 7
+	local floorHeight = options.FloorHeight or 8
+	for _, face in ipairs(faces or {}) do
+		local alongX = face == "N" or face == "S"
+		local span = alongX and w or d
+		local count = math.floor((span - 6) / spacing)
+		local start = -(count - 1) * spacing / 2
+		local floors = math.floor((h - 6) / floorHeight)
+		for f = 0, floors - 1 do
+			local y = 6 + f * floorHeight
+			for i = 0, count - 1 do
+				local offset = start + i * spacing
+				local lit = ((i * 7 + f * 3) % 5) == 0
+				local color2 = lit and C.WindowLit or C.Window
+				if face == "N" then
+					b.block(V(3, 4, 0.3), V(cx + offset, y, cz + d / 2 + 0.1), color2, m)
+				elseif face == "S" then
+					b.block(V(3, 4, 0.3), V(cx + offset, y, cz - d / 2 - 0.1), color2, m)
+				elseif face == "E" then
+					b.block(V(0.3, 4, 3), V(cx + w / 2 + 0.1, y, cz + offset), color2, m)
+				else
+					b.block(V(0.3, 4, 3), V(cx - w / 2 - 0.1, y, cz + offset), color2, m)
+				end
+			end
+		end
+	end
+end
+
+-- Switchback fire escape stairs up the outside of a building.
+-- origin: ground point on the wall where the stairs start (Y ignored)
+-- outward: unit vector pointing away from the wall; lateral: along the wall
+local function fireEscape(b, origin, outward, lateral, levels, rise, m)
+	local run, landing = 12, 4
+	local base = V(origin.X, 0, origin.Z)
+	for i = 0, levels - 1 do
+		local y0 = rise * i
+		local even = i % 2 == 0
+		local lane = even and 1.5 or 4.5 -- the two lanes sit side by side
+		local low = base + outward * lane + lateral * (even and landing or (landing + run)) + V(0, y0, 0)
+		b.ramp(low, even and lateral or -lateral, run, rise, 3, C.Metal, m)
+		-- landing at the top of this flight
+		local landingCenter = even and (landing + run + landing / 2) or (landing / 2)
+		local lp = base + outward * 3 + lateral * landingCenter + V(0, y0 + rise - 0.3, 0)
+		local size = math.abs(outward.X) > 0.5 and V(6, 0.6, landing) or V(landing, 0.6, 6)
+		b.block(size, lp, C.Metal, m)
+		-- outer railing on the landing
+		local rp = base + outward * 6 + lateral * landingCenter + V(0, y0 + rise + 1.2, 0)
+		local railSize = math.abs(outward.X) > 0.5 and V(0.3, 3, landing) or V(landing, 3, 0.3)
+		b.block(railSize, rp, C.Dark, m)
+	end
+end
+
+local function acUnit(b, pos, m)
+	b.block(V(4, 2.4, 3), pos + V(0, 1.2, 0), C.Metal, m)
+	b.cylinder(0.3, 2.2, pos + V(0, 2.55, 0), C.Dark, m)
+end
+
+local function waterTower(b, pos, m)
+	for _, o in ipairs({ V(2.6, 0, 2.6), V(-2.6, 0, 2.6), V(2.6, 0, -2.6), V(-2.6, 0, -2.6) }) do
+		b.block(V(0.6, 8, 0.6), pos + o + V(0, 4, 0), C.Dark, m)
+	end
+	b.cylinder(7, 7.5, pos + V(0, 11.5, 0), C.Wood, m)
+	b.cylinder(0.6, 8.2, pos + V(0, 15.3, 0), C.Trim, m)
+	b.cylinder(1.2, 4, pos + V(0, 16.2, 0), C.Trim, m)
+end
+
+local function antenna(b, pos, height, m)
+	b.cylinder(height, 0.4, pos + V(0, height / 2, 0), C.Metal, m)
+	b.ball(0.9, pos + V(0, height, 0), Config.Palette.PlayerB, m)
+end
+
+-- Billboard on two legs; faceDir is the way the ad faces (+Z or -Z).
+local function billboard(b, pos, width, height, legHeight, color, m)
+	b.block(V(0.8, legHeight, 0.8), pos + V(-width / 2 + 2, legHeight / 2, 0), C.Metal, m)
+	b.block(V(0.8, legHeight, 0.8), pos + V(width / 2 - 2, legHeight / 2, 0), C.Metal, m)
+	b.block(V(width, height, 1.2), pos + V(0, legHeight + height / 2, 0), C.Dark, m)
+	b.block(V(width - 1.6, height - 1.6, 1.4), pos + V(0, legHeight + height / 2, 0), color, m)
+	b.block(V(width * 0.5, 1.2, 1.5), pos + V(-width * 0.12, legHeight + height * 0.62, 0), C.RoadWhite, m)
+	b.block(V(width * 0.3, 1.2, 1.5), pos + V(-width * 0.22, legHeight + height * 0.38, 0), C.RoadWhite, m)
+end
+
+local function lamp(b, pos, armDir, m)
+	b.cylinder(13, 0.5, pos + V(0, 6.5, 0), C.Metal, m)
+	b.block(V(1.2, 0.8, 1.2), pos + V(0, 0.4, 0), C.Dark, m)
+	local arm = pos + V(0, 13, 0) + armDir * 1.5
+	b.part(V(0.35, 0.35, 3), CFrame.lookAt(arm, arm + armDir), C.Metal, m)
+	b.part(V(1.4, 0.5, 2.2), CFrame.lookAt(arm + armDir * 1.8 - V(0, 0.3, 0), arm + armDir * 3), C.LampLight, m)
+end
+
+local function tree(b, pos, scale, m)
+	scale = scale or 1
+	b.block(V(5, 1.2, 5), pos + V(0, 0.6, 0), C.Curb, m) -- planter
+	b.block(V(4.2, 0.2, 4.2), pos + V(0, 1.25, 0), C.Trunk, m)
+	b.cylinder(7 * scale, 1.1 * scale, pos + V(0, 3.5 * scale, 0), C.Trunk, m)
+	b.ball(8 * scale, pos + V(0, 8 * scale, 0), C.Foliage, m)
+	b.ball(5.5 * scale, pos + V(2.2, 9.5, 1.2) * scale, C.FoliageDark, m)
+	b.ball(5 * scale, pos + V(-2, 9.8, -1.6) * scale, C.Foliage, m)
+end
+
+-- A parked car. cf = position on the ground + facing (car's front is -Z).
+local function car(b, cf, color, m)
+	b.part(V(4.8, 1.8, 10), cf * CFrame.new(0, 1.6, 0), color, m)
+	b.part(V(4.2, 1.6, 5.4), cf * CFrame.new(0, 3.3, 0.6), C.Window, m)
+	b.part(V(4.3, 0.3, 5), cf * CFrame.new(0, 4.2, 0.6), color, m)
+	for _, o in ipairs({ V(2.3, 1.1, 3.2), V(-2.3, 1.1, 3.2), V(2.3, 1.1, -3.2), V(-2.3, 1.1, -3.2) }) do
+		b.cylinder(0.8, 2.2, nil, C.Dark, m, cf * CFrame.new(o))
+	end
+	b.part(V(1, 0.45, 0.2), cf * CFrame.new(1.6, 1.9, -5.05), C.LampLight, m)
+	b.part(V(1, 0.45, 0.2), cf * CFrame.new(-1.6, 1.9, -5.05), C.LampLight, m)
+	b.part(V(1, 0.45, 0.2), cf * CFrame.new(1.6, 1.9, 5.05), Config.Palette.PlayerB, m)
+	b.part(V(1, 0.45, 0.2), cf * CFrame.new(-1.6, 1.9, 5.05), Config.Palette.PlayerB, m)
+end
+
+-- A city bus (big cover, and a wall to run along).
+local function bus(b, cf, m)
+	b.part(V(8.5, 7.5, 30), cf * CFrame.new(0, 4.6, 0), C.Bus, m)
+	b.part(V(8.7, 2.6, 26), cf * CFrame.new(0, 6, 1), C.Window, m)
+	b.part(V(8.7, 0.8, 30.2), cf * CFrame.new(0, 2.4, 0), C.RoadWhite, m)
+	b.part(V(8.3, 3, 0.3), cf * CFrame.new(0, 6, -15.05), C.Window, m) -- windscreen
+	b.part(V(7, 0.6, 26), cf * CFrame.new(0, 8.6, 1), C.Trim, m) -- roof unit
+	for _, z in ipairs({ -9.5, 9.5 }) do
+		for _, x in ipairs({ 4.1, -4.1 }) do
+			b.cylinder(1, 2.6, nil, C.Dark, m, cf * CFrame.new(x, 1.3, z))
+		end
+	end
+end
+
+-- Concrete jersey barrier.
+local function barrier(b, cf, m)
+	b.part(V(2.4, 1.4, 8), cf * CFrame.new(0, 0.7, 0), C.Concrete, m)
+	b.part(V(1.3, 1.8, 8), cf * CFrame.new(0, 2.3, 0), C.Concrete, m)
+	b.part(V(1.35, 0.5, 8.05), cf * CFrame.new(0, 2.6, 0), Config.Palette.AccentB, m)
+end
+
+local function bench(b, cf, m)
+	b.part(V(5, 0.4, 1.6), cf * CFrame.new(0, 1.4, 0), C.Wood, m)
+	b.part(V(5, 1.4, 0.3), cf * CFrame.new(0, 2.3, 0.75), C.Wood, m)
+	b.part(V(0.3, 1.2, 1.4), cf * CFrame.new(2.1, 0.6, 0), C.Metal, m)
+	b.part(V(0.3, 1.2, 1.4), cf * CFrame.new(-2.1, 0.6, 0), C.Metal, m)
+end
+
+local function crates(b, pos, m)
+	b.block(V(4, 4, 4), pos + V(0, 2, 0), C.Wood, m)
+	b.block(V(4, 4, 4), pos + V(4.2, 2, 0.5), C.Wood, m)
+	b.block(V(3.6, 3.6, 3.6), pos + V(2, 5.8, 0.2), Config.Palette.AccentB, m)
+	b.block(V(4.2, 0.3, 4.2), pos + V(0, 4.1, 0), C.Trunk, m)
+end
+
+-- Market stall with a striped canopy.
+local function stall(b, pos, color, m)
+	b.block(V(10, 3.4, 4), pos + V(0, 1.7, 0), C.Wood, m)
+	b.block(V(10.4, 0.4, 4.4), pos + V(0, 3.6, 0), C.Trim, m)
+	for _, x in ipairs({ -4.6, 4.6 }) do
+		b.block(V(0.4, 8, 0.4), pos + V(x, 4, -1.8), C.Metal, m)
+		b.block(V(0.4, 8, 0.4), pos + V(x, 4, 1.8), C.Metal, m)
+	end
+	b.block(V(11, 0.5, 5.6), pos + V(0, 8.2, 0), color, m)
+	b.block(V(11, 1, 0.3), pos + V(0, 7.6, -2.8), C.RoadWhite, m)
+end
+
+----------------------------------------------------------------------------
+-- BUILD
+----------------------------------------------------------------------------
+function ArenaDowntown.Build(b)
+	local X, Z = "X", "Z"
+	local XZ = "XZ"
+
+	-- GROUND ----------------------------------------------------------------
+	b.block(V(460, 4, 320), V(0, -2, 0), C.Asphalt)
+	-- avenue centre dashes + edge lines
+	for x = -200, -54, 14 do
+		b.block(V(7, 0.08, 0.6), V(x, 0.04, 0), C.RoadLine, X)
+	end
+	b.block(V(150, 0.08, 0.5), V(-128, 0.04, 15.5), C.RoadWhite, XZ)
+	-- crosswalks at the plaza
+	for z = -13, 13, 4 do
+		b.block(V(6, 0.08, 2), V(-52, 0.04, z), C.RoadWhite, X)
+	end
+	-- sidewalks + curbs (north and south of the avenue)
+	b.block(V(158, 0.5, 12), V(-125, 0.25, 24), C.Sidewalk, XZ)
+	b.block(V(158, 0.6, 0.6), V(-125, 0.3, 17.8), C.Curb, XZ)
+	b.block(V(158, 0.5, 14), V(-125, 0.25, 37), C.Sidewalk, X) -- forecourt in front of the north buildings
+
+	-- CENTRAL PLAZA + FOUNTAIN ----------------------------------------------
+	b.block(V(92, 0.5, 92), V(0, 0.25, 0), C.Sidewalk)
+	for i = -40, 40, 10 do
+		b.block(V(92, 0.06, 0.3), V(0, 0.53, i), C.Curb)
+		b.block(V(0.3, 0.06, 92), V(i, 0.53, 0), C.Curb)
+	end
+	b.cylinder(2.6, 26, V(0, 1.8, 0), C.Curb)
+	b.cylinder(0.4, 23, V(0, 3, 0), C.Water)
+	b.cylinder(7, 3, V(0, 6, 0), C.BuildingA)
+	b.cylinder(0.9, 10, V(0, 9.4, 0), C.Curb)
+	b.cylinder(0.3, 9, V(0, 9.9, 0), C.Water)
+	b.ball(1.8, V(0, 10.8, 0), C.Water)
+	for _, p in ipairs({ V(-30, 0.5, -30) }) do
+		bench(b, CFrame.new(p) * CFrame.Angles(0, rad(45), 0), XZ)
+	end
+	tree(b, V(-38, 0.5, -38), 1, XZ)
+	tree(b, V(-38, 0.5, 38), 1, X)
+	lamp(b, V(-44, 0.5, -22), V(1, 0, 0), XZ)
+
+	-- CITY HALL (north of the plaza, centred) --------------------------------
+	building(b, 0, 72, 46, 32, 26, C.BuildingA, { "S", "E", "W" })
+	b.block(V(48, 2, 8), V(0, 1, 52), C.Concrete) -- porch floor
+	for x = -18, 18, 7.2 do
+		b.cylinder(20, 2.4, V(x, 12, 50), C.BuildingA)
+	end
+	b.block(V(50, 1.6, 9), V(0, 22.8, 51.5), C.BuildingA) -- porch roof
+	b.block(V(50, 0.6, 9.4), V(0, 21.8, 51.5), C.Trim)
+	b.block(V(10, 7, 0.4), V(0, 3.5, 55.9), C.Dark) -- doors
+	-- clock tower
+	b.block(V(12, 26, 12), V(0, 39, 74), C.BuildingA)
+	b.block(V(13, 0.8, 13), V(0, 46, 74), C.Trim)
+	b.cylinder(0.4, 7.5, nil, C.RoadWhite, nil, CFrame.new(0, 46, 67.8) * CFrame.Angles(0, rad(90), 0))
+	b.part(V(0.5, 3, 0.2), CFrame.new(0, 47.2, 67.5), C.Dark)
+	b.part(V(2.4, 0.5, 0.2), CFrame.new(1, 46, 67.5), C.Dark)
+	b.block(V(14, 1.2, 14), V(0, 52.6, 74), C.Roof)
+	b.block(V(9, 4, 9), V(0, 55.2, 74), C.BuildingA)
+	b.block(V(5, 4, 5), V(0, 59.2, 74), C.Roof)
+	antenna(b, V(0, 61.2, 74), 6)
+	-- fire escapes on both sides up to the roof
+	fireEscape(b, V(-23, 0, 58), V(-1, 0, 0), V(0, 0, 1), 3, 26 / 3, X)
+	acUnit(b, V(-14, 26.8, 84), X)
+
+	-- OFFICE TOWER (north, mirrored) ------------------------------------------
+	building(b, -95, 69, 34, 46, 48, C.BuildingB, { "S", "E", "W" }, X)
+	fireEscape(b, V(-112, 0, 50), V(-1, 0, 0), V(0, 0, 1), 6, 8, X)
+	acUnit(b, V(-102, 48.8, 80), X)
+	acUnit(b, V(-88, 48.8, 82), X)
+	antenna(b, V(-84, 48.8, 58), 14, X)
+	-- rooftop sniper nest
+	b.block(V(10, 2.4, 1.6), V(-95, 50, 48.6), Config.Palette.AccentA, X)
+	b.block(V(1.6, 2.4, 6), V(-80.6, 50, 52), Config.Palette.AccentA, X)
+
+	-- APARTMENTS (north-west, mirrored) + catwalk to the office tower ---------
+	building(b, -152.5, 72, 45, 56, 24, C.BuildingC, { "S", "E" }, X)
+	fireEscape(b, V(-130, 0, 50), V(1, 0, 0), V(0, 0, 1), 3, 8, X)
+	b.block(V(6, 0.6, 4), V(-121, 23.7, 68), C.Metal, X) -- catwalk
+	b.block(V(6, 2.4, 0.3), V(-121, 25.2, 70), C.Dark, X)
+	b.block(V(6, 2.4, 0.3), V(-121, 25.2, 66), C.Dark, X)
+	waterTower(b, V(-165, 24.8, 88), X)
+	acUnit(b, V(-145, 24.8, 92), X)
+	billboard(b, V(-152, 24.8, 99), 30, 10, 4, Config.Palette.PlayerA, X)
+	-- shop awnings on the apartment's street side
+	for i, x in ipairs({ -168, -152, -136 }) do
+		b.part(V(12, 0.5, 4), CFrame.new(x, 8, 41.5) * CFrame.Angles(rad(-15), 0, 0), C.Awning[i], X)
+		b.block(V(6, 6.5, 0.4), V(x, 3.25, 43.9), C.Dark, X)
+	end
+
+	-- SKYLINE (perimeter buildings, windows face the arena) -------------------
+	building(b, -230, 0, 24, 330, 70, C.BuildingD, { "E" }, X, { WindowSpacing = 9, FloorHeight = 9, NoParapet = true })
+	-- (segments run from the corner at x = -218 to the middle at x = 0)
+	local north = { { -189, 58, 76, C.BuildingD }, { -122, 76, 54, C.BuildingE }, { -42, 84, 66, C.BuildingD } }
+	for _, seg in ipairs(north) do
+		building(b, seg[1], 160, seg[2], 24, seg[3], seg[4], { "S" }, X, { WindowSpacing = 8, FloorHeight = 9, NoParapet = true })
+	end
+	local south = { { -189, 58, 58, C.BuildingE }, { -122, 76, 72, C.BuildingD }, { -42, 84, 50, C.BuildingE } }
+	for _, seg in ipairs(south) do
+		building(b, seg[1], -160, seg[2], 24, seg[3], seg[4], { "N" }, X, { WindowSpacing = 8, FloorHeight = 9, NoParapet = true })
+	end
+
+	-- SPAWN: TRANSIT STATIONS (mirrored) -------------------------------------
+	b.block(V(30, 4, 40), V(-192, 2, 0), C.Concrete, X)
+	b.block(V(30.4, 0.4, 40.4), V(-192, 4.2, 0), C.Sidewalk, X)
+	b.block(V(1.2, 0.1, 40), V(-178, 4.45, 0), Config.Palette.AccentB, X) -- platform edge line
+	b.ramp(V(-165, 0, 0), V(-1, 0, 0), 12, 4, 16, C.Concrete, X)
+	for _, z in ipairs({ -16, 16 }) do
+		b.block(V(1, 10, 1), V(-182, 9.4, z), C.Metal, X)
+		b.block(V(1, 10, 1), V(-202, 9.4, z), C.Metal, X)
+	end
+	b.block(V(26, 1, 38), V(-192, 14.9, 0), Config.Palette.AccentA, X) -- canopy (ceiling to run on)
+	b.block(V(10, 4, 1), V(-192, 13, 19.2), C.Dark, X) -- station sign
+	barrier(b, CFrame.new(-172, 0, 14), X)
+	barrier(b, CFrame.new(-172, 0, -14), X)
+
+	-- AVENUE COVER (mirrored) -----------------------------------------------
+	bus(b, CFrame.new(-82, 0, -6) * CFrame.Angles(0, rad(90), 0), X)
+	car(b, CFrame.new(-140, 0, 9) * CFrame.Angles(0, rad(90), 0), C.CarColors[1], X)
+	car(b, CFrame.new(-118, 0, -9) * CFrame.Angles(0, rad(65), 0), C.CarColors[2], X)
+	car(b, CFrame.new(-60, 0, 10) * CFrame.Angles(0, rad(100), 0), C.CarColors[3], X)
+	barrier(b, CFrame.new(-47, 0, 9), X)
+	barrier(b, CFrame.new(-47, 0, -9), X)
+	-- street furniture along the sidewalks
+	for x = -190, -60, 35 do
+		lamp(b, V(x, 0.5, 26), V(0, 0, -1), X)
+		lamp(b, V(x, 0.5, -26), V(0, 0, 1), X)
+	end
+	for _, x in ipairs({ -172, -103, -68 }) do
+		tree(b, V(x, 0.5, -26), 0.9, X)
+	end
+	tree(b, V(-160, 0.5, 26), 0.9, X)
+	b.cylinder(2.2, 1.4, V(-150, 1.6, -27), C.Metal, X) -- bins
+	b.cylinder(2.2, 1.4, V(-96, 1.6, 27), C.Metal, X)
+
+	-- PARK (south of the avenue, mirrored) ------------------------------------
+	b.block(V(84, 0.3, 26), V(-92, 0.15, -47), C.Grass, X)
+	for _, p in ipairs({ V(-120, 0.3, -42), V(-78, 0.3, -54), V(-58, 0.3, -40) }) do
+		tree(b, p, 1.15, X)
+	end
+	b.block(V(16, 2.6, 2.4), V(-100, 1.3, -38), C.FoliageDark, X) -- hedges (cover)
+	b.block(V(2.4, 2.6, 12), V(-66, 1.3, -50), C.FoliageDark, X)
+	bench(b, CFrame.new(-90, 0.3, -56), X)
+	billboard(b, V(-92, 0, -33), 34, 12, 4, Config.Palette.PlayerB, X) -- wall-runnable
+
+	-- ELEVATED TRAIN TRACK (south, along the whole map) -----------------------
+	b.block(V(440, 2, 14), V(0, 21, -75), C.Concrete)
+	b.block(V(440, 0.6, 15), V(0, 20, -75), C.Trim)
+	-- low walls with gaps where the stairs arrive (x = +-150)
+	b.block(V(440, 1.6, 0.8), V(0, 22.8, -81.6), C.Curb)
+	b.block(V(56, 1.6, 0.8), V(-182, 22.8, -68.4), C.Curb, X)
+	b.block(V(292, 1.6, 0.8), V(0, 22.8, -68.4), C.Curb)
+	-- rails + sleepers
+	b.block(V(440, 0.3, 0.4), V(0, 22.2, -77), C.Metal)
+	b.block(V(440, 0.3, 0.4), V(0, 22.2, -73), C.Metal)
+	for x = -216, -4, 8 do
+		b.block(V(1.2, 0.15, 6), V(x, 22.05, -75), C.Trunk, X)
+	end
+	-- pillars
+	for _, x in ipairs({ -20, -70, -120, -170 }) do
+		b.block(V(4, 20, 8), V(x, 10, -75), C.Concrete, X)
+		b.block(V(6, 1.5, 12), V(x, 19.25, -75), C.Trim, X)
+	end
+	-- stairs up (from the south sidewalk side)
+	b.ramp(V(-150, 0, -34), V(0, 0, -1), 34, 22, 6, C.Concrete, X)
+	-- the parked train (cover in the middle of the deck; stand on its roof)
+	b.block(V(44, 8.5, 9), V(0, 26.5, -75), C.Train)
+	b.block(V(44.2, 2.4, 9.2), V(0, 27.5, -75), C.Window)
+	b.block(V(44.2, 0.6, 9.2), V(0, 24.4, -75), C.RoadWhite)
+	b.block(V(42, 0.6, 7), V(0, 31, -75), C.Trim)
+	b.block(V(0.3, 6, 3), V(-22.1, 25.2, -75), C.Dark) -- doors at the ends
+	b.block(V(0.3, 6, 3), V(22.1, 25.2, -75), C.Dark)
+
+	-- MARKET + SHOP (south, mirrored) -----------------------------------------
+	stall(b, V(-62, 0, -100), C.Awning[1], X)
+	stall(b, V(-34, 0, -100), C.Awning[2], X)
+	stall(b, V(-34, 0, -116), C.Awning[3], X)
+	crates(b, V(-50, 0, -110), X)
+	building(b, -112, -122, 34, 26, 14, C.BuildingE, { "N", "E" }, X)
+	b.part(V(34, 0.5, 5), CFrame.new(-112, 9, -107.6) * CFrame.Angles(rad(15), 0, 0), C.Awning[1], X)
+	crates(b, V(-92, 0, -112), X) -- climb onto the shop roof
+	b.block(V(4, 8, 4), V(-91, 4, -118), C.Wood, X)
+	acUnit(b, V(-118, 14.8, -128), X)
+
+	-- SHIPPING CONTAINERS (climbable cover, mirrored): crate -> container -> stacked container
+	local function container(cf, color)
+		b.part(V(8, 8.5, 20), cf * CFrame.new(0, 4.25, 0), color, X)
+		for k = -3, 3 do
+			b.part(V(8.1, 7.5, 0.4), cf * CFrame.new(0, 4.25, k * 2.6), C.Dark:Lerp(color, 0.6), X) -- ribs
+		end
+		b.part(V(8.1, 0.5, 20.1), cf * CFrame.new(0, 8.3, 0), C.Trim, X)
+	end
+	container(CFrame.new(-150, 0, -98), C.Awning[1])
+	container(CFrame.new(-140, 0, -98), C.Awning[2])
+	container(CFrame.new(-145, 8.5, -101) * CFrame.Angles(0, rad(12), 0), C.Awning[3])
+	crates(b, V(-158, 0, -88), X)
+
+	-- WAREHOUSE (south, mirrored)
+	building(b, -62, -132, 34, 20, 18, C.BuildingA, { "N" }, X, { WindowSpacing = 8 })
+	b.block(V(12, 10, 0.4), V(-62, 5, -121.9), C.Metal, X) -- roller door
+	for y = 1, 9, 1.4 do
+		b.block(V(12.1, 0.2, 0.5), V(-62, y, -121.8), C.Trim, X)
+	end
+
+	-- STATUE PLAZA (south centre)
+	b.block(V(36, 0.5, 30), V(0, 0.25, -112), C.Sidewalk)
+	b.block(V(8, 3, 8), V(0, 1.5, -112), C.Concrete)
+	b.block(V(6, 0.6, 6), V(0, 3.3, -112), C.Trim)
+	b.part(V(2.4, 9, 2.4), CFrame.new(0, 8, -112) * CFrame.Angles(0, rad(45), rad(12)), Config.Palette.AccentA)
+	b.ball(3.4, V(0.9, 12.8, -112), Config.Palette.AccentB)
+	tree(b, V(-14, 0.5, -122), 0.9, X)
+	tree(b, V(-14, 0.5, -102), 0.9, X)
+	bench(b, CFrame.new(-8, 0.5, -125) * CFrame.Angles(0, rad(180), 0), X)
+
+	-- PARKING LOT (south-west, mirrored) --------------------------------------
+	for i = 0, 4 do
+		b.block(V(0.4, 0.08, 12), V(-198 + i * 8, 0.04, -112), C.RoadWhite, X)
+	end
+	car(b, CFrame.new(-194, 0, -112), C.CarColors[4], X)
+	car(b, CFrame.new(-178, 0, -112), C.CarColors[5], X)
+	car(b, CFrame.new(-170, 0, -96) * CFrame.Angles(0, rad(90), 0), C.CarColors[2], X)
+
+	-- Spawns (on the station platforms, facing the city)
+	local spawnHeight = 4.4 + 3.2
+	return {
+		CFrame.lookAt(V(-192, spawnHeight, 0), V(0, spawnHeight, 0)),
+		CFrame.lookAt(V(192, spawnHeight, 0), V(0, spawnHeight, 0)),
+	}
+end
+
+return ArenaDowntown
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="13">
+        <Properties>
           <string name="Name">CharacterService</string>
           <string name="Source"><![CDATA[--[[
 	CharacterService.lua  (ServerScriptService.Server.CharacterService)
@@ -1699,7 +2612,7 @@ return CharacterService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="13">
+      <Item class="ModuleScript" referent="14">
         <Properties>
           <string name="Name">CombatService</string>
           <string name="Source"><![CDATA[--[[
@@ -1709,7 +2622,8 @@ return CharacterService
 
 	FIRE VALIDATION (anti-exploit)
 	  1. Arguments must be real, finite Vector3s.
-	  2. The shooter must be alive, in a match, and the round must be live.
+	  2. The shooter must be alive, and either in a live round or practising
+	     in the lobby (where only the dummies can be hurt).
 	  3. Fire rate: shots faster than the (power-up adjusted) bolt time are rejected.
 	  4. Origin: the shot must start near the shooter's head on the server.
 	  5. The server re-traces every bullet with Ballistics.Simulate (the same
@@ -1724,8 +2638,19 @@ return CharacterService
 	    * the claimed point is close to where that body part really is
 	      on the server (with a small allowance for the victim's speed).
 
-	Also handles: explosions, Second Wind, Vampire, decoys, Phantom Dash,
-	Shockwave Landing, Bullet Time bookkeeping and grapple visuals.
+	DAMAGE (how power-ups stack)
+	  bullet damage = base (head / body / limb)
+	                x Glass Cannon multiplier
+	                x (1 + Sky Sniper bonus, if you're airborne)
+	                x (1 + Momentum Rounds bonus, from your speed)
+	                x (1 + Pinball bonus x bounces/wall passes before the hit)
+	                x (1 + Marked bonus, if the target is marked)
+	  Headshots are always an instant kill.
+	  Explosions, Shrapnel and Static Charge use the same shot multiplier
+	  (Glass Cannon, Sky Sniper, Momentum) and the Marked bonus.
+
+	"Targets" are the enemy player in a match, or the practice dummies in the
+	lobby, so every power-up works on the range too.
 ]]
 
 local Players = game:GetService("Players")
@@ -1748,6 +2673,7 @@ local CombatService = {}
 local lastFire = {} -- [player] = os.clock() of last accepted shot
 local cooldowns = {} -- [player] = { [abilityName] = os.clock() ready time }
 local bulletTimeUntil = {} -- [player] = os.clock()
+local markedUntil = {} -- [player or dummy model] = os.clock()
 
 local decoyFolder
 local effectsFolder
@@ -1813,12 +2739,12 @@ local function buildExclude(player)
 	return list
 end
 
-local function getTorso(character)
-	return character
+local function getTorso(model)
+	return model
 		and (
-			character:FindFirstChild("UpperTorso")
-			or character:FindFirstChild("Torso")
-			or character:FindFirstChild("HumanoidRootPart")
+			model:FindFirstChild("UpperTorso")
+			or model:FindFirstChild("Torso")
+			or model:FindFirstChild("HumanoidRootPart")
 		)
 end
 
@@ -1837,32 +2763,78 @@ local function popDecoy(decoy)
 	end
 end
 
+-- Random direction within `degrees` of `dir`.
+local function randomInCone(dir, degrees)
+	local angle = math.rad(degrees) * math.sqrt(math.random())
+	local spin = math.random() * math.pi * 2
+	local cf = CFrame.lookAt(Vector3.zero, dir)
+	return (cf * CFrame.Angles(0, 0, spin) * CFrame.Angles(angle, 0, 0)).LookVector
+end
+
 ----------------------------------------------------------------------------
--- Damage
+-- Targets: the enemy player in a match, or the dummies in the lobby
+----------------------------------------------------------------------------
+--[[
+	A target record: { Player = Player?, Model = Model }
+	(Player is nil for practice dummies.)
+]]
+local function getTargets(shooter, match)
+	local list = {}
+	if match then
+		local opponent = match:GetOpponent(shooter)
+		local humanoid, character = CharacterService.GetAliveHumanoid(opponent)
+		if humanoid then
+			table.insert(list, { Player = opponent, Model = character })
+		end
+	else
+		for _, dummy in ipairs(DummyService.GetDummies()) do
+			table.insert(list, { Model = dummy })
+		end
+	end
+	return list
+end
+
+local function targetForModel(targets, model)
+	for _, target in ipairs(targets) do
+		if target.Model == model then
+			return target
+		end
+	end
+	return nil
+end
+
+local function markKey(target)
+	return target.Player or target.Model
+end
+
+----------------------------------------------------------------------------
+-- Damage to players
 ----------------------------------------------------------------------------
 
 --[[
-	Deals damage from `attacker` to `victim` inside `match`.
+	Deals damage from `attacker` to the player `victim` inside `match`.
 	info = { Headshot = bool, Splash = bool }
+	Returns true if the victim died.
 ]]
 function CombatService.Damage(match, attacker, victim, amount, info)
 	info = info or {}
 	if not match:IsFighting() then
-		return
+		return false
 	end
 	local humanoid = CharacterService.GetAliveHumanoid(victim)
 	if not humanoid then
-		return
+		return false
 	end
 
 	local before = humanoid.Health
 	local after = before - amount
 
-	-- SECOND WIND: survive the first lethal hit each round
+	-- SECOND WIND: survive lethal hits (one save per stack, each round)
 	if after <= 0 then
 		local victimStats = match:GetStats(victim)
-		if victimStats.SecondWind and not match.SecondWindUsed[victim] then
-			match.SecondWindUsed[victim] = true
+		local used = match.SecondWindUsed[victim] or 0
+		if used < victimStats.SecondWindCharges then
+			match.SecondWindUsed[victim] = used + 1
 			after = 1
 			Remotes.Get("Buff"):FireClient(victim, {
 				Type = "SpeedBoost",
@@ -1905,60 +2877,173 @@ function CombatService.Damage(match, attacker, victim, amount, info)
 		Damage = dealt,
 		Killed = after <= 0,
 	})
+	return after <= 0
 end
 
-local function damageForPart(part)
-	local zone = Util.hitZone(part.Name)
-	if zone == "Head" then
-		return W.HeadDamage, true
-	elseif zone == "Body" then
-		return W.BodyDamage, false
+--[[
+	Damages any target (player or dummy) and handles Marked.
+	info = { Headshot, Splash }
+]]
+local function damageTarget(match, attacker, stats, target, amount, info)
+	info = info or {}
+	-- MARKED: bonus damage against a target you hit recently
+	local key = markKey(target)
+	if stats.MarkBonus > 0 and (markedUntil[key] or 0) > os.clock() then
+		amount *= 1 + stats.MarkBonus
 	end
-	return W.LimbDamage, false
+
+	if target.Player then
+		CombatService.Damage(match, attacker, target.Player, amount, info)
+	else
+		local killed = DummyService.Damage(target.Model, amount)
+		Remotes.Get("HitConfirm"):FireClient(attacker, {
+			Headshot = info.Headshot == true,
+			Killed = killed,
+			Damage = amount,
+			Splash = info.Splash == true,
+		})
+	end
+
+	if stats.MarkBonus > 0 then
+		markedUntil[key] = os.clock() + PU.Marked.Duration
+		Remotes.Get("Effect"):FireClient(attacker, {
+			Type = "Mark",
+			Target = target.Model,
+			Duration = PU.Marked.Duration,
+		})
+	end
 end
 
--- EXPLOSIVE ROUNDS: splash damage + knockback around `position`.
--- `match` is nil when practising in the lobby (then dummies take the splash).
--- `directVictim` is the player (or dummy model) the bullet hit directly.
-local function explode(match, attacker, position, directVictim)
-	local cfg = PU.ExplosiveRounds
-	sendFx(match, { Type = "Explosion", Position = position, Radius = cfg.Radius })
-
-	if not match then
-		for _, dummy in ipairs(DummyService.GetDummies()) do
-			local distance = (dummy:GetPivot().Position + Vector3.new(0, 3, 0) - position).Magnitude
-			if dummy ~= directVictim and distance <= cfg.Radius then
-				local damage = cfg.Damage * (1 - (distance / cfg.Radius) * 0.5)
-				local killed = DummyService.Damage(dummy, damage)
-				Remotes.Get("HitConfirm"):FireClient(attacker, { Killed = killed, Damage = damage, Splash = true })
+-- The part of the damage formula shared by everything a shot causes:
+-- Glass Cannon x Sky Sniper (airborne) x Momentum Rounds (speed).
+local function shotMultiplier(stats, shooterCharacter)
+	local mult = stats.DamageMultiplier
+	local root = shooterCharacter and shooterCharacter:FindFirstChild("HumanoidRootPart")
+	if root then
+		if stats.AirDamageBonus > 0 then
+			local params = RaycastParams.new()
+			params.FilterType = Enum.RaycastFilterType.Exclude
+			params.FilterDescendantsInstances = { shooterCharacter, effectsFolder, decoyFolder }
+			local airborne = workspace:Raycast(root.Position, Vector3.new(0, -4.5, 0), params) == nil
+			if airborne then
+				mult *= 1 + stats.AirDamageBonus
 			end
 		end
+		if stats.SpeedDamageBonus > 0 then
+			local cfg = PU.MomentumRounds
+			local speed = Util.flat(root.AssemblyLinearVelocity).Magnitude
+			local bonus = math.clamp((speed - cfg.FreeSpeed) * cfg.BonusPerSpeed, 0, cfg.MaxBonus)
+			mult *= 1 + bonus * stats.SpeedDamageBonus
+		end
 	end
+	return mult
+end
 
-	for _, player in ipairs(match and match.Players or { attacker }) do
-		local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-		if root then
-			local offset = root.Position - position
+local function bulletDamage(part, hops, stats, mult)
+	local zone = Util.hitZone(part.Name)
+	if zone == "Head" then
+		return W.HeadDamage, true -- always an instant kill
+	end
+	local base = zone == "Body" and W.BodyDamage or W.LimbDamage
+	-- PINBALL: more damage for every bounce / wall pass before the hit
+	return base * mult * (1 + stats.HopDamageBonus * (hops or 0)), false
+end
+
+----------------------------------------------------------------------------
+-- Shot effects: explosions, shrapnel, static charge
+----------------------------------------------------------------------------
+
+-- EXPLOSIVE ROUNDS: splash damage + knockback around `position`.
+-- `directModel` is the model the bullet hit directly (it doesn't take splash).
+local function explode(match, attacker, stats, mult, targets, position, directModel)
+	local radius = stats.ExplosionRadius
+	local cfg = PU.ExplosiveRounds
+	sendFx(match, { Type = "Explosion", Position = position, Radius = radius })
+
+	for _, target in ipairs(targets) do
+		local torso = getTorso(target.Model)
+		if torso and target.Model ~= directModel then
+			local offset = torso.Position - position
 			local distance = offset.Magnitude
-			if distance <= cfg.Radius then
-				local away = Util.safeUnit(offset + Vector3.new(0, 2, 0), Vector3.yAxis)
-				local falloff = 1 - (distance / cfg.Radius) * 0.5
-				if player == attacker then
-					knockback(player, away * cfg.SelfKnockback * falloff) -- no self damage
-				else
-					if player ~= directVictim then
-						CombatService.Damage(match, attacker, player, cfg.Damage * falloff, { Splash = true })
-					end
-					knockback(player, away * cfg.Knockback * falloff)
+			if distance <= radius then
+				local falloff = 1 - (distance / radius) * 0.5
+				damageTarget(match, attacker, stats, target, stats.ExplosionDamage * falloff * mult, { Splash = true })
+				if target.Player then
+					local away = Util.safeUnit(offset + Vector3.new(0, 2, 0), Vector3.yAxis)
+					knockback(target.Player, away * cfg.Knockback * falloff)
 				end
 			end
 		end
 	end
 
+	-- self knockback (no self damage): explosive rocket jumps!
+	local root = attacker.Character and attacker.Character:FindFirstChild("HumanoidRootPart")
+	if root then
+		local offset = root.Position - position
+		if offset.Magnitude <= radius then
+			local away = Util.safeUnit(offset + Vector3.new(0, 2, 0), Vector3.yAxis)
+			knockback(attacker, away * cfg.SelfKnockback * (1 - (offset.Magnitude / radius) * 0.5))
+		end
+	end
+
 	for _, decoy in ipairs(decoyFolder:GetChildren()) do
 		if decoy:GetAttribute("OwnerUserId") ~= attacker.UserId then
-			if (decoy:GetPivot().Position - position).Magnitude <= cfg.Radius then
+			if (decoy:GetPivot().Position - position).Magnitude <= radius then
 				popDecoy(decoy)
+			end
+		end
+	end
+end
+
+-- SHRAPNEL: shards fly out of every surface a bullet touched.
+-- Returns the shard segments for the visual effect.
+local function shrapnel(match, attacker, stats, mult, targets, impacts, exclude, budget)
+	local cfg = PU.Shrapnel
+	local segments = {}
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = exclude
+
+	for _, impact in ipairs(impacts) do
+		for _ = 1, stats.ShrapnelCount do
+			if budget.Left <= 0 then
+				return segments
+			end
+			budget.Left -= 1
+			local dir = randomInCone(impact.Direction, cfg.SpreadDegrees)
+			local start = impact.Position + impact.Normal * 0.1
+			local ray = workspace:Raycast(start, dir * cfg.Range, params)
+			local finish = ray and ray.Position or start + dir * cfg.Range
+			table.insert(segments, { From = start, To = finish })
+			if ray then
+				local target = targetForModel(targets, Ballistics.FindTargetModel(ray.Instance))
+				if target then
+					damageTarget(match, attacker, stats, target, cfg.Damage * mult, { Splash = true })
+				end
+			end
+		end
+	end
+	return segments
+end
+
+-- STATIC CHARGE: a bullet that passes close to a target zaps it.
+local function staticCharge(match, attacker, stats, mult, targets, sim, exclude, zapped)
+	for _, target in ipairs(targets) do
+		local torso = getTorso(target.Model)
+		if torso and not zapped[target.Model] then
+			local point, distance = Ballistics.ClosestOnPath(sim, torso.Position)
+			if point and distance <= stats.StaticChargeRadius then
+				-- needs a clear line from the bullet to the target
+				local params = RaycastParams.new()
+				params.FilterType = Enum.RaycastFilterType.Exclude
+				local list = table.clone(exclude)
+				table.insert(list, target.Model)
+				params.FilterDescendantsInstances = list
+				if not workspace:Raycast(point, torso.Position - point, params) then
+					zapped[target.Model] = true
+					damageTarget(match, attacker, stats, target, stats.StaticChargeDamage * mult, { Splash = true })
+					sendFx(match, { Type = "Zap", From = point, To = torso.Position })
+				end
 			end
 		end
 	end
@@ -1968,15 +3053,15 @@ end
 -- Fire
 ----------------------------------------------------------------------------
 
--- Checks a client's hit claim. Returns the victim's BasePart if it's believable.
-local function validateClaim(claim, victimCharacter, worldPath, homing)
+-- Checks a client's hit claim. Returns the target's BasePart if it's believable.
+local function validateClaim(claim, model, worldPath, homing)
 	if typeof(claim) ~= "table" or typeof(claim.Part) ~= "string" then
 		return nil
 	end
 	if not Util.isFiniteVector3(claim.Point) then
 		return nil
 	end
-	local part = victimCharacter:FindFirstChild(claim.Part)
+	local part = model:FindFirstChild(claim.Part)
 	if not part or not part:IsA("BasePart") then
 		return nil
 	end
@@ -1988,7 +3073,7 @@ local function validateClaim(claim, victimCharacter, worldPath, homing)
 	end
 
 	-- 2) and near where the body part actually is right now
-	local root = victimCharacter:FindFirstChild("HumanoidRootPart")
+	local root = model:FindFirstChild("HumanoidRootPart")
 	local speed = root and root.AssemblyLinearVelocity.Magnitude or 0
 	local targetTolerance = W.ClaimTargetTolerance + speed * W.ClaimSpeedAllowance + part.Size.Magnitude * 0.5
 	if (claim.Point - part.Position).Magnitude > targetTolerance then
@@ -2017,7 +3102,6 @@ local function onFire(player, origin, direction, claims)
 
 	-- 2) shooter state. No match = lobby practice range (dummies only).
 	local match = MatchService.GetMatch(player)
-	local practice = match == nil
 	if match and not match:IsFighting() then
 		return
 	end
@@ -2056,25 +3140,20 @@ local function onFire(player, origin, direction, claims)
 	lastFire[player] = now
 
 	-- 5) trace every bullet on the server
-	local opponent = match and match:GetOpponent(player)
-	local victimCharacter = opponent and opponent.Character
-	local victimTorso = getTorso(victimCharacter)
-	local homingTargets = victimTorso and { victimTorso.Position } or {}
-	if practice then
-		homingTargets = DummyService.GetTargets()
+	local targets = getTargets(player, match)
+	local homingTargets = {}
+	for _, target in ipairs(targets) do
+		local torso = getTorso(target.Model)
+		if torso then
+			table.insert(homingTargets, torso.Position)
+		end
 	end
 	local exclude = buildExclude(player)
-
-	-- what this shooter is allowed to damage
-	local function isTarget(model)
-		if typeof(model) ~= "Instance" or not model:IsDescendantOf(workspace) then
-			return false
-		end
-		if practice then
-			return model:GetAttribute("Dummy") == true and not model:GetAttribute("Down")
-		end
-		return model == victimCharacter
-	end
+	local mult = shotMultiplier(stats, character)
+	local shardBudget = { Left = PU.Shrapnel.MaxShardsPerShot }
+	local shardSegments = {}
+	local zapped = {}
+	local anyHit = false
 
 	local fx = {}
 	for i, dir in ipairs(Ballistics.GetShotDirections(direction.Unit, stats.Bullets)) do
@@ -2086,21 +3165,26 @@ local function onFire(player, origin, direction, claims)
 			HomingTargets = homingTargets,
 		})
 
-		local hitModel, hitPart, hitPos
+		local hitTarget, hitPart, hitPos, hops
 		if sim.Hit then
 			local model = sim.Hit.Model
 			if model:GetAttribute("Decoy") then
 				popDecoy(model)
-			elseif isTarget(model) then
-				hitModel, hitPart, hitPos = model, sim.Hit.Part, sim.Hit.Position
+			else
+				hitTarget = targetForModel(targets, model)
+				if hitTarget then
+					hitPart, hitPos, hops = sim.Hit.Part, sim.Hit.Position, sim.Hit.Hops
+				end
 			end
 		end
 
 		-- Lag compensation: trust a believable client claim over a server
 		-- miss or body shot (never over a server headshot).
 		local claim = claimByBullet[i]
-		if claim and isTarget(claim.Model) and not (hitPart and Util.hitZone(hitPart.Name) == "Head") then
-			local worldPath = Ballistics.Simulate({
+		local claimTarget = claim and typeof(claim.Model) == "Instance" and targetForModel(targets, claim.Model)
+		local worldPath
+		if claimTarget and not (hitPart and Util.hitZone(hitPart.Name) == "Head") then
+			worldPath = Ballistics.Simulate({
 				Origin = origin,
 				Direction = dir,
 				Stats = stats,
@@ -2108,27 +3192,28 @@ local function onFire(player, origin, direction, claims)
 				HomingTargets = homingTargets,
 				IgnoreTargets = true,
 			})
-			local claimed = validateClaim(claim, claim.Model, worldPath, stats.Homing)
+			local claimed = validateClaim(claim, claimTarget.Model, worldPath, stats.Homing)
 			if claimed then
-				hitModel, hitPart, hitPos = claim.Model, claimed, claim.Point
+				local _, _, claimHops = Ballistics.ClosestOnPath(worldPath, claim.Point)
+				hitTarget, hitPart, hitPos, hops = claimTarget, claimed, claim.Point, claimHops
 			end
 		end
 
-		if hitPart then
-			local damage, headshot = damageForPart(hitPart)
-			if practice then
-				local killed = DummyService.Damage(hitModel, damage)
-				Remotes.Get("HitConfirm"):FireClient(player, {
-					Headshot = headshot,
-					Killed = killed,
-					Damage = damage,
-				})
-			else
-				CombatService.Damage(match, player, opponent, damage, { Headshot = headshot })
-			end
+		if hitTarget then
+			anyHit = true
+			local damage, headshot = bulletDamage(hitPart, hops, stats, mult)
+			damageTarget(match, player, stats, hitTarget, damage, { Headshot = headshot })
+		elseif stats.StaticChargeDamage > 0 then
+			staticCharge(match, player, stats, mult, targets, sim, exclude, zapped)
 		end
+
 		if stats.Explosive then
-			explode(match, player, hitPos or sim.EndPosition, hitPart and (practice and hitModel or opponent) or nil)
+			explode(match, player, stats, mult, targets, hitPos or sim.EndPosition, hitTarget and hitTarget.Model)
+		end
+		if stats.ShrapnelCount > 0 then
+			for _, seg in ipairs(shrapnel(match, player, stats, mult, targets, sim.Impacts, exclude, shardBudget)) do
+				table.insert(shardSegments, seg)
+			end
 		end
 
 		table.insert(fx, {
@@ -2140,17 +3225,28 @@ local function onFire(player, origin, direction, claims)
 		})
 	end
 
+	if #shardSegments > 0 then
+		sendFx(match, { Type = "Shards", Segments = shardSegments })
+	end
+
+	-- HAIR TRIGGER: any hit re-chambers the rifle straight away
+	if anyHit and stats.HairTrigger then
+		lastFire[player] = now - boltTime
+		Remotes.Get("Buff"):FireClient(player, { Type = "Rechamber" })
+	end
+
 	-- Let others draw this shot (the shooter already drew it locally):
 	-- the opponent in a match, everyone else in the lobby when practising.
 	local shotFx = Remotes.Get("ShotFx")
 	if match then
+		local opponent = match:GetOpponent(player)
 		if opponent.Parent then
 			shotFx:FireClient(opponent, player.UserId, fx, stats.Explosive)
 		end
 	else
 		for _, other in ipairs(Players:GetPlayers()) do
 			if other ~= player and not MatchService.GetMatch(other) then
-				shotFx:FireClient(other, player.UserId, fx, false)
+				shotFx:FireClient(other, player.UserId, fx, stats.Explosive)
 			end
 		end
 	end
@@ -2177,13 +3273,6 @@ local function spawnDecoy(player, match, direction)
 		return
 	end
 	local cfg = PU.Decoy
-
-	-- clean old decoys from this player
-	for _, d in ipairs(decoyFolder:GetChildren()) do
-		if d:GetAttribute("OwnerUserId") == player.UserId then
-			d:Destroy()
-		end
-	end
 
 	character.Archivable = true
 	local decoy = character:Clone()
@@ -2248,6 +3337,21 @@ local function spawnDecoy(player, match, direction)
 	end)
 end
 
+-- Several decoys fan out around the chosen direction (one per stack).
+local function spawnDecoys(player, match, direction, count)
+	for _, d in ipairs(decoyFolder:GetChildren()) do
+		if d:GetAttribute("OwnerUserId") == player.UserId then
+			d:Destroy()
+		end
+	end
+	local spread = math.rad(PU.Decoy.SpreadDegrees)
+	for i = 1, count do
+		local offset = (i - (count + 1) / 2) * spread
+		local dir = CFrame.fromAxisAngle(Vector3.yAxis, offset):VectorToWorldSpace(direction)
+		spawnDecoy(player, match, dir)
+	end
+end
+
 local function onAbility(player, name, data)
 	if typeof(name) ~= "string" then
 		return
@@ -2270,26 +3374,50 @@ local function onAbility(player, name, data)
 
 	if name == "PhantomDash" and stats.PhantomDash then
 		if useCooldown(player, name, Config.Movement.DashCooldown * 0.8) then
-			CharacterService.MakeInvisible(player, PU.PhantomDash.InvisibleTime)
+			CharacterService.MakeInvisible(player, stats.PhantomTime)
 		end
 	elseif name == "Decoy" and stats.Decoy then
 		if Util.isFiniteVector3(data.Direction) and useCooldown(player, name, PU.Decoy.Cooldown * 0.95) then
-			spawnDecoy(player, match, data.Direction)
+			spawnDecoys(player, match, Util.safeUnit(Util.flat(data.Direction), Vector3.zAxis), stats.DecoyCount)
 		end
 	elseif name == "BulletTime" and stats.BulletTime then
 		if useCooldown(player, name, PU.BulletTime.Cooldown * 0.9) then
-			bulletTimeUntil[player] = os.clock() + PU.BulletTime.Duration + 0.25
+			bulletTimeUntil[player] = os.clock() + stats.BulletTimeDuration + 0.25
 		end
 	elseif name == "Shockwave" and stats.ShockwaveLanding and root then
 		if useCooldown(player, name, PU.ShockwaveLanding.Cooldown * 0.9) then
-			local cfg = PU.ShockwaveLanding
-			sendFx(match, { Type = "Shockwave", Position = root.Position, Radius = cfg.Radius })
-			local oppRoot = opponent and opponent.Character and opponent.Character:FindFirstChild("HumanoidRootPart")
-			if oppRoot then
-				local offset = oppRoot.Position - root.Position
-				if offset.Magnitude <= cfg.Radius then
-					local away = Util.safeUnit(Util.flat(offset), Vector3.xAxis)
-					knockback(opponent, (away + Vector3.new(0, 0.7, 0)).Unit * cfg.Knockback)
+			local radius = stats.ShockwaveRadius
+			sendFx(match, { Type = "Shockwave", Position = root.Position, Radius = radius })
+			for _, target in ipairs(getTargets(player, match)) do
+				local torso = getTorso(target.Model)
+				if torso then
+					local offset = torso.Position - root.Position
+					if offset.Magnitude <= radius then
+						if stats.ShockwaveDamage > 0 then
+							damageTarget(match, player, stats, target, stats.ShockwaveDamage * stats.DamageMultiplier, {
+								Splash = true,
+							})
+						end
+						if target.Player then
+							local away = Util.safeUnit(Util.flat(offset), Vector3.xAxis)
+							knockback(target.Player, (away + Vector3.new(0, 0.7, 0)).Unit * stats.ShockwaveKnockback)
+						end
+					end
+				end
+			end
+		end
+	elseif name == "Blink" and stats.Blink and root then
+		-- the client moves itself (it owns its character); we just check it's
+		-- plausible and show the effect to everyone else
+		if Util.isFiniteVector3(data.From) and Util.isFiniteVector3(data.To) then
+			if (data.To - data.From).Magnitude <= stats.BlinkDistance + 12 and useCooldown(player, name, stats.BlinkCooldown * 0.85) then
+				local fxData = { Type = "Blink", From = data.From, To = data.To, UserId = player.UserId }
+				if match then
+					if opponent.Parent then
+						Remotes.Get("Effect"):FireClient(opponent, fxData)
+					end
+				else
+					sendFx(nil, fxData)
 				end
 			end
 		end
@@ -2326,6 +3454,7 @@ function CombatService.Init()
 		lastFire[player] = nil
 		cooldowns[player] = nil
 		bulletTimeUntil[player] = nil
+		markedUntil[player] = nil
 		for _, d in ipairs(decoyFolder:GetChildren()) do
 			if d:GetAttribute("OwnerUserId") == player.UserId then
 				d:Destroy()
@@ -2338,7 +3467,7 @@ return CombatService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="14">
+      <Item class="ModuleScript" referent="15">
         <Properties>
           <string name="Name">DummyService</string>
           <string name="Source"><![CDATA[--[[
@@ -2537,7 +3666,7 @@ return DummyService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="15">
+      <Item class="ModuleScript" referent="16">
         <Properties>
           <string name="Name">LightingSetup</string>
           <string name="Source"><![CDATA[--[[
@@ -2607,7 +3736,7 @@ return LightingSetup
 ]]></string>
         </Properties>
       </Item>
-      <Item class="Script" referent="16">
+      <Item class="Script" referent="17">
         <Properties>
           <string name="Name">Main</string>
           <token name="RunContext">0</token>
@@ -2647,7 +3776,7 @@ print("[Sniper Duel] server ready")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="17">
+      <Item class="ModuleScript" referent="18">
         <Properties>
           <string name="Name">MapBuilder</string>
           <string name="Source"><![CDATA[--[[
@@ -2691,8 +3820,11 @@ local function mirrorZ(cf)
 	return CFrame.Angles(0, math.pi, 0) * mirrorX(cf)
 end
 
-local function newPart(className, size, cf, color, parent)
+local function newPart(className, size, cf, color, parent, shape)
 	local part = Instance.new(className)
+	if shape then
+		part.Shape = shape
+	end
 	part.Anchored = true
 	part.Size = size
 	part.CFrame = cf
@@ -2710,7 +3842,7 @@ local function makeBuilder(origin, parent)
 	local base = CFrame.new(origin)
 	local builder = {}
 
-	function builder.place(className, size, localCF, color, mirror)
+	function builder.place(className, size, localCF, color, mirror, shape)
 		local cfs = { localCF }
 		if mirror == "X" or mirror == "XZ" then
 			table.insert(cfs, mirrorX(localCF))
@@ -2722,13 +3854,29 @@ local function makeBuilder(origin, parent)
 		end
 		local parts = {}
 		for _, cf in ipairs(cfs) do
-			table.insert(parts, newPart(className, size, base * cf, color, parent))
+			table.insert(parts, newPart(className, size, base * cf, color, parent, shape))
 		end
 		return parts
 	end
 
 	function builder.block(size, pos, color, mirror)
 		return builder.place("Part", size, CFrame.new(pos), color, mirror)
+	end
+
+	-- A block with any CFrame (rotated)
+	function builder.part(size, cf, color, mirror)
+		return builder.place("Part", size, cf, color, mirror)
+	end
+
+	-- A cylinder `length` long, `diameter` wide. By default it stands UP
+	-- (vertical); pass a CFrame with rotation to lay it down.
+	function builder.cylinder(length, diameter, pos, color, mirror, cf)
+		local placeCF = cf or (CFrame.new(pos) * CFrame.Angles(0, 0, math.pi / 2))
+		return builder.place("Part", Vector3.new(length, diameter, diameter), placeCF, color, mirror, Enum.PartType.Cylinder)
+	end
+
+	function builder.ball(diameter, pos, color, mirror)
+		return builder.place("Part", Vector3.one * diameter, CFrame.new(pos), color, mirror, Enum.PartType.Ball)
 	end
 
 	-- A ramp whose LOW edge is centred at `lowPoint` (on the ground) and that
@@ -2751,6 +3899,9 @@ local function makeBuilder(origin, parent)
 	return builder
 end
 
+-- Other map modules (e.g. ArenaDowntown) use the same builder.
+MapBuilder.MakeBuilder = makeBuilder
+
 ----------------------------------------------------------------------------
 -- ARENA
 ----------------------------------------------------------------------------
@@ -2758,7 +3909,8 @@ local ARENA_LENGTH = 360 -- X
 local ARENA_WIDTH = 250 -- Z
 local WALL_HEIGHT = 70
 
-function MapBuilder.BuildArena(index)
+-- The original simple arena ("Classic"). Set Config.Match.Map = "Classic" to use it.
+local function buildClassicArena(index)
 	local origin = Vector3.new(0, 0, index * Config.Match.ArenaSpacing)
 	local model = Instance.new("Model")
 	model.Name = "Arena" .. index
@@ -2850,6 +4002,35 @@ function MapBuilder.BuildArena(index)
 	}
 end
 
+-- Builds the arena for match slot `index` (each slot gets its own copy).
+function MapBuilder.BuildArena(index)
+	if Config.Match.Map == "Classic" then
+		return buildClassicArena(index)
+	end
+	local ArenaDowntown = require(script.Parent.ArenaDowntown)
+	local origin = Vector3.new(0, 0, index * Config.Match.ArenaSpacing)
+	local model = Instance.new("Model")
+	model.Name = "Arena" .. index .. "_Downtown"
+	local spawns = ArenaDowntown.Build(makeBuilder(origin, model))
+
+	local folder = workspace:FindFirstChild("Arenas")
+	if not folder then
+		folder = Instance.new("Folder")
+		folder.Name = "Arenas"
+		folder.Parent = workspace
+	end
+	model.Parent = folder
+
+	local base = CFrame.new(origin)
+	return {
+		Model = model,
+		Index = index,
+		Origin = origin,
+		FloorY = origin.Y,
+		Spawns = { base * spawns[1], base * spawns[2] },
+	}
+end
+
 ----------------------------------------------------------------------------
 -- LOBBY (a small movement playground around the queue sign)
 ----------------------------------------------------------------------------
@@ -2902,7 +4083,7 @@ function MapBuilder.BuildLobby()
 	local sub = title:Clone()
 	sub.Position = UDim2.fromScale(0, 0.62)
 	sub.Size = UDim2.fromScale(1, 0.28)
-	sub.Text = "1v1  -  FIRST TO 4"
+	sub.Text = ("1v1  -  FIRST TO %d"):format(Config.Match.RoundsToWin)
 	sub.FontFace = Font.new(Config.UI.FontFamily, Enum.FontWeight.Bold)
 	sub.TextColor3 = Palette.UIAccent
 	sub.Parent = gui
@@ -2932,7 +4113,7 @@ return MapBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="18">
+      <Item class="ModuleScript" referent="19">
         <Properties>
           <string name="Name">Match</string>
           <string name="Source"><![CDATA[--[[
@@ -3286,7 +4467,7 @@ return Match
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="19">
+      <Item class="ModuleScript" referent="20">
         <Properties>
           <string name="Name">MatchService</string>
           <string name="Source"><![CDATA[--[[
@@ -3527,7 +4708,7 @@ return MatchService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="20">
+      <Item class="ModuleScript" referent="21">
         <Properties>
           <string name="Name">SettingsService</string>
           <string name="Source"><![CDATA[--[[
@@ -3624,13 +4805,13 @@ return SettingsService
       </Item>
     </Item>
   </Item>
-  <Item class="SoundService" referent="21">
+  <Item class="SoundService" referent="22">
     <Properties>
       <string name="Name">SoundService</string>
       <bool name="RespectFilteringEnabled">true</bool>
     </Properties>
   </Item>
-  <Item class="StarterPlayer" referent="22">
+  <Item class="StarterPlayer" referent="23">
     <Properties>
       <string name="Name">StarterPlayer</string>
       <float name="CameraMaxZoomDistance">18</float>
@@ -3638,11 +4819,11 @@ return SettingsService
       <bool name="EnableMouseLockOption">false</bool>
       <bool name="LoadCharacterAppearance">false</bool>
     </Properties>
-    <Item class="StarterCharacterScripts" referent="23">
+    <Item class="StarterCharacterScripts" referent="24">
       <Properties>
         <string name="Name">StarterCharacterScripts</string>
       </Properties>
-      <Item class="Script" referent="24">
+      <Item class="Script" referent="25">
         <Properties>
           <string name="Name">Health</string>
           <token name="RunContext">0</token>
@@ -3657,15 +4838,15 @@ return SettingsService
         </Properties>
       </Item>
     </Item>
-    <Item class="StarterPlayerScripts" referent="25">
+    <Item class="StarterPlayerScripts" referent="26">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="Folder" referent="26">
+      <Item class="Folder" referent="27">
         <Properties>
           <string name="Name">Client</string>
         </Properties>
-        <Item class="ModuleScript" referent="27">
+        <Item class="ModuleScript" referent="28">
           <Properties>
             <string name="Name">CameraController</string>
             <string name="Source"><![CDATA[--[[
@@ -3915,7 +5096,7 @@ return CameraController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="28">
+        <Item class="ModuleScript" referent="29">
           <Properties>
             <string name="Name">CharacterPoser</string>
             <string name="Source"><![CDATA[--[[
@@ -4041,7 +5222,7 @@ return CharacterPoser
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="29">
+        <Item class="ModuleScript" referent="30">
           <Properties>
             <string name="Name">ClientState</string>
             <string name="Source"><![CDATA[--[[
@@ -4213,7 +5394,7 @@ return ClientState
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="30">
+        <Item class="ModuleScript" referent="31">
           <Properties>
             <string name="Name">EffectsController</string>
             <string name="Source"><![CDATA[--[[
@@ -4436,6 +5617,17 @@ function Effects.SetBulletTime(on)
 	end
 end
 
+-- BLINK: a flash where you left and where you arrived, joined by a streak.
+function Effects.Blink(from, to)
+	if not from or not to then
+		return
+	end
+	puff(from, Palette.Hologram, 3, 0.35)
+	puff(to, Color3.fromRGB(190, 160, 255), 3.5, 0.4)
+	tracer(from, to, Color3.fromRGB(190, 160, 255), 0.5, 0.35)
+	Sfx.PlayAt("Dash", to, { Pitch = 1.6 })
+end
+
 function Effects.IsBulletTimeVisible()
 	return bulletTimeOn
 end
@@ -4445,21 +5637,26 @@ function Effects.PhantomFlash()
 	cc.TintColor = Color3.fromRGB(190, 230, 255)
 	cc.Saturation = -0.3
 	cc.Parent = workspace.CurrentCamera
-	TweenService:Create(cc, TweenInfo.new(Config.PowerUps.PhantomDash.InvisibleTime), {
+	TweenService:Create(cc, TweenInfo.new(math.max(ClientState.Stats.PhantomTime, 0.3)), {
 		TintColor = Color3.new(1, 1, 1),
 		Saturation = 0,
 	}):Play()
-	Debris:AddItem(cc, Config.PowerUps.PhantomDash.InvisibleTime + 0.1)
+	Debris:AddItem(cc, math.max(ClientState.Stats.PhantomTime, 0.3) + 0.1)
 end
 
 ----------------------------------------------------------------------------
 -- Wallhack Pulse
 ----------------------------------------------------------------------------
 local function wallhackLoop()
-	local cfg = Config.PowerUps.WallhackPulse
+	local elapsed = 0
 	while true do
-		task.wait(cfg.Interval)
-		if ClientState.CanShoot() and ClientState.Stats.WallhackPulse then
+		elapsed += task.wait(0.25)
+		-- Wallhack Pulse stacks pulse more often and for longer
+		local stats = ClientState.Stats
+		if not stats.WallhackPulse then
+			elapsed = 0
+		elseif elapsed >= stats.WallhackInterval and ClientState.CanShoot() then
+			elapsed = 0
 			-- the enemy in a match, the practice dummies in the lobby
 			local targets = {}
 			if ClientState.InMatch() then
@@ -4480,7 +5677,7 @@ local function wallhackLoop()
 				highlight.OutlineTransparency = 0
 				highlight.Adornee = target
 				highlight.Parent = getFolder()
-				Debris:AddItem(highlight, cfg.Duration)
+				Debris:AddItem(highlight, stats.WallhackDuration)
 			end
 			if #targets > 0 then
 				Sfx.Play("Ability", { Pitch = 1.6, Volume = 0.5 })
@@ -4521,6 +5718,45 @@ local function onEffect(data)
 	elseif t == "Grapple" then
 		enemyRopes[data.UserId] = enemyRopes[data.UserId] or {}
 		enemyRopes[data.UserId].Point = data.Point
+	elseif t == "Shards" then
+		-- SHRAPNEL
+		for _, seg in ipairs(data.Segments or {}) do
+			tracer(seg.From, seg.To, Palette.TracerExplosive, 0.06, 0.3)
+			puff(seg.To, Palette.TracerExplosive, 0.35, 0.25)
+		end
+		Sfx.PlayAt("Hit", data.Segments[1] and data.Segments[1].From or Vector3.zero, { Pitch = 2.2, Volume = 0.4 })
+	elseif t == "Zap" then
+		-- STATIC CHARGE: a jagged bolt from the bullet path to the target
+		local points = { data.From }
+		for i = 1, 3 do
+			local p = data.From:Lerp(data.To, i / 4)
+			table.insert(points, p + Vector3.new(math.random() - 0.5, math.random() - 0.5, math.random() - 0.5) * 1.6)
+		end
+		table.insert(points, data.To)
+		for i = 1, #points - 1 do
+			tracer(points[i], points[i + 1], Palette.Hologram, 0.12, 0.3)
+		end
+		puff(data.To, Palette.Hologram, 1.2, 0.3)
+		Sfx.PlayAt("Hit", data.To, { Pitch = 2.6, Volume = 0.6 })
+	elseif t == "Mark" then
+		-- MARKED: the target glows for you while the mark lasts
+		if data.Target and data.Target.Parent then
+			local existing = getFolder():FindFirstChild("Mark")
+			if existing then
+				existing:Destroy()
+			end
+			local highlight = Instance.new("Highlight")
+			highlight.Name = "Mark"
+			highlight.DepthMode = Enum.HighlightDepthMode.Occluded
+			highlight.FillColor = Color3.fromRGB(255, 80, 80)
+			highlight.FillTransparency = 0.55
+			highlight.OutlineColor = Color3.fromRGB(255, 220, 220)
+			highlight.Adornee = data.Target
+			highlight.Parent = getFolder()
+			Debris:AddItem(highlight, data.Duration or 4)
+		end
+	elseif t == "Blink" then
+		Effects.Blink(data.From, data.To)
 	elseif t == "GrappleEnd" then
 		local rope = enemyRopes[data.UserId]
 		if rope then
@@ -4562,7 +5798,7 @@ return Effects
 ]]></string>
           </Properties>
         </Item>
-        <Item class="LocalScript" referent="31">
+        <Item class="LocalScript" referent="32">
           <Properties>
             <string name="Name">Main</string>
             <string name="Source"><![CDATA[--[[
@@ -4624,7 +5860,7 @@ end
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="32">
+        <Item class="ModuleScript" referent="33">
           <Properties>
             <string name="Name">MovementController</string>
             <string name="Source"><![CDATA[--[[
@@ -4642,6 +5878,7 @@ end
 		C or L-Ctrl    slide (tap; tap again to stand). Press it in the air =
 		               slide the moment you land. Jump out of a slide any time.
 		E              Grapple Hook (power-up)
+		R              Blink (power-up)
 		Q              Decoy (power-up)
 
 	HOW IT WORKS
@@ -4719,6 +5956,7 @@ local grapple = { Point = nil, Timer = 0, ReadyAt = 0 }
 local speedBoost = { Until = 0, Multiplier = 1 }
 local bulletTime = { Until = 0, ReadyAt = 0, UsedThisAir = false }
 local decoyReadyAt = 0
+local blinkReadyAt = 0
 
 local fovKick = 0
 
@@ -4786,8 +6024,15 @@ local function applyFriction(v, friction, dt)
 	return v * (newSpeed / speed)
 end
 
+-- Second Wind boost x Adrenaline power-up
 local function speedMultiplier()
-	return now() < speedBoost.Until and speedBoost.Multiplier or 1
+	local boost = now() < speedBoost.Until and speedBoost.Multiplier or 1
+	return boost * stats().MoveSpeedMultiplier
+end
+
+-- Spring Legs power-up
+local function jumpPower()
+	return M.JumpPower * stats().JumpMultiplier
 end
 
 local function wishDirection()
@@ -4876,6 +6121,7 @@ end
 function Movement.GetCooldowns()
 	return {
 		Grapple = math.max(0, grapple.ReadyAt - now()),
+		Blink = math.max(0, blinkReadyAt - now()),
 		Decoy = math.max(0, decoyReadyAt - now()),
 		BulletTime = math.max(0, bulletTime.ReadyAt - now()),
 	}
@@ -4961,7 +6207,7 @@ local function groundJump()
 		momentum += Util.safeUnit(momentum) * M.SlideJumpBoost
 	end
 	humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-	setVerticalVelocity(M.JumpPower)
+	setVerticalVelocity(jumpPower())
 	-- the Humanoid can briefly hold us down (e.g. right after landing or
 	-- mid-slide); re-apply the jump velocity for a few frames so jumps never fail
 	forceJumpUntil = now() + 0.08
@@ -5001,7 +6247,7 @@ local function endGrapple(popUp)
 		return
 	end
 	grapple.Point = nil
-	grapple.ReadyAt = now() + M.GrappleCooldown
+	grapple.ReadyAt = now() + stats().GrappleCooldown
 	Remotes.Get("Ability"):FireServer("GrappleEnd", {})
 	Controllers.Effects.SetLocalGrapple(nil)
 	mode = "Air"
@@ -5033,6 +6279,35 @@ local function startGrapple()
 	Sfx.Play("Ability")
 end
 
+-- BLINK power-up: teleport where you're looking, keeping your momentum.
+local function startBlink()
+	local s = stats()
+	if not s.Blink or now() < blinkReadyAt then
+		return
+	end
+	blinkReadyAt = now() + s.BlinkCooldown
+	local camera = workspace.CurrentCamera
+	local look = camera.CFrame.LookVector
+	-- mostly horizontal: you can blink up or down a little, not straight into the floor
+	local dir = Vector3.new(look.X, math.clamp(look.Y, -0.35, 0.6), look.Z).Unit
+	local from = root.Position
+	local hit = workspace:Raycast(from, dir * s.BlinkDistance, makeRaycastParams())
+	local to = hit and (hit.Position - dir * 2.5) or (from + dir * s.BlinkDistance)
+	-- don't end up inside the floor
+	local floor = workspace:Raycast(to + Vector3.new(0, 3, 0), Vector3.new(0, -6, 0), makeRaycastParams())
+	if floor then
+		to = Vector3.new(to.X, math.max(to.Y, floor.Position.Y + 3), to.Z)
+	end
+	root.CFrame = CFrame.new(to) * root.CFrame.Rotation
+	if mode == "Ground" or mode == "Slide" then
+		mode = "Air"
+	end
+	Controllers.Camera.AddFovPunch(C.DashFOVKick * 1.3)
+	Controllers.Effects.Blink(from, to)
+	Remotes.Get("Ability"):FireServer("Blink", { From = from, To = to })
+	Sfx.Play("Dash", { Pitch = 1.7 })
+end
+
 local function startDecoy()
 	if not stats().Decoy or now() < decoyReadyAt then
 		return
@@ -5058,7 +6333,7 @@ end
 
 local function airJump()
 	airJumpsLeft -= 1
-	pendingLift = M.AirJumpVelocity
+	pendingLift = M.AirJumpVelocity * stats().JumpMultiplier
 	-- re-aim momentum toward your keys (keeps your speed)
 	local wish = wishDirection()
 	if mode == "Dash" then
@@ -5213,7 +6488,8 @@ local function updateGrapple(dt)
 		return
 	end
 	local velocity = Vector3.new(momentum.X, root.AssemblyLinearVelocity.Y, momentum.Z)
-	velocity = approachVector(velocity, toPoint.Unit * M.GrapplePullSpeed, M.GrappleAccel * dt)
+	local pull = M.GrapplePullSpeed * stats().GrapplePull
+	velocity = approachVector(velocity, toPoint.Unit * pull, M.GrappleAccel * stats().GrapplePull * dt)
 	momentum = Util.flat(velocity)
 	setVerticalVelocity(velocity.Y)
 end
@@ -5271,7 +6547,7 @@ local function updateBulletTime(dt, grounded)
 	end
 	if stats().BulletTime and scoped and not grounded and not bulletTime.UsedThisAir and now() >= bulletTime.ReadyAt then
 		bulletTime.UsedThisAir = true
-		bulletTime.Until = now() + cfg.Duration
+		bulletTime.Until = now() + stats().BulletTimeDuration
 		bulletTime.ReadyAt = now() + cfg.Cooldown
 		Remotes.Get("Ability"):FireServer("BulletTime", {})
 		Controllers.Effects.SetBulletTime(true)
@@ -5331,8 +6607,8 @@ local function step(dt)
 	local justLaunched = now() - math.max(lastGroundJumpTime, lastLiftTime) < 0.12
 	local grounded = Movement.IsGrounded() and not justLaunched
 	local wish = wishDirection()
-	if now() < forceJumpUntil and root.AssemblyLinearVelocity.Y < M.JumpPower * 0.75 then
-		setVerticalVelocity(M.JumpPower)
+	if now() < forceJumpUntil and root.AssemblyLinearVelocity.Y < jumpPower() * 0.75 then
+		setVerticalVelocity(jumpPower())
 	end
 	if not grounded then
 		peakY = math.max(peakY, root.Position.Y) -- for Shockwave Landing
@@ -5377,8 +6653,16 @@ local function step(dt)
 	end
 
 	-- hard speed limit
-	if momentum.Magnitude > M.MaxSpeed then
-		momentum = momentum.Unit * M.MaxSpeed
+	local maxSpeed = M.MaxSpeed * stats().MoveSpeedMultiplier
+	if momentum.Magnitude > maxSpeed then
+		momentum = momentum.Unit * maxSpeed
+	end
+
+	-- FEATHERWEIGHT power-up: cancel part of gravity while airborne
+	local gravityScale = stats().GravityScale
+	if gravityScale < 1 and (mode == "Air" or mode == "Dash") and not Movement.IsBulletTime() then
+		local v = root.AssemblyLinearVelocity
+		setVerticalVelocity(v.Y + workspace.Gravity * (1 - gravityScale) * dt)
 	end
 
 	updateBulletTime(dt, grounded)
@@ -5390,6 +6674,7 @@ local function step(dt)
 	end
 	linearVelocity.PlaneVelocity = Vector2.new(drive.X, drive.Z)
 	lastDrive = drive
+	humanoid.JumpPower = jumpPower()
 
 	-- FOV kick from movement
 	local speed = momentum.Magnitude
@@ -5498,6 +6783,10 @@ local function onInputBegan(input, processed)
 				startGrapple()
 			end
 		end
+	elseif key == Enum.KeyCode.R then
+		if canMove() and ClientState.CanShoot() then
+			startBlink()
+		end
 	elseif key == Enum.KeyCode.Q then
 		if canMove() and ClientState.CanShoot() then
 			startDecoy()
@@ -5552,7 +6841,7 @@ return Movement
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="33">
+        <Item class="ModuleScript" referent="34">
           <Properties>
             <string name="Name">Sfx</string>
             <string name="Source"><![CDATA[--[[
@@ -5609,7 +6898,7 @@ return Sfx
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="34">
+        <Item class="ModuleScript" referent="35">
           <Properties>
             <string name="Name">Spring</string>
             <string name="Source"><![CDATA[--[[
@@ -5655,7 +6944,7 @@ return Spring
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="35">
+        <Item class="ModuleScript" referent="36">
           <Properties>
             <string name="Name">UIController</string>
             <string name="Source"><![CDATA[--[[
@@ -5736,7 +7025,7 @@ return UIController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="36">
+        <Item class="ModuleScript" referent="37">
           <Properties>
             <string name="Name">ViewmodelController</string>
             <string name="Source"><![CDATA[--[[
@@ -6171,7 +7460,7 @@ return Viewmodel
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="37">
+        <Item class="ModuleScript" referent="38">
           <Properties>
             <string name="Name">WeaponController</string>
             <string name="Source"><![CDATA[--[[
@@ -6327,7 +7616,8 @@ local function fire()
 			local cfg = Config.PowerUps.RocketJump
 			if offset.Magnitude <= cfg.Radius then
 				local away = Util.safeUnit(Util.flat(offset))
-				Controllers.Movement.ApplyImpulse(away * cfg.LaunchAway + Vector3.new(0, cfg.LaunchUp, 0))
+				local power = stats.RocketJumpPower
+				Controllers.Movement.ApplyImpulse((away * cfg.LaunchAway + Vector3.new(0, cfg.LaunchUp, 0)) * power)
 				Controllers.Camera.Shake(3)
 			end
 		end
@@ -6399,6 +7689,14 @@ function Weapon.Init(controllers)
 end
 
 function Weapon.Start()
+	-- HAIR TRIGGER power-up: the server tells us a hit re-chambered the rifle
+	Remotes.Get("Buff").OnClientEvent:Connect(function(buff)
+		if typeof(buff) == "table" and buff.Type == "Rechamber" then
+			boltReadyAt = math.min(boltReadyAt, os.clock() + 0.1)
+			Controllers.Viewmodel.PlayBolt(0.18)
+		end
+	end)
+
 	UserInputService.InputBegan:Connect(onInputBegan)
 	UserInputService.InputEnded:Connect(onInputEnded)
 	RunService:BindToRenderStep("SniperWeapon", Enum.RenderPriority.Input.Value + 1, update)
@@ -6408,11 +7706,11 @@ return Weapon
 ]]></string>
           </Properties>
         </Item>
-        <Item class="Folder" referent="38">
+        <Item class="Folder" referent="39">
           <Properties>
             <string name="Name">ui</string>
           </Properties>
-          <Item class="ModuleScript" referent="39">
+          <Item class="ModuleScript" referent="40">
             <Properties>
               <string name="Name">HUD</string>
               <string name="Source"><![CDATA[--[[
@@ -6549,7 +7847,37 @@ local function buildScope()
 		Parent = scope,
 	})
 	Theme.corner(lens, UDim.new(0.5, 0))
-	Theme.stroke(lens, Color3.fromRGB(8, 9, 12), 3000, 0)
+
+	-- Black surround: four panels cover everything outside the lens's square,
+	-- and a ring outline covers the square's corners outside the circle.
+	local black = Color3.fromRGB(8, 9, 12)
+	local panels = {}
+	for i = 1, 4 do
+		panels[i] = Theme.new("Frame", { BackgroundColor3 = black, Parent = scope })
+	end
+	local mask = Theme.new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		BackgroundTransparency = 1,
+		Parent = scope,
+	})
+	Theme.corner(mask, UDim.new(0.5, 0))
+	local maskStroke = Theme.stroke(mask, black, 1, 0)
+	local function fit()
+		local viewport = workspace.CurrentCamera.ViewportSize
+		local d = math.floor(viewport.Y * 0.92)
+		local left = math.floor((viewport.X - d) / 2)
+		local top = math.floor((viewport.Y - d) / 2)
+		panels[1].Position, panels[1].Size = UDim2.fromOffset(0, 0), UDim2.new(0, left + 1, 1, 0) -- left
+		panels[2].Position, panels[2].Size = UDim2.new(0, left + d - 1, 0, 0), UDim2.new(1, -(left + d - 1), 1, 0) -- right
+		panels[3].Position, panels[3].Size = UDim2.fromOffset(0, 0), UDim2.new(1, 0, 0, top + 1) -- top
+		panels[4].Position, panels[4].Size = UDim2.new(0, 0, 0, top + d - 1), UDim2.new(1, 0, 1, -(top + d - 1)) -- bottom
+		-- the corners between a circle and its square are ~0.21 x diameter deep
+		mask.Size = UDim2.fromOffset(d, d)
+		maskStroke.Thickness = math.ceil(d * 0.22) + 2
+	end
+	fit()
+	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(fit)
 	-- inner ring
 	local ring = Theme.new("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0.5),
@@ -6622,11 +7950,11 @@ local function buildScoreboard()
 			Text = "0",
 			Parent = chip,
 		})
-		-- collected power-ups under each player (5 per row, wraps)
+		-- collected power-ups under each player (5 per row, up to 3 rows)
 		iconRows[slot] = Theme.new("Frame", {
 			AnchorPoint = Vector2.new(left and 0 or 1, 0),
 			Position = UDim2.new(0.5, left and -210 or 210, 0, 60),
-			Size = UDim2.fromOffset(140, 52),
+			Size = UDim2.fromOffset(140, 80),
 			BackgroundTransparency = 1,
 			Parent = scoreboard,
 		}, {
@@ -6956,6 +8284,9 @@ local function rebuildAbilities()
 	if stats.Grapple then
 		table.insert(entries, { Key = "E", Name = "Grapple", Cooldown = "Grapple" })
 	end
+	if stats.Blink then
+		table.insert(entries, { Key = "R", Name = "Blink", Cooldown = "Blink" })
+	end
 	if stats.Decoy then
 		table.insert(entries, { Key = "Q", Name = "Decoy", Cooldown = "Decoy" })
 	end
@@ -7025,7 +8356,7 @@ function HUD.OnState(snapshot, old)
 		nameLabels[slot].TextColor3 = (entry and entry.UserId == player.UserId) and Palette.UIAccent or Palette.UIText
 		winLabels[slot].Text = entry and tostring(entry.Wins) or "0"
 	end
-	roundLabel.Text = ("ROUND %d  -  FIRST TO %d"):format(snapshot.Round or 1, snapshot.RoundsToWin or 4)
+	roundLabel.Text = ("ROUND %d  -  FIRST TO %d"):format(snapshot.Round or 1, snapshot.RoundsToWin or 5)
 	rebuildIcons(snapshot)
 
 	local phase = snapshot.Phase
@@ -7112,7 +8443,9 @@ local function update()
 		local fill = row:IsA("Frame") and row:FindFirstChild("CooldownFill")
 		if fill then
 			local name = fill:GetAttribute("Cooldown")
-			local total = name == "Grapple" and Config.Movement.GrappleCooldown
+			local stats = ClientState.Stats
+			local total = name == "Grapple" and stats.GrappleCooldown
+				or name == "Blink" and math.max(stats.BlinkCooldown, 0.1)
 				or name == "Decoy" and Config.PowerUps.Decoy.Cooldown
 				or Config.PowerUps.BulletTime.Cooldown
 			fill.Size = UDim2.fromScale(math.clamp((cooldowns[name] or 0) / total, 0, 1), 1)
@@ -7144,7 +8477,7 @@ return HUD
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="40">
+          <Item class="ModuleScript" referent="41">
             <Properties>
               <string name="Name">Icons</string>
               <string name="Source"><![CDATA[--[[
@@ -7206,7 +8539,7 @@ return Icons
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="41">
+          <Item class="ModuleScript" referent="42">
             <Properties>
               <string name="Name">LobbyUI</string>
               <string name="Source"><![CDATA[--[[
@@ -7241,7 +8574,7 @@ local CONTROLS = {
 	{ "", "Wall run: jump next to a wall and hold W" },
 	{ "RMB", "Scope" },
 	{ "LMB", "Fire" },
-	{ "E / Q", "Grapple / Decoy (power-ups)" },
+	{ "E / Q / R", "Grapple / Decoy / Blink (power-ups)" },
 	{ "V", "Inspect rifle" },
 	{ "B", "Power-Up Lab: try any power-up solo" },
 	{ "F", "Find a match" },
@@ -7264,7 +8597,7 @@ function LobbyUI.OnState(snapshot)
 		playButton.TextColor3 = Palette.UIBackground
 		local queued = snapshot.QueueCount or 0
 		statusLabel.Text = queued > 0 and (tostring(queued) .. " player(s) waiting - press PLAY to duel")
-			or "Practise on the range while you wait  -  first to 4 rounds"
+			or ("Practise on the range while you wait  -  first to %d rounds"):format(Config.Match.RoundsToWin)
 	end
 end
 
@@ -7288,7 +8621,9 @@ function LobbyUI.Start(playerGui)
 	Theme.label({
 		Position = UDim2.fromOffset(30, 110),
 		Size = UDim2.fromOffset(400, 20),
-		Text = "Lose a round, pick a power-up. First to 4 wins.",
+		Text = ("Lose a round, pick a power-up. Stack them into a build. First to %d wins."):format(
+			Config.Match.RoundsToWin
+		),
 		TextSize = 15,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextColor3 = Palette.UISubText,
@@ -7388,7 +8723,7 @@ return LobbyUI
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="42">
+          <Item class="ModuleScript" referent="43">
             <Properties>
               <string name="Name">PickScreen</string>
               <string name="Source"><![CDATA[--[[
@@ -7510,8 +8845,8 @@ local function makeCard(index, def, ownedStacks)
 	})
 	Theme.label({
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 184),
-		Size = UDim2.new(1, -26, 0, 70),
+		Position = UDim2.new(0.5, 0, 0, 182),
+		Size = UDim2.new(1, -26, 0, 54),
 		Text = def.Description,
 		TextSize = 14,
 		TextWrapped = true,
@@ -7520,6 +8855,20 @@ local function makeCard(index, def, ownedStacks)
 		FontFace = Theme.Font(Enum.FontWeight.Medium),
 		Parent = front,
 	})
+	-- what picking this again would add (power-ups are built to stack)
+	if def.Stacking then
+		Theme.label({
+			AnchorPoint = Vector2.new(0.5, 1),
+			Position = UDim2.new(0.5, 0, 1, -30),
+			Size = UDim2.new(1, -20, 0, 28),
+			Text = "STACKS: " .. def.Stacking,
+			TextSize = 11,
+			TextWrapped = true,
+			TextColor3 = rarity.Color:Lerp(Color3.new(1, 1, 1), 0.3),
+			FontFace = Theme.Font(Enum.FontWeight.Bold),
+			Parent = front,
+		})
+	end
 	if ownedStacks > 0 then
 		Theme.label({
 			AnchorPoint = Vector2.new(0.5, 1),
@@ -7960,7 +9309,7 @@ return PickScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="43">
+          <Item class="ModuleScript" referent="44">
             <Properties>
               <string name="Name">PowerUpLab</string>
               <string name="Source"><![CDATA[--[[
@@ -8098,7 +9447,7 @@ local function makeTile(def, order)
 	})
 	-- description on hover
 	frame.MouseEnter:Connect(function()
-		panel.Description.Text = def.Name .. ":  " .. def.Description
+		panel.Description.Text = def.Name .. ":  " .. def.Description .. "   (Stacks: " .. (def.Stacking or "-") .. ")"
 	end)
 	frame.Activated:Connect(function()
 		Sfx.Play("CardHover")
@@ -8160,10 +9509,16 @@ function PowerUpLab.Start(playerGui)
 		Parent = panel,
 	})
 
-	grid = Theme.new("Frame", {
+	-- scrolls (mouse wheel) when there are more power-ups than fit
+	grid = Theme.new("ScrollingFrame", {
 		Position = UDim2.fromOffset(0, 68),
 		Size = UDim2.new(1, 0, 1, -150),
 		BackgroundTransparency = 1,
+		ScrollBarThickness = 6,
+		ScrollBarImageColor3 = Palette.UISubText,
+		ScrollingDirection = Enum.ScrollingDirection.Y,
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		CanvasSize = UDim2.new(),
 		Parent = panel,
 	}, {
 		Theme.new("UIGridLayout", {
@@ -8250,7 +9605,7 @@ return PowerUpLab
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="44">
+          <Item class="ModuleScript" referent="45">
             <Properties>
               <string name="Name">SettingsMenu</string>
               <string name="Source"><![CDATA[--[[
@@ -8494,7 +9849,7 @@ return SettingsMenu
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="45">
+          <Item class="ModuleScript" referent="46">
             <Properties>
               <string name="Name">Theme</string>
               <string name="Source"><![CDATA[--[[
@@ -8647,7 +10002,7 @@ return Theme
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="46">
+          <Item class="ModuleScript" referent="47">
             <Properties>
               <string name="Name">VictoryScreen</string>
               <string name="Source"><![CDATA[--[[
@@ -8678,7 +10033,7 @@ local isOpen = false
 
 local function buildColumn(entry, slot)
 	local column = Theme.panel({
-		Size = UDim2.fromOffset(300, 220),
+		Size = UDim2.fromOffset(300, 300),
 		LayoutOrder = slot,
 		Parent = columns,
 	})
@@ -8698,8 +10053,8 @@ local function buildColumn(entry, slot)
 		Parent = column,
 	}, {
 		Theme.new("UIGridLayout", {
-			CellSize = UDim2.fromOffset(130, 30),
-			CellPadding = UDim2.fromOffset(8, 6),
+			CellSize = UDim2.fromOffset(130, 26),
+			CellPadding = UDim2.fromOffset(8, 4),
 			SortOrder = Enum.SortOrder.LayoutOrder,
 		}),
 	})
@@ -8816,7 +10171,7 @@ function VictoryScreen.Start(playerGui)
 	columns = Theme.new("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.new(0.5, 0, 0.1, 210),
-		Size = UDim2.fromOffset(640, 230),
+		Size = UDim2.fromOffset(640, 310),
 		BackgroundTransparency = 1,
 		Parent = overlay,
 	}, {

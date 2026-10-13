@@ -151,7 +151,8 @@ local function fire()
 			local cfg = Config.PowerUps.RocketJump
 			if offset.Magnitude <= cfg.Radius then
 				local away = Util.safeUnit(Util.flat(offset))
-				Controllers.Movement.ApplyImpulse(away * cfg.LaunchAway + Vector3.new(0, cfg.LaunchUp, 0))
+				local power = stats.RocketJumpPower
+				Controllers.Movement.ApplyImpulse((away * cfg.LaunchAway + Vector3.new(0, cfg.LaunchUp, 0)) * power)
 				Controllers.Camera.Shake(3)
 			end
 		end
@@ -223,6 +224,14 @@ function Weapon.Init(controllers)
 end
 
 function Weapon.Start()
+	-- HAIR TRIGGER power-up: the server tells us a hit re-chambered the rifle
+	Remotes.Get("Buff").OnClientEvent:Connect(function(buff)
+		if typeof(buff) == "table" and buff.Type == "Rechamber" then
+			boltReadyAt = math.min(boltReadyAt, os.clock() + 0.1)
+			Controllers.Viewmodel.PlayBolt(0.18)
+		end
+	end)
+
 	UserInputService.InputBegan:Connect(onInputBegan)
 	UserInputService.InputEnded:Connect(onInputEnded)
 	RunService:BindToRenderStep("SniperWeapon", Enum.RenderPriority.Input.Value + 1, update)

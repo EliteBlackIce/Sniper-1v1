@@ -13,6 +13,7 @@
 		C or L-Ctrl    slide (tap; tap again to stand). Press it in the air =
 		               slide the moment you land. Jump out of a slide any time.
 		E              Grapple Hook (power-up)
+		R              Blink (power-up)
 		Q              Decoy (power-up)
 
 	HOW IT WORKS
@@ -90,6 +91,7 @@ local grapple = { Point = nil, Timer = 0, ReadyAt = 0 }
 local speedBoost = { Until = 0, Multiplier = 1 }
 local bulletTime = { Until = 0, ReadyAt = 0, UsedThisAir = false }
 local decoyReadyAt = 0
+local blinkReadyAt = 0
 
 local fovKick = 0
 
@@ -157,8 +159,15 @@ local function applyFriction(v, friction, dt)
 	return v * (newSpeed / speed)
 end
 
+-- Second Wind boost x Adrenaline power-up
 local function speedMultiplier()
-	return now() < speedBoost.Until and speedBoost.Multiplier or 1
+	local boost = now() < speedBoost.Until and speedBoost.Multiplier or 1
+	return boost * stats().MoveSpeedMultiplier
+end
+
+-- Spring Legs power-up
+local function jumpPower()
+	return M.JumpPower * stats().JumpMultiplier
 end
 
 local function wishDirection()
@@ -247,6 +256,7 @@ end
 function Movement.GetCooldowns()
 	return {
 		Grapple = math.max(0, grapple.ReadyAt - now()),
+		Blink = math.max(0, blinkReadyAt - now()),
 		Decoy = math.max(0, decoyReadyAt - now()),
 		BulletTime = math.max(0, bulletTime.ReadyAt - now()),
 	}
@@ -332,7 +342,7 @@ local function groundJump()
 		momentum += Util.safeUnit(momentum) * M.SlideJumpBoost
 	end
 	humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-	setVerticalVelocity(M.JumpPower)
+	setVerticalVelocity(jumpPower())
 	-- the Humanoid can briefly hold us down (e.g. right after landing or
 	-- mid-slide); re-apply the jump velocity for a few frames so jumps never fail
 	forceJumpUntil = now() + 0.08
@@ -372,7 +382,7 @@ local function endGrapple(popUp)
 		return
 	end
 	grapple.Point = nil
-	grapple.ReadyAt = now() + M.GrappleCooldown
+	grapple.ReadyAt = now() + stats().GrappleCooldown
 	Remotes.Get("Ability"):FireServer("GrappleEnd", {})
 	Controllers.Effects.SetLocalGrapple(nil)
 	mode = "Air"
@@ -404,6 +414,35 @@ local function startGrapple()
 	Sfx.Play("Ability")
 end
 
+-- BLINK power-up: teleport where you're looking, keeping your momentum.
+local function startBlink()
+	local s = stats()
+	if not s.Blink or now() < blinkReadyAt then
+		return
+	end
+	blinkReadyAt = now() + s.BlinkCooldown
+	local camera = workspace.CurrentCamera
+	local look = camera.CFrame.LookVector
+	-- mostly horizontal: you can blink up or down a little, not straight into the floor
+	local dir = Vector3.new(look.X, math.clamp(look.Y, -0.35, 0.6), look.Z).Unit
+	local from = root.Position
+	local hit = workspace:Raycast(from, dir * s.BlinkDistance, makeRaycastParams())
+	local to = hit and (hit.Position - dir * 2.5) or (from + dir * s.BlinkDistance)
+	-- don't end up inside the floor
+	local floor = workspace:Raycast(to + Vector3.new(0, 3, 0), Vector3.new(0, -6, 0), makeRaycastParams())
+	if floor then
+		to = Vector3.new(to.X, math.max(to.Y, floor.Position.Y + 3), to.Z)
+	end
+	root.CFrame = CFrame.new(to) * root.CFrame.Rotation
+	if mode == "Ground" or mode == "Slide" then
+		mode = "Air"
+	end
+	Controllers.Camera.AddFovPunch(C.DashFOVKick * 1.3)
+	Controllers.Effects.Blink(from, to)
+	Remotes.Get("Ability"):FireServer("Blink", { From = from, To = to })
+	Sfx.Play("Dash", { Pitch = 1.7 })
+end
+
 local function startDecoy()
 	if not stats().Decoy or now() < decoyReadyAt then
 		return
@@ -429,7 +468,7 @@ end
 
 local function airJump()
 	airJumpsLeft -= 1
-	pendingLift = M.AirJumpVelocity
+	pendingLift = M.AirJumpVelocity * stats().JumpMultiplier
 	-- re-aim momentum toward your keys (keeps your speed)
 	local wish = wishDirection()
 	if mode == "Dash" then
@@ -584,7 +623,8 @@ local function updateGrapple(dt)
 		return
 	end
 	local velocity = Vector3.new(momentum.X, root.AssemblyLinearVelocity.Y, momentum.Z)
-	velocity = approachVector(velocity, toPoint.Unit * M.GrapplePullSpeed, M.GrappleAccel * dt)
+	local pull = M.GrapplePullSpeed * stats().GrapplePull
+	velocity = approachVector(velocity, toPoint.Unit * pull, M.GrappleAccel * stats().GrapplePull * dt)
 	momentum = Util.flat(velocity)
 	setVerticalVelocity(velocity.Y)
 end
@@ -642,7 +682,7 @@ local function updateBulletTime(dt, grounded)
 	end
 	if stats().BulletTime and scoped and not grounded and not bulletTime.UsedThisAir and now() >= bulletTime.ReadyAt then
 		bulletTime.UsedThisAir = true
-		bulletTime.Until = now() + cfg.Duration
+		bulletTime.Until = now() + stats().BulletTimeDuration
 		bulletTime.ReadyAt = now() + cfg.Cooldown
 		Remotes.Get("Ability"):FireServer("BulletTime", {})
 		Controllers.Effects.SetBulletTime(true)
@@ -702,8 +742,8 @@ local function step(dt)
 	local justLaunched = now() - math.max(lastGroundJumpTime, lastLiftTime) < 0.12
 	local grounded = Movement.IsGrounded() and not justLaunched
 	local wish = wishDirection()
-	if now() < forceJumpUntil and root.AssemblyLinearVelocity.Y < M.JumpPower * 0.75 then
-		setVerticalVelocity(M.JumpPower)
+	if now() < forceJumpUntil and root.AssemblyLinearVelocity.Y < jumpPower() * 0.75 then
+		setVerticalVelocity(jumpPower())
 	end
 	if not grounded then
 		peakY = math.max(peakY, root.Position.Y) -- for Shockwave Landing
@@ -748,8 +788,16 @@ local function step(dt)
 	end
 
 	-- hard speed limit
-	if momentum.Magnitude > M.MaxSpeed then
-		momentum = momentum.Unit * M.MaxSpeed
+	local maxSpeed = M.MaxSpeed * stats().MoveSpeedMultiplier
+	if momentum.Magnitude > maxSpeed then
+		momentum = momentum.Unit * maxSpeed
+	end
+
+	-- FEATHERWEIGHT power-up: cancel part of gravity while airborne
+	local gravityScale = stats().GravityScale
+	if gravityScale < 1 and (mode == "Air" or mode == "Dash") and not Movement.IsBulletTime() then
+		local v = root.AssemblyLinearVelocity
+		setVerticalVelocity(v.Y + workspace.Gravity * (1 - gravityScale) * dt)
 	end
 
 	updateBulletTime(dt, grounded)
@@ -761,6 +809,7 @@ local function step(dt)
 	end
 	linearVelocity.PlaneVelocity = Vector2.new(drive.X, drive.Z)
 	lastDrive = drive
+	humanoid.JumpPower = jumpPower()
 
 	-- FOV kick from movement
 	local speed = momentum.Magnitude
@@ -868,6 +917,10 @@ local function onInputBegan(input, processed)
 			else
 				startGrapple()
 			end
+		end
+	elseif key == Enum.KeyCode.R then
+		if canMove() and ClientState.CanShoot() then
+			startBlink()
 		end
 	elseif key == Enum.KeyCode.Q then
 		if canMove() and ClientState.CanShoot() then

@@ -39,8 +39,11 @@ local function mirrorZ(cf)
 	return CFrame.Angles(0, math.pi, 0) * mirrorX(cf)
 end
 
-local function newPart(className, size, cf, color, parent)
+local function newPart(className, size, cf, color, parent, shape)
 	local part = Instance.new(className)
+	if shape then
+		part.Shape = shape
+	end
 	part.Anchored = true
 	part.Size = size
 	part.CFrame = cf
@@ -58,7 +61,7 @@ local function makeBuilder(origin, parent)
 	local base = CFrame.new(origin)
 	local builder = {}
 
-	function builder.place(className, size, localCF, color, mirror)
+	function builder.place(className, size, localCF, color, mirror, shape)
 		local cfs = { localCF }
 		if mirror == "X" or mirror == "XZ" then
 			table.insert(cfs, mirrorX(localCF))
@@ -70,13 +73,29 @@ local function makeBuilder(origin, parent)
 		end
 		local parts = {}
 		for _, cf in ipairs(cfs) do
-			table.insert(parts, newPart(className, size, base * cf, color, parent))
+			table.insert(parts, newPart(className, size, base * cf, color, parent, shape))
 		end
 		return parts
 	end
 
 	function builder.block(size, pos, color, mirror)
 		return builder.place("Part", size, CFrame.new(pos), color, mirror)
+	end
+
+	-- A block with any CFrame (rotated)
+	function builder.part(size, cf, color, mirror)
+		return builder.place("Part", size, cf, color, mirror)
+	end
+
+	-- A cylinder `length` long, `diameter` wide. By default it stands UP
+	-- (vertical); pass a CFrame with rotation to lay it down.
+	function builder.cylinder(length, diameter, pos, color, mirror, cf)
+		local placeCF = cf or (CFrame.new(pos) * CFrame.Angles(0, 0, math.pi / 2))
+		return builder.place("Part", Vector3.new(length, diameter, diameter), placeCF, color, mirror, Enum.PartType.Cylinder)
+	end
+
+	function builder.ball(diameter, pos, color, mirror)
+		return builder.place("Part", Vector3.one * diameter, CFrame.new(pos), color, mirror, Enum.PartType.Ball)
 	end
 
 	-- A ramp whose LOW edge is centred at `lowPoint` (on the ground) and that
@@ -99,6 +118,9 @@ local function makeBuilder(origin, parent)
 	return builder
 end
 
+-- Other map modules (e.g. ArenaDowntown) use the same builder.
+MapBuilder.MakeBuilder = makeBuilder
+
 ----------------------------------------------------------------------------
 -- ARENA
 ----------------------------------------------------------------------------
@@ -106,7 +128,8 @@ local ARENA_LENGTH = 360 -- X
 local ARENA_WIDTH = 250 -- Z
 local WALL_HEIGHT = 70
 
-function MapBuilder.BuildArena(index)
+-- The original simple arena ("Classic"). Set Config.Match.Map = "Classic" to use it.
+local function buildClassicArena(index)
 	local origin = Vector3.new(0, 0, index * Config.Match.ArenaSpacing)
 	local model = Instance.new("Model")
 	model.Name = "Arena" .. index
@@ -198,6 +221,35 @@ function MapBuilder.BuildArena(index)
 	}
 end
 
+-- Builds the arena for match slot `index` (each slot gets its own copy).
+function MapBuilder.BuildArena(index)
+	if Config.Match.Map == "Classic" then
+		return buildClassicArena(index)
+	end
+	local ArenaDowntown = require(script.Parent.ArenaDowntown)
+	local origin = Vector3.new(0, 0, index * Config.Match.ArenaSpacing)
+	local model = Instance.new("Model")
+	model.Name = "Arena" .. index .. "_Downtown"
+	local spawns = ArenaDowntown.Build(makeBuilder(origin, model))
+
+	local folder = workspace:FindFirstChild("Arenas")
+	if not folder then
+		folder = Instance.new("Folder")
+		folder.Name = "Arenas"
+		folder.Parent = workspace
+	end
+	model.Parent = folder
+
+	local base = CFrame.new(origin)
+	return {
+		Model = model,
+		Index = index,
+		Origin = origin,
+		FloorY = origin.Y,
+		Spawns = { base * spawns[1], base * spawns[2] },
+	}
+end
+
 ----------------------------------------------------------------------------
 -- LOBBY (a small movement playground around the queue sign)
 ----------------------------------------------------------------------------
@@ -250,7 +302,7 @@ function MapBuilder.BuildLobby()
 	local sub = title:Clone()
 	sub.Position = UDim2.fromScale(0, 0.62)
 	sub.Size = UDim2.fromScale(1, 0.28)
-	sub.Text = "1v1  -  FIRST TO 4"
+	sub.Text = ("1v1  -  FIRST TO %d"):format(Config.Match.RoundsToWin)
 	sub.FontFace = Font.new(Config.UI.FontFamily, Enum.FontWeight.Bold)
 	sub.TextColor3 = Palette.UIAccent
 	sub.Parent = gui

@@ -12,8 +12,9 @@
 
 	A simulation returns:
 	{
-		Segments = { {From = Vector3, To = Vector3, Kind = "Normal"|"Bounce"} , ... },
-		Hit = { Part, Position, Normal, Model } or nil  -- first character/decoy hit
+		Segments = { {From, To, Kind = "Normal"|"Bounce", Hops}, ... },
+		Hit = { Part, Position, Normal, Model, Hops } or nil  -- first character/decoy hit
+		Impacts = { {Position, Normal, Direction}, ... } -- surfaces touched (Shrapnel)
 		EndPosition = Vector3,                         -- where the bullet stopped
 		EndNormal = Vector3?,                          -- surface normal at the end
 		Passes = { Vector3, ... },                     -- points where it went through walls
@@ -110,22 +111,30 @@ function Ballistics.Simulate(params)
 	local ghostLeft = stats.GhostWalls or 0
 	local bouncesLeft = stats.Bounces or 0
 	local homing = stats.Homing and params.HomingTargets and #params.HomingTargets > 0
-	local homingCfg = Config.PowerUps.HomingRounds
+	local homingStep = Config.PowerUps.HomingRounds.StepLength
+	local homingRadius = stats.HomingRadius or 0
+	local homingTurn = math.rad(stats.HomingTurn or 0)
 
-	local result = { Segments = {}, Passes = {}, Hit = nil }
+	local result = { Segments = {}, Passes = {}, Impacts = {}, Hit = nil }
 	local segStart = pos
 	local segKind = "Normal"
+	local hops = 0 -- bounces + wall passes so far (Pinball damage)
 
 	local function closeSegment(toPos)
-		table.insert(result.Segments, { From = segStart, To = toPos, Kind = segKind })
+		table.insert(result.Segments, { From = segStart, To = toPos, Kind = segKind, Hops = hops })
 		segStart = toPos
+	end
+
+	-- surfaces the bullet touched (Shrapnel sprays shards from these)
+	local function addImpact(position, normal, direction)
+		table.insert(result.Impacts, { Position = position, Normal = normal, Direction = direction })
 	end
 
 	for _ = 1, MAX_ITERATIONS do
 		if remaining <= 0.01 then
 			break
 		end
-		local stepLength = homing and math.min(homingCfg.StepLength, remaining) or remaining
+		local stepLength = homing and math.min(homingStep, remaining) or remaining
 		local ray = workspace:Raycast(pos, dir * stepLength, raycastParams)
 
 		if not ray then
@@ -136,10 +145,9 @@ function Ballistics.Simulate(params)
 				local newDir = dir
 				for _, target in ipairs(params.HomingTargets) do
 					local toTarget = target - newPos
-					local closeEnough = Util.distanceToSegment(target, pos, newPos + dir * homingCfg.StepLength)
-						<= homingCfg.Radius
+					local closeEnough = Util.distanceToSegment(target, pos, newPos + dir * homingStep) <= homingRadius
 					if closeEnough and toTarget.Magnitude > 0.5 and toTarget.Unit:Dot(dir) > 0.2 then
-						newDir = rotateToward(dir, toTarget.Unit, math.rad(homingCfg.TurnDegreesPerStep))
+						newDir = rotateToward(dir, toTarget.Unit, homingTurn)
 						break
 					end
 				end
@@ -170,6 +178,7 @@ function Ballistics.Simulate(params)
 				Position = hitPos,
 				Normal = ray.Normal,
 				Model = targetModel,
+				Hops = hops,
 			}
 			result.EndPosition = hitPos
 			result.EndNormal = ray.Normal
@@ -182,18 +191,24 @@ function Ballistics.Simulate(params)
 			table.insert(exclude, ray.Instance)
 			raycastParams.FilterDescendantsInstances = exclude
 			table.insert(result.Passes, hitPos)
+			addImpact(hitPos, ray.Normal, dir)
+			closeSegment(hitPos)
+			hops += 1
 			pos = hitPos
 		elseif bouncesLeft > 0 then
 			-- Ricochet: reflect off the surface.
 			bouncesLeft -= 1
 			closeSegment(hitPos)
 			segKind = "Bounce"
+			hops += 1
 			local n = ray.Normal
 			dir = (dir - 2 * dir:Dot(n) * n).Unit
+			addImpact(hitPos, n, dir)
 			pos = hitPos + n * 0.05
 			segStart = pos
 		else
 			closeSegment(hitPos)
+			addImpact(hitPos, ray.Normal, (dir - 2 * dir:Dot(ray.Normal) * ray.Normal).Unit)
 			result.EndPosition = hitPos
 			result.EndNormal = ray.Normal
 			return result
@@ -203,6 +218,23 @@ function Ballistics.Simulate(params)
 	closeSegment(pos)
 	result.EndPosition = pos
 	return result
+end
+
+-- Closest point on a simulated path to `point`, plus the distance and the
+-- number of hops (bounces / wall passes) the bullet had made by then.
+function Ballistics.ClosestOnPath(sim, point)
+	local bestDistance, bestPoint, bestHops = math.huge, nil, 0
+	for _, seg in ipairs(sim.Segments) do
+		local ab = seg.To - seg.From
+		local len2 = ab:Dot(ab)
+		local t = len2 > 1e-6 and math.clamp((point - seg.From):Dot(ab) / len2, 0, 1) or 0
+		local closest = seg.From + ab * t
+		local distance = (point - closest).Magnitude
+		if distance < bestDistance then
+			bestDistance, bestPoint, bestHops = distance, closest, seg.Hops or 0
+		end
+	end
+	return bestPoint, bestDistance, bestHops
 end
 
 -- Shortest distance from a point to any segment of a simulated path.

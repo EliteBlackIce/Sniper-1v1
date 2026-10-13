@@ -98,7 +98,6 @@ GunModel.Parts = {
 	{ "ScopeObjective", "Cylinder", V(0.34, 0.23, 0.23), V(0, 0.36, -1.03), nil, "GunMetal" },
 	{ "ScopeObjectiveRing", "Cylinder", V(0.04, 0.25, 0.25), V(0, 0.36, -1.18), nil, "GunAccent" },
 	{ "ScopeLensFront", "Cylinder", V(0.02, 0.2, 0.2), V(0, 0.36, -1.205), nil, "ScopeGlass" },
-	{ "ScopeFlipCap", "Block", V(0.24, 0.24, 0.03), V(0, 0.6, -1.23), V(-20, 0, 0), "GunMetal" },
 	{ "ScopeEyepiece", "Cylinder", V(0.26, 0.19, 0.19), V(0, 0.36, 0.25), nil, "GunMetal" },
 	{ "ScopeEyepieceRing", "Cylinder", V(0.05, 0.205, 0.205), V(0, 0.36, 0.17), nil, "GunMetalLight" },
 	{ "ScopeLensRear", "Cylinder", V(0.02, 0.16, 0.16), V(0, 0.36, 0.385), nil, "ScopeGlass" },

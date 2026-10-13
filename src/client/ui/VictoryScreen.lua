@@ -26,7 +26,7 @@ local isOpen = false
 
 local function buildColumn(entry, slot)
 	local column = Theme.panel({
-		Size = UDim2.fromOffset(300, 220),
+		Size = UDim2.fromOffset(300, 300),
 		LayoutOrder = slot,
 		Parent = columns,
 	})
@@ -46,8 +46,8 @@ local function buildColumn(entry, slot)
 		Parent = column,
 	}, {
 		Theme.new("UIGridLayout", {
-			CellSize = UDim2.fromOffset(130, 30),
-			CellPadding = UDim2.fromOffset(8, 6),
+			CellSize = UDim2.fromOffset(130, 26),
+			CellPadding = UDim2.fromOffset(8, 4),
 			SortOrder = Enum.SortOrder.LayoutOrder,
 		}),
 	})
@@ -164,7 +164,7 @@ function VictoryScreen.Start(playerGui)
 	columns = Theme.new("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.new(0.5, 0, 0.1, 210),
-		Size = UDim2.fromOffset(640, 230),
+		Size = UDim2.fromOffset(640, 310),
 		BackgroundTransparency = 1,
 		Parent = overlay,
 	}, {

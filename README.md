@@ -1,7 +1,7 @@
 # Sniper Duel (Roblox, Luau + Rojo)
 
 A 1v1 first-person sniper duel with fast, momentum-based movement and
-ROUNDS-style roguelike progression. Best of 7 (first to 4 round wins). After
+ROUNDS-style roguelike progression. Best of 9 (first to 5 round wins). After
 each round, the player who **died** picks 1 of 5 random power-up cards. Cards
 stack for the rest of the match, so the losing player gets stronger each round.
 
@@ -21,6 +21,7 @@ src/shared/                -> ReplicatedStorage.Shared   (server + client)
   Config.lua                  ALL tunable numbers + colour palette + sounds + lighting
   PowerUps.lua                every power-up as one data entry + card drawing
   Ballistics.lua              bullet tracing (ghost / ricochet / homing / split shot)
+  GunModel.lua                the sniper rifle as a part list (viewmodel + third person)
   Remotes.lua                 list of every RemoteEvent
   Signal.lua, Util.lua        small helpers
 
@@ -28,6 +29,8 @@ src/server/                -> ServerScriptService.Server
   Main.server.lua             entry point, starts every service
   LightingSetup.lua           Future lighting, Atmosphere, Bloom, ColorCorrection, SunRays
   MapBuilder.lua              builds the lobby and the arena from parts
+  ArenaDowntown.lua           the Downtown city map (buildings, train track, props)
+  DummyService.lua            practice dummies on the lobby shooting range
   CharacterService.lua        spawning, flat character style, freeze, invisibility, void
   MatchService.lua            lobby, queue, matchmaking, arena slots
   Match.lua                   one match: countdown, rounds, scoring, power-up picks, victory
@@ -41,6 +44,7 @@ src/client/                -> StarterPlayerScripts.Client
   MovementController.lua      bhop, sprint, slide, air dash, wall run, grapple...
   ViewmodelController.lua     arms + sniper on the camera (sway, bob, recoil, bolt)
   WeaponController.lua        scope + fire, local tracers, sends shots to the server
+  CharacterPoser.lua          third-person rifle-holding pose for other players
   EffectsController.lua       tracers, explosions, ropes, wallhack pulse, screen tints
   UIController.lua            creates all screens
   Sfx.lua, Spring.lua         sound + spring helpers
@@ -52,6 +56,7 @@ src/client/                -> StarterPlayerScripts.Client
     VictoryScreen.lua         end of match screen
     LobbyUI.lua               PLAY / queue button, controls list
     SettingsMenu.lua          sensitivity sliders, hold/toggle scope
+    PowerUpLab.lua            try any power-up solo in the lobby (B)
 
 src/character/             -> StarterPlayer.StarterCharacterScripts
   Health.server.lua           empty script that disables health regeneration
@@ -161,6 +166,7 @@ the sniper on your own. You need a second player to start a match.
 | Right mouse | Scope (hold, or toggle in settings) |
 | Left mouse | Fire |
 | E | Grapple Hook (power-up) |
+| R | Blink (power-up) |
 | Q | Decoy (power-up) |
 | Space (hold) | Ceiling run under a ceiling (Magnetic Boots) |
 | V | Inspect your rifle |
@@ -222,7 +228,7 @@ Files: `MatchService`, `Match`, `HUD`, `LobbyUI`, `VictoryScreen`
 - [ ] The scoreboard at the top shows names and round wins (e.g. 2 - 1), the round
       number and a round timer.
 - [ ] Killing the enemy shows ROUND WON / ROUND LOST (and HEADSHOT when it was one).
-- [ ] The first to 4 wins sees VICTORY, the other DEFEAT, with the final score.
+- [ ] The first to 5 wins sees VICTORY, the other DEFEAT, with the final score.
       Both return to the lobby with the normal camera.
 - [ ] One player leaving mid-match gives the other the win ("OPPONENT LEFT").
 - [ ] Falling out of the map kills you. The reset button is disabled.
@@ -245,17 +251,60 @@ Files: `PowerUps`, `PickScreen`, `Icons`, plus power-up code in Movement/Weapon/
       (Second Wind and Vampire need a real opponent: use a 2-player Studio test.)
 
 ### Stage 5: map and visuals
-Files: `MapBuilder` (arena), `LightingSetup`, `Config.Palette`, `Config.Lighting`
+Files: `ArenaDowntown` (city map), `MapBuilder` (lobby + helpers), `LightingSetup`, `Config.MapPalette`
 
-- [ ] The arena has a centre tower, four mid towers with bridges, wall-run
-      walls, long side lanes, and cover blocks. Both spawns sit on raised decks
-      at opposite ends.
+- [ ] Downtown: spawn on a transit platform, look down the avenue past the bus
+      and cars to the plaza fountain and City Hall's clock tower.
+- [ ] Climb the fire escapes (apartments 24, office tower 48, City Hall 26),
+      cross the rooftop catwalk, take the stairs up to the train track and
+      stand on the parked train.
+- [ ] Every part is a single flat colour (see the preview in `dist/downtown-preview.png`).
 - [ ] Every part is SmoothPlastic and one solid colour from the palette.
 - [ ] Shadows are crisp, the sky has a soft atmosphere, and bloom is subtle.
 - [ ] Change `Config.Palette` (e.g. `AccentA`) and press Play: map, viewmodel
       and UI colours follow.
 
 ---
+
+## Power-ups and builds
+
+There are 30 power-ups and almost all of them **stack**. Every card shows what
+another copy adds ("STACKS: ..."). They're designed to combine into builds:
+
+| Build | Cards | What happens |
+|---|---|---|
+| Pinball | Ricochet x4 + Pinball x2 + Shrapnel | every bounce adds +70% damage and sprays shards |
+| Demolition | Explosive Rounds x3 + Split Shot + Shrapnel | five explosive bullets, each blast showers shards |
+| Speedster | Adrenaline + Momentum Rounds x3 + Sky Sniper | bunny hop fast = up to +180% damage, more in the air |
+| Assassin | Ghost Round + Wallhack Pulse + Marked | see them through walls, shoot through walls, marked targets take more |
+| Gunslinger | Hair Trigger + Split Shot + Quickdraw | every hit re-chambers instantly |
+| Storm | Static Charge x3 + Split Shot + Homing | near misses still zap for 60 |
+| Tank | Thick Skin + Vampire + Second Wind x2 | survive two lethal hits a round |
+| Glass | Glass Cannon x3 + Momentum Rounds | +90% damage (more when fast) on a 40 HP body |
+
+**New in this version:** Shrapnel, Static Charge, Pinball, Momentum Rounds,
+Sky Sniper, Glass Cannon, Marked, Hair Trigger, Adrenaline, Featherweight,
+Spring Legs, Blink (press R).
+
+**Damage formula** (server side): base x Glass Cannon x Sky Sniper (airborne) x
+Momentum (speed) x Pinball (hops) x Marked. Headshots always kill instantly.
+
+Test them solo in the lobby with the **Power-Up Lab** (press B).
+
+## The Downtown map
+
+![Downtown](dist/downtown-preview.png)
+
+A mirrored city block (both halves identical):
+- **Avenue**: the main long lane between the spawns, broken up by a bus, cars,
+  barriers and the plaza fountain.
+- **North**: apartments (24 high) and an office tower (48) joined by a
+  rooftop catwalk, both climbable by fire escape. City Hall sits in the middle
+  with a columned porch, a 26-high roof and a clock tower.
+- **South**: a park with hedges and billboards (wall-runnable), the elevated
+  train track (a long high lane with a train in the middle), a market, a shop,
+  a warehouse, climbable shipping containers and a parking lot.
+- Switch back to the original arena with `Config.Match.Map = "Classic"`.
 
 ## Bunny hopping
 

@@ -133,7 +133,7 @@ local function makeTile(def, order)
 	})
 	-- description on hover
 	frame.MouseEnter:Connect(function()
-		panel.Description.Text = def.Name .. ":  " .. def.Description
+		panel.Description.Text = def.Name .. ":  " .. def.Description .. "   (Stacks: " .. (def.Stacking or "-") .. ")"
 	end)
 	frame.Activated:Connect(function()
 		Sfx.Play("CardHover")
@@ -195,10 +195,16 @@ function PowerUpLab.Start(playerGui)
 		Parent = panel,
 	})
 
-	grid = Theme.new("Frame", {
+	-- scrolls (mouse wheel) when there are more power-ups than fit
+	grid = Theme.new("ScrollingFrame", {
 		Position = UDim2.fromOffset(0, 68),
 		Size = UDim2.new(1, 0, 1, -150),
 		BackgroundTransparency = 1,
+		ScrollBarThickness = 6,
+		ScrollBarImageColor3 = Palette.UISubText,
+		ScrollingDirection = Enum.ScrollingDirection.Y,
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		CanvasSize = UDim2.new(),
 		Parent = panel,
 	}, {
 		Theme.new("UIGridLayout", {

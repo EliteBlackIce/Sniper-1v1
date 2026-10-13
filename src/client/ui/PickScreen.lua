@@ -117,8 +117,8 @@ local function makeCard(index, def, ownedStacks)
 	})
 	Theme.label({
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 184),
-		Size = UDim2.new(1, -26, 0, 70),
+		Position = UDim2.new(0.5, 0, 0, 182),
+		Size = UDim2.new(1, -26, 0, 54),
 		Text = def.Description,
 		TextSize = 14,
 		TextWrapped = true,
@@ -127,6 +127,20 @@ local function makeCard(index, def, ownedStacks)
 		FontFace = Theme.Font(Enum.FontWeight.Medium),
 		Parent = front,
 	})
+	-- what picking this again would add (power-ups are built to stack)
+	if def.Stacking then
+		Theme.label({
+			AnchorPoint = Vector2.new(0.5, 1),
+			Position = UDim2.new(0.5, 0, 1, -30),
+			Size = UDim2.new(1, -20, 0, 28),
+			Text = "STACKS: " .. def.Stacking,
+			TextSize = 11,
+			TextWrapped = true,
+			TextColor3 = rarity.Color:Lerp(Color3.new(1, 1, 1), 0.3),
+			FontFace = Theme.Font(Enum.FontWeight.Bold),
+			Parent = front,
+		})
+	end
 	if ownedStacks > 0 then
 		Theme.label({
 			AnchorPoint = Vector2.new(0.5, 1),

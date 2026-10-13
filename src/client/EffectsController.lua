@@ -218,6 +218,17 @@ function Effects.SetBulletTime(on)
 	end
 end
 
+-- BLINK: a flash where you left and where you arrived, joined by a streak.
+function Effects.Blink(from, to)
+	if not from or not to then
+		return
+	end
+	puff(from, Palette.Hologram, 3, 0.35)
+	puff(to, Color3.fromRGB(190, 160, 255), 3.5, 0.4)
+	tracer(from, to, Color3.fromRGB(190, 160, 255), 0.5, 0.35)
+	Sfx.PlayAt("Dash", to, { Pitch = 1.6 })
+end
+
 function Effects.IsBulletTimeVisible()
 	return bulletTimeOn
 end
@@ -227,21 +238,26 @@ function Effects.PhantomFlash()
 	cc.TintColor = Color3.fromRGB(190, 230, 255)
 	cc.Saturation = -0.3
 	cc.Parent = workspace.CurrentCamera
-	TweenService:Create(cc, TweenInfo.new(Config.PowerUps.PhantomDash.InvisibleTime), {
+	TweenService:Create(cc, TweenInfo.new(math.max(ClientState.Stats.PhantomTime, 0.3)), {
 		TintColor = Color3.new(1, 1, 1),
 		Saturation = 0,
 	}):Play()
-	Debris:AddItem(cc, Config.PowerUps.PhantomDash.InvisibleTime + 0.1)
+	Debris:AddItem(cc, math.max(ClientState.Stats.PhantomTime, 0.3) + 0.1)
 end
 
 ----------------------------------------------------------------------------
 -- Wallhack Pulse
 ----------------------------------------------------------------------------
 local function wallhackLoop()
-	local cfg = Config.PowerUps.WallhackPulse
+	local elapsed = 0
 	while true do
-		task.wait(cfg.Interval)
-		if ClientState.CanShoot() and ClientState.Stats.WallhackPulse then
+		elapsed += task.wait(0.25)
+		-- Wallhack Pulse stacks pulse more often and for longer
+		local stats = ClientState.Stats
+		if not stats.WallhackPulse then
+			elapsed = 0
+		elseif elapsed >= stats.WallhackInterval and ClientState.CanShoot() then
+			elapsed = 0
 			-- the enemy in a match, the practice dummies in the lobby
 			local targets = {}
 			if ClientState.InMatch() then
@@ -262,7 +278,7 @@ local function wallhackLoop()
 				highlight.OutlineTransparency = 0
 				highlight.Adornee = target
 				highlight.Parent = getFolder()
-				Debris:AddItem(highlight, cfg.Duration)
+				Debris:AddItem(highlight, stats.WallhackDuration)
 			end
 			if #targets > 0 then
 				Sfx.Play("Ability", { Pitch = 1.6, Volume = 0.5 })
@@ -303,6 +319,45 @@ local function onEffect(data)
 	elseif t == "Grapple" then
 		enemyRopes[data.UserId] = enemyRopes[data.UserId] or {}
 		enemyRopes[data.UserId].Point = data.Point
+	elseif t == "Shards" then
+		-- SHRAPNEL
+		for _, seg in ipairs(data.Segments or {}) do
+			tracer(seg.From, seg.To, Palette.TracerExplosive, 0.06, 0.3)
+			puff(seg.To, Palette.TracerExplosive, 0.35, 0.25)
+		end
+		Sfx.PlayAt("Hit", data.Segments[1] and data.Segments[1].From or Vector3.zero, { Pitch = 2.2, Volume = 0.4 })
+	elseif t == "Zap" then
+		-- STATIC CHARGE: a jagged bolt from the bullet path to the target
+		local points = { data.From }
+		for i = 1, 3 do
+			local p = data.From:Lerp(data.To, i / 4)
+			table.insert(points, p + Vector3.new(math.random() - 0.5, math.random() - 0.5, math.random() - 0.5) * 1.6)
+		end
+		table.insert(points, data.To)
+		for i = 1, #points - 1 do
+			tracer(points[i], points[i + 1], Palette.Hologram, 0.12, 0.3)
+		end
+		puff(data.To, Palette.Hologram, 1.2, 0.3)
+		Sfx.PlayAt("Hit", data.To, { Pitch = 2.6, Volume = 0.6 })
+	elseif t == "Mark" then
+		-- MARKED: the target glows for you while the mark lasts
+		if data.Target and data.Target.Parent then
+			local existing = getFolder():FindFirstChild("Mark")
+			if existing then
+				existing:Destroy()
+			end
+			local highlight = Instance.new("Highlight")
+			highlight.Name = "Mark"
+			highlight.DepthMode = Enum.HighlightDepthMode.Occluded
+			highlight.FillColor = Color3.fromRGB(255, 80, 80)
+			highlight.FillTransparency = 0.55
+			highlight.OutlineColor = Color3.fromRGB(255, 220, 220)
+			highlight.Adornee = data.Target
+			highlight.Parent = getFolder()
+			Debris:AddItem(highlight, data.Duration or 4)
+		end
+	elseif t == "Blink" then
+		Effects.Blink(data.From, data.To)
 	elseif t == "GrappleEnd" then
 		local rope = enemyRopes[data.UserId]
 		if rope then

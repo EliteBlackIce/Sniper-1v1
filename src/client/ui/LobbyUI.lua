@@ -30,7 +30,7 @@ local CONTROLS = {
 	{ "", "Wall run: jump next to a wall and hold W" },
 	{ "RMB", "Scope" },
 	{ "LMB", "Fire" },
-	{ "E / Q", "Grapple / Decoy (power-ups)" },
+	{ "E / Q / R", "Grapple / Decoy / Blink (power-ups)" },
 	{ "V", "Inspect rifle" },
 	{ "B", "Power-Up Lab: try any power-up solo" },
 	{ "F", "Find a match" },
@@ -53,7 +53,7 @@ function LobbyUI.OnState(snapshot)
 		playButton.TextColor3 = Palette.UIBackground
 		local queued = snapshot.QueueCount or 0
 		statusLabel.Text = queued > 0 and (tostring(queued) .. " player(s) waiting - press PLAY to duel")
-			or "Practise on the range while you wait  -  first to 4 rounds"
+			or ("Practise on the range while you wait  -  first to %d rounds"):format(Config.Match.RoundsToWin)
 	end
 end
 
@@ -77,7 +77,9 @@ function LobbyUI.Start(playerGui)
 	Theme.label({
 		Position = UDim2.fromOffset(30, 110),
 		Size = UDim2.fromOffset(400, 20),
-		Text = "Lose a round, pick a power-up. First to 4 wins.",
+		Text = ("Lose a round, pick a power-up. Stack them into a build. First to %d wins."):format(
+			Config.Match.RoundsToWin
+		),
 		TextSize = 15,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextColor3 = Palette.UISubText,

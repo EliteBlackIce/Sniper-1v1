@@ -132,7 +132,37 @@ local function buildScope()
 		Parent = scope,
 	})
 	Theme.corner(lens, UDim.new(0.5, 0))
-	Theme.stroke(lens, Color3.fromRGB(8, 9, 12), 3000, 0)
+
+	-- Black surround: four panels cover everything outside the lens's square,
+	-- and a ring outline covers the square's corners outside the circle.
+	local black = Color3.fromRGB(8, 9, 12)
+	local panels = {}
+	for i = 1, 4 do
+		panels[i] = Theme.new("Frame", { BackgroundColor3 = black, Parent = scope })
+	end
+	local mask = Theme.new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		BackgroundTransparency = 1,
+		Parent = scope,
+	})
+	Theme.corner(mask, UDim.new(0.5, 0))
+	local maskStroke = Theme.stroke(mask, black, 1, 0)
+	local function fit()
+		local viewport = workspace.CurrentCamera.ViewportSize
+		local d = math.floor(viewport.Y * 0.92)
+		local left = math.floor((viewport.X - d) / 2)
+		local top = math.floor((viewport.Y - d) / 2)
+		panels[1].Position, panels[1].Size = UDim2.fromOffset(0, 0), UDim2.new(0, left + 1, 1, 0) -- left
+		panels[2].Position, panels[2].Size = UDim2.new(0, left + d - 1, 0, 0), UDim2.new(1, -(left + d - 1), 1, 0) -- right
+		panels[3].Position, panels[3].Size = UDim2.fromOffset(0, 0), UDim2.new(1, 0, 0, top + 1) -- top
+		panels[4].Position, panels[4].Size = UDim2.new(0, 0, 0, top + d - 1), UDim2.new(1, 0, 1, -(top + d - 1)) -- bottom
+		-- the corners between a circle and its square are ~0.21 x diameter deep
+		mask.Size = UDim2.fromOffset(d, d)
+		maskStroke.Thickness = math.ceil(d * 0.22) + 2
+	end
+	fit()
+	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(fit)
 	-- inner ring
 	local ring = Theme.new("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0.5),
@@ -205,11 +235,11 @@ local function buildScoreboard()
 			Text = "0",
 			Parent = chip,
 		})
-		-- collected power-ups under each player (5 per row, wraps)
+		-- collected power-ups under each player (5 per row, up to 3 rows)
 		iconRows[slot] = Theme.new("Frame", {
 			AnchorPoint = Vector2.new(left and 0 or 1, 0),
 			Position = UDim2.new(0.5, left and -210 or 210, 0, 60),
-			Size = UDim2.fromOffset(140, 52),
+			Size = UDim2.fromOffset(140, 80),
 			BackgroundTransparency = 1,
 			Parent = scoreboard,
 		}, {
@@ -539,6 +569,9 @@ local function rebuildAbilities()
 	if stats.Grapple then
 		table.insert(entries, { Key = "E", Name = "Grapple", Cooldown = "Grapple" })
 	end
+	if stats.Blink then
+		table.insert(entries, { Key = "R", Name = "Blink", Cooldown = "Blink" })
+	end
 	if stats.Decoy then
 		table.insert(entries, { Key = "Q", Name = "Decoy", Cooldown = "Decoy" })
 	end
@@ -608,7 +641,7 @@ function HUD.OnState(snapshot, old)
 		nameLabels[slot].TextColor3 = (entry and entry.UserId == player.UserId) and Palette.UIAccent or Palette.UIText
 		winLabels[slot].Text = entry and tostring(entry.Wins) or "0"
 	end
-	roundLabel.Text = ("ROUND %d  -  FIRST TO %d"):format(snapshot.Round or 1, snapshot.RoundsToWin or 4)
+	roundLabel.Text = ("ROUND %d  -  FIRST TO %d"):format(snapshot.Round or 1, snapshot.RoundsToWin or 5)
 	rebuildIcons(snapshot)
 
 	local phase = snapshot.Phase
@@ -695,7 +728,9 @@ local function update()
 		local fill = row:IsA("Frame") and row:FindFirstChild("CooldownFill")
 		if fill then
 			local name = fill:GetAttribute("Cooldown")
-			local total = name == "Grapple" and Config.Movement.GrappleCooldown
+			local stats = ClientState.Stats
+			local total = name == "Grapple" and stats.GrappleCooldown
+				or name == "Blink" and math.max(stats.BlinkCooldown, 0.1)
 				or name == "Decoy" and Config.PowerUps.Decoy.Cooldown
 				or Config.PowerUps.BulletTime.Cooldown
 			fill.Size = UDim2.fromScale(math.clamp((cooldowns[name] or 0) / total, 0, 1), 1)

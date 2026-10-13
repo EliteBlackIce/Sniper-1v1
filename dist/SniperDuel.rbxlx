@@ -2106,10 +2106,11 @@ end
 -- Where each imported mesh goes in knife space (works out the importer's turn).
 local layoutCache = setmetatable({}, { __mode = "k" })
 local function meshLayout(template)
-	if layoutCache[template] then
-		return layoutCache[template]
-	end
 	local parts = templateParts(template)
+	local cached = layoutCache[template]
+	if cached and cached.Count == #parts then
+		return cached.Layout -- (rebuilt if more meshes have replicated since)
+	end
 	local best, bestScore = 0, -math.huge
 	for _, yaw in ipairs(K.MeshYaw and { K.MeshYaw } or { 0, 90, 180, 270 }) do
 		local rot = CFrame.Angles(0, math.rad(yaw), 0)
@@ -2142,7 +2143,7 @@ local function meshLayout(template)
 			Offset = CFrame.new(B.Min + (cf.Position - mn) * k) * cf.Rotation,
 		})
 	end
-	layoutCache[template] = layout
+	layoutCache[template] = { Layout = layout, Count = #parts }
 	return layout
 end
 
@@ -7125,6 +7126,11 @@ local function spawnDecoy(player, match, direction)
 	decoy:SetAttribute("Decoy", true)
 	decoy:SetAttribute("OwnerUserId", player.UserId)
 
+	-- the decoy only holds what you're holding
+	local unused = decoy:FindFirstChild(character:GetAttribute("Weapon") == "Knife" and "WorldGun" or "WorldKnife")
+	if unused then
+		unused:Destroy()
+	end
 	for _, item in ipairs(decoy:GetDescendants()) do
 		if item:IsA("Script") or item:IsA("LocalScript") or item:IsA("Humanoid") or item:IsA("Constraint") then
 			item:Destroy()
@@ -7315,13 +7321,20 @@ local function onMelee(player, kind, targetModel, look)
 	if workspace:GetServerTimeNow() - since < K.EquipTime * 0.6 then
 		return
 	end
-	-- swing rate
+	-- swing rate: the client reports each swing at its hit moment, so the gap
+	-- between two reports is (previous swing's length - its hit time + this hit time)
 	local now = os.clock()
-	local swingTime = kind == "Stab" and K.StabTime or K.SlashTime
-	if lastMelee[player] and now - lastMelee[player] < swingTime * 0.75 then
-		return
+	local function hitAt(k)
+		return k == "Stab" and K.StabHitAt or K.SlashHitAt
 	end
-	lastMelee[player] = now
+	local last = lastMelee[player]
+	if last then
+		local prevLength = last.Kind == "Stab" and K.StabTime or K.SlashTime
+		if now - last.Time < (prevLength - hitAt(last.Kind) + hitAt(kind)) * 0.75 then
+			return
+		end
+	end
+	lastMelee[player] = { Time = now, Kind = kind }
 	-- everyone sees the swing (CharacterPoser animates the arm)
 	character:SetAttribute("SwingKind", kind)
 	character:SetAttribute("Swing", ((character:GetAttribute("Swing") or 0) + 1) % 1000)
@@ -7344,8 +7357,8 @@ local function onMelee(player, kind, targetModel, look)
 	local victimRoot = target.Model:FindFirstChild("HumanoidRootPart") or torso
 	local range = (kind == "Stab" and K.StabRange or K.SlashRange)
 		+ 2
-		+ root.AssemblyLinearVelocity.Magnitude * 0.12
-		+ victimRoot.AssemblyLinearVelocity.Magnitude * 0.12
+		+ math.min(root.AssemblyLinearVelocity.Magnitude, 60) * 0.12 -- capped: clients own their physics
+		+ math.min(victimRoot.AssemblyLinearVelocity.Magnitude, 60) * 0.12
 	local offset = torso.Position - head.Position
 	if offset.Magnitude > range then
 		return
@@ -7378,8 +7391,11 @@ local function onMelee(player, kind, targetModel, look)
 	})
 end
 
+local lastEquip = {}
 local function onEquip(player, weapon)
-	if typeof(weapon) == "string" then
+	local now = os.clock()
+	if typeof(weapon) == "string" and now - (lastEquip[player] or 0) > 0.1 then
+		lastEquip[player] = now
 		CharacterService.SetWeapon(player, weapon)
 	end
 end
@@ -7421,6 +7437,7 @@ function CombatService.Init()
 	Remotes.Get("Equip").OnServerEvent:Connect(onEquip)
 
 	Players.PlayerRemoving:Connect(function(player)
+		lastEquip[player] = nil
 		lastMelee[player] = nil
 		lastFire[player] = nil
 		cooldowns[player] = nil
@@ -12733,7 +12750,7 @@ Keybinds.Actions = {
 	{ Id = "PowerUpLab", Name = "Power-Up Lab", Keyboard = "B", Gamepad = "DPadLeft" },
 	{ Id = "FindMatch", Name = "Find match", Keyboard = "F", Gamepad = "DPadRight" },
 	{ Id = "Playground", Name = "Playground", Keyboard = "G", Gamepad = "ButtonL1" },
-	{ Id = "BotMatch", Name = "Play vs bot (admin)", Keyboard = "N", Gamepad = "ButtonR1" },
+	{ Id = "BotMatch", Name = "Play vs bot (admin)", Keyboard = "N", Gamepad = "None" }, -- (RB is the knife)
 	{ Id = "DuelFriend", Name = "Duel a player", Keyboard = "U", Gamepad = "ButtonR3" },
 	{ Id = "Rematch", Name = "Rematch", Keyboard = "T", Gamepad = "DPadUp" },
 	{ Id = "Settings", Name = "Settings", Keyboard = "P", Gamepad = "ButtonSelect" },
@@ -12801,6 +12818,7 @@ function Keybinds.Label(name)
 		DPadDown = "D-DOWN",
 		DPadLeft = "D-LEFT",
 		DPadRight = "D-RIGHT",
+		None = "-",
 	}
 	return labels[name] or string.upper(name or "-")
 end
@@ -13109,7 +13127,7 @@ local function play(deathTime, killerName)
 	Theme.tween(banner, 0.35, { Position = UDim2.new(0.5, 0, 0, 40) }, Enum.EasingStyle.Back)
 
 	-- the killer's weapon + knife swings, as recorded
-	local shownWeapon = "Sniper"
+	local shownWeapon = Controllers.Viewmodel.GetWeapon() -- (you may have died holding the knife)
 	local lastSwing = nil
 	local function showWeapon(name)
 		if name ~= shownWeapon then
@@ -13619,6 +13637,9 @@ local function setWeapon(name)
 	if name == "Knife" and not ClientState.HasGun() then
 		return -- (between rounds / pick screen)
 	end
+	if ClientState.MenuOpen or not alive() or (Controllers.KillCam and Controllers.KillCam.IsPlaying()) then
+		return -- menus, the crate cinematic, the kill cam
+	end
 	ClientState.Weapon = name
 	equippedAt = os.clock()
 	busyUntil = 0
@@ -13824,9 +13845,11 @@ function KnifeController.Start()
 	UserInputService.InputBegan:Connect(onInput)
 	Keybinds.VirtualBegan:Connect(onInput)
 	-- mouse wheel switches too
+	local lastWheel = 0
 	UserInputService.InputChanged:Connect(function(input, processed)
 		if input.UserInputType == Enum.UserInputType.MouseWheel and not processed and not ClientState.MenuOpen then
-			if not Controllers.Weapon.IsScoped() then
+			if not Controllers.Weapon.IsScoped() and os.clock() - lastWheel > 0.3 then
+				lastWheel = os.clock()
 				KnifeController.Toggle()
 			end
 		end
@@ -13837,6 +13860,7 @@ function KnifeController.Start()
 		if ClientState.Weapon ~= "Sniper" then
 			ClientState.Weapon = "Sniper"
 			Controllers.Viewmodel.SetWeapon("Sniper")
+			Remotes.Get("Equip"):FireServer("Sniper") -- in case a late switch reached the server
 		end
 		table.clear(pending)
 		busyUntil = 0
@@ -15426,10 +15450,7 @@ local function buildGun()
 	end
 	builtSignature = signature
 	gun = GunModel.Build(model, { Anchored = true, PowerUps = owned })
-	for _, part in pairs(gun.Parts) do
-		part.LocalTransparencyModifier = visible and 0 or 1
-	end
-	setGunEffects(visible)
+	applyWeaponVisibility() -- (hidden while the knife is out)
 	local level = GunModel.PowerLevel(owned)
 	local gained = level > builtLevel
 	builtLevel = level
@@ -15959,6 +15980,9 @@ local function updateKnife(dt, camera, t, sway, bobPos, bobRoll, shouldShow)
 	placeArm("Left", camCF, list, cframes, L_SHOULDER, left, Vector3.new(-0.6, -1, 0.2))
 	for _, name in ipairs({ "FlashCore", "FlashA", "FlashB", "FlashLong" }) do
 		parts[name].LocalTransparencyModifier = 1
+	end
+	if parts.FlashCore:FindFirstChild("MuzzleLight") then
+		parts.FlashCore.MuzzleLight.Brightness = 0
 	end
 	workspace:BulkMoveTo(list, cframes, Enum.BulkMoveMode.FireCFrameChanged)
 end

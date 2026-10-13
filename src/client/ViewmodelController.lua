@@ -156,10 +156,7 @@ local function buildGun()
 	end
 	builtSignature = signature
 	gun = GunModel.Build(model, { Anchored = true, PowerUps = owned })
-	for _, part in pairs(gun.Parts) do
-		part.LocalTransparencyModifier = visible and 0 or 1
-	end
-	setGunEffects(visible)
+	applyWeaponVisibility() -- (hidden while the knife is out)
 	local level = GunModel.PowerLevel(owned)
 	local gained = level > builtLevel
 	builtLevel = level
@@ -689,6 +686,9 @@ local function updateKnife(dt, camera, t, sway, bobPos, bobRoll, shouldShow)
 	placeArm("Left", camCF, list, cframes, L_SHOULDER, left, Vector3.new(-0.6, -1, 0.2))
 	for _, name in ipairs({ "FlashCore", "FlashA", "FlashB", "FlashLong" }) do
 		parts[name].LocalTransparencyModifier = 1
+	end
+	if parts.FlashCore:FindFirstChild("MuzzleLight") then
+		parts.FlashCore.MuzzleLight.Brightness = 0
 	end
 	workspace:BulkMoveTo(list, cframes, Enum.BulkMoveMode.FireCFrameChanged)
 end

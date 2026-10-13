@@ -57,7 +57,7 @@ Keybinds.Actions = {
 	{ Id = "PowerUpLab", Name = "Power-Up Lab", Keyboard = "B", Gamepad = "DPadLeft" },
 	{ Id = "FindMatch", Name = "Find match", Keyboard = "F", Gamepad = "DPadRight" },
 	{ Id = "Playground", Name = "Playground", Keyboard = "G", Gamepad = "ButtonL1" },
-	{ Id = "BotMatch", Name = "Play vs bot (admin)", Keyboard = "N", Gamepad = "ButtonR1" },
+	{ Id = "BotMatch", Name = "Play vs bot (admin)", Keyboard = "N", Gamepad = "None" }, -- (RB is the knife)
 	{ Id = "DuelFriend", Name = "Duel a player", Keyboard = "U", Gamepad = "ButtonR3" },
 	{ Id = "Rematch", Name = "Rematch", Keyboard = "T", Gamepad = "DPadUp" },
 	{ Id = "Settings", Name = "Settings", Keyboard = "P", Gamepad = "ButtonSelect" },
@@ -125,6 +125,7 @@ function Keybinds.Label(name)
 		DPadDown = "D-DOWN",
 		DPadLeft = "D-LEFT",
 		DPadRight = "D-RIGHT",
+		None = "-",
 	}
 	return labels[name] or string.upper(name or "-")
 end

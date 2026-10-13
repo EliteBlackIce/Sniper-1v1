@@ -101,10 +101,11 @@ end
 -- Where each imported mesh goes in knife space (works out the importer's turn).
 local layoutCache = setmetatable({}, { __mode = "k" })
 local function meshLayout(template)
-	if layoutCache[template] then
-		return layoutCache[template]
-	end
 	local parts = templateParts(template)
+	local cached = layoutCache[template]
+	if cached and cached.Count == #parts then
+		return cached.Layout -- (rebuilt if more meshes have replicated since)
+	end
 	local best, bestScore = 0, -math.huge
 	for _, yaw in ipairs(K.MeshYaw and { K.MeshYaw } or { 0, 90, 180, 270 }) do
 		local rot = CFrame.Angles(0, math.rad(yaw), 0)
@@ -137,7 +138,7 @@ local function meshLayout(template)
 			Offset = CFrame.new(B.Min + (cf.Position - mn) * k) * cf.Rotation,
 		})
 	end
-	layoutCache[template] = layout
+	layoutCache[template] = { Layout = layout, Count = #parts }
 	return layout
 end
 

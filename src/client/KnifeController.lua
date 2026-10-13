@@ -70,6 +70,9 @@ local function setWeapon(name)
 	if name == "Knife" and not ClientState.HasGun() then
 		return -- (between rounds / pick screen)
 	end
+	if ClientState.MenuOpen or not alive() or (Controllers.KillCam and Controllers.KillCam.IsPlaying()) then
+		return -- menus, the crate cinematic, the kill cam
+	end
 	ClientState.Weapon = name
 	equippedAt = os.clock()
 	busyUntil = 0
@@ -275,9 +278,11 @@ function KnifeController.Start()
 	UserInputService.InputBegan:Connect(onInput)
 	Keybinds.VirtualBegan:Connect(onInput)
 	-- mouse wheel switches too
+	local lastWheel = 0
 	UserInputService.InputChanged:Connect(function(input, processed)
 		if input.UserInputType == Enum.UserInputType.MouseWheel and not processed and not ClientState.MenuOpen then
-			if not Controllers.Weapon.IsScoped() then
+			if not Controllers.Weapon.IsScoped() and os.clock() - lastWheel > 0.3 then
+				lastWheel = os.clock()
 				KnifeController.Toggle()
 			end
 		end
@@ -288,6 +293,7 @@ function KnifeController.Start()
 		if ClientState.Weapon ~= "Sniper" then
 			ClientState.Weapon = "Sniper"
 			Controllers.Viewmodel.SetWeapon("Sniper")
+			Remotes.Get("Equip"):FireServer("Sniper") -- in case a late switch reached the server
 		end
 		table.clear(pending)
 		busyUntil = 0

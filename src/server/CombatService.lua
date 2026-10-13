@@ -709,6 +709,11 @@ local function spawnDecoy(player, match, direction)
 	decoy:SetAttribute("Decoy", true)
 	decoy:SetAttribute("OwnerUserId", player.UserId)
 
+	-- the decoy only holds what you're holding
+	local unused = decoy:FindFirstChild(character:GetAttribute("Weapon") == "Knife" and "WorldGun" or "WorldKnife")
+	if unused then
+		unused:Destroy()
+	end
 	for _, item in ipairs(decoy:GetDescendants()) do
 		if item:IsA("Script") or item:IsA("LocalScript") or item:IsA("Humanoid") or item:IsA("Constraint") then
 			item:Destroy()
@@ -899,13 +904,20 @@ local function onMelee(player, kind, targetModel, look)
 	if workspace:GetServerTimeNow() - since < K.EquipTime * 0.6 then
 		return
 	end
-	-- swing rate
+	-- swing rate: the client reports each swing at its hit moment, so the gap
+	-- between two reports is (previous swing's length - its hit time + this hit time)
 	local now = os.clock()
-	local swingTime = kind == "Stab" and K.StabTime or K.SlashTime
-	if lastMelee[player] and now - lastMelee[player] < swingTime * 0.75 then
-		return
+	local function hitAt(k)
+		return k == "Stab" and K.StabHitAt or K.SlashHitAt
 	end
-	lastMelee[player] = now
+	local last = lastMelee[player]
+	if last then
+		local prevLength = last.Kind == "Stab" and K.StabTime or K.SlashTime
+		if now - last.Time < (prevLength - hitAt(last.Kind) + hitAt(kind)) * 0.75 then
+			return
+		end
+	end
+	lastMelee[player] = { Time = now, Kind = kind }
 	-- everyone sees the swing (CharacterPoser animates the arm)
 	character:SetAttribute("SwingKind", kind)
 	character:SetAttribute("Swing", ((character:GetAttribute("Swing") or 0) + 1) % 1000)
@@ -928,8 +940,8 @@ local function onMelee(player, kind, targetModel, look)
 	local victimRoot = target.Model:FindFirstChild("HumanoidRootPart") or torso
 	local range = (kind == "Stab" and K.StabRange or K.SlashRange)
 		+ 2
-		+ root.AssemblyLinearVelocity.Magnitude * 0.12
-		+ victimRoot.AssemblyLinearVelocity.Magnitude * 0.12
+		+ math.min(root.AssemblyLinearVelocity.Magnitude, 60) * 0.12 -- capped: clients own their physics
+		+ math.min(victimRoot.AssemblyLinearVelocity.Magnitude, 60) * 0.12
 	local offset = torso.Position - head.Position
 	if offset.Magnitude > range then
 		return
@@ -962,8 +974,11 @@ local function onMelee(player, kind, targetModel, look)
 	})
 end
 
+local lastEquip = {}
 local function onEquip(player, weapon)
-	if typeof(weapon) == "string" then
+	local now = os.clock()
+	if typeof(weapon) == "string" and now - (lastEquip[player] or 0) > 0.1 then
+		lastEquip[player] = now
 		CharacterService.SetWeapon(player, weapon)
 	end
 end
@@ -1005,6 +1020,7 @@ function CombatService.Init()
 	Remotes.Get("Equip").OnServerEvent:Connect(onEquip)
 
 	Players.PlayerRemoving:Connect(function(player)
+		lastEquip[player] = nil
 		lastMelee[player] = nil
 		lastFire[player] = nil
 		cooldowns[player] = nil

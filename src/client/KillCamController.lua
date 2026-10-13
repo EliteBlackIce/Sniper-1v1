@@ -295,7 +295,7 @@ local function play(deathTime, killerName)
 	Theme.tween(banner, 0.35, { Position = UDim2.new(0.5, 0, 0, 40) }, Enum.EasingStyle.Back)
 
 	-- the killer's weapon + knife swings, as recorded
-	local shownWeapon = "Sniper"
+	local shownWeapon = Controllers.Viewmodel.GetWeapon() -- (you may have died holding the knife)
 	local lastSwing = nil
 	local function showWeapon(name)
 		if name ~= shownWeapon then

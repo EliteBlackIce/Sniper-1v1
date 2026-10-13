@@ -241,7 +241,7 @@ Every key below can be rebound in **Settings (P) > Keyboard** or
 | F [D-pad right] | Find a match / leave the queue (lobby) |
 | U [R-stick click] | Duel a player: challenge someone in the server (lobby) |
 | T [D-pad up] | Rematch your last opponent (lobby, shortly after a match) |
-| N [RB / R1] | Play against a bot (admins, lobby) |
+| N | Play against a bot (admins, lobby; no controller default since RB is the knife) |
 | P [Select] | Settings (frees the mouse) |
 
 Controller defaults: RT fire, LT scope, A jump, B slide, L-stick click sprint,

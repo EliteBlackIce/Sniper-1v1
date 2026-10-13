@@ -444,6 +444,11 @@ function CrateReveal.IsShowingButtons()
 	return card.Visible and buttons.Visible
 end
 
+-- True when OPEN ANOTHER is offered (you have a key, or it's free).
+function CrateReveal.CanAgain()
+	return CrateReveal.IsShowingButtons() and againButton.Visible
+end
+
 function CrateReveal.Update(dt)
 	if not gui or not gui.Enabled then
 		return

@@ -36,7 +36,8 @@ pcall(function()
 end)
 
 local data = {} -- [player] = { Keys = n, Skins = { [skinId] = count }, Opened = n }
-local loaded = {} -- [player] = true once their save has loaded (or failed)
+local loaded = {} -- [player] = true once their save has loaded
+local loadFailed = {} -- [player] = true if the DataStore read failed (never overwrite their save)
 local lastOpen = {} -- [player] = os.clock()
 local dirty = {} -- [player] = true when there are unsaved changes
 local rng = Random.new()
@@ -70,7 +71,7 @@ end
 ----------------------------------------------------------------------------
 local function save(player)
 	local d = data[player]
-	if not store or not d or not loaded[player] or not dirty[player] then
+	if not store or not d or not loaded[player] or loadFailed[player] or not dirty[player] then
 		return
 	end
 	dirty[player] = nil
@@ -86,11 +87,22 @@ end
 local function load(player)
 	local saved
 	if store then
-		local ok, result = pcall(function()
-			return store:GetAsync("u" .. player.UserId)
-		end)
+		local ok, result
+		for attempt = 1, 3 do
+			ok, result = pcall(function()
+				return store:GetAsync("u" .. player.UserId)
+			end)
+			if ok then
+				break
+			end
+			task.wait(attempt)
+		end
 		if ok then
 			saved = result
+		else
+			-- play on defaults for this session, but don't write them over the real save
+			loadFailed[player] = true
+			warn("[CrateService] couldn't load crates for", player.Name, result)
 		end
 	end
 	if not player.Parent then
@@ -187,6 +199,8 @@ function CrateService.Open(player)
 		if reason then
 			notify(player, reason)
 		end
+		-- lets the reveal screen give the view back straight away
+		Remotes.Get("Crates"):FireClient(player, { Type = "Denied", Reason = reason })
 		return
 	end
 	lastOpen[player] = os.clock()
@@ -222,8 +236,8 @@ end
 ----------------------------------------------------------------------------
 local function onMatchFinished(match)
 	local winner = match.MatchWinner
-	if not winner then
-		return -- cancelled / no result
+	if not winner or match.Aborted then
+		return -- cancelled, or someone left (no keys for forfeits: they could be farmed)
 	end
 	for _, player in ipairs(match.Players) do
 		if not Util.isBot(player) and player.Parent and data[player] then
@@ -262,12 +276,22 @@ function CrateService.Init(matchService)
 		save(player)
 		data[player] = nil
 		loaded[player] = nil
+		loadFailed[player] = nil
 		lastOpen[player] = nil
 		dirty[player] = nil
 	end)
 	game:BindToClose(function()
+		local pending = 0
 		for _, player in ipairs(Players:GetPlayers()) do
-			save(player)
+			pending += 1
+			task.spawn(function()
+				save(player)
+				pending -= 1
+			end)
+		end
+		local waited = 0
+		while pending > 0 and waited < 25 do
+			waited += task.wait(0.2)
 		end
 	end)
 end

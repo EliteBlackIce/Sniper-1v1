@@ -65,6 +65,8 @@ local scene -- per-opening objects (cleaned up by clearScene)
 local saved -- what we changed on the player (restored by finish)
 local pendingResult -- a result that arrived while we were busy
 local waitingAgain = false
+local finishing = false
+local againToken = 0
 
 ----------------------------------------------------------------------------
 -- Helpers
@@ -281,7 +283,6 @@ local function giveBack()
 	if prompt then
 		prompt.Enabled = true
 	end
-	CrateReveal.Hide()
 	saved = nil
 end
 
@@ -300,21 +301,36 @@ local function clearScene()
 	end
 	CrateModel.SetFade(crate, 0)
 	CrateModel.SetLid(crate, 0)
+	crate.Light.Brightness = 1.1
 	scene = nil
 end
 
 local function finish()
-	if not playing then
+	if not playing or finishing then
 		return
 	end
+	finishing = true
 	waitingAgain = false
+	CrateReveal.HideCard()
 	local black = CrateReveal.Black(1, 0.22)
 	black.Completed:Wait()
 	clearScene()
 	giveBack()
 	playing = false
 	crate.Model:PivotTo(restPose(idleT))
-	CrateReveal.Black(0, 0.35)
+	if ClientState.InMatch() then
+		-- a match started: don't bring the lobby screen back over it
+		local playerGui = player:FindFirstChildOfClass("PlayerGui")
+		local lobbyGui = playerGui and playerGui:FindFirstChild("Lobby")
+		if lobbyGui then
+			lobbyGui.Enabled = false
+		end
+	end
+	CrateReveal.Black(0, 0.3).Completed:Wait()
+	if not playing then
+		CrateReveal.Hide()
+	end
+	finishing = false
 end
 
 ----------------------------------------------------------------------------
@@ -328,6 +344,7 @@ local function play(result, continuing)
 	local big = tier >= 5
 
 	playing = true
+	waitingAgain = false
 	if not continuing then
 		takeOver()
 	end
@@ -624,7 +641,7 @@ end
 -- Input during the reveal
 ----------------------------------------------------------------------------
 local function openAgain()
-	if not playing or waitingAgain or not CrateReveal.IsShowingButtons() then
+	if not playing or finishing or waitingAgain or not CrateReveal.CanAgain() then
 		return
 	end
 	waitingAgain = true
@@ -632,25 +649,33 @@ local function openAgain()
 	clearScene()
 	crate.Model:PivotTo(restPose(idleT))
 	Remotes.Get("CrateOpen"):FireServer()
-	-- no answer (out of keys, too far...): give the view back
-	task.delay(2.5, function()
-		if waitingAgain then
+	-- no answer at all: give the view back (a stale timer can't end a later opening)
+	againToken += 1
+	local token = againToken
+	task.delay(3, function()
+		if waitingAgain and token == againToken then
 			finish()
 		end
 	end)
 end
 
 local function onResult(result)
-	if typeof(result) ~= "table" or result.Type ~= "Result" then
+	if typeof(result) ~= "table" then
 		return
 	end
-	if not crate then
+	if result.Type == "Denied" then
+		if waitingAgain then
+			task.spawn(finish)
+		end
+		return
+	end
+	if result.Type ~= "Result" or not crate or ClientState.InMatch() then
 		return
 	end
 	if playing and waitingAgain then
 		waitingAgain = false
 		play(result, true)
-	elseif not playing then
+	elseif not playing and not finishing then
 		play(result, false)
 	else
 		pendingResult = result
@@ -667,8 +692,8 @@ function CrateController.Start()
 	CrateReveal.Again:Connect(openAgain)
 	CrateReveal.Done:Connect(finish)
 
-	UserInputService.InputBegan:Connect(function(input)
-		if not playing or not CrateReveal.IsShowingButtons() then
+	UserInputService.InputBegan:Connect(function(input, processed)
+		if processed or not playing or finishing or not CrateReveal.IsShowingButtons() then
 			return
 		end
 		local key = input.KeyCode
@@ -692,7 +717,7 @@ function CrateController.Start()
 		if setupAltar() then
 			RunService.RenderStepped:Connect(idle)
 			RunService.RenderStepped:Connect(function()
-				if not playing and pendingResult then
+				if not playing and not finishing and pendingResult and not ClientState.InMatch() then
 					local result = pendingResult
 					pendingResult = nil
 					play(result, false)

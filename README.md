@@ -24,10 +24,13 @@ src/shared/                -> ReplicatedStorage.Shared   (server + client)
   GunModel.lua                the sniper rifle + a visual mod for every power-up
   Remotes.lua                 list of every RemoteEvent
   Signal.lua, Util.lua        small helpers
+  Logo.lua                    the SNIPER DUEL logo (crosshair mark + wordmark, GUI frames)
+  CrateModel.lua              the loot crate model (hinged lid, rarity glow)
 
 src/server/                -> ServerScriptService.Server
   Main.server.lua             entry point, starts every service
   LightingSetup.lua           Future lighting + post effects (arena profile)
+  CrateService.lua            crate keys, server-side rolls, owned skins (DataStore)
   MapBuilder.lua              builds the lobby and the arena from parts
   ArenaPolygon.lua            the default map: compact Rivals-style arena, tall walls + ramps
   ArenaNuketown.lua           optional Nuketown cul-de-sac (Config.Match.Map = "Nuketown")
@@ -53,6 +56,7 @@ src/client/                -> StarterPlayerScripts.Client
   CharacterPoser.lua          third-person rifle-holding pose for other players
   EffectsController.lua       tracers, explosions, ropes, wallhack pulse, screen tints
   LightingController.lua      blends arena / indoor lobby lighting (Config.Lighting)
+  CrateController.lua         the lobby crate + its opening cinematic
   UIController.lua            creates all screens
   Sfx.lua, Spring.lua         sound + spring helpers
   ui/
@@ -61,7 +65,8 @@ src/client/                -> StarterPlayerScripts.Client
     HUD.lua                   crosshair, scope, scoreboard + power-up icons, health, banners
     PickScreen.lua            the 5-card power-up pick screen
     VictoryScreen.lua         end of match screen
-    LobbyUI.lua               find match / playground buttons (keys shown on them)
+    LobbyUI.lua               lobby screen: logo, player card + keys, find match and the other actions
+    CrateReveal.lua           the crate opening overlay (rarity climb, flash, reveal card)
     SettingsMenu.lua          General / Keyboard / Controller tabs: sliders, toggles, keybinds
     Toast.lua                 short messages from the server (admin commands)
     PowerUpLab.lua            try any power-up solo in the lobby (B)
@@ -101,8 +106,9 @@ The place file can't contain meshes, so Studio has to import the rifle once:
 This GLB is already scaled, turned and lined up with the game's grip, scope
 and muzzle points. The hanging bipod legs are removed so they don't sit in
 your view, the textures are painted (desert-tan body, black scope and
-barrel, dark furniture), and the bolt handle is a separate piece: it turns
-up and slides back when you chamber a round. If you imported an older
+barrel, dark furniture), and the whole bolt (the handle plus the bolt body
+inside the receiver) is a separate piece: it turns up and slides back out of
+the action when you chamber a round. If you imported an older
 version of the file, delete the old SniperRifle model and import this one
 again. Rifle model: "PGM 338 Sniper Rifle" by Alexandre P.
 (https://sketchfab.com/3d-models/pgm-338-sniper-rifle-f32b57e4cecb491aa569358c9ae93b71),
@@ -324,17 +330,15 @@ A round, enclosed hall (a rotunda) with a roof. Paved, lamp-lined paths lead
 from the centre to alcoves around the curved wall:
 - **Centre**: a sunken ring with smooth steps, where you spawn around a giant
   statue of the rifle (the imported PGM 338 if you have it). A ring of
-  columns with team banners holds up a glass skylight dome.
+  columns holds up a glass skylight dome; between them hang banners with the
+  SNIPER DUEL logo, trimmed in team colours.
 - **North**: a tunnel with a gate into the shooting range (moving dummies).
 - **East**: the duel area, a raised dais with team-coloured pads under a
   canopy (find a match with F, or duel a player with U).
-- **West**: the crate shop, a storefront with arches, a striped awning, a
-  counter, shelves of crates and three display crates (Rare, Legendary,
-  Epic) on lit pedestals under a "CRATES - RIFLE SKINS - COMING SOON"
-  sign. This is a placeholder: each pedestal has a marker part in
-  `Lobby.CrateSpots` with a `Rarity` attribute, ready for a crate / skin
-  system.
-- **South**: the stage with the title sign, speakers and a light rig.
+- **West**: the crate vault: a round dais with a rarity ring, the crate
+  floating over its altar, an odds board on the wall and two light pillars
+  (see "Crates" below).
+- **South**: the stage with the logo sign, speakers and a light rig.
 - **Diagonals**: the Playground portal, an indoor garden with a pond, a
   parkour corner (ramp, boxes, rising blocks) and a wall-run wall with a low
   ceiling for Magnetic Boots.
@@ -345,6 +349,44 @@ from the centre to alcoves around the curved wall:
   bins. Lights are kept soft (`LIGHT_SCALE` in `LobbyBuilder.lua`).
 
 It's built in `src/server/LobbyBuilder.lua`.
+
+## Crates
+
+![Crate vault](dist/crate-preview.png)
+
+Walk up to the crate in the crate vault (west side of the lobby) and press
+**X** (or tap the prompt) to open it for a key. Each crate unlocks a rifle
+skin of one of six rarities:
+
+| Rarity | Colour | Chance |
+|---|---|---|
+| Common | grey | 50% |
+| Uncommon | green | 25% |
+| Rare | blue | 14% |
+| Epic | purple | 7% |
+| Legendary | gold | 3% |
+| Secret | red | 1% |
+
+**Keys**: new players start with 5. Winning a match gives 2, losing gives 1.
+Your key count shows at the top right of the lobby screen. In Studio, opening
+is free (`Config.Crates.FreeInStudio`) so you can watch the animation as often
+as you like.
+
+**The opening**: the camera swoops in and the crate lifts, spins faster and
+shakes while sparks are sucked into it. Its glow climbs the rarity ladder
+(COMMON, UNCOMMON, RARE...) and stops on what you got. Then the lid blasts
+off with a flash, a pillar of light, a shockwave and sparks in the rarity
+colour, and the rifle rises out of the crate in the skin's colours. The
+rarity name slams in over spinning light rays. Legendary and Secret rain
+confetti. Secret fakes you out first: the climb stalls on Legendary and goes
+dark, then cracks red, and the title glitches. Press **X** to open another,
+or **Space** to go back.
+
+The roll happens on the server (`CrateService.lua`), which checks that you're
+in the lobby, near the altar and have a key. Keys and owned skins are saved
+in a DataStore (in Studio this needs Game Settings > Security > "Enable Studio
+Access to API Services"). Rarities, odds, key rewards and the skin list are in
+`Config.Crates`. Skins are collected for now; equipping them is the next step.
 
 ## Duels, rematches and the kill cam
 

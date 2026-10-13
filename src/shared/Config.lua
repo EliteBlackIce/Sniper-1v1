@@ -135,7 +135,7 @@ Config.Crates = {
 	Cost = 1, -- keys per crate
 	FreeInStudio = true, -- opening is free when testing in Studio
 	MaxDistance = 26, -- how close to the altar you have to be (studs)
-	Cooldown = 4, -- seconds between opens (the animation covers it)
+	Cooldown = 1.5, -- seconds between opens (stops spam; the animation is longer)
 	Rarities = {
 		{ Id = "Common", Name = "COMMON", Color = Color3.fromRGB(176, 182, 192), Chance = 50 },
 		{ Id = "Uncommon", Name = "UNCOMMON", Color = Color3.fromRGB(82, 214, 104), Chance = 25 },

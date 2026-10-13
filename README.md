@@ -27,7 +27,7 @@ src/shared/                -> ReplicatedStorage.Shared   (server + client)
 
 src/server/                -> ServerScriptService.Server
   Main.server.lua             entry point, starts every service
-  LightingSetup.lua           Future lighting, Atmosphere, Bloom, ColorCorrection, SunRays
+  LightingSetup.lua           Future lighting + post effects (arena profile)
   MapBuilder.lua              builds the lobby and the arena from parts
   ArenaPolygon.lua            the default map: compact Rivals-style arena, tall walls + ramps
   ArenaNuketown.lua           optional Nuketown cul-de-sac (Config.Match.Map = "Nuketown")
@@ -52,6 +52,7 @@ src/client/                -> StarterPlayerScripts.Client
   WeaponController.lua        scope + fire, local tracers, sends shots to the server
   CharacterPoser.lua          third-person rifle-holding pose for other players
   EffectsController.lua       tracers, explosions, ropes, wallhack pulse, screen tints
+  LightingController.lua      blends arena / indoor lobby lighting (Config.Lighting)
   UIController.lua            creates all screens
   Sfx.lua, Spring.lua         sound + spring helpers
   ui/

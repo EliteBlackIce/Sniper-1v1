@@ -794,33 +794,55 @@ Config.Effects = {
 -- LIGHTING (applied by the server at startup, see LightingSetup.lua)
 ----------------------------------------------------------------------------
 Config.Lighting = {
-	ClockTime = 15.3, -- mid-afternoon: long, clean shadows
-	GeographicLatitude = 38,
-	Brightness = 3.2,
-	Ambient = Color3.fromRGB(70, 74, 84),
-	OutdoorAmbient = Color3.fromRGB(150, 156, 170),
-	EnvironmentDiffuseScale = 0.6,
-	EnvironmentSpecularScale = 0.25,
-	ShadowSoftness = 0.08,
+	-- The base values are the ARENA (outdoors). The sun sits fairly high so the
+	-- tall walls don't throw half the map into shade, and the shade itself is
+	-- lifted (OutdoorAmbient / EnvironmentDiffuseScale) so you can still see
+	-- someone standing in it.
+	ClockTime = 14.2,
+	GeographicLatitude = 30,
+	Brightness = 2.6,
+	Ambient = Color3.fromRGB(96, 100, 110),
+	OutdoorAmbient = Color3.fromRGB(168, 172, 184),
+	EnvironmentDiffuseScale = 0.85,
+	EnvironmentSpecularScale = 0.2,
+	ShadowSoftness = 0.2,
 
 	Atmosphere = {
-		Density = 0.28,
-		Offset = 0.12,
+		Density = 0.22,
+		Offset = 0.1,
 		Color = Color3.fromRGB(205, 218, 235),
-		Decay = Color3.fromRGB(120, 140, 175),
-		Glare = 0.15,
-		Haze = 1.2,
+		Decay = Color3.fromRGB(130, 148, 180),
+		Glare = 0.05,
+		Haze = 0.6,
 	},
-	Bloom = { Intensity = 0.35, Size = 24, Threshold = 1.4 },
+	Bloom = { Intensity = 0.2, Size = 20, Threshold = 2 }, -- only real lights glow, not light walls
 	ColorCorrection = {
-		Brightness = 0.02,
-		Contrast = 0.1,
-		Saturation = 0.12,
-		TintColor = Color3.fromRGB(255, 252, 246),
+		Brightness = 0,
+		Contrast = 0.06,
+		Saturation = 0.08,
+		TintColor = Color3.fromRGB(255, 253, 248),
 	},
-	SunRays = { Intensity = 0.06, Spread = 0.6 },
-	-- soft 3D clouds over the city (workspace.Terrain.Clouds)
+	SunRays = { Intensity = 0.03, Spread = 0.5 },
+	-- soft 3D clouds (workspace.Terrain.Clouds)
 	Clouds = { Cover = 0.52, Density = 0.62, Color = Color3.fromRGB(255, 255, 255) },
+
+	-- The LOBBY is indoors (a roofed rotunda with a skylight), so it gets its own
+	-- profile: a dimmer sun through the skylight, warmer fill light, less haze.
+	-- The client blends between the two when you enter or leave a match.
+	-- Only the values listed here change; everything else uses the arena's.
+	Lobby = {
+		ClockTime = 13,
+		Brightness = 1.6,
+		Ambient = Color3.fromRGB(112, 104, 96),
+		OutdoorAmbient = Color3.fromRGB(150, 146, 140),
+		EnvironmentDiffuseScale = 0.5,
+		ShadowSoftness = 0.35,
+		Atmosphere = { Density = 0.1, Haze = 0.2, Glare = 0 },
+		Bloom = { Intensity = 0.15, Threshold = 1.8 },
+		ColorCorrection = { Contrast = 0.04, Saturation = 0.05, TintColor = Color3.fromRGB(255, 247, 236) },
+		SunRays = { Intensity = 0.01 },
+	},
+	BlendTime = 1.2, -- seconds to blend from one profile to the other
 }
 
 ----------------------------------------------------------------------------
@@ -6735,6 +6757,8 @@ return DummyService
 
 	Sets up Lighting from Config.Lighting: time of day, ambient colours and the
 	post effects (Atmosphere, Bloom, ColorCorrection, SunRays) and clouds.
+	This sets the arena profile; the client's LightingController switches to
+	Config.Lighting.Lobby while you're in the lobby.
 
 	NOTE: Lighting.Technology = Future cannot be set from a script; it is set in
 	default.project.json (and you can double check it in Studio: Lighting >
@@ -10982,7 +11006,119 @@ return KillCam
 ]]></string>
           </Properties>
         </Item>
-        <Item class="LocalScript" referent="41">
+        <Item class="ModuleScript" referent="41">
+          <Properties>
+            <string name="Name">LightingController</string>
+            <string name="Source"><![CDATA[--[[
+	LightingController.lua  (Client.LightingController)
+
+	Blends Lighting between the two profiles in Config.Lighting: the arena
+	(the base values, also set by the server) and the indoor lobby
+	(Config.Lighting.Lobby). Lighting changes made on the client only affect
+	this player, so each player gets the profile for where they are.
+]]
+
+local Lighting = game:GetService("Lighting")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+
+local Config = require(ReplicatedStorage:WaitForChild("Shared").Config)
+local ClientState = require(script.Parent.ClientState)
+
+local LightingController = {}
+
+local L = Config.Lighting
+local LIGHTING_KEYS = {
+	"ClockTime",
+	"Brightness",
+	"Ambient",
+	"OutdoorAmbient",
+	"EnvironmentDiffuseScale",
+	"EnvironmentSpecularScale",
+	"ShadowSoftness",
+}
+local EFFECTS = {
+	Atmosphere = "Atmosphere",
+	Bloom = "BloomEffect",
+	ColorCorrection = "ColorCorrectionEffect",
+	SunRays = "SunRaysEffect",
+}
+
+local current -- "Arena" / "Lobby"
+local tweens = {}
+
+-- the property table for one profile: the arena base, with the lobby's overrides
+local function profile(name)
+	local over = name == "Lobby" and L.Lobby or {}
+	local props = {}
+	for _, key in ipairs(LIGHTING_KEYS) do
+		props[key] = over[key] ~= nil and over[key] or L[key]
+	end
+	local effects = {}
+	for key in pairs(EFFECTS) do
+		local merged = table.clone(L[key])
+		for k, v in pairs(over[key] or {}) do
+			merged[k] = v
+		end
+		effects[key] = merged
+	end
+	return props, effects
+end
+
+local function apply(name, instant)
+	if name == current then
+		return
+	end
+	current = name
+	for _, t in ipairs(tweens) do
+		t:Cancel()
+	end
+	table.clear(tweens)
+
+	local info = TweenInfo.new(instant and 0 or (L.BlendTime or 1), Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+	local function to(inst, goal)
+		if instant then
+			for k, v in pairs(goal) do
+				inst[k] = v
+			end
+		else
+			local t = TweenService:Create(inst, info, goal)
+			table.insert(tweens, t)
+			t:Play()
+		end
+	end
+
+	local props, effects = profile(name)
+	to(Lighting, props)
+	for key, className in pairs(EFFECTS) do
+		local inst = Lighting:FindFirstChild(key)
+		if inst and inst.ClassName == className then
+			to(inst, effects[key])
+		end
+	end
+end
+
+local function wanted()
+	local s = ClientState.Snapshot
+	return (s.InMatch or s.Playground) and "Arena" or "Lobby"
+end
+
+function LightingController.Init() end
+
+function LightingController.Start()
+	-- the server creates the effects at startup; wait briefly so we can blend them too
+	Lighting:WaitForChild("ColorCorrection", 5)
+	apply(wanted(), true)
+	ClientState.Changed:Connect(function()
+		apply(wanted(), false)
+	end)
+end
+
+return LightingController
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="LocalScript" referent="42">
           <Properties>
             <string name="Name">Main</string>
             <string name="Source"><![CDATA[--[[
@@ -11003,6 +11139,7 @@ return KillCam
 		CharacterPoser       third-person rifle-holding pose for other players
 		AimAssist            light controller aim assist (used by CameraController)
 		KillCamController    replays your death through your killer's eyes
+		LightingController   arena / indoor lobby lighting profiles
 ]]
 
 local Client = script.Parent
@@ -11016,6 +11153,7 @@ local EffectsController = require(Client.EffectsController)
 local UIController = require(Client.UIController)
 local CharacterPoser = require(Client.CharacterPoser)
 local KillCamController = require(Client.KillCamController)
+local LightingController = require(Client.LightingController)
 
 local controllers = {
 	Camera = CameraController,
@@ -11026,6 +11164,7 @@ local controllers = {
 	UI = UIController,
 	Poser = CharacterPoser,
 	KillCam = KillCamController,
+	Lighting = LightingController,
 }
 
 ClientState.Init()
@@ -11039,6 +11178,7 @@ local order = {
 	UIController,
 	CharacterPoser,
 	KillCamController,
+	LightingController,
 }
 for _, controller in ipairs(order) do
 	controller.Init(controllers)
@@ -11049,7 +11189,7 @@ end
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="42">
+        <Item class="ModuleScript" referent="43">
           <Properties>
             <string name="Name">MovementController</string>
             <string name="Source"><![CDATA[--[[
@@ -12056,7 +12196,7 @@ return Movement
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="43">
+        <Item class="ModuleScript" referent="44">
           <Properties>
             <string name="Name">Sfx</string>
             <string name="Source"><![CDATA[--[[
@@ -12113,7 +12253,7 @@ return Sfx
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="44">
+        <Item class="ModuleScript" referent="45">
           <Properties>
             <string name="Name">Spring</string>
             <string name="Source"><![CDATA[--[[
@@ -12159,7 +12299,7 @@ return Spring
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="45">
+        <Item class="ModuleScript" referent="46">
           <Properties>
             <string name="Name">UIController</string>
             <string name="Source"><![CDATA[--[[
@@ -12251,7 +12391,7 @@ return UIController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="46">
+        <Item class="ModuleScript" referent="47">
           <Properties>
             <string name="Name">ViewmodelController</string>
             <string name="Source"><![CDATA[--[[
@@ -13146,7 +13286,7 @@ return Viewmodel
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="47">
+        <Item class="ModuleScript" referent="48">
           <Properties>
             <string name="Name">WeaponController</string>
             <string name="Source"><![CDATA[--[[
@@ -13396,11 +13536,11 @@ return Weapon
 ]]></string>
           </Properties>
         </Item>
-        <Item class="Folder" referent="48">
+        <Item class="Folder" referent="49">
           <Properties>
             <string name="Name">ui</string>
           </Properties>
-          <Item class="ModuleScript" referent="49">
+          <Item class="ModuleScript" referent="50">
             <Properties>
               <string name="Name">DuelUI</string>
               <string name="Source"><![CDATA[--[[
@@ -13709,7 +13849,7 @@ return DuelUI
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="50">
+          <Item class="ModuleScript" referent="51">
             <Properties>
               <string name="Name">HUD</string>
               <string name="Source"><![CDATA[--[[
@@ -14597,7 +14737,7 @@ return HUD
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="51">
+          <Item class="ModuleScript" referent="52">
             <Properties>
               <string name="Name">Icons</string>
               <string name="Source"><![CDATA[--[[
@@ -14659,7 +14799,7 @@ return Icons
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="52">
+          <Item class="ModuleScript" referent="53">
             <Properties>
               <string name="Name">LobbyUI</string>
               <string name="Source"><![CDATA[--[[
@@ -14978,7 +15118,7 @@ return LobbyUI
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="53">
+          <Item class="ModuleScript" referent="54">
             <Properties>
               <string name="Name">MobileControls</string>
               <string name="Source"><![CDATA[--[[
@@ -15206,7 +15346,7 @@ return MobileControls
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="54">
+          <Item class="ModuleScript" referent="55">
             <Properties>
               <string name="Name">PickScreen</string>
               <string name="Source"><![CDATA[--[[
@@ -15983,7 +16123,7 @@ return PickScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="55">
+          <Item class="ModuleScript" referent="56">
             <Properties>
               <string name="Name">PowerUpLab</string>
               <string name="Source"><![CDATA[--[[
@@ -16284,7 +16424,7 @@ return PowerUpLab
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="56">
+          <Item class="ModuleScript" referent="57">
             <Properties>
               <string name="Name">SettingsMenu</string>
               <string name="Source"><![CDATA[--[[
@@ -16813,7 +16953,7 @@ return SettingsMenu
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="57">
+          <Item class="ModuleScript" referent="58">
             <Properties>
               <string name="Name">Theme</string>
               <string name="Source"><![CDATA[--[[
@@ -17076,7 +17216,7 @@ return Theme
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="58">
+          <Item class="ModuleScript" referent="59">
             <Properties>
               <string name="Name">Toast</string>
               <string name="Source"><![CDATA[--[[
@@ -17163,7 +17303,7 @@ return Toast
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="59">
+          <Item class="ModuleScript" referent="60">
             <Properties>
               <string name="Name">VictoryScreen</string>
               <string name="Source"><![CDATA[--[[

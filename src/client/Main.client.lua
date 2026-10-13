@@ -16,6 +16,7 @@
 		CharacterPoser       third-person rifle-holding pose for other players
 		AimAssist            light controller aim assist (used by CameraController)
 		KillCamController    replays your death through your killer's eyes
+		LightingController   arena / indoor lobby lighting profiles
 ]]
 
 local Client = script.Parent
@@ -29,6 +30,7 @@ local EffectsController = require(Client.EffectsController)
 local UIController = require(Client.UIController)
 local CharacterPoser = require(Client.CharacterPoser)
 local KillCamController = require(Client.KillCamController)
+local LightingController = require(Client.LightingController)
 
 local controllers = {
 	Camera = CameraController,
@@ -39,6 +41,7 @@ local controllers = {
 	UI = UIController,
 	Poser = CharacterPoser,
 	KillCam = KillCamController,
+	Lighting = LightingController,
 }
 
 ClientState.Init()
@@ -52,6 +55,7 @@ local order = {
 	UIController,
 	CharacterPoser,
 	KillCamController,
+	LightingController,
 }
 for _, controller in ipairs(order) do
 	controller.Init(controllers)

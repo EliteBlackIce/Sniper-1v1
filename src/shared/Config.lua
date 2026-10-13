@@ -520,33 +520,55 @@ Config.Effects = {
 -- LIGHTING (applied by the server at startup, see LightingSetup.lua)
 ----------------------------------------------------------------------------
 Config.Lighting = {
-	ClockTime = 15.3, -- mid-afternoon: long, clean shadows
-	GeographicLatitude = 38,
-	Brightness = 3.2,
-	Ambient = Color3.fromRGB(70, 74, 84),
-	OutdoorAmbient = Color3.fromRGB(150, 156, 170),
-	EnvironmentDiffuseScale = 0.6,
-	EnvironmentSpecularScale = 0.25,
-	ShadowSoftness = 0.08,
+	-- The base values are the ARENA (outdoors). The sun sits fairly high so the
+	-- tall walls don't throw half the map into shade, and the shade itself is
+	-- lifted (OutdoorAmbient / EnvironmentDiffuseScale) so you can still see
+	-- someone standing in it.
+	ClockTime = 14.2,
+	GeographicLatitude = 30,
+	Brightness = 2.6,
+	Ambient = Color3.fromRGB(96, 100, 110),
+	OutdoorAmbient = Color3.fromRGB(168, 172, 184),
+	EnvironmentDiffuseScale = 0.85,
+	EnvironmentSpecularScale = 0.2,
+	ShadowSoftness = 0.2,
 
 	Atmosphere = {
-		Density = 0.28,
-		Offset = 0.12,
+		Density = 0.22,
+		Offset = 0.1,
 		Color = Color3.fromRGB(205, 218, 235),
-		Decay = Color3.fromRGB(120, 140, 175),
-		Glare = 0.15,
-		Haze = 1.2,
+		Decay = Color3.fromRGB(130, 148, 180),
+		Glare = 0.05,
+		Haze = 0.6,
 	},
-	Bloom = { Intensity = 0.35, Size = 24, Threshold = 1.4 },
+	Bloom = { Intensity = 0.2, Size = 20, Threshold = 2 }, -- only real lights glow, not light walls
 	ColorCorrection = {
-		Brightness = 0.02,
-		Contrast = 0.1,
-		Saturation = 0.12,
-		TintColor = Color3.fromRGB(255, 252, 246),
+		Brightness = 0,
+		Contrast = 0.06,
+		Saturation = 0.08,
+		TintColor = Color3.fromRGB(255, 253, 248),
 	},
-	SunRays = { Intensity = 0.06, Spread = 0.6 },
-	-- soft 3D clouds over the city (workspace.Terrain.Clouds)
+	SunRays = { Intensity = 0.03, Spread = 0.5 },
+	-- soft 3D clouds (workspace.Terrain.Clouds)
 	Clouds = { Cover = 0.52, Density = 0.62, Color = Color3.fromRGB(255, 255, 255) },
+
+	-- The LOBBY is indoors (a roofed rotunda with a skylight), so it gets its own
+	-- profile: a dimmer sun through the skylight, warmer fill light, less haze.
+	-- The client blends between the two when you enter or leave a match.
+	-- Only the values listed here change; everything else uses the arena's.
+	Lobby = {
+		ClockTime = 13,
+		Brightness = 1.6,
+		Ambient = Color3.fromRGB(112, 104, 96),
+		OutdoorAmbient = Color3.fromRGB(150, 146, 140),
+		EnvironmentDiffuseScale = 0.5,
+		ShadowSoftness = 0.35,
+		Atmosphere = { Density = 0.1, Haze = 0.2, Glare = 0 },
+		Bloom = { Intensity = 0.15, Threshold = 1.8 },
+		ColorCorrection = { Contrast = 0.04, Saturation = 0.05, TintColor = Color3.fromRGB(255, 247, 236) },
+		SunRays = { Intensity = 0.01 },
+	},
+	BlendTime = 1.2, -- seconds to blend from one profile to the other
 }
 
 ----------------------------------------------------------------------------

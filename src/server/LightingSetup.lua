@@ -3,6 +3,8 @@
 
 	Sets up Lighting from Config.Lighting: time of day, ambient colours and the
 	post effects (Atmosphere, Bloom, ColorCorrection, SunRays) and clouds.
+	This sets the arena profile; the client's LightingController switches to
+	Config.Lighting.Lobby while you're in the lobby.
 
 	NOTE: Lighting.Technology = Future cannot be set from a script; it is set in
 	default.project.json (and you can double check it in Studio: Lighting >

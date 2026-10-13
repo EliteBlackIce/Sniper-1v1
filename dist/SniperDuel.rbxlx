@@ -3671,21 +3671,24 @@ return ArenaDowntown
           <string name="Source"><![CDATA[--[[
 	ArenaSimple.lua  (ServerScriptService.Server.ArenaSimple)
 
-	"Simple": a clean 1v1 arena in the spirit of ROUNDS. Flat floor, a few
-	ramps, walls and blocks to hide behind, and some high ground. No
-	decoration: every part is a solid shape you can stand on, hide behind
-	or wall run on. Mirrored across X = 0 (and mostly Z = 0), so both
+	"Simple": a clean, open 1v1 arena in the spirit of ROUNDS. Flat floor,
+	a hill in the middle, high bridges on the sides, long walls and a few
+	blocks to hide behind. No decoration: every part is a solid shape you
+	can stand on, hide behind or wall run on. Mirrored across X = 0 (and mostly Z = 0), so both
 	sides are identical.
+
+	Built for flow: few, big shapes and long gentle ramps, so you can
+	bunny hop, slide and wall run across the whole map without snagging.
 
 	TOP VIEW (X = long axis, spawns at the far left / right)
 
-	   +-----------------------------------------------------------------+
-	   |   [platform]=ramp=>          ||          <=ramp=[platform]      |
-	   |        []       ====wall====    ====wall====       []           |
-	   | SPAWN<=ramp   []         =ramp=>[TOWER]<=ramp=         []  ramp=>SPAWN
-	   |        []       ====wall====    ====wall====       []           |
-	   |   [platform]=ramp=>          ||          <=ramp=[platform]      |
-	   +-----------------------------------------------------------------+
+	   +---------------------------------------------------------------+
+	   |        /=====ramp=====[ BRIDGE ]=====ramp=====\               |
+	   |      ======wall======              ======wall======           |
+	   | SPAWN<=ramp    |cover|    /[ HILL ]\    |cover|    ramp=>SPAWN |
+	   |      ======wall======              ======wall======           |
+	   |        \=====ramp=====[ BRIDGE ]=====ramp=====/               |
+	   +---------------------------------------------------------------+
 
 	Colours come from Config.Palette (Snow floor, Light walls, Mid blocks,
 	AccentA cover, AccentB ramps).
@@ -3698,7 +3701,7 @@ local V = Vector3.new
 
 local ArenaSimple = {}
 
-local LENGTH, WIDTH = 230, 150 -- floor size (X, Z)
+local LENGTH, WIDTH = 220, 140 -- floor size (X, Z)
 local WALL_HEIGHT = 34
 
 function ArenaSimple.Build(b)
@@ -3713,52 +3716,45 @@ function ArenaSimple.Build(b)
 	b.block(V(LENGTH + 10, 1, 4.6), V(0, WALL_HEIGHT + 0.5, halfW + 2), P.AccentB, Z) -- top trim
 	b.block(V(4.6, 1, WIDTH + 10), V(halfL + 2, WALL_HEIGHT + 0.5, 0), P.AccentB, X)
 
-	-- SPAWN DECKS: raised, with a ramp down toward the middle --------------------
-	b.block(V(20, 6, 34), V(-100, 3, 0), P.Mid, X)
-	b.ramp(V(-70, 0, 0), V(-1, 0, 0), 20, 6, 14, P.AccentB, X)
-	b.block(V(2, 3.5, 10), V(-91, 7.75, -12), P.AccentA, XZ) -- low cover at the deck edge
+	-- SPAWN DECKS: raised, with a wide ramp down toward the middle ----------------
+	b.block(V(18, 6, 30), V(-98, 3, 0), P.Mid, X)
+	b.ramp(V(-69, 0, 0), V(-1, 0, 0), 20, 6, 20, P.AccentB, X)
 
-	-- CENTRE TOWER: high ground with ramps up from both sides --------------------
-	b.block(V(18, 10, 22), V(0, 5, 0), P.Mid)
-	b.ramp(V(-29, 0, 0), V(1, 0, 0), 20, 10, 10, P.AccentB, X)
-	b.block(V(1.6, 4, 8), V(0, 12, 0), P.AccentA) -- cover on top
-	b.block(V(4, 2.5, 4), V(-6, 11.25, -9), P.AccentA, XZ)
+	-- CENTRE HILL: a low mesa with gentle ramps on all four sides (slide over it)
+	b.block(V(28, 4, 28), V(0, 2, 0), P.Mid)
+	b.ramp(V(-30, 0, 0), V(1, 0, 0), 16, 4, 28, P.AccentB, X)
+	b.ramp(V(0, 0, -30), V(0, 0, 1), 16, 4, 28, P.AccentB, Z)
+	b.block(V(2, 5, 12), V(0, 6.5, 0), P.AccentA) -- one spine of cover on top
 
-	-- MID WALLS: tall walls to hide behind and wall run along ---------------------
-	b.block(V(34, 14, 2), V(-38, 7, 24), P.Light, XZ)
-	b.block(V(34.2, 0.8, 2.2), V(-38, 14.4, 24), P.AccentB, XZ)
+	-- SIDE BRIDGES: long gentle ramps up to a high deck on each side --------------
+	b.block(V(36, 12, 10), V(0, 6, 57), P.Light, Z)
+	b.ramp(V(-58, 0, 57), V(1, 0, 0), 40, 12, 10, P.AccentB, XZ)
+	b.block(V(36.4, 2, 0.8), V(0, 13, 52.4), P.AccentA, Z) -- low lip: cover at the edge
 
-	-- SIDE PLATFORMS: second high ground, ramp toward the middle ------------------
-	b.block(V(24, 8, 18), V(-48, 4, 52), P.Light, XZ)
-	b.ramp(V(-16, 0, 52), V(-1, 0, 0), 20, 8, 8, P.AccentB, XZ)
-	b.block(V(8, 3, 2), V(-50, 9.5, 44), P.AccentA, XZ) -- cover on the platform edge
+	-- WALL-RUN WALLS: long and tall, lined up with the lanes ----------------------
+	b.block(V(40, 16, 2), V(-55, 8, 32), P.Light, XZ)
+	b.block(V(40.2, 0.8, 2.2), V(-55, 16.4, 32), P.AccentB, XZ)
 
-	-- COVER BLOCKS ---------------------------------------------------------------
-	b.block(V(6, 6, 6), V(-72, 3, 26), P.Mid, XZ)
-	b.block(V(8, 4, 4), V(-62, 2, 9), P.AccentA, XZ) -- low cover beside the spawn ramp
-	b.block(V(4, 9, 10), V(-20, 4.5, 38), P.Mid, XZ)
-	b.block(V(5, 12, 5), V(-80, 6, 50), P.Mid, XZ) -- pillars
-	b.block(V(10, 5, 3), V(-18, 2.5, 64), P.AccentA, XZ)
-	b.block(V(3, 6, 12), V(-48, 3, 0), P.AccentA, X) -- in the middle lane
-	-- stacked crates: step up onto the side platform from behind
-	b.block(V(6, 4, 6), V(-63, 2, 62), P.AccentA, XZ)
+	-- A FEW PIECES OF COVER --------------------------------------------------------
+	b.block(V(3, 5, 16), V(-50, 2.5, 0), P.AccentA, X) -- breaks the spawn-to-spawn sightline
+	b.block(V(8, 8, 8), V(-80, 4, -26), P.Mid, XZ)
 
 	-- Spawns (on the decks, facing the middle)
 	local spawnHeight = 6 + 3.2
 	local spawns = {
-		CFrame.lookAt(V(-102, spawnHeight, 0), V(0, spawnHeight, 0)),
-		CFrame.lookAt(V(102, spawnHeight, 0), V(0, spawnHeight, 0)),
+		CFrame.lookAt(V(-100, spawnHeight, 0), V(0, spawnHeight, 0)),
+		CFrame.lookAt(V(100, spawnHeight, 0), V(0, spawnHeight, 0)),
 	}
 
 	-- Practice dummies for the Playground (Position = the ground under them)
 	local dummies = {
-		{ Position = V(0, 10, 8), Face = V(-1, 0, 0) },
-		{ Position = V(-48, 8, 52), Face = V(1, 0, 0) },
-		{ Position = V(48, 8, -52), Face = V(-1, 0, 0) },
-		{ Position = V(30, 0, 0), Motion = "Strafe", Amount = 10, Speed = 0.3, Face = V(-1, 0, 0) },
-		{ Position = V(-60, 0, -38), Motion = "Strafe", Amount = 12, Speed = 0.25, Face = V(1, 0, 0) },
-		{ Position = V(60, 0, 38), Motion = "Strafe", Amount = 12, Speed = 0.25, Face = V(-1, 0, 0) },
-		{ Position = V(0, 0, 45), Motion = "Bob", Amount = 8, Speed = 0.5, Face = V(0, 0, -1) },
+		{ Position = V(0, 4, 9), Face = V(-1, 0, 0) },
+		{ Position = V(0, 12, 57), Face = V(0, 0, -1) },
+		{ Position = V(0, 12, -57), Face = V(0, 0, 1) },
+		{ Position = V(40, 0, 0), Motion = "Strafe", Amount = 10, Speed = 0.3, Face = V(-1, 0, 0) },
+		{ Position = V(-30, 0, -45), Motion = "Strafe", Amount = 12, Speed = 0.25, Face = V(1, 0, 0) },
+		{ Position = V(30, 0, 45), Motion = "Strafe", Amount = 12, Speed = 0.25, Face = V(-1, 0, 0) },
+		{ Position = V(-75, 0, 12), Motion = "Bob", Amount = 8, Speed = 0.5, Face = V(1, 0, 0) },
 		{ Position = V(100, 6, 0), Face = V(-1, 0, 0) },
 	}
 	return spawns, dummies

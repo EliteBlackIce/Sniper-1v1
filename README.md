@@ -268,8 +268,8 @@ Files: `PowerUps`, `PickScreen`, `Icons`, plus power-up code in Movement/Weapon/
 Files: `ArenaSimple` (the arena), `GunModel` (rifle + power-up mods), `MapBuilder`, `LightingSetup`
 
 - [ ] Spawn on your raised deck, run down the ramp, and check the arena:
-      a tower in the middle with ramps, tall walls to hide behind, side
-      platforms with ramps, and cover blocks (see `dist/arena-preview.png`).
+      a hill in the middle, ramps up to the side bridges, long walls to wall
+      run, and a few cover pieces (see `dist/arena-preview.png`).
 - [ ] The rifle is the new two-tone VX-7 with glowing lines (see
       `dist/rifle-preview.png`).
 - [ ] Open the Power-Up Lab (B) and add power-ups: each one bolts a part onto
@@ -385,16 +385,18 @@ Test them solo in the lobby with the **Power-Up Lab** (press B).
 
 ![Arena](dist/arena-preview.png)
 
-The default map (`Config.Match.Map = "Simple"`) is a plain 1v1 arena in the
-spirit of ROUNDS: no decoration, just a flat floor and shapes to play
-around. It's mirrored, so both sides are identical.
-- **Spawn decks** on each end with a ramp down.
-- **Centre tower**: high ground with ramps up from both sides and a bit of
-  cover on top.
-- **Tall walls** on both sides of the middle: hide behind them or wall run.
-- **Side platforms** (second high ground) with ramps toward the middle.
-- **Cover blocks and pillars** everywhere, including one in the middle lane
-  so you can't see spawn to spawn.
+The default map (`Config.Match.Map = "Simple"`) is an open 1v1 arena in the
+spirit of ROUNDS, built for flow: a few big shapes and long gentle ramps, so
+you can bunny hop, slide and wall run across it without snagging. It's
+mirrored, so both sides are identical.
+- **Spawn decks** on each end with a wide ramp down.
+- **Centre hill**: a low mesa with gentle ramps on all four sides (slide
+  over it) and one spine of cover on top.
+- **Side bridges**: long gentle ramps up to a high deck on each side, with
+  a low lip for cover.
+- **Long walls** between the lanes to hide behind or wall run along.
+- **Just a few cover pieces**: one low wall in each half of the middle lane
+  (so you can't see spawn to spawn) and a block in each corner.
 
 Everything is in `src/server/ArenaSimple.lua` as a short list of blocks and
 ramps, so it's easy to move things around. The playground dummies for each

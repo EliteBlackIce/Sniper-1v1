@@ -34,6 +34,8 @@ Remotes.Names = {
 	"PlaygroundToggle", -- C->S  enter / leave Playground mode
 	"AdminCommand", -- C->S  admin commands (e.g. "bot" starts a match vs a bot)
 	"Notify", -- S->C  short toast message (admin command results etc.)
+	"Duel", -- C->S  "Challenge" (userId) / "Accept" / "Decline" (userId) / "Rematch"
+	"DuelInvite", -- S->C  someone challenged you / wants a rematch
 }
 
 local FOLDER_NAME = "Remotes"

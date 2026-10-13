@@ -27,7 +27,7 @@ local Palette = Config.Palette
 local LobbyUI = {}
 local Controllers
 
-local gui, root, title, subtitle, playButton, playgroundButton, statusLabel, modeChip, spinner
+local gui, root, title, subtitle, playButton, playgroundButton, statusLabel, modeChip, spinner, rematchButton
 local shown = false
 local queued = false
 local lastSnapshot = { InMatch = false, Phase = "Lobby" }
@@ -73,6 +73,22 @@ function LobbyUI.OnState(snapshot)
 			or ""
 	end
 	spinner.Visible = queued
+
+	-- REMATCH (after a match, for a little while)
+	local rematch = snapshot.Rematch
+	rematchButton.Visible = rematch ~= nil
+	if rematch then
+		if rematch.Requested then
+			rematchButton.Text = "WAITING FOR " .. string.upper(rematch.Name) .. "..."
+			styleButton(rematchButton, false)
+		elseif rematch.TheyRequested then
+			rematchButton.Text = keyLabel("Rematch") .. "  ACCEPT REMATCH VS " .. string.upper(rematch.Name)
+			styleButton(rematchButton, true)
+		else
+			rematchButton.Text = keyLabel("Rematch") .. "  REMATCH " .. string.upper(rematch.Name)
+			styleButton(rematchButton, true)
+		end
+	end
 
 	if snapshot.Playground then
 		title.Text = "PLAYGROUND"
@@ -161,6 +177,14 @@ function LobbyUI.Start(playerGui)
 		TextColor3 = Palette.UIText,
 		Parent = root,
 	})
+	rematchButton = Theme.button({
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -136),
+		Size = UDim2.fromOffset(420, 50),
+		TextSize = 20,
+		Visible = false,
+		Parent = root,
+	})
 	spinner = Theme.new("Frame", {
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = UDim2.new(0, 16, 0.5, 0),
@@ -195,6 +219,13 @@ function LobbyUI.Start(playerGui)
 		Theme.pop(playgroundButton)
 		Remotes.Get("PlaygroundToggle"):FireServer()
 	end
+	local function requestRematch()
+		Sfx.Play("CardPick", { Volume = 0.6, Pitch = 1.1 })
+		Theme.pop(rematchButton)
+		Remotes.Get("Duel"):FireServer("Rematch")
+	end
+	rematchButton.Activated:Connect(requestRematch)
+
 	local function botMatch()
 		Sfx.Play("CardPick", { Volume = 0.6, Pitch = 1.2 })
 		Remotes.Get("AdminCommand"):FireServer("bot")
@@ -202,9 +233,12 @@ function LobbyUI.Start(playerGui)
 	playButton.Activated:Connect(toggleQueue)
 	playgroundButton.Activated:Connect(togglePlayground)
 
-	UserInputService.InputBegan:Connect(function(input, processed)
+	local function onActionInput(input, processed)
 		if processed and UserInputService:GetFocusedTextBox() then
 			return
+		end
+		if Controllers and Controllers.Settings and Controllers.Settings.IsOpen() then
+			return -- rebinding keys / moving sliders in Settings
 		end
 		if not gui.Enabled then
 			return
@@ -215,8 +249,12 @@ function LobbyUI.Start(playerGui)
 			togglePlayground()
 		elseif Keybinds.Matches("BotMatch", input) then
 			botMatch()
+		elseif Keybinds.Matches("Rematch", input) and rematchButton.Visible then
+			requestRematch()
 		end
-	end)
+	end
+	UserInputService.InputBegan:Connect(onActionInput)
+	Keybinds.VirtualBegan:Connect(onActionInput)
 
 	-- Settings button
 	local settingsButton = Theme.button({
@@ -231,6 +269,19 @@ function LobbyUI.Start(playerGui)
 	})
 	settingsButton.Activated:Connect(function()
 		Controllers.Settings.Toggle()
+	end)
+	local duelButton = Theme.button({
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -24, 0, 112),
+		Size = UDim2.fromOffset(150, 40),
+		Text = "DUEL A PLAYER",
+		TextSize = 15,
+		BackgroundColor3 = Palette.UIPanel,
+		TextColor3 = Palette.UIText,
+		Parent = root,
+	})
+	duelButton.Activated:Connect(function()
+		Controllers.Duel.Open()
 	end)
 
 	-- idle animations: spinner while searching, a soft pulse on the find button

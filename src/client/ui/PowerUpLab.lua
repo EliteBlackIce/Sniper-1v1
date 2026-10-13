@@ -271,9 +271,12 @@ function PowerUpLab.Start(playerGui)
 		end
 	end)
 
-	UserInputService.InputBegan:Connect(function(input, processed)
+	local function onActionInput(input, processed)
 		if processed and UserInputService:GetFocusedTextBox() then
 			return
+		end
+		if require(script.Parent.SettingsMenu).IsOpen() then
+			return -- rebinding keys / moving sliders in Settings
 		end
 		if Keybinds.Matches("PowerUpLab", input) then
 			if PickScreen.IsPracticeOpen() then
@@ -284,7 +287,9 @@ function PowerUpLab.Start(playerGui)
 				PowerUpLab.Open()
 			end
 		end
-	end)
+	end
+	UserInputService.InputBegan:Connect(onActionInput)
+	Keybinds.VirtualBegan:Connect(onActionInput)
 end
 
 return PowerUpLab

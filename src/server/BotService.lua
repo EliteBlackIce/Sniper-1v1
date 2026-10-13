@@ -220,6 +220,7 @@ local function requestPath(brain, root, goal)
 	end
 	brain.Computing = true
 	brain.PathAt = os.clock()
+	local character = root.Parent
 	task.spawn(function()
 		local path = PathfindingService:CreatePath({
 			AgentRadius = 2,
@@ -232,6 +233,9 @@ local function requestPath(brain, root, goal)
 			path:ComputeAsync(root.Position, goal)
 		end)
 		brain.Computing = false
+		if not character.Parent or character ~= (brain.Owner and brain.Owner.Character) then
+			return -- the bot respawned while this was computing
+		end
 		if ok and path.Status == Enum.PathStatus.Success then
 			brain.Path = path:GetWaypoints()
 			brain.PathIndex = 2
@@ -283,6 +287,12 @@ local function think(bot, brain, dt)
 		humanoid:Move(Vector3.zero)
 		brain.SeenFor = 0
 		brain.NextShot = os.clock() + 0.6 -- small grace period after the countdown
+		return
+	end
+
+	-- knocked back (Shockwave): let physics carry it for a moment
+	if os.clock() < (bot:GetAttribute("KnockedUntil") or 0) then
+		humanoid:Move(Vector3.zero)
 		return
 	end
 
@@ -400,7 +410,7 @@ function BotService.Create(difficulty)
 		Difficulty = difficulty,
 		Attributes = {},
 	}, Bot)
-	bots[bot] = { SeenFor = 0 }
+	bots[bot] = { SeenFor = 0, Owner = bot }
 	CharacterService.Bots[bot] = true
 	return bot
 end
@@ -414,6 +424,9 @@ function BotService.Attach(bot, match)
 end
 
 function BotService.Remove(bot)
+	if CombatService then
+		CombatService.Forget(bot)
+	end
 	bots[bot] = nil
 	CharacterService.Bots[bot] = nil
 	bot.Parent = nil

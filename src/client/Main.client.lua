@@ -8,13 +8,14 @@
 	Client layout:
 		ClientState          latest match snapshot, my power-up stats, settings
 		CameraController     first-person lock, FOV, tilt, recoil, sensitivity
-		MovementController   sprint / slide / double jump / dash / wall run / grapple
+		MovementController   bhop / sprint / slide / wall run (power-up) / grapple
 		ViewmodelController  arms + sniper attached to the camera
 		WeaponController     scope + fire (sends shots to the server)
 		EffectsController    tracers, explosions, ropes, screen tints
 		UIController         all screens (ui/ folder)
 		CharacterPoser       third-person rifle-holding pose for other players
 		AimAssist            light controller aim assist (used by CameraController)
+		KillCamController    replays your death through your killer's eyes
 ]]
 
 local Client = script.Parent
@@ -27,6 +28,7 @@ local WeaponController = require(Client.WeaponController)
 local EffectsController = require(Client.EffectsController)
 local UIController = require(Client.UIController)
 local CharacterPoser = require(Client.CharacterPoser)
+local KillCamController = require(Client.KillCamController)
 
 local controllers = {
 	Camera = CameraController,
@@ -36,6 +38,7 @@ local controllers = {
 	Effects = EffectsController,
 	UI = UIController,
 	Poser = CharacterPoser,
+	KillCam = KillCamController,
 }
 
 ClientState.Init()
@@ -48,6 +51,7 @@ local order = {
 	EffectsController,
 	UIController,
 	CharacterPoser,
+	KillCamController,
 }
 for _, controller in ipairs(order) do
 	controller.Init(controllers)

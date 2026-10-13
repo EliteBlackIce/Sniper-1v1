@@ -235,7 +235,8 @@ local function bindRow(parent, order, device, action)
 		Parent = row,
 	})
 	button.Activated:Connect(function()
-		capturing = { Device = device, Action = action.Id, Button = button }
+		-- (ReadyAt: ignore the very button press that started the rebind)
+		capturing = { Device = device, Action = action.Id, Button = button, ReadyAt = os.clock() + 0.15 }
 		button.Text = device == "Gamepad" and "PRESS A BUTTON..." or "PRESS A KEY..."
 		button.BackgroundColor3 = Palette.UIAccent
 		button.TextColor3 = Palette.UIBackground
@@ -261,6 +262,9 @@ end
 local function tryCapture(input)
 	if not capturing then
 		return false
+	end
+	if os.clock() < (capturing.ReadyAt or 0) then
+		return true
 	end
 	if input.KeyCode == Enum.KeyCode.Escape then
 		capturing = nil
@@ -340,6 +344,10 @@ function SettingsMenu.Close()
 	unlocker.Visible = false
 	ClientState.SetMenu("Settings", false)
 	ClientState.SaveSettings()
+end
+
+function SettingsMenu.IsOpen()
+	return isOpen
 end
 
 function SettingsMenu.Toggle()
@@ -425,9 +433,12 @@ function SettingsMenu.Start(playerGui)
 	slider(general, 7, "ControllerDeadzone", "Stick deadzone")
 	toggle(general, 8, "InvertY", "Invert look (Y)", { "ON", "OFF" })
 	toggle(general, 9, "AimAssist", "Aim assist", { "ON", "OFF" })
-	sectionTitle(general, 10, "GAME")
-	slider(general, 11, "FieldOfView", "Field of view", 0)
-	toggle(general, 12, "ToggleScope", "Scope mode", { "TOGGLE", "HOLD" })
+	sectionTitle(general, 10, "TOUCH")
+	slider(general, 11, "TouchSensitivity", "Touch sensitivity")
+	slider(general, 12, "TouchScopedSensitivity", "Scoped touch sensitivity")
+	sectionTitle(general, 13, "GAME")
+	slider(general, 14, "FieldOfView", "Field of view", 0)
+	toggle(general, 15, "ToggleScope", "Scope mode", { "TOGGLE", "HOLD" })
 
 	-- KEYBOARD / CONTROLLER
 	local keyboard = makePage("KEYBOARD")
@@ -499,6 +510,12 @@ function SettingsMenu.Start(playerGui)
 			SettingsMenu.Toggle()
 		elseif input.KeyCode == Enum.KeyCode.Escape and isOpen then
 			SettingsMenu.Close()
+		end
+	end)
+	-- on-screen Settings button (mobile)
+	Keybinds.VirtualBegan:Connect(function(input)
+		if Keybinds.Matches("Settings", input) then
+			SettingsMenu.Toggle()
 		end
 	end)
 end

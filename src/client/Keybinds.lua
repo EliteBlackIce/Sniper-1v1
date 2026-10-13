@@ -14,9 +14,33 @@
 	Usage:  if Keybinds.Matches("Jump", input) then ... end
 ]]
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
 local ClientState = require(script.Parent.ClientState)
+local Signal = require(ReplicatedStorage:WaitForChild("Shared").Signal)
 
 local Keybinds = {}
+
+-- On-screen buttons (mobile) press actions through these. Every place that
+-- listens to UserInputService.InputBegan/Ended for an action also listens
+-- here, so a button press runs exactly the same code as the key.
+Keybinds.VirtualBegan = Signal.new() -- (fakeInput, processed)
+Keybinds.VirtualEnded = Signal.new()
+
+function Keybinds.Press(actionId, down)
+	local fake = {
+		Action = actionId,
+		UserInputType = Enum.UserInputType.Touch,
+		KeyCode = Enum.KeyCode.Unknown,
+		Position = Vector3.zero,
+		Delta = Vector3.zero,
+	}
+	if down then
+		Keybinds.VirtualBegan:Fire(fake, false)
+	else
+		Keybinds.VirtualEnded:Fire(fake, false)
+	end
+end
 
 Keybinds.Actions = {
 	{ Id = "Fire", Name = "Fire", Keyboard = "MouseButton1", Gamepad = "ButtonR2" },
@@ -32,6 +56,8 @@ Keybinds.Actions = {
 	{ Id = "FindMatch", Name = "Find match", Keyboard = "F", Gamepad = "DPadRight" },
 	{ Id = "Playground", Name = "Playground", Keyboard = "G", Gamepad = "ButtonL1" },
 	{ Id = "BotMatch", Name = "Play vs bot (admin)", Keyboard = "N", Gamepad = "ButtonR1" },
+	{ Id = "DuelFriend", Name = "Duel a player", Keyboard = "U", Gamepad = "ButtonR3" },
+	{ Id = "Rematch", Name = "Rematch", Keyboard = "T", Gamepad = "DPadUp" },
 	{ Id = "Settings", Name = "Settings", Keyboard = "P", Gamepad = "ButtonSelect" },
 }
 
@@ -64,6 +90,9 @@ Keybinds.IsGamepad = isGamepad
 
 -- True if `input` is the key / button bound to `actionId`.
 function Keybinds.Matches(actionId, input)
+	if typeof(input) == "table" then
+		return input.Action == actionId -- a virtual (on-screen button) press
+	end
 	local device = isGamepad(input) and "Gamepad" or "Keyboard"
 	local bound = Keybinds.Get(actionId, device)
 	return bound ~= nil and bound == inputName(input)

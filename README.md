@@ -208,6 +208,8 @@ Every key below can be rebound in **Settings (P) > Keyboard** or
 | B | **Power-Up Lab** (lobby / playground): try any power-up solo |
 | G | **Playground** (lobby): free roam on the match map with dummies |
 | F [D-pad right] | Find a match / leave the queue (lobby) |
+| U [R-stick click] | Duel a player: challenge someone in the server (lobby) |
+| T [D-pad up] | Rematch your last opponent (lobby, shortly after a match) |
 | N [RB / R1] | Play against a bot (admins, lobby) |
 | P [Select] | Settings (frees the mouse) |
 
@@ -310,6 +312,53 @@ Files: `ArenaCrossfire` (the map), `GunModel` (rifle + power-up mods), `Viewmode
 - [ ] Other players see the same rifle and attachments in your hands.
 
 ---
+
+## The lobby
+
+![Lobby](dist/lobby-preview.png)
+
+A plaza where everyone waits between matches:
+- **Spawn dais** in the middle with a glowing ring.
+- **Shooting range** through the archway to the north, with moving dummies.
+- **Duel pads** on the east wall (find a match with F, or duel a player with U).
+- **Crate shop** on the west wall: three loot crates (Rare, Legendary, Epic)
+  on pedestals under a "CRATES - RIFLE SKINS - COMING SOON" sign. This is a
+  placeholder. Each pedestal has a marker part in `Lobby.CrateSpots` with a
+  `Rarity` attribute, ready for a crate / skin system.
+- **Stage** with the title sign to the south, a **movement park** in both
+  back corners (ramps and boxes, a ceiling, a Wall Runner wall), and trees,
+  lamps and benches.
+
+It's built in `src/server/LobbyBuilder.lua`.
+
+## Duels, rematches and the kill cam
+
+- **Duel a player**: press U (or the DUEL A PLAYER button) in the lobby to
+  see everyone in the server and challenge them. They get a card with
+  ACCEPT / DECLINE (it expires after `Config.Match.InviteTime`).
+- **Rematch**: after a match, a REMATCH button shows in the lobby for
+  `Config.Match.RematchWindow` seconds. Your opponent gets an invite card;
+  when both want it, a new match starts. Against a bot, the rematch starts
+  straight away at the same difficulty.
+- **Kill cam**: when your opponent kills you, you watch the last few
+  seconds again through their eyes (their position and aim, their shot
+  flying at a ghost of you), ending in slow motion. Press Space or tap to
+  skip. Tune it in `Config.KillCam` (the pause after a kill,
+  `Config.Match.RoundEndTime`, is long enough for it).
+
+## Playing on mobile
+
+On phones and tablets, on-screen controls appear automatically:
+- Move with Roblox's thumbstick (left). Drag anywhere on the right side
+  to look (Settings > Touch for sensitivity and scoped sensitivity).
+- **FIRE** (big, right; you can keep dragging on it to aim), a small FIRE on
+  the left, **SCOPE**, **JUMP** (hold to bunny hop), **SLIDE**, **RUN**
+  (toggle sprint) and your ability buttons (HOOK / BLINK / DECOY) when you
+  have those power-ups.
+- **LAB**, **DUEL** and **MENU** at the top. The lobby buttons can be tapped.
+- Touch players get the same light aim assist as controller players.
+- Buttons press the same actions as the keys, so everything works the same.
+  It's in `src/client/ui/MobileControls.lua`.
 
 ## Your avatar
 

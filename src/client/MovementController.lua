@@ -978,6 +978,8 @@ function Movement.Start()
 
 	UserInputService.InputBegan:Connect(onInputBegan)
 	UserInputService.InputEnded:Connect(onInputEnded)
+	Keybinds.VirtualBegan:Connect(onInputBegan) -- on-screen buttons (mobile)
+	Keybinds.VirtualEnded:Connect(onInputEnded)
 
 	Remotes.Get("Knockback").OnClientEvent:Connect(function(velocity)
 		if typeof(velocity) == "Vector3" then

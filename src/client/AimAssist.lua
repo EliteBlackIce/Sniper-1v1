@@ -32,9 +32,10 @@ local AimAssist = {}
 local rightStick = Vector2.zero
 local lastLook -- our look direction at the end of last frame
 
+-- Controller and touch players get the assist (mouse players never do).
 local function usingController()
 	local last = UserInputService:GetLastInputType()
-	return last.Name:find("Gamepad") ~= nil
+	return last.Name:find("Gamepad") ~= nil or last == Enum.UserInputType.Touch
 end
 
 -- Points we may assist toward: the enemy's torso, or the dummies' torsos.

@@ -137,6 +137,7 @@ local function knockback(player, velocity)
 		local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 		if root and not root.Anchored then
 			root.AssemblyLinearVelocity += velocity * Config.Movement.KnockbackScale
+			player:SetAttribute("KnockedUntil", os.clock() + 0.35) -- the AI stops steering for a moment
 		end
 	elseif player.Parent then
 		Remotes.Get("Knockback"):FireClient(player, velocity * Config.Movement.KnockbackScale)
@@ -847,6 +848,14 @@ local function onAbility(player, name, data)
 			Remotes.Get("Effect"):FireClient(opponent, { Type = "GrappleEnd", UserId = player.UserId })
 		end
 	end
+end
+
+-- Forget everything about a player / bot (bots aren't in PlayerRemoving).
+function CombatService.Forget(player)
+	lastFire[player] = nil
+	cooldowns[player] = nil
+	bulletTimeUntil[player] = nil
+	markedUntil[player] = nil
 end
 
 -- Bots shoot through the exact same validation and damage code as players.

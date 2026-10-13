@@ -37,6 +37,8 @@ local arenaInUse = {} -- [index] = true
 local practiceOwned = {} -- [player] = { [powerUpId] = stacks }  (lobby Power-Up Lab)
 local practiceStats = {} -- [player] = cached stats
 local inPlayground = {} -- [player] = true while free-roaming the Playground
+local invites = {} -- [target] = { [challenger] = os.clock() expiry }
+local rematches = {} -- [player] = { Opponent, BotDifficulty, Name, Until, Wants }
 local playground -- arena info for the Playground (built the first time someone enters)
 
 ----------------------------------------------------------------------------
@@ -69,6 +71,18 @@ local function lobbySnapshot(player)
 		PlayersOnline = #Players:GetPlayers(),
 		PowerUps = table.clone(practiceOwned[player] or {}),
 		Playground = inPlayground[player] == true,
+		Rematch = (function()
+			local r = rematches[player]
+			if not r or os.clock() > r.Until then
+				return nil
+			end
+			local theirs = r.Opponent and rematches[r.Opponent]
+			return {
+				Name = r.Name,
+				Requested = r.Wants == true,
+				TheyRequested = theirs ~= nil and theirs.Opponent == player and theirs.Wants == true,
+			}
+		end)(),
 	}
 end
 
@@ -141,6 +155,20 @@ end
 ----------------------------------------------------------------------------
 local function onMatchFinished(match)
 	arenaInUse[match.Arena.Index] = nil
+	-- remember who you just played so you can ask for a rematch
+	local a, b = match.Players[1], match.Players[2]
+	for _, pair in ipairs({ { a, b }, { b, a } }) do
+		local me, them = pair[1], pair[2]
+		if not Util.isBot(me) and me.Parent and (Util.isBot(them) or them.Parent) then
+			rematches[me] = {
+				Opponent = not Util.isBot(them) and them or nil,
+				BotDifficulty = Util.isBot(them) and them.Difficulty or nil,
+				Name = them.DisplayName,
+				Until = os.clock() + Config.Match.RematchWindow,
+				Wants = false,
+			}
+		end
+	end
 	for _, player in ipairs(match.Players) do
 		if matchByPlayer[player] == match then
 			matchByPlayer[player] = nil
@@ -306,6 +334,111 @@ local function setupChatCommands()
 	end
 end
 
+----------------------------------------------------------------------------
+-- Duels: challenge a player from the lobby, and rematches
+----------------------------------------------------------------------------
+local function startPrivateMatch(p1, p2)
+	if matchByPlayer[p1] or matchByPlayer[p2] or not p1.Parent or not p2.Parent then
+		return false
+	end
+	local arena = getFreeArena()
+	if not arena then
+		notify(p1, "All arenas are busy - try again soon")
+		notify(p2, "All arenas are busy - try again soon")
+		return false
+	end
+	for _, p in ipairs({ p1, p2 }) do
+		local index = table.find(queue, p)
+		if index then
+			table.remove(queue, index)
+		end
+		inPlayground[p] = nil
+		invites[p] = nil
+		rematches[p] = nil
+	end
+	local match = Match.new(p1, p2, arena, onMatchFinished)
+	matchByPlayer[p1] = match
+	matchByPlayer[p2] = match
+	match:Start()
+	broadcastLobby()
+	return true
+end
+
+local function inviteValid(target, from)
+	local list = invites[target]
+	return list and list[from] and os.clock() < list[from]
+end
+
+local function onDuel(player, action, arg)
+	if typeof(action) ~= "string" or matchByPlayer[player] then
+		return
+	end
+	local inviteRemote = Remotes.Get("DuelInvite")
+	if action == "Challenge" then
+		local target = typeof(arg) == "number" and Players:GetPlayerByUserId(arg) or nil
+		if not target or target == player then
+			return
+		end
+		if matchByPlayer[target] then
+			notify(player, target.DisplayName .. " is in a match")
+			return
+		end
+		if inviteValid(target, player) then
+			return -- already waiting
+		end
+		invites[target] = invites[target] or {}
+		invites[target][player] = os.clock() + Config.Match.InviteTime
+		inviteRemote:FireClient(target, { From = player.UserId, Name = player.DisplayName, Kind = "Challenge", Time = Config.Match.InviteTime })
+		notify(player, "Challenge sent to " .. target.DisplayName)
+	elseif action == "Accept" then
+		local from = typeof(arg) == "number" and Players:GetPlayerByUserId(arg) or nil
+		if from and inviteValid(player, from) then
+			invites[player][from] = nil
+			startPrivateMatch(from, player)
+		else
+			notify(player, "That challenge expired")
+		end
+	elseif action == "Decline" then
+		local from = typeof(arg) == "number" and Players:GetPlayerByUserId(arg) or nil
+		if from and invites[player] then
+			invites[player][from] = nil
+			notify(from, player.DisplayName .. " declined your challenge")
+		end
+	elseif action == "Rematch" then
+		local r = rematches[player]
+		if not r or os.clock() > r.Until then
+			notify(player, "No rematch available")
+			return
+		end
+		if r.BotDifficulty then
+			rematches[player] = nil
+			MatchService.StartBotMatch(player, r.BotDifficulty)
+			return
+		end
+		local opponent = r.Opponent
+		if not opponent or not opponent.Parent then
+			notify(player, r.Name .. " left")
+			rematches[player] = nil
+			sendLobbyState(player)
+			return
+		end
+		r.Wants = true
+		local theirs = rematches[opponent]
+		if theirs and theirs.Opponent == player and theirs.Wants then
+			startPrivateMatch(opponent, player)
+			return
+		end
+		if matchByPlayer[opponent] then
+			notify(player, r.Name .. " is already in another match")
+			return
+		end
+		inviteRemote:FireClient(opponent, { From = player.UserId, Name = player.DisplayName, Kind = "Rematch", Time = Config.Match.InviteTime })
+		notify(player, "Rematch requested")
+		sendLobbyState(player)
+		sendLobbyState(opponent)
+	end
+end
+
 local function onQueueToggle(player)
 	if matchByPlayer[player] then
 		return
@@ -338,6 +471,7 @@ function MatchService.Init()
 
 	Remotes.Get("QueueToggle").OnServerEvent:Connect(onQueueToggle)
 	Remotes.Get("AdminCommand").OnServerEvent:Connect(onAdminCommand)
+	Remotes.Get("Duel").OnServerEvent:Connect(onDuel)
 	setupChatCommands()
 
 	-- enter / leave the Playground
@@ -398,6 +532,11 @@ function MatchService.Init()
 		practiceOwned[player] = nil
 		practiceStats[player] = nil
 		inPlayground[player] = nil
+		invites[player] = nil
+		rematches[player] = nil
+		for _, list in pairs(invites) do
+			list[player] = nil
+		end
 		local index = table.find(queue, player)
 		if index then
 			table.remove(queue, index)

@@ -35,6 +35,7 @@ local Controllers
 
 local currentFov = C.BaseFOV
 local rightStick = Vector2.zero -- controller look stick (we handle it ourselves)
+local touchLook = Vector2.zero -- pixels dragged on the touch look pad since last frame
 local currentRoll = 0
 local currentDrop = 0
 local recoilLeft = 0 -- degrees of pitch still to apply
@@ -50,6 +51,11 @@ local firstPerson = false
 ----------------------------------------------------------------------------
 -- Public API (used by other controllers)
 ----------------------------------------------------------------------------
+-- Mobile: the look pad (ui/MobileControls) adds finger movement here.
+function CameraController.AddTouchLook(delta)
+	touchLook += delta
+end
+
 function CameraController.AddRecoil(degrees)
 	recoilLeft += degrees
 end
@@ -132,11 +138,18 @@ end
 ----------------------------------------------------------------------------
 -- Per-frame update (after the default camera)
 ----------------------------------------------------------------------------
+local suspended = false
+
+-- The kill cam takes over the camera while it plays.
+function CameraController.SetSuspended(value)
+	suspended = value
+end
+
 local function update(dt)
 	local camera = workspace.CurrentCamera
 	local character = player.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-	if not camera then
+	if not camera or suspended then
 		return
 	end
 
@@ -205,6 +218,26 @@ local function update(dt)
 			local newLook = flat * math.cos(newPitch) + Vector3.new(0, math.sin(newPitch), 0)
 			camera.CFrame = CFrame.lookAt(cf.Position, cf.Position + newLook)
 		end
+	end
+
+	-- TOUCH LOOK: drag on the right side of the screen
+	if touchLook.Magnitude > 0 then
+		if not ClientState.MenuOpen then
+			local sens = scopeAlpha > 0.5 and (settings.TouchScopedSensitivity or 0.4) or (settings.TouchSensitivity or 1)
+			if movement.IsBulletTime() then
+				sens *= Config.PowerUps.BulletTime.SensitivityScale
+			end
+			local k = math.rad(Config.Touch.DegreesPerPixel) * sens
+			local cf = camera.CFrame
+			local look = cf.LookVector
+			local pitch = math.asin(math.clamp(look.Y, -1, 1))
+			local newPitch = math.clamp(pitch - touchLook.Y * k * (settings.InvertY and -1 or 1), -1.4, 1.4)
+			local flat = Util.safeUnit(Vector3.new(look.X, 0, look.Z), Vector3.new(0, 0, -1))
+			flat = CFrame.Angles(0, -touchLook.X * k, 0):VectorToWorldSpace(flat)
+			local newLook = flat * math.cos(newPitch) + Vector3.new(0, math.sin(newPitch), 0)
+			camera.CFrame = CFrame.lookAt(cf.Position, cf.Position + newLook)
+		end
+		touchLook = Vector2.zero
 	end
 
 	if firstPerson then

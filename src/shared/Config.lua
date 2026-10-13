@@ -129,7 +129,7 @@ Config.Rarity = {
 Config.Match = {
 	RoundsToWin = 5, -- first to 5 round wins (best of 9)
 	CountdownTime = 3, -- "3, 2, 1, GO"
-	RoundEndTime = 2.5, -- pause after a kill before the pick screen
+	RoundEndTime = 4.5, -- pause after a kill before the pick screen (the loser watches the kill cam)
 	PickTime = 15, -- seconds the loser has to pick a card
 	PickRevealTime = 1.6, -- how long the chosen card is shown before the next round
 	VictoryTime = 7, -- victory screen length before returning to lobby
@@ -139,6 +139,19 @@ Config.Match = {
 	MaxArenas = 4, -- how many matches can run at the same time in one server
 	ArenaSpacing = 2000, -- distance between arena copies
 	VoidDepth = 80, -- falling this far below the arena floor kills you
+	InviteTime = 20, -- seconds a duel challenge / rematch request stays open
+	RematchWindow = 45, -- seconds after a match you can still ask for a rematch
+}
+
+-- KILL CAM: when you're killed, replay the last few seconds through your
+-- killer's eyes (their aim, their shot), ending in slow motion.
+Config.KillCam = {
+	Enabled = true,
+	Delay = 0.35, -- seconds after the kill before it starts
+	Length = 2.6, -- seconds of replay
+	SlowMoTime = 0.7, -- the last part plays in slow motion...
+	SlowMoSpeed = 0.35, -- ...at this speed
+	FieldOfView = 70,
 }
 
 ----------------------------------------------------------------------------
@@ -247,7 +260,10 @@ Config.SettingsDefaults = {
 	ControllerSensitivity = 1.0,
 	ControllerScopedSensitivity = 0.5,
 	ControllerDeadzone = 0.15, -- right stick inputs smaller than this are ignored
-	InvertY = false, -- controller: push up to look down
+	InvertY = false, -- controller / touch: push up to look down
+	-- touch (phones / tablets)
+	TouchSensitivity = 1.0,
+	TouchScopedSensitivity = 0.4,
 	-- general
 	FieldOfView = 82, -- your normal field of view
 	ToggleScope = false, -- false = hold to scope, true = press to toggle
@@ -260,10 +276,18 @@ Config.SettingsLimits = {
 	ControllerSensitivity = { Min = 0.1, Max = 3.0 },
 	ControllerScopedSensitivity = { Min = 0.05, Max = 2.0 },
 	ControllerDeadzone = { Min = 0.02, Max = 0.4 },
+	TouchSensitivity = { Min = 0.1, Max = 3.0 },
+	TouchScopedSensitivity = { Min = 0.05, Max = 2.0 },
 	FieldOfView = { Min = 65, Max = 105 },
 }
 
 -- Controller look speed (right stick), before the sensitivity setting.
+-- Touch screens: dragging on the right side of the screen looks around.
+Config.Touch = {
+	DegreesPerPixel = 0.28, -- at sensitivity 1
+	FireButtonSize = 104, -- pixels (scaled down on small screens)
+}
+
 Config.Controller = {
 	TurnSpeed = 260, -- degrees per second at full stick, sensitivity 1
 	VerticalScale = 0.75, -- looking up/down is a bit slower than turning

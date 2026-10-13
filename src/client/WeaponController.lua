@@ -236,6 +236,8 @@ function Weapon.Start()
 
 	UserInputService.InputBegan:Connect(onInputBegan)
 	UserInputService.InputEnded:Connect(onInputEnded)
+	Keybinds.VirtualBegan:Connect(onInputBegan) -- on-screen buttons (mobile)
+	Keybinds.VirtualEnded:Connect(onInputEnded)
 	RunService:BindToRenderStep("SniperWeapon", Enum.RenderPriority.Input.Value + 1, update)
 end
 

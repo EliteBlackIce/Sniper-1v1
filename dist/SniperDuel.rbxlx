@@ -403,7 +403,7 @@ Config.Rarity = {
 Config.Match = {
 	RoundsToWin = 5, -- first to 5 round wins (best of 9)
 	CountdownTime = 3, -- "3, 2, 1, GO"
-	RoundEndTime = 2.5, -- pause after a kill before the pick screen
+	RoundEndTime = 4.5, -- pause after a kill before the pick screen (the loser watches the kill cam)
 	PickTime = 15, -- seconds the loser has to pick a card
 	PickRevealTime = 1.6, -- how long the chosen card is shown before the next round
 	VictoryTime = 7, -- victory screen length before returning to lobby
@@ -413,6 +413,19 @@ Config.Match = {
 	MaxArenas = 4, -- how many matches can run at the same time in one server
 	ArenaSpacing = 2000, -- distance between arena copies
 	VoidDepth = 80, -- falling this far below the arena floor kills you
+	InviteTime = 20, -- seconds a duel challenge / rematch request stays open
+	RematchWindow = 45, -- seconds after a match you can still ask for a rematch
+}
+
+-- KILL CAM: when you're killed, replay the last few seconds through your
+-- killer's eyes (their aim, their shot), ending in slow motion.
+Config.KillCam = {
+	Enabled = true,
+	Delay = 0.35, -- seconds after the kill before it starts
+	Length = 2.6, -- seconds of replay
+	SlowMoTime = 0.7, -- the last part plays in slow motion...
+	SlowMoSpeed = 0.35, -- ...at this speed
+	FieldOfView = 70,
 }
 
 ----------------------------------------------------------------------------
@@ -521,7 +534,10 @@ Config.SettingsDefaults = {
 	ControllerSensitivity = 1.0,
 	ControllerScopedSensitivity = 0.5,
 	ControllerDeadzone = 0.15, -- right stick inputs smaller than this are ignored
-	InvertY = false, -- controller: push up to look down
+	InvertY = false, -- controller / touch: push up to look down
+	-- touch (phones / tablets)
+	TouchSensitivity = 1.0,
+	TouchScopedSensitivity = 0.4,
 	-- general
 	FieldOfView = 82, -- your normal field of view
 	ToggleScope = false, -- false = hold to scope, true = press to toggle
@@ -534,10 +550,18 @@ Config.SettingsLimits = {
 	ControllerSensitivity = { Min = 0.1, Max = 3.0 },
 	ControllerScopedSensitivity = { Min = 0.05, Max = 2.0 },
 	ControllerDeadzone = { Min = 0.02, Max = 0.4 },
+	TouchSensitivity = { Min = 0.1, Max = 3.0 },
+	TouchScopedSensitivity = { Min = 0.05, Max = 2.0 },
 	FieldOfView = { Min = 65, Max = 105 },
 }
 
 -- Controller look speed (right stick), before the sensitivity setting.
+-- Touch screens: dragging on the right side of the screen looks around.
+Config.Touch = {
+	DegreesPerPixel = 0.28, -- at sensitivity 1
+	FireButtonSize = 104, -- pixels (scaled down on small screens)
+}
+
 Config.Controller = {
 	TurnSpeed = 260, -- degrees per second at full stick, sensitivity 1
 	VerticalScale = 0.75, -- looking up/down is a bit slower than turning
@@ -2531,6 +2555,8 @@ Remotes.Names = {
 	"PlaygroundToggle", -- C->S  enter / leave Playground mode
 	"AdminCommand", -- C->S  admin commands (e.g. "bot" starts a match vs a bot)
 	"Notify", -- S->C  short toast message (admin command results etc.)
+	"Duel", -- C->S  "Challenge" (userId) / "Accept" / "Decline" (userId) / "Rematch"
+	"DuelInvite", -- S->C  someone challenged you / wants a rematch
 }
 
 local FOLDER_NAME = "Remotes"
@@ -4422,6 +4448,7 @@ local function requestPath(brain, root, goal)
 	end
 	brain.Computing = true
 	brain.PathAt = os.clock()
+	local character = root.Parent
 	task.spawn(function()
 		local path = PathfindingService:CreatePath({
 			AgentRadius = 2,
@@ -4434,6 +4461,9 @@ local function requestPath(brain, root, goal)
 			path:ComputeAsync(root.Position, goal)
 		end)
 		brain.Computing = false
+		if not character.Parent or character ~= (brain.Owner and brain.Owner.Character) then
+			return -- the bot respawned while this was computing
+		end
 		if ok and path.Status == Enum.PathStatus.Success then
 			brain.Path = path:GetWaypoints()
 			brain.PathIndex = 2
@@ -4485,6 +4515,12 @@ local function think(bot, brain, dt)
 		humanoid:Move(Vector3.zero)
 		brain.SeenFor = 0
 		brain.NextShot = os.clock() + 0.6 -- small grace period after the countdown
+		return
+	end
+
+	-- knocked back (Shockwave): let physics carry it for a moment
+	if os.clock() < (bot:GetAttribute("KnockedUntil") or 0) then
+		humanoid:Move(Vector3.zero)
 		return
 	end
 
@@ -4602,7 +4638,7 @@ function BotService.Create(difficulty)
 		Difficulty = difficulty,
 		Attributes = {},
 	}, Bot)
-	bots[bot] = { SeenFor = 0 }
+	bots[bot] = { SeenFor = 0, Owner = bot }
 	CharacterService.Bots[bot] = true
 	return bot
 end
@@ -4616,6 +4652,9 @@ function BotService.Attach(bot, match)
 end
 
 function BotService.Remove(bot)
+	if CombatService then
+		CombatService.Forget(bot)
+	end
 	bots[bot] = nil
 	CharacterService.Bots[bot] = nil
 	bot.Parent = nil
@@ -5098,6 +5137,7 @@ local function knockback(player, velocity)
 		local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 		if root and not root.Anchored then
 			root.AssemblyLinearVelocity += velocity * Config.Movement.KnockbackScale
+			player:SetAttribute("KnockedUntil", os.clock() + 0.35) -- the AI stops steering for a moment
 		end
 	elseif player.Parent then
 		Remotes.Get("Knockback"):FireClient(player, velocity * Config.Movement.KnockbackScale)
@@ -5810,6 +5850,14 @@ local function onAbility(player, name, data)
 	end
 end
 
+-- Forget everything about a player / bot (bots aren't in PlayerRemoving).
+function CombatService.Forget(player)
+	lastFire[player] = nil
+	cooldowns[player] = nil
+	bulletTimeUntil[player] = nil
+	markedUntil[player] = nil
+end
+
 -- Bots shoot through the exact same validation and damage code as players.
 function CombatService.BotFire(bot, origin, direction)
 	onFire(bot, origin, direction, nil)
@@ -6139,7 +6187,310 @@ return LightingSetup
 ]]></string>
         </Properties>
       </Item>
-      <Item class="Script" referent="20">
+      <Item class="ModuleScript" referent="20">
+        <Properties>
+          <string name="Name">LobbyBuilder</string>
+          <string name="Source"><![CDATA[--[[
+	LobbyBuilder.lua  (ServerScriptService.Server.LobbyBuilder)
+
+	The lobby: a plaza where everyone waits between matches.
+
+	TOP VIEW (spawn in the middle, -Z = north)
+
+	                 [ SHOOTING RANGE ]  (long practice range with dummies)
+	   +----------------- archway ----------------------+
+	   |  tree                 lamps                tree |
+	   |                                                  |
+	   | [CRATES]          ( SPAWN DAIS )        [DUEL    |
+	   |  shop             glowing ring           PADS]   |
+	   |  (coming soon)                          press F  |
+	   |                                                  |
+	   |  movement park       [ STAGE + ]     movement    |
+	   |  (ceiling, wall)     [ TITLE   ]     park (ramps)|
+	   +--------------------------------------------------+
+
+	CRATE SHOP (placeholder): three crates on pedestals under a "CRATES -
+	COMING SOON" sign. Each pedestal top is a Part in Lobby.CrateSpots with a
+	"Rarity" attribute, so a crate / skin system can find them later.
+
+	Signs are SurfaceGuis. Everything else is flat parts with Neon trims.
+]]
+
+local Config = require(game:GetService("ReplicatedStorage").Shared.Config)
+local MapBuilder = require(script.Parent.MapBuilder)
+
+local P = Config.Palette
+local C = Config.MapPalette
+local V = Vector3.new
+local rad = math.rad
+
+local LobbyBuilder = {}
+
+local SIZE = 140 -- the plaza is SIZE x SIZE
+local WALL_H = 14
+
+-- A sign board with a title and a subtitle, facing the board's front.
+local function sign(model, size, cf, title, subtitle, accent)
+	local board = Instance.new("Part")
+	board.Anchored = true
+	board.Size = size
+	board.CFrame = cf
+	board.Color = P.UIPanel
+	board.Material = Enum.Material.SmoothPlastic
+	board.Parent = model
+	local gui = Instance.new("SurfaceGui")
+	gui.Face = Enum.NormalId.Front
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 40
+	gui.LightInfluence = 0
+	gui.Parent = board
+	local t = Instance.new("TextLabel")
+	t.BackgroundTransparency = 1
+	t.Size = UDim2.fromScale(1, subtitle and 0.6 or 1)
+	t.Text = title
+	t.TextScaled = true
+	t.FontFace = Font.new(Config.UI.FontFamily, Enum.FontWeight.Heavy)
+	t.TextColor3 = P.UIText
+	t.Parent = gui
+	if subtitle then
+		local s = t:Clone()
+		s.Position = UDim2.fromScale(0.05, 0.62)
+		s.Size = UDim2.fromScale(0.9, 0.3)
+		s.Text = subtitle
+		s.FontFace = Font.new(Config.UI.FontFamily, Enum.FontWeight.Bold)
+		s.TextColor3 = accent or P.UIAccent
+		s.Parent = gui
+	end
+	return board
+end
+
+local function neon(b, parts)
+	return b.material(parts, Enum.Material.Neon)
+end
+
+local function tree(b, pos, m)
+	b.block(V(6, 1.4, 6), pos + V(0, 0.7, 0), C.Curb, m)
+	b.cylinder(6, 1.1, pos + V(0, 4, 0), C.Trunk, m)
+	b.soft(function()
+		b.ball(7, pos + V(0, 8.6, 0), C.Foliage, m)
+		b.ball(5, pos + V(2.2, 7.6, 1), C.FoliageDark, m)
+		b.ball(5, pos + V(-2, 8, -1.4), C.FoliageLight, m)
+		b.ball(4, pos + V(0.4, 11, 0.3), C.FoliageLight, m)
+	end)
+	b.decor(function()
+		b.block(V(5.2, 0.2, 5.2), pos + V(0, 1.45, 0), C.Soil, m)
+	end)
+end
+
+local function lamp(b, pos, m)
+	b.cylinder(10, 0.45, pos + V(0, 5, 0), C.Metal, m)
+	b.decor(function()
+		b.cylinder(1, 1, pos + V(0, 0.5, 0), C.Dark, m)
+		b.block(V(1.4, 0.4, 1.4), pos + V(0, 10.1, 0), C.Dark, m)
+		neon(b, b.ball(1.1, pos + V(0, 10.8, 0), C.LampLight, m))
+	end)
+end
+
+local function bench(b, cf, m)
+	b.decor(function()
+		b.part(V(6, 0.4, 1.8), cf * CFrame.new(0, 1.4, 0), C.Wood, m)
+		b.part(V(6, 1.2, 0.3), cf * CFrame.new(0, 2.3, 0.8), C.Wood, m)
+		b.part(V(0.3, 1.3, 1.6), cf * CFrame.new(2.6, 0.65, 0), C.Dark, m)
+		b.part(V(0.3, 1.3, 1.6), cf * CFrame.new(-2.6, 0.65, 0), C.Dark, m)
+	end)
+end
+
+-- A loot crate model (placeholder art): box, lid, metal bands, glowing seam.
+local function crate(b, pos, color)
+	b.block(V(4.4, 3, 4.4), pos + V(0, 1.5, 0), C.Dark)
+	b.decor(function()
+		b.block(V(4.6, 0.9, 4.6), pos + V(0, 3.4, 0), color) -- lid
+		neon(b, b.block(V(4.5, 0.18, 4.5), pos + V(0, 3, 0), color)) -- glowing seam
+		for _, x in ipairs({ -1.5, 1.5 }) do
+			b.block(V(0.35, 3.1, 4.5), pos + V(x, 1.5, 0), C.Metal) -- bands
+		end
+		b.block(V(1, 1, 0.3), pos + V(0, 2.3, -2.3), P.UIText) -- lock
+		neon(b, b.ball(0.5, pos + V(0, 2.3, -2.45), color))
+	end)
+end
+
+function LobbyBuilder.Build()
+	local model = Instance.new("Model")
+	model.Name = "Lobby"
+	local b = MapBuilder.MakeBuilder(Vector3.zero, model)
+	local half = SIZE / 2
+
+	-- PLAZA FLOOR ------------------------------------------------------------
+	b.block(V(SIZE, 4, SIZE), V(0, -2, 0), C.Sidewalk)
+	b.decor(function()
+		for i = -half + 10, half - 10, 10 do -- paving grid
+			b.block(V(SIZE, 0.06, 0.3), V(0, 0.03, i), C.Curb)
+			b.block(V(0.3, 0.06, SIZE), V(i, 0.03, 0), C.Curb)
+		end
+	end)
+
+	-- WALLS (tall enough to frame the plaza, with glowing trims) ---------------
+	b.block(V(2, WALL_H, SIZE), V(half + 1, WALL_H / 2, 0), C.BuildingB, "X")
+	b.block(V(SIZE + 4, WALL_H, 2), V(0, WALL_H / 2, half + 1), C.BuildingB)
+	b.block(V(half - 16, WALL_H, 2), V(-(16 + (half - 16) / 2), WALL_H / 2, -half - 1), C.BuildingB, "X") -- north (archway gap)
+	b.decor(function()
+		neon(b, b.block(V(2.4, 0.5, SIZE), V(half + 1, WALL_H + 0.25, 0), P.AccentA, "X"))
+		neon(b, b.block(V(SIZE + 4, 0.5, 2.4), V(0, WALL_H + 0.25, half + 1), P.AccentA))
+		neon(b, b.block(V(half - 16, 0.5, 2.4), V(-(16 + (half - 16) / 2), WALL_H + 0.25, -half - 1), P.AccentA, "X"))
+		b.block(V(1, 1.4, SIZE), V(half - 0.5, 0.7, 0), C.Trim, "X") -- skirting
+		b.block(V(SIZE, 1.4, 1), V(0, 0.7, half - 0.5), C.Trim)
+		for z = -half + 14, half - 14, 14 do -- wall panels
+			b.block(V(0.6, WALL_H - 4, 0.8), V(half - 0.3, WALL_H / 2, z), C.BuildingA, "X")
+		end
+	end)
+
+	-- ARCHWAY to the shooting range (north)
+	b.block(V(4, 22, 4), V(-18, 11, -half - 1), C.BuildingA, "X")
+	b.block(V(40, 4, 4), V(0, 24, -half - 1), C.BuildingA)
+	b.decor(function()
+		neon(b, b.block(V(40.4, 0.6, 4.4), V(0, 22.2, -half - 1), P.AccentA))
+	end)
+	sign(model, V(24, 3.2, 0.6), CFrame.new(0, 24, -half + 1.2) * CFrame.Angles(0, math.pi, 0), "SHOOTING RANGE", nil)
+
+	-- SPAWN DAIS (centre) ---------------------------------------------------------
+	b.cylinder(1, 34, V(0, 0.5, 0), C.Stone)
+	b.decor(function()
+		neon(b, b.cylinder(0.12, 35, V(0, 0.95, 0), P.AccentA))
+		b.cylinder(0.14, 31, V(0, 1.02, 0), C.Stone)
+		neon(b, b.cylinder(0.16, 8, V(0, 1.05, 0), P.AccentB))
+		b.cylinder(0.18, 6.6, V(0, 1.07, 0), C.Stone)
+	end)
+
+	-- STAGE + TITLE (south) ------------------------------------------------------
+	b.block(V(50, 3, 14), V(0, 1.5, half - 9), C.Stone)
+	b.ramp(V(0, 0, half - 22), V(0, 0, 1), 6, 3, 18, C.Stone) -- steps up to the stage
+	b.block(V(56, 24, 2), V(0, 12, half - 1.5), C.BuildingA) -- backdrop
+	b.decor(function()
+		neon(b, b.block(V(50.4, 0.4, 14.4), V(0, 3.1, half - 9), P.AccentA))
+		for _, x in ipairs({ -22, 22 }) do -- banners in the team colours
+			b.block(V(6, 14, 0.4), V(x, 13, half - 2.8), x < 0 and P.PlayerA or P.PlayerB)
+			b.block(V(6.4, 0.8, 0.6), V(x, 20.4, half - 2.8), C.Metal)
+		end
+	end)
+	sign(model, V(32, 11, 1), CFrame.new(0, 14, half - 3), "SNIPER DUEL", ("1v1  -  FIRST TO %d"):format(Config.Match.RoundsToWin))
+
+	-- DUEL PADS (east): where duels start ------------------------------------------
+	b.block(V(26, 1, 40), V(half - 15, 0.5, 0), C.Stone)
+	for i, z in ipairs({ -10, 10 }) do
+		local color = i == 1 and P.PlayerA or P.PlayerB
+		b.decor(function()
+			neon(b, b.cylinder(0.15, 11, V(half - 15, 1.05, z), color))
+			b.cylinder(0.18, 9, V(half - 15, 1.08, z), C.Dark)
+		end)
+	end
+	sign(model, V(30, 9, 1), CFrame.new(half - 0.6, 8, 0) * CFrame.Angles(0, math.pi / 2, 0), "1v1 DUEL", "FIND MATCH [F]  -  DUEL A FRIEND [U]")
+
+	-- CRATE SHOP (west): placeholder for loot crates / rifle skins ------------------
+	b.block(V(26, 1, 40), V(-half + 15, 0.5, 0), C.Dark)
+	b.decor(function()
+		neon(b, b.block(V(26.4, 0.3, 40.4), V(-half + 15, 1.05, 0), P.AccentB))
+	end)
+	local spots = Instance.new("Folder")
+	spots.Name = "CrateSpots"
+	spots.Parent = model
+	local crates = { { -12, "Rare" }, { 0, "Legendary" }, { 12, "Epic" } }
+	for i, info in ipairs(crates) do
+		local z, rarity = info[1], info[2]
+		local color = Config.Rarity[rarity].Color
+		local base = V(-half + 15, 1, z)
+		b.cylinder(1.6, 6, base + V(0, 0.8, 0), C.Stone)
+		b.decor(function()
+			neon(b, b.cylinder(0.2, 6.3, base + V(0, 1.5, 0), color))
+		end)
+		crate(b, base + V(0, 1.6, 0), color)
+		-- marker the future crate system will use
+		local spot = Instance.new("Part")
+		spot.Name = "CrateSpot" .. i
+		spot.Anchored = true
+		spot.CanCollide = false
+		spot.CanQuery = false
+		spot.Transparency = 1
+		spot.Size = V(4, 0.2, 4)
+		spot.CFrame = CFrame.new(base + V(0, 1.7, 0))
+		spot:SetAttribute("Rarity", rarity)
+		spot.Parent = spots
+	end
+	sign(model, V(30, 9, 1), CFrame.new(-half + 0.6, 8, 0) * CFrame.Angles(0, -math.pi / 2, 0), "CRATES", "RIFLE SKINS  -  COMING SOON", P.AccentB)
+
+	-- MOVEMENT PARK (south-east): ramps and boxes ------------------------------------
+	b.ramp(V(20, 0, 40), V(1, 0, 0), 16, 6, 10, P.AccentB)
+	b.block(V(12, 6, 10), V(42, 3, 40), P.AccentA)
+	b.block(V(8, 10, 8), V(52, 5, 52), P.Mid)
+	b.block(V(6, 3, 6), V(30, 1.5, 54), P.AccentA)
+	-- (south-west): a ceiling for Magnetic Boots and a wall for Wall Runner
+	b.block(V(26, 1.5, 16), V(-40, 18, 44), P.Mid)
+	for _, x in ipairs({ -52.5, -27.5 }) do
+		for _, z in ipairs({ 37, 51 }) do
+			b.block(V(1.5, 17.25, 1.5), V(x, 8.625, z), C.Metal) -- posts
+		end
+	end
+	b.block(V(30, 16, 2), V(-42, 8, 26), P.Light)
+	b.decor(function()
+		neon(b, b.block(V(30.4, 0.5, 2.4), V(-42, 16.25, 26), P.AccentA))
+	end)
+
+	-- DECOR: trees, lamps, benches ----------------------------------------------------
+	for _, pos in ipairs({ V(-56, 0, -56), V(56, 0, -56), V(-26, 0, -56), V(26, 0, -56) }) do
+		tree(b, pos)
+	end
+	for _, pos in ipairs({ V(-22, 0, -24), V(22, 0, -24), V(-22, 0, 24), V(22, 0, 24) }) do
+		lamp(b, pos)
+	end
+	bench(b, CFrame.new(-12, 0, -30) * CFrame.Angles(0, 0, 0))
+	bench(b, CFrame.new(12, 0, -30))
+	bench(b, CFrame.new(-34, 0, 0) * CFrame.Angles(0, rad(90), 0))
+	bench(b, CFrame.new(34, 0, 0) * CFrame.Angles(0, rad(-90), 0))
+
+	-- SHOOTING RANGE (north of the lobby, along -Z) ---------------------------------
+	local rangeStart = -half
+	b.block(V(64, 4, 344), V(0, -2, rangeStart - 172), P.Snow)
+	b.block(V(2, 8, 344), V(32, 4, rangeStart - 172), P.Light, "X") -- side walls
+	b.block(V(64, 46, 4), V(0, 23, rangeStart - 346), P.Light) -- back wall
+	b.decor(function()
+		for _, z in ipairs({ -120, -170, -270, -370 }) do
+			b.block(V(60, 0.1, 1), V(0, 0.05, z), P.Mid) -- distance lines
+		end
+		neon(b, b.block(V(2.4, 0.5, 344), V(32, 8.25, rangeStart - 172), P.AccentA, "X"))
+	end)
+	b.block(V(16, 20, 10), V(12, 10, -300), P.AccentA) -- sniper's nest dummy platform
+	b.block(V(8, 5, 3), V(-8, 2.5, -150), P.AccentA)
+	b.block(V(6, 8, 3), V(14, 4, -215), P.Mid)
+	b.block(V(10, 4, 3), V(-6, 2, -330), P.AccentA)
+
+	model.Parent = workspace
+	return {
+		Model = model,
+		SpawnCFrame = function()
+			local angle = math.random() * math.pi * 2
+			local radius = math.random() * 10
+			local offset = Vector3.new(math.cos(angle) * radius, 4.5, math.sin(angle) * radius)
+			return CFrame.lookAt(offset, Vector3.new(0, 4.5, -60))
+		end,
+		KillY = -60,
+		CrateSpots = spots,
+		-- practice dummies on the range (see DummyService)
+		DummySpots = {
+			{ Position = V(-10, 0, -110), Motion = "Static" },
+			{ Position = V(8, 0, -135), Motion = "Strafe", Amount = 8, Speed = 0.35 },
+			{ Position = V(0, 0, -185), Motion = "Strafe", Amount = 14, Speed = 0.25 },
+			{ Position = V(-14, 0, -235), Motion = "Static" },
+			{ Position = V(-12, 4, -260), Motion = "Bob", Amount = 10, Speed = 0.6 },
+			{ Position = V(12, 20, -300), Motion = "Static" },
+			{ Position = V(0, 0, -370), Motion = "Strafe", Amount = 18, Speed = 0.2 },
+		},
+	}
+end
+
+return LobbyBuilder
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="Script" referent="21">
         <Properties>
           <string name="Name">Main</string>
           <token name="RunContext">0</token>
@@ -6191,7 +6542,7 @@ print("[Sniper Duel] server ready")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="21">
+      <Item class="ModuleScript" referent="22">
         <Properties>
           <string name="Name">MapBuilder</string>
           <string name="Source"><![CDATA[--[[
@@ -6508,88 +6859,18 @@ function MapBuilder.BuildArena(index)
 end
 
 ----------------------------------------------------------------------------
--- LOBBY (a small movement playground around the queue sign)
+-- LOBBY (built by LobbyBuilder)
 ----------------------------------------------------------------------------
 function MapBuilder.BuildLobby()
-	local model = Instance.new("Model")
-	model.Name = "Lobby"
-	local b = makeBuilder(Vector3.zero, model)
-	local V = Vector3.new
-
-	b.block(V(140, 4, 140), V(0, -2, 0), Palette.Snow)
-	b.block(V(140, 3, 2), V(0, 1.5, 69), Palette.Mid, "Z")
-	b.block(V(2, 3, 140), V(69, 1.5, 0), Palette.Mid, "X")
-	-- Practice wall-run walls (along the sides so the range stays visible), ramp and boxes
-	b.runWall(V(2, 20, 50), V(-44, 10, -20), "X")
-	b.ramp(V(-10, 0, 30), V(-1, 0, 0), 20, 8, 12, Palette.AccentB)
-	b.block(V(16, 8, 16), V(-38, 4, 30), Palette.Mid)
-	b.block(V(10, 16, 10), V(-38, 8, 48), Palette.Light)
-	b.block(V(8, 4, 8), V(30, 2, 30), Palette.AccentA)
-	b.block(V(8, 8, 8), V(42, 4, 38), Palette.AccentA)
-	b.block(V(30, 2, 20), V(30, 24, 0), Palette.Mid) -- a ceiling for Magnetic Boots fans
-	b.block(V(2, 23, 2), V(16, 11.5, -9), Palette.Dark, "Z")
-
-	-- SHOOTING RANGE (north of the lobby, along -Z) ------------------------
-	b.block(V(64, 4, 344), V(0, -2, -242), Palette.Snow)
-	b.block(V(2, 8, 344), V(32, 4, -242), Palette.Light, "X") -- side walls
-	b.block(V(64, 46, 4), V(0, 23, -416), Palette.Light) -- back wall
-	for _, z in ipairs({ -120, -170, -270, -370 }) do
-		b.block(V(60, 0.1, 1), V(0, 0.05, z), Palette.Mid) -- distance lines
-	end
-	b.block(V(16, 20, 10), V(12, 10, -300), Palette.AccentA) -- sniper's nest dummy platform
-	b.block(V(8, 5, 3), V(-8, 2.5, -150), Palette.AccentA)
-	b.block(V(6, 8, 3), V(14, 4, -215), Palette.Mid)
-	b.block(V(10, 4, 3), V(-6, 2, -330), Palette.AccentA)
-
-	-- Title sign (behind spawn, facing the lobby)
-	local sign = newPart("Part", V(44, 12, 1), CFrame.new(0, 14, 66), Palette.UIPanel, model)
-	local gui = Instance.new("SurfaceGui")
-	gui.Face = Enum.NormalId.Front
-	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-	gui.PixelsPerStud = 40
-	gui.Parent = sign
-	local title = Instance.new("TextLabel")
-	title.BackgroundTransparency = 1
-	title.Size = UDim2.fromScale(1, 0.62)
-	title.Text = "SNIPER DUEL"
-	title.TextScaled = true
-	title.FontFace = Font.new(Config.UI.FontFamily, Enum.FontWeight.Heavy)
-	title.TextColor3 = Palette.UIText
-	title.Parent = gui
-	local sub = title:Clone()
-	sub.Position = UDim2.fromScale(0, 0.62)
-	sub.Size = UDim2.fromScale(1, 0.28)
-	sub.Text = ("1v1  -  FIRST TO %d"):format(Config.Match.RoundsToWin)
-	sub.FontFace = Font.new(Config.UI.FontFamily, Enum.FontWeight.Bold)
-	sub.TextColor3 = Palette.UIAccent
-	sub.Parent = gui
-
-	model.Parent = workspace
-	return {
-		Model = model,
-		SpawnCFrame = function()
-			local offset = Vector3.new(math.random(-12, 12), 3.5, math.random(-12, 12))
-			return CFrame.lookAt(offset, Vector3.new(0, 3.5, -60))
-		end,
-		KillY = -60,
-		-- practice dummies on the range (see DummyService)
-		DummySpots = {
-			{ Position = V(-10, 0, -110), Motion = "Static" },
-			{ Position = V(8, 0, -135), Motion = "Strafe", Amount = 8, Speed = 0.35 },
-			{ Position = V(0, 0, -185), Motion = "Strafe", Amount = 14, Speed = 0.25 },
-			{ Position = V(-14, 0, -235), Motion = "Static" },
-			{ Position = V(-12, 4, -260), Motion = "Bob", Amount = 10, Speed = 0.6 },
-			{ Position = V(12, 20, -300), Motion = "Static" },
-			{ Position = V(0, 0, -370), Motion = "Strafe", Amount = 18, Speed = 0.2 },
-		},
-	}
+	-- the lobby lives in its own module (required here, after MapBuilder has loaded)
+	return require(script.Parent.LobbyBuilder).Build()
 end
 
 return MapBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="22">
+      <Item class="ModuleScript" referent="23">
         <Properties>
           <string name="Name">Match</string>
           <string name="Source"><![CDATA[--[[
@@ -6753,6 +7034,10 @@ function Match:SpawnPlayers()
 				PowerUps = self.Owned[player],
 			})
 			done += 1
+			-- a slow spawn (avatar download) can finish after the round started
+			if self.Phase == "Fight" and not self.Aborted then
+				CharacterService.SetFrozen(player, false)
+			end
 		end)
 	end
 	-- wait for both LoadCharacter calls (with a safety timeout)
@@ -6964,7 +7249,7 @@ return Match
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="23">
+      <Item class="ModuleScript" referent="24">
         <Properties>
           <string name="Name">MatchService</string>
           <string name="Source"><![CDATA[--[[
@@ -7006,6 +7291,8 @@ local arenaInUse = {} -- [index] = true
 local practiceOwned = {} -- [player] = { [powerUpId] = stacks }  (lobby Power-Up Lab)
 local practiceStats = {} -- [player] = cached stats
 local inPlayground = {} -- [player] = true while free-roaming the Playground
+local invites = {} -- [target] = { [challenger] = os.clock() expiry }
+local rematches = {} -- [player] = { Opponent, BotDifficulty, Name, Until, Wants }
 local playground -- arena info for the Playground (built the first time someone enters)
 
 ----------------------------------------------------------------------------
@@ -7038,6 +7325,18 @@ local function lobbySnapshot(player)
 		PlayersOnline = #Players:GetPlayers(),
 		PowerUps = table.clone(practiceOwned[player] or {}),
 		Playground = inPlayground[player] == true,
+		Rematch = (function()
+			local r = rematches[player]
+			if not r or os.clock() > r.Until then
+				return nil
+			end
+			local theirs = r.Opponent and rematches[r.Opponent]
+			return {
+				Name = r.Name,
+				Requested = r.Wants == true,
+				TheyRequested = theirs ~= nil and theirs.Opponent == player and theirs.Wants == true,
+			}
+		end)(),
 	}
 end
 
@@ -7110,6 +7409,20 @@ end
 ----------------------------------------------------------------------------
 local function onMatchFinished(match)
 	arenaInUse[match.Arena.Index] = nil
+	-- remember who you just played so you can ask for a rematch
+	local a, b = match.Players[1], match.Players[2]
+	for _, pair in ipairs({ { a, b }, { b, a } }) do
+		local me, them = pair[1], pair[2]
+		if not Util.isBot(me) and me.Parent and (Util.isBot(them) or them.Parent) then
+			rematches[me] = {
+				Opponent = not Util.isBot(them) and them or nil,
+				BotDifficulty = Util.isBot(them) and them.Difficulty or nil,
+				Name = them.DisplayName,
+				Until = os.clock() + Config.Match.RematchWindow,
+				Wants = false,
+			}
+		end
+	end
 	for _, player in ipairs(match.Players) do
 		if matchByPlayer[player] == match then
 			matchByPlayer[player] = nil
@@ -7275,6 +7588,111 @@ local function setupChatCommands()
 	end
 end
 
+----------------------------------------------------------------------------
+-- Duels: challenge a player from the lobby, and rematches
+----------------------------------------------------------------------------
+local function startPrivateMatch(p1, p2)
+	if matchByPlayer[p1] or matchByPlayer[p2] or not p1.Parent or not p2.Parent then
+		return false
+	end
+	local arena = getFreeArena()
+	if not arena then
+		notify(p1, "All arenas are busy - try again soon")
+		notify(p2, "All arenas are busy - try again soon")
+		return false
+	end
+	for _, p in ipairs({ p1, p2 }) do
+		local index = table.find(queue, p)
+		if index then
+			table.remove(queue, index)
+		end
+		inPlayground[p] = nil
+		invites[p] = nil
+		rematches[p] = nil
+	end
+	local match = Match.new(p1, p2, arena, onMatchFinished)
+	matchByPlayer[p1] = match
+	matchByPlayer[p2] = match
+	match:Start()
+	broadcastLobby()
+	return true
+end
+
+local function inviteValid(target, from)
+	local list = invites[target]
+	return list and list[from] and os.clock() < list[from]
+end
+
+local function onDuel(player, action, arg)
+	if typeof(action) ~= "string" or matchByPlayer[player] then
+		return
+	end
+	local inviteRemote = Remotes.Get("DuelInvite")
+	if action == "Challenge" then
+		local target = typeof(arg) == "number" and Players:GetPlayerByUserId(arg) or nil
+		if not target or target == player then
+			return
+		end
+		if matchByPlayer[target] then
+			notify(player, target.DisplayName .. " is in a match")
+			return
+		end
+		if inviteValid(target, player) then
+			return -- already waiting
+		end
+		invites[target] = invites[target] or {}
+		invites[target][player] = os.clock() + Config.Match.InviteTime
+		inviteRemote:FireClient(target, { From = player.UserId, Name = player.DisplayName, Kind = "Challenge", Time = Config.Match.InviteTime })
+		notify(player, "Challenge sent to " .. target.DisplayName)
+	elseif action == "Accept" then
+		local from = typeof(arg) == "number" and Players:GetPlayerByUserId(arg) or nil
+		if from and inviteValid(player, from) then
+			invites[player][from] = nil
+			startPrivateMatch(from, player)
+		else
+			notify(player, "That challenge expired")
+		end
+	elseif action == "Decline" then
+		local from = typeof(arg) == "number" and Players:GetPlayerByUserId(arg) or nil
+		if from and invites[player] then
+			invites[player][from] = nil
+			notify(from, player.DisplayName .. " declined your challenge")
+		end
+	elseif action == "Rematch" then
+		local r = rematches[player]
+		if not r or os.clock() > r.Until then
+			notify(player, "No rematch available")
+			return
+		end
+		if r.BotDifficulty then
+			rematches[player] = nil
+			MatchService.StartBotMatch(player, r.BotDifficulty)
+			return
+		end
+		local opponent = r.Opponent
+		if not opponent or not opponent.Parent then
+			notify(player, r.Name .. " left")
+			rematches[player] = nil
+			sendLobbyState(player)
+			return
+		end
+		r.Wants = true
+		local theirs = rematches[opponent]
+		if theirs and theirs.Opponent == player and theirs.Wants then
+			startPrivateMatch(opponent, player)
+			return
+		end
+		if matchByPlayer[opponent] then
+			notify(player, r.Name .. " is already in another match")
+			return
+		end
+		inviteRemote:FireClient(opponent, { From = player.UserId, Name = player.DisplayName, Kind = "Rematch", Time = Config.Match.InviteTime })
+		notify(player, "Rematch requested")
+		sendLobbyState(player)
+		sendLobbyState(opponent)
+	end
+end
+
 local function onQueueToggle(player)
 	if matchByPlayer[player] then
 		return
@@ -7307,6 +7725,7 @@ function MatchService.Init()
 
 	Remotes.Get("QueueToggle").OnServerEvent:Connect(onQueueToggle)
 	Remotes.Get("AdminCommand").OnServerEvent:Connect(onAdminCommand)
+	Remotes.Get("Duel").OnServerEvent:Connect(onDuel)
 	setupChatCommands()
 
 	-- enter / leave the Playground
@@ -7367,6 +7786,11 @@ function MatchService.Init()
 		practiceOwned[player] = nil
 		practiceStats[player] = nil
 		inPlayground[player] = nil
+		invites[player] = nil
+		rematches[player] = nil
+		for _, list in pairs(invites) do
+			list[player] = nil
+		end
 		local index = table.find(queue, player)
 		if index then
 			table.remove(queue, index)
@@ -7384,7 +7808,7 @@ return MatchService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="24">
+      <Item class="ModuleScript" referent="25">
         <Properties>
           <string name="Name">SettingsService</string>
           <string name="Source"><![CDATA[--[[
@@ -7505,13 +7929,13 @@ return SettingsService
       </Item>
     </Item>
   </Item>
-  <Item class="SoundService" referent="25">
+  <Item class="SoundService" referent="26">
     <Properties>
       <string name="Name">SoundService</string>
       <bool name="RespectFilteringEnabled">true</bool>
     </Properties>
   </Item>
-  <Item class="StarterPlayer" referent="26">
+  <Item class="StarterPlayer" referent="27">
     <Properties>
       <string name="Name">StarterPlayer</string>
       <float name="CameraMaxZoomDistance">18</float>
@@ -7519,11 +7943,11 @@ return SettingsService
       <bool name="EnableMouseLockOption">false</bool>
       <bool name="LoadCharacterAppearance">true</bool>
     </Properties>
-    <Item class="StarterCharacterScripts" referent="27">
+    <Item class="StarterCharacterScripts" referent="28">
       <Properties>
         <string name="Name">StarterCharacterScripts</string>
       </Properties>
-      <Item class="Script" referent="28">
+      <Item class="Script" referent="29">
         <Properties>
           <string name="Name">Health</string>
           <token name="RunContext">0</token>
@@ -7538,15 +7962,15 @@ return SettingsService
         </Properties>
       </Item>
     </Item>
-    <Item class="StarterPlayerScripts" referent="29">
+    <Item class="StarterPlayerScripts" referent="30">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="Folder" referent="30">
+      <Item class="Folder" referent="31">
         <Properties>
           <string name="Name">Client</string>
         </Properties>
-        <Item class="ModuleScript" referent="31">
+        <Item class="ModuleScript" referent="32">
           <Properties>
             <string name="Name">AimAssist</string>
             <string name="Source"><![CDATA[--[[
@@ -7583,9 +8007,10 @@ local AimAssist = {}
 local rightStick = Vector2.zero
 local lastLook -- our look direction at the end of last frame
 
+-- Controller and touch players get the assist (mouse players never do).
 local function usingController()
 	local last = UserInputService:GetLastInputType()
-	return last.Name:find("Gamepad") ~= nil
+	return last.Name:find("Gamepad") ~= nil or last == Enum.UserInputType.Touch
 end
 
 -- Points we may assist toward: the enemy's torso, or the dummies' torsos.
@@ -7726,7 +8151,7 @@ return AimAssist
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="32">
+        <Item class="ModuleScript" referent="33">
           <Properties>
             <string name="Name">CameraController</string>
             <string name="Source"><![CDATA[--[[
@@ -7766,6 +8191,7 @@ local Controllers
 
 local currentFov = C.BaseFOV
 local rightStick = Vector2.zero -- controller look stick (we handle it ourselves)
+local touchLook = Vector2.zero -- pixels dragged on the touch look pad since last frame
 local currentRoll = 0
 local currentDrop = 0
 local recoilLeft = 0 -- degrees of pitch still to apply
@@ -7781,6 +8207,11 @@ local firstPerson = false
 ----------------------------------------------------------------------------
 -- Public API (used by other controllers)
 ----------------------------------------------------------------------------
+-- Mobile: the look pad (ui/MobileControls) adds finger movement here.
+function CameraController.AddTouchLook(delta)
+	touchLook += delta
+end
+
 function CameraController.AddRecoil(degrees)
 	recoilLeft += degrees
 end
@@ -7863,11 +8294,18 @@ end
 ----------------------------------------------------------------------------
 -- Per-frame update (after the default camera)
 ----------------------------------------------------------------------------
+local suspended = false
+
+-- The kill cam takes over the camera while it plays.
+function CameraController.SetSuspended(value)
+	suspended = value
+end
+
 local function update(dt)
 	local camera = workspace.CurrentCamera
 	local character = player.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-	if not camera then
+	if not camera or suspended then
 		return
 	end
 
@@ -7936,6 +8374,26 @@ local function update(dt)
 			local newLook = flat * math.cos(newPitch) + Vector3.new(0, math.sin(newPitch), 0)
 			camera.CFrame = CFrame.lookAt(cf.Position, cf.Position + newLook)
 		end
+	end
+
+	-- TOUCH LOOK: drag on the right side of the screen
+	if touchLook.Magnitude > 0 then
+		if not ClientState.MenuOpen then
+			local sens = scopeAlpha > 0.5 and (settings.TouchScopedSensitivity or 0.4) or (settings.TouchSensitivity or 1)
+			if movement.IsBulletTime() then
+				sens *= Config.PowerUps.BulletTime.SensitivityScale
+			end
+			local k = math.rad(Config.Touch.DegreesPerPixel) * sens
+			local cf = camera.CFrame
+			local look = cf.LookVector
+			local pitch = math.asin(math.clamp(look.Y, -1, 1))
+			local newPitch = math.clamp(pitch - touchLook.Y * k * (settings.InvertY and -1 or 1), -1.4, 1.4)
+			local flat = Util.safeUnit(Vector3.new(look.X, 0, look.Z), Vector3.new(0, 0, -1))
+			flat = CFrame.Angles(0, -touchLook.X * k, 0):VectorToWorldSpace(flat)
+			local newLook = flat * math.cos(newPitch) + Vector3.new(0, math.sin(newPitch), 0)
+			camera.CFrame = CFrame.lookAt(cf.Position, cf.Position + newLook)
+		end
+		touchLook = Vector2.zero
 	end
 
 	if firstPerson then
@@ -8017,7 +8475,7 @@ return CameraController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="33">
+        <Item class="ModuleScript" referent="34">
           <Properties>
             <string name="Name">CharacterPoser</string>
             <string name="Source"><![CDATA[--[[
@@ -8149,7 +8607,7 @@ return CharacterPoser
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="34">
+        <Item class="ModuleScript" referent="35">
           <Properties>
             <string name="Name">ClientState</string>
             <string name="Source"><![CDATA[--[[
@@ -8346,7 +8804,7 @@ return ClientState
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="35">
+        <Item class="ModuleScript" referent="36">
           <Properties>
             <string name="Name">EffectsController</string>
             <string name="Source"><![CDATA[--[[
@@ -8976,7 +9434,7 @@ return Effects
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="36">
+        <Item class="ModuleScript" referent="37">
           <Properties>
             <string name="Name">Keybinds</string>
             <string name="Source"><![CDATA[--[[
@@ -8995,9 +9453,33 @@ return Effects
 	Usage:  if Keybinds.Matches("Jump", input) then ... end
 ]]
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
 local ClientState = require(script.Parent.ClientState)
+local Signal = require(ReplicatedStorage:WaitForChild("Shared").Signal)
 
 local Keybinds = {}
+
+-- On-screen buttons (mobile) press actions through these. Every place that
+-- listens to UserInputService.InputBegan/Ended for an action also listens
+-- here, so a button press runs exactly the same code as the key.
+Keybinds.VirtualBegan = Signal.new() -- (fakeInput, processed)
+Keybinds.VirtualEnded = Signal.new()
+
+function Keybinds.Press(actionId, down)
+	local fake = {
+		Action = actionId,
+		UserInputType = Enum.UserInputType.Touch,
+		KeyCode = Enum.KeyCode.Unknown,
+		Position = Vector3.zero,
+		Delta = Vector3.zero,
+	}
+	if down then
+		Keybinds.VirtualBegan:Fire(fake, false)
+	else
+		Keybinds.VirtualEnded:Fire(fake, false)
+	end
+end
 
 Keybinds.Actions = {
 	{ Id = "Fire", Name = "Fire", Keyboard = "MouseButton1", Gamepad = "ButtonR2" },
@@ -9013,6 +9495,8 @@ Keybinds.Actions = {
 	{ Id = "FindMatch", Name = "Find match", Keyboard = "F", Gamepad = "DPadRight" },
 	{ Id = "Playground", Name = "Playground", Keyboard = "G", Gamepad = "ButtonL1" },
 	{ Id = "BotMatch", Name = "Play vs bot (admin)", Keyboard = "N", Gamepad = "ButtonR1" },
+	{ Id = "DuelFriend", Name = "Duel a player", Keyboard = "U", Gamepad = "ButtonR3" },
+	{ Id = "Rematch", Name = "Rematch", Keyboard = "T", Gamepad = "DPadUp" },
 	{ Id = "Settings", Name = "Settings", Keyboard = "P", Gamepad = "ButtonSelect" },
 }
 
@@ -9045,6 +9529,9 @@ Keybinds.IsGamepad = isGamepad
 
 -- True if `input` is the key / button bound to `actionId`.
 function Keybinds.Matches(actionId, input)
+	if typeof(input) == "table" then
+		return input.Action == actionId -- a virtual (on-screen button) press
+	end
 	local device = isGamepad(input) and "Gamepad" or "Keyboard"
 	local bound = Keybinds.Get(actionId, device)
 	return bound ~= nil and bound == inputName(input)
@@ -9083,7 +9570,377 @@ return Keybinds
 ]]></string>
           </Properties>
         </Item>
-        <Item class="LocalScript" referent="37">
+        <Item class="ModuleScript" referent="38">
+          <Properties>
+            <string name="Name">KillCamController</string>
+            <string name="Source"><![CDATA[--[[
+	KillCamController.lua  (Client.KillCamController)
+
+	When your opponent kills you in a match, you watch the last few seconds
+	again through THEIR eyes: where they were, where they were aiming, their
+	shot flying at a ghost of you, ending in slow motion on the kill.
+
+	How it works (all on your client, nothing extra is sent):
+	  * Every frame of a round we record your opponent's head position,
+	    facing and aim pitch (the "AimPitch" attribute everyone already
+	    shares), plus your own position, into a short rolling buffer.
+	  * Their shots (the ShotFx remote) are recorded with a timestamp.
+	  * When the server tells you that you died from a hit (Damaged with
+	    Killed = true), we replay the buffer: the camera rides along their
+	    head, a translucent copy of you stands where you were, and their
+	    shot tracers are drawn again at the right moment.
+
+	Press Space / tap the screen to skip. Tune it in Config.KillCam.
+]]
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Config = require(Shared.Config)
+local Remotes = require(Shared.Remotes)
+local ClientState = require(script.Parent.ClientState)
+local Theme = require(script.Parent.ui.Theme)
+
+local K = Config.KillCam
+local Palette = Config.Palette
+local player = Players.LocalPlayer
+
+local KillCam = {}
+local Controllers
+
+local BUFFER_SECONDS = 4
+local samples = {} -- { T, Head (Vector3), Yaw, Pitch, Me (CFrame) }
+local shots = {} -- { T, Bullets, Explosive }
+local playing = false
+local stopRequested = false
+local gui, banner, killerLabel, vignette
+local ghostTemplate -- a copy of you made at the start of each round (before you can die)
+
+local function now()
+	return os.clock()
+end
+
+local function trim(list)
+	local cutoff = now() - BUFFER_SECONDS
+	while list[1] and list[1].T < cutoff do
+		table.remove(list, 1)
+	end
+end
+
+local function opponentCharacter()
+	local opponent = ClientState.GetOpponentPlayer()
+	return opponent and opponent.Character
+end
+
+local function record()
+	if playing or not ClientState.InMatch() or not ClientState.IsFighting() then
+		return
+	end
+	local enemy = opponentCharacter()
+	local head = enemy and enemy:FindFirstChild("Head")
+	local enemyRoot = enemy and enemy:FindFirstChild("HumanoidRootPart")
+	local me = player.Character
+	local myRoot = me and me:FindFirstChild("HumanoidRootPart")
+	if not head or not enemyRoot or not myRoot then
+		return
+	end
+	local look = enemyRoot.CFrame.LookVector
+	table.insert(samples, {
+		T = now(),
+		Head = head.Position + Vector3.new(0, 0.3, 0),
+		Yaw = math.atan2(-look.X, -look.Z),
+		Pitch = enemy:GetAttribute("AimPitch") or 0,
+		Me = myRoot.CFrame,
+	})
+	trim(samples)
+end
+
+-- The recorded state at time t (blended between the two nearest samples).
+local function sampleAt(t)
+	local count = #samples
+	if count == 0 then
+		return nil
+	end
+	if t <= samples[1].T then
+		return samples[1]
+	end
+	for i = 2, count do
+		local b = samples[i]
+		if b.T >= t then
+			local a = samples[i - 1]
+			local alpha = (t - a.T) / math.max(b.T - a.T, 1e-4)
+			local yawDelta = (b.Yaw - a.Yaw + math.pi) % (2 * math.pi) - math.pi
+			return {
+				Head = a.Head:Lerp(b.Head, alpha),
+				Yaw = a.Yaw + yawDelta * alpha,
+				Pitch = a.Pitch + (b.Pitch - a.Pitch) * alpha,
+				Me = a.Me:Lerp(b.Me, alpha),
+			}
+		end
+	end
+	return samples[count]
+end
+
+-- A see-through copy of you, posed where you stood.
+local function makeGhost()
+	local character = player.Character
+	if not character then
+		return nil
+	end
+	local wasArchivable = character.Archivable
+	character.Archivable = true
+	local ok, ghost = pcall(function()
+		return character:Clone()
+	end)
+	character.Archivable = wasArchivable
+	if not ok or not ghost then
+		return nil
+	end
+	for _, item in ipairs(ghost:GetDescendants()) do
+		if item:IsA("Script") or item:IsA("LocalScript") or item:IsA("Highlight") or item:IsA("ParticleEmitter") then
+			item:Destroy()
+		elseif item:IsA("BasePart") then
+			item.Anchored = true
+			item.CanCollide = false
+			item.CanQuery = false
+			item.CanTouch = false
+			item.LocalTransparencyModifier = 0
+		end
+	end
+	local humanoid = ghost:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+		humanoid.EvaluateStateMachine = false
+	end
+	local outline = Instance.new("Highlight")
+	outline.FillColor = Palette.PlayerB
+	outline.FillTransparency = 0.6
+	outline.OutlineColor = Color3.new(1, 1, 1)
+	outline.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+	outline.Parent = ghost
+	ghost.Name = "KillCamGhost"
+	return ghost
+end
+
+local function setCharacterHidden(character, hidden)
+	if not character then
+		return
+	end
+	for _, part in ipairs(character:GetDescendants()) do
+		if part:IsA("BasePart") or part:IsA("Decal") then
+			part.LocalTransparencyModifier = hidden and 1 or 0
+		end
+	end
+end
+
+local function play(deathTime, killerName)
+	if playing or #samples < 5 then
+		return
+	end
+	playing = true
+	stopRequested = false
+	local camera = workspace.CurrentCamera
+	local enemy = opponentCharacter()
+	local ghost = ghostTemplate and ghostTemplate:Clone()
+	if ghost then
+		ghost.Parent = workspace
+	end
+	local recordedShots = table.clone(shots)
+	local drawn = {}
+
+	Controllers.Camera.SetSuspended(true)
+	local oldType, oldFov = camera.CameraType, camera.FieldOfView
+	camera.CameraType = Enum.CameraType.Scriptable
+	camera.FieldOfView = K.FieldOfView
+	setCharacterHidden(enemy, true) -- we're inside their head
+	setCharacterHidden(player.Character, true)
+
+	killerLabel.Text = "KILLED BY " .. string.upper(killerName or "YOUR OPPONENT")
+	gui.Enabled = true
+	banner.Position = UDim2.new(0.5, 0, 0, -80)
+	Theme.tween(banner, 0.35, { Position = UDim2.new(0.5, 0, 0, 40) }, Enum.EasingStyle.Back)
+
+	local replayT = deathTime - K.Length
+	local finish = deathTime + 0.5
+	local connection
+	connection = RunService.RenderStepped:Connect(function(dt)
+		local slow = replayT > deathTime - K.SlowMoTime and replayT < deathTime + 0.3
+		replayT += dt * (slow and K.SlowMoSpeed or 1)
+		vignette.BackgroundTransparency = slow and 0.6 or 0.85
+		local s = sampleAt(math.min(replayT, deathTime))
+		if s then
+			camera.CFrame = CFrame.new(s.Head) * CFrame.fromOrientation(s.Pitch, s.Yaw, 0)
+			if ghost and ghost.PrimaryPart then
+				ghost:PivotTo(s.Me)
+			elseif ghost then
+				local root = ghost:FindFirstChild("HumanoidRootPart")
+				if root then
+					ghost:PivotTo(s.Me * root.CFrame:ToObjectSpace(ghost:GetPivot()))
+				end
+			end
+		end
+		for i, shot in ipairs(recordedShots) do
+			if not drawn[i] and shot.T <= replayT and shot.T >= deathTime - K.Length then
+				drawn[i] = true
+				local muzzle = camera.CFrame.Position + camera.CFrame.LookVector * 1.5 - camera.CFrame.UpVector * 0.4
+				for _, bullet in ipairs(shot.Bullets) do
+					Controllers.Effects.DrawShot(bullet.Segments, bullet.Passes, bullet.EndPosition, bullet.EndNormal, muzzle, {
+						Explosive = shot.Explosive,
+						HitPlayer = bullet.HitPlayer,
+					})
+				end
+			end
+		end
+		local phase = ClientState.Snapshot.Phase
+		if replayT >= finish or stopRequested or not ClientState.InMatch() or (phase ~= "RoundEnd" and phase ~= "Fight") then
+			connection:Disconnect()
+			if ghost then
+				ghost:Destroy()
+			end
+			setCharacterHidden(enemy, false)
+			gui.Enabled = false
+			camera.CameraType = oldType == Enum.CameraType.Scriptable and Enum.CameraType.Custom or oldType
+			camera.FieldOfView = oldFov
+			local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+			if humanoid then
+				camera.CameraSubject = humanoid
+			end
+			Controllers.Camera.SetSuspended(false)
+			playing = false
+		end
+	end)
+end
+
+function KillCam.IsPlaying()
+	return playing
+end
+
+function KillCam.Init(controllers)
+	Controllers = controllers
+end
+
+function KillCam.Start()
+	local playerGui = player:WaitForChild("PlayerGui")
+	gui = Theme.screen("KillCam", 6, playerGui)
+	gui.Enabled = false
+	vignette = Theme.new("Frame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Color3.new(0, 0, 0),
+		BackgroundTransparency = 0.85,
+		BorderSizePixel = 0,
+		Parent = gui,
+	})
+	for _, y in ipairs({ 0, 1 }) do -- letterbox bars
+		Theme.new("Frame", {
+			AnchorPoint = Vector2.new(0, y),
+			Position = UDim2.fromScale(0, y),
+			Size = UDim2.new(1, 0, 0.07, 0),
+			BackgroundColor3 = Color3.new(0, 0, 0),
+			BorderSizePixel = 0,
+			Parent = gui,
+		})
+	end
+	banner = Theme.panel({
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 40),
+		Size = UDim2.fromOffset(420, 70),
+		BackgroundColor3 = Palette.UIPanel,
+		Parent = gui,
+	})
+	Theme.stroke(banner, Palette.PlayerB, 2, 0.1)
+	Theme.label({
+		Size = UDim2.new(1, 0, 0, 24),
+		Position = UDim2.fromOffset(0, 8),
+		Text = "KILL CAM",
+		TextSize = 16,
+		TextColor3 = Palette.PlayerB,
+		FontFace = Theme.Font(Enum.FontWeight.Heavy),
+		Parent = banner,
+	})
+	killerLabel = Theme.label({
+		Size = UDim2.new(1, 0, 0, 30),
+		Position = UDim2.fromOffset(0, 30),
+		TextSize = 24,
+		FontFace = Theme.Font(Enum.FontWeight.Heavy),
+		Parent = banner,
+	})
+	Theme.label({
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -16),
+		Size = UDim2.fromOffset(300, 20),
+		Text = "SPACE / TAP TO SKIP",
+		TextSize = 14,
+		TextColor3 = Palette.UISubText,
+		Parent = gui,
+	})
+	-- crosshair dot: their aim
+	local dot = Theme.new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(6, 6),
+		BackgroundColor3 = Palette.PlayerB,
+		Parent = gui,
+	})
+	Theme.corner(dot, UDim.new(0.5, 0))
+
+	RunService.RenderStepped:Connect(record)
+
+	-- record the opponent's shots
+	Remotes.Get("ShotFx").OnClientEvent:Connect(function(userId, bullets, explosive)
+		local opponent = ClientState.GetOpponentEntry()
+		if opponent and opponent.UserId == userId and typeof(bullets) == "table" then
+			table.insert(shots, { T = now(), Bullets = bullets, Explosive = explosive })
+			trim(shots)
+		end
+	end)
+
+	-- you died from a hit in a match -> play it back
+	Remotes.Get("Damaged").OnClientEvent:Connect(function(data)
+		if not K.Enabled or typeof(data) ~= "table" or not data.Killed or not ClientState.InMatch() then
+			return
+		end
+		local deathTime = now()
+		local opponent = ClientState.GetOpponentEntry()
+		task.delay(K.Delay, function()
+			if ClientState.InMatch() then
+				play(deathTime + 0.1, opponent and opponent.Name)
+			end
+		end)
+	end)
+
+	UserInputService.InputBegan:Connect(function(input, processed)
+		if not playing then
+			return
+		end
+		if input.KeyCode == Enum.KeyCode.Space or input.UserInputType == Enum.UserInputType.Touch
+			or input.KeyCode == Enum.KeyCode.ButtonA then
+			stopRequested = true
+		end
+	end)
+
+	-- a new round clears the buffers
+	ClientState.Changed:Connect(function(snapshot, old)
+		if snapshot.Phase == "Countdown" and (not old or old.Phase ~= "Countdown") then
+			samples = {}
+			shots = {}
+		end
+		if snapshot.Phase == "Fight" and (not old or old.Phase ~= "Fight") then
+			if ghostTemplate then
+				ghostTemplate:Destroy()
+			end
+			ghostTemplate = makeGhost()
+		end
+	end)
+end
+
+return KillCam
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="LocalScript" referent="39">
           <Properties>
             <string name="Name">Main</string>
             <string name="Source"><![CDATA[--[[
@@ -9096,13 +9953,14 @@ return Keybinds
 	Client layout:
 		ClientState          latest match snapshot, my power-up stats, settings
 		CameraController     first-person lock, FOV, tilt, recoil, sensitivity
-		MovementController   sprint / slide / double jump / dash / wall run / grapple
+		MovementController   bhop / sprint / slide / wall run (power-up) / grapple
 		ViewmodelController  arms + sniper attached to the camera
 		WeaponController     scope + fire (sends shots to the server)
 		EffectsController    tracers, explosions, ropes, screen tints
 		UIController         all screens (ui/ folder)
 		CharacterPoser       third-person rifle-holding pose for other players
 		AimAssist            light controller aim assist (used by CameraController)
+		KillCamController    replays your death through your killer's eyes
 ]]
 
 local Client = script.Parent
@@ -9115,6 +9973,7 @@ local WeaponController = require(Client.WeaponController)
 local EffectsController = require(Client.EffectsController)
 local UIController = require(Client.UIController)
 local CharacterPoser = require(Client.CharacterPoser)
+local KillCamController = require(Client.KillCamController)
 
 local controllers = {
 	Camera = CameraController,
@@ -9124,6 +9983,7 @@ local controllers = {
 	Effects = EffectsController,
 	UI = UIController,
 	Poser = CharacterPoser,
+	KillCam = KillCamController,
 }
 
 ClientState.Init()
@@ -9136,6 +9996,7 @@ local order = {
 	EffectsController,
 	UIController,
 	CharacterPoser,
+	KillCamController,
 }
 for _, controller in ipairs(order) do
 	controller.Init(controllers)
@@ -9146,7 +10007,7 @@ end
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="38">
+        <Item class="ModuleScript" referent="40">
           <Properties>
             <string name="Name">MovementController</string>
             <string name="Source"><![CDATA[--[[
@@ -10129,6 +10990,8 @@ function Movement.Start()
 
 	UserInputService.InputBegan:Connect(onInputBegan)
 	UserInputService.InputEnded:Connect(onInputEnded)
+	Keybinds.VirtualBegan:Connect(onInputBegan) -- on-screen buttons (mobile)
+	Keybinds.VirtualEnded:Connect(onInputEnded)
 
 	Remotes.Get("Knockback").OnClientEvent:Connect(function(velocity)
 		if typeof(velocity) == "Vector3" then
@@ -10151,7 +11014,7 @@ return Movement
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="39">
+        <Item class="ModuleScript" referent="41">
           <Properties>
             <string name="Name">Sfx</string>
             <string name="Source"><![CDATA[--[[
@@ -10208,7 +11071,7 @@ return Sfx
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="40">
+        <Item class="ModuleScript" referent="42">
           <Properties>
             <string name="Name">Spring</string>
             <string name="Source"><![CDATA[--[[
@@ -10254,7 +11117,7 @@ return Spring
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="41">
+        <Item class="ModuleScript" referent="43">
           <Properties>
             <string name="Name">UIController</string>
             <string name="Source"><![CDATA[--[[
@@ -10269,6 +11132,8 @@ return Spring
 		SettingsMenu  sliders + keybinds for mouse and controller (P)
 		PowerUpLab    try power-ups solo in the lobby (B)
 		Toast         short server messages (admin commands)
+		DuelUI        challenge a player, duel / rematch invites
+		MobileControls on-screen buttons + look pad for touch screens
 ]]
 
 local Players = game:GetService("Players")
@@ -10283,6 +11148,8 @@ local LobbyUI = require(ui.LobbyUI)
 local SettingsMenu = require(ui.SettingsMenu)
 local PowerUpLab = require(ui.PowerUpLab)
 local Toast = require(ui.Toast)
+local DuelUI = require(ui.DuelUI)
+local MobileControls = require(ui.MobileControls)
 
 local UIController = {}
 
@@ -10292,6 +11159,8 @@ UIController.Settings = SettingsMenu
 function UIController.Init(controllers)
 	controllers.HUD = HUD
 	controllers.Settings = SettingsMenu
+	controllers.Duel = DuelUI
+	MobileControls.Init(controllers)
 	HUD.Init(controllers)
 	LobbyUI.Init(controllers)
 	SettingsMenu.Init(controllers)
@@ -10325,6 +11194,8 @@ function UIController.Start()
 	SettingsMenu.Start(playerGui)
 	PowerUpLab.Start(playerGui)
 	Toast.Start(playerGui)
+	DuelUI.Start(playerGui)
+	MobileControls.Start(playerGui)
 
 	ClientState.Changed:Connect(function(snapshot, old)
 		HUD.OnState(snapshot, old)
@@ -10338,7 +11209,7 @@ return UIController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="42">
+        <Item class="ModuleScript" referent="44">
           <Properties>
             <string name="Name">ViewmodelController</string>
             <string name="Source"><![CDATA[--[[
@@ -10617,6 +11488,9 @@ local function buildAvatarArms(character)
 		armParts[name] = part
 		base[name] = source.Size
 	end
+	for _, part in pairs(armParts) do
+		part.LocalTransparencyModifier = visible and 0 or 1
+	end
 	rig.Parent = model
 	avatarArms = { Model = rig, Parts = armParts, Base = base }
 	setBlockArms(false)
@@ -10625,7 +11499,8 @@ end
 -- CFrame (gun space) for an avatar limb stretched from a to b, `thick` studs wide.
 local function avatarLimb(name, a, b, thick)
 	local part, base = avatarArms.Parts[name], avatarArms.Base[name]
-	local length = math.max((b - a).Magnitude, 0.05)
+	-- rounded so the mesh isn't resized every frame (that can hitch)
+	local length = math.max(math.floor((b - a).Magnitude * 20 + 0.5) / 20, 0.05)
 	local k = thick / math.max(base.X, 0.01)
 	local size = Vector3.new(base.X * k, length, base.Z * k)
 	if (part.Size - size).Magnitude > 0.001 then
@@ -11170,7 +12045,7 @@ function Viewmodel.Start()
 		moveSpring:Impulse(Vector3.new(0, -1.5, 2.5))
 	end)
 
-	UserInputService.InputBegan:Connect(function(input, processed)
+	local function onActionInput(input, processed)
 		if processed and UserInputService:GetFocusedTextBox() then
 			return
 		end
@@ -11179,7 +12054,9 @@ function Viewmodel.Start()
 			inspectStart = os.clock()
 			Sfx.Play("CardHover", { Pitch = 0.8, Volume = 1.5 })
 		end
-	end)
+	end
+	UserInputService.InputBegan:Connect(onActionInput)
+	Keybinds.VirtualBegan:Connect(onActionInput)
 
 	-- your avatar's arms (rebuilt for every new character / appearance)
 	local function refreshArms()
@@ -11204,6 +12081,7 @@ function Viewmodel.Start()
 	local function onRifleChanged(child)
 		if child.Name == (Config.Viewmodel.MeshTemplate or "SniperRifle") then
 			task.defer(buildGun)
+			task.delay(1, buildGun) -- its meshes may replicate a moment later
 		end
 	end
 	ReplicatedStorage.ChildAdded:Connect(onRifleChanged)
@@ -11226,7 +12104,7 @@ return Viewmodel
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="43">
+        <Item class="ModuleScript" referent="45">
           <Properties>
             <string name="Name">WeaponController</string>
             <string name="Source"><![CDATA[--[[
@@ -11467,6 +12345,8 @@ function Weapon.Start()
 
 	UserInputService.InputBegan:Connect(onInputBegan)
 	UserInputService.InputEnded:Connect(onInputEnded)
+	Keybinds.VirtualBegan:Connect(onInputBegan) -- on-screen buttons (mobile)
+	Keybinds.VirtualEnded:Connect(onInputEnded)
 	RunService:BindToRenderStep("SniperWeapon", Enum.RenderPriority.Input.Value + 1, update)
 end
 
@@ -11474,11 +12354,320 @@ return Weapon
 ]]></string>
           </Properties>
         </Item>
-        <Item class="Folder" referent="44">
+        <Item class="Folder" referent="46">
           <Properties>
             <string name="Name">ui</string>
           </Properties>
-          <Item class="ModuleScript" referent="45">
+          <Item class="ModuleScript" referent="47">
+            <Properties>
+              <string name="Name">DuelUI</string>
+              <string name="Source"><![CDATA[--[[
+	DuelUI.lua  (Client.ui.DuelUI)
+
+	Playing a specific person instead of the random queue:
+
+	  DUEL A PLAYER (U / controller R-stick click / DUEL button on mobile)
+	      a list of everyone in the server; CHALLENGE sends them an invite.
+	  INVITES
+	      when someone challenges you (or asks for a rematch) a card pops up
+	      at the top: ACCEPT or DECLINE (it expires after Config.Match.InviteTime).
+	  REMATCH
+	      the lobby shows a REMATCH button after a match (LobbyUI); the other
+	      player gets an invite card here. Against a bot, rematch starts right away.
+
+	The server checks everything (Remotes "Duel" / "DuelInvite", MatchService).
+]]
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Config = require(Shared.Config)
+local Remotes = require(Shared.Remotes)
+local Sfx = require(script.Parent.Parent.Sfx)
+local Theme = require(script.Parent.Theme)
+local Keybinds = require(script.Parent.Parent.Keybinds)
+local ClientState = require(script.Parent.Parent.ClientState)
+
+local Palette = Config.Palette
+local player = Players.LocalPlayer
+
+local DuelUI = {}
+
+local gui, panel, list, unlocker, inviteHolder
+local isOpen = false
+local openInvites = 0
+
+local function updateMouse()
+	local need = isOpen or openInvites > 0
+	unlocker.Visible = need
+	ClientState.SetMenu("Duel", need)
+end
+
+local function refreshList()
+	for _, child in ipairs(list:GetChildren()) do
+		if child:IsA("Frame") then
+			child:Destroy()
+		end
+	end
+	local count = 0
+	for _, other in ipairs(Players:GetPlayers()) do
+		if other ~= player then
+			count += 1
+			local row = Theme.panel({
+				Size = UDim2.new(1, 0, 0, 44),
+				BackgroundColor3 = Palette.UIPanelLight,
+				LayoutOrder = count,
+				Parent = list,
+			})
+			Theme.label({
+				Position = UDim2.fromOffset(14, 0),
+				Size = UDim2.new(1, -170, 1, 0),
+				Text = other.DisplayName,
+				TextSize = 17,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				FontFace = Theme.Font(Enum.FontWeight.Bold),
+				Parent = row,
+			})
+			local busy = other:GetAttribute("InMatch") == true
+			local button = Theme.button({
+				AnchorPoint = Vector2.new(1, 0.5),
+				Position = UDim2.new(1, -8, 0.5, 0),
+				Size = UDim2.fromOffset(140, 32),
+				Text = busy and "IN A MATCH" or "CHALLENGE",
+				TextSize = 15,
+				BackgroundColor3 = busy and Palette.UIPanel or Palette.UIAccent,
+				TextColor3 = busy and Palette.UISubText or Palette.UIBackground,
+				AutoButtonColor = not busy,
+				Parent = row,
+			})
+			if not busy then
+				button.Activated:Connect(function()
+					Remotes.Get("Duel"):FireServer("Challenge", other.UserId)
+					Sfx.Play("CardPick", { Volume = 0.6 })
+					button.Text = "SENT"
+					button.BackgroundColor3 = Palette.UIPanel
+					button.TextColor3 = Palette.UISubText
+				end)
+			end
+		end
+	end
+	if count == 0 then
+		local row = Theme.new("Frame", { Size = UDim2.new(1, 0, 0, 44), BackgroundTransparency = 1, Parent = list })
+		Theme.label({
+			Size = UDim2.fromScale(1, 1),
+			Text = "Nobody else is here yet. Invite a friend to the server!",
+			TextSize = 15,
+			TextColor3 = Palette.UISubText,
+			Parent = row,
+		})
+	end
+end
+
+function DuelUI.Open()
+	if isOpen or ClientState.InMatch() then
+		return
+	end
+	isOpen = true
+	panel.Visible = true
+	refreshList()
+	updateMouse()
+	Theme.pop(panel, 0.05)
+end
+
+function DuelUI.Close()
+	if not isOpen then
+		return
+	end
+	isOpen = false
+	panel.Visible = false
+	updateMouse()
+end
+
+-- An invite card: "<name> challenges you" with ACCEPT / DECLINE.
+local function showInvite(data)
+	if typeof(data) ~= "table" then
+		return
+	end
+	local isRematch = data.Kind == "Rematch"
+	local card = Theme.panel({
+		Size = UDim2.fromOffset(440, 96),
+		BackgroundColor3 = Palette.UIPanel,
+		Parent = inviteHolder,
+	})
+	Theme.stroke(card, Palette.UIAccent, 2, 0.1)
+	Theme.label({
+		Position = UDim2.fromOffset(16, 10),
+		Size = UDim2.new(1, -32, 0, 26),
+		Text = isRematch and (tostring(data.Name) .. " wants a rematch!") or (tostring(data.Name) .. " challenges you to a duel!"),
+		TextSize = 19,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		FontFace = Theme.Font(Enum.FontWeight.Heavy),
+		Parent = card,
+	})
+	local timer = Theme.new("Frame", {
+		Position = UDim2.new(0, 16, 0, 40),
+		Size = UDim2.new(1, -32, 0, 4),
+		BackgroundColor3 = Palette.UIAccent,
+		Parent = card,
+	})
+	local accept = Theme.button({
+		Position = UDim2.new(0, 16, 1, -44),
+		Size = UDim2.new(0.5, -22, 0, 34),
+		Text = "ACCEPT",
+		TextSize = 16,
+		Parent = card,
+	})
+	local decline = Theme.button({
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -16, 1, -44),
+		Size = UDim2.new(0.5, -22, 0, 34),
+		Text = "DECLINE",
+		TextSize = 16,
+		BackgroundColor3 = Palette.UIPanelLight,
+		TextColor3 = Palette.UIText,
+		Parent = card,
+	})
+	openInvites += 1
+	updateMouse()
+	Sfx.Play("CardPick", { Volume = 0.8, Pitch = 1.4 })
+	Theme.pop(card, 0.1)
+
+	local closed = false
+	local function close()
+		if closed then
+			return
+		end
+		closed = true
+		openInvites -= 1
+		updateMouse()
+		card:Destroy()
+	end
+	accept.Activated:Connect(function()
+		if isRematch then
+			Remotes.Get("Duel"):FireServer("Rematch")
+		else
+			Remotes.Get("Duel"):FireServer("Accept", data.From)
+		end
+		close()
+	end)
+	decline.Activated:Connect(function()
+		if not isRematch then
+			Remotes.Get("Duel"):FireServer("Decline", data.From)
+		end
+		close()
+	end)
+	local life = tonumber(data.Time) or Config.Match.InviteTime
+	Theme.tween(timer, life, { Size = UDim2.new(0, 0, 0, 4) }, Enum.EasingStyle.Linear)
+	task.delay(life, close)
+	-- a match starting (you accepted, or they did) clears it too
+	local connection
+	connection = ClientState.Changed:Connect(function(snapshot)
+		if snapshot.InMatch then
+			close()
+		end
+		if closed then
+			connection.Disconnect()
+		end
+	end)
+end
+
+function DuelUI.Start(playerGui)
+	gui = Theme.screen("Duel", 7, playerGui)
+	unlocker = Theme.mouseUnlocker(gui)
+
+	panel = Theme.panel({
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(460, 420),
+		BackgroundColor3 = Palette.UIBackground,
+		Visible = false,
+		Parent = gui,
+	})
+	Theme.padding(panel, 18)
+	Theme.label({
+		Size = UDim2.new(1, 0, 0, 30),
+		Text = "DUEL A PLAYER",
+		TextSize = 24,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		FontFace = Theme.Font(Enum.FontWeight.Heavy),
+		Parent = panel,
+	})
+	list = Theme.new("ScrollingFrame", {
+		Position = UDim2.fromOffset(0, 42),
+		Size = UDim2.new(1, 0, 1, -96),
+		BackgroundTransparency = 1,
+		ScrollBarThickness = 4,
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		CanvasSize = UDim2.new(),
+		Parent = panel,
+	})
+	Theme.new("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder, Parent = list })
+	local close = Theme.button({
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, 0),
+		Size = UDim2.fromOffset(160, 40),
+		Text = "CLOSE",
+		TextSize = 17,
+		Parent = panel,
+	})
+	close.Activated:Connect(DuelUI.Close)
+
+	inviteHolder = Theme.new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 170),
+		Size = UDim2.fromOffset(440, 320),
+		BackgroundTransparency = 1,
+		Parent = gui,
+	})
+	Theme.new("UIListLayout", {
+		HorizontalAlignment = Enum.HorizontalAlignment.Center,
+		Padding = UDim.new(0, 8),
+		Parent = inviteHolder,
+	})
+
+	Remotes.Get("DuelInvite").OnClientEvent:Connect(showInvite)
+
+	local function onActionInput(input, processed)
+		if processed and UserInputService:GetFocusedTextBox() then
+			return
+		end
+		if Keybinds.Matches("DuelFriend", input) then
+			if isOpen then
+				DuelUI.Close()
+			else
+				DuelUI.Open()
+			end
+		elseif input.KeyCode == Enum.KeyCode.Escape and isOpen then
+			DuelUI.Close()
+		end
+	end
+	UserInputService.InputBegan:Connect(onActionInput)
+	Keybinds.VirtualBegan:Connect(onActionInput)
+
+	Players.PlayerAdded:Connect(function()
+		if isOpen then
+			refreshList()
+		end
+	end)
+	Players.PlayerRemoving:Connect(function()
+		if isOpen then
+			task.defer(refreshList)
+		end
+	end)
+	ClientState.Changed:Connect(function(snapshot)
+		if snapshot.InMatch then
+			DuelUI.Close()
+		end
+	end)
+end
+
+return DuelUI
+]]></string>
+            </Properties>
+          </Item>
+          <Item class="ModuleScript" referent="48">
             <Properties>
               <string name="Name">HUD</string>
               <string name="Source"><![CDATA[--[[
@@ -12366,7 +13555,7 @@ return HUD
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="46">
+          <Item class="ModuleScript" referent="49">
             <Properties>
               <string name="Name">Icons</string>
               <string name="Source"><![CDATA[--[[
@@ -12428,7 +13617,7 @@ return Icons
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="47">
+          <Item class="ModuleScript" referent="50">
             <Properties>
               <string name="Name">LobbyUI</string>
               <string name="Source"><![CDATA[--[[
@@ -12460,7 +13649,7 @@ local Palette = Config.Palette
 local LobbyUI = {}
 local Controllers
 
-local gui, root, title, subtitle, playButton, playgroundButton, statusLabel, modeChip, spinner
+local gui, root, title, subtitle, playButton, playgroundButton, statusLabel, modeChip, spinner, rematchButton
 local shown = false
 local queued = false
 local lastSnapshot = { InMatch = false, Phase = "Lobby" }
@@ -12506,6 +13695,22 @@ function LobbyUI.OnState(snapshot)
 			or ""
 	end
 	spinner.Visible = queued
+
+	-- REMATCH (after a match, for a little while)
+	local rematch = snapshot.Rematch
+	rematchButton.Visible = rematch ~= nil
+	if rematch then
+		if rematch.Requested then
+			rematchButton.Text = "WAITING FOR " .. string.upper(rematch.Name) .. "..."
+			styleButton(rematchButton, false)
+		elseif rematch.TheyRequested then
+			rematchButton.Text = keyLabel("Rematch") .. "  ACCEPT REMATCH VS " .. string.upper(rematch.Name)
+			styleButton(rematchButton, true)
+		else
+			rematchButton.Text = keyLabel("Rematch") .. "  REMATCH " .. string.upper(rematch.Name)
+			styleButton(rematchButton, true)
+		end
+	end
 
 	if snapshot.Playground then
 		title.Text = "PLAYGROUND"
@@ -12594,6 +13799,14 @@ function LobbyUI.Start(playerGui)
 		TextColor3 = Palette.UIText,
 		Parent = root,
 	})
+	rematchButton = Theme.button({
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -136),
+		Size = UDim2.fromOffset(420, 50),
+		TextSize = 20,
+		Visible = false,
+		Parent = root,
+	})
 	spinner = Theme.new("Frame", {
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = UDim2.new(0, 16, 0.5, 0),
@@ -12628,6 +13841,13 @@ function LobbyUI.Start(playerGui)
 		Theme.pop(playgroundButton)
 		Remotes.Get("PlaygroundToggle"):FireServer()
 	end
+	local function requestRematch()
+		Sfx.Play("CardPick", { Volume = 0.6, Pitch = 1.1 })
+		Theme.pop(rematchButton)
+		Remotes.Get("Duel"):FireServer("Rematch")
+	end
+	rematchButton.Activated:Connect(requestRematch)
+
 	local function botMatch()
 		Sfx.Play("CardPick", { Volume = 0.6, Pitch = 1.2 })
 		Remotes.Get("AdminCommand"):FireServer("bot")
@@ -12635,9 +13855,12 @@ function LobbyUI.Start(playerGui)
 	playButton.Activated:Connect(toggleQueue)
 	playgroundButton.Activated:Connect(togglePlayground)
 
-	UserInputService.InputBegan:Connect(function(input, processed)
+	local function onActionInput(input, processed)
 		if processed and UserInputService:GetFocusedTextBox() then
 			return
+		end
+		if Controllers and Controllers.Settings and Controllers.Settings.IsOpen() then
+			return -- rebinding keys / moving sliders in Settings
 		end
 		if not gui.Enabled then
 			return
@@ -12648,8 +13871,12 @@ function LobbyUI.Start(playerGui)
 			togglePlayground()
 		elseif Keybinds.Matches("BotMatch", input) then
 			botMatch()
+		elseif Keybinds.Matches("Rematch", input) and rematchButton.Visible then
+			requestRematch()
 		end
-	end)
+	end
+	UserInputService.InputBegan:Connect(onActionInput)
+	Keybinds.VirtualBegan:Connect(onActionInput)
 
 	-- Settings button
 	local settingsButton = Theme.button({
@@ -12664,6 +13891,19 @@ function LobbyUI.Start(playerGui)
 	})
 	settingsButton.Activated:Connect(function()
 		Controllers.Settings.Toggle()
+	end)
+	local duelButton = Theme.button({
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -24, 0, 112),
+		Size = UDim2.fromOffset(150, 40),
+		Text = "DUEL A PLAYER",
+		TextSize = 15,
+		BackgroundColor3 = Palette.UIPanel,
+		TextColor3 = Palette.UIText,
+		Parent = root,
+	})
+	duelButton.Activated:Connect(function()
+		Controllers.Duel.Open()
 	end)
 
 	-- idle animations: spinner while searching, a soft pulse on the find button
@@ -12696,7 +13936,235 @@ return LobbyUI
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="48">
+          <Item class="ModuleScript" referent="51">
+            <Properties>
+              <string name="Name">MobileControls</string>
+              <string name="Source"><![CDATA[--[[
+	MobileControls.lua  (Client.ui.MobileControls)
+
+	On-screen controls for phones and tablets. Shown while you're using a
+	touch screen (hidden as soon as you use a keyboard, mouse or controller).
+
+	  left side    Roblox's own thumbstick moves you; a small FIRE button
+	               above it lets you shoot with your left thumb
+	  right side   drag anywhere to look (sensitivity in Settings > Touch),
+	               FIRE (you can keep dragging on it to aim), SCOPE, JUMP
+	               (hold to bunny hop), SLIDE, SPRINT (toggle) and your
+	               ability buttons (Grapple / Blink / Decoy, when you have them)
+	  top          LAB (Power-Up Lab, in the lobby), DUEL (challenge a player)
+	               and a settings button
+
+	Buttons don't do anything themselves: they press the same actions as
+	the keys (Keybinds.Press), so every rule (cooldowns, menus...) applies.
+]]
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Config = require(Shared.Config)
+local Theme = require(script.Parent.Theme)
+local Keybinds = require(script.Parent.Parent.Keybinds)
+local ClientState = require(script.Parent.Parent.ClientState)
+
+local Palette = Config.Palette
+local player = Players.LocalPlayer
+
+local MobileControls = {}
+local Controllers
+
+local gui, root, lookPad
+local buttons = {} -- [name] = button
+local lookTouches = {} -- [InputObject] = true: touches that turn the camera
+local sprintOn = false
+
+local function isTouch()
+	return UserInputService.TouchEnabled
+		and (UserInputService:GetLastInputType() == Enum.UserInputType.Touch or not UserInputService.KeyboardEnabled)
+end
+
+-- A round button. onDown/onUp get called on press / release.
+local function roundButton(name, text, size, anchorPos, color, onDown, onUp, dragToLook)
+	local button = Theme.new("TextButton", {
+		Name = name,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = anchorPos,
+		Size = UDim2.fromOffset(size, size),
+		BackgroundColor3 = color or Palette.UIPanel,
+		BackgroundTransparency = 0.25,
+		Text = text,
+		TextColor3 = Palette.UIText,
+		TextSize = math.floor(size * 0.2),
+		FontFace = Theme.Font(Enum.FontWeight.Heavy),
+		AutoButtonColor = false,
+		Parent = root,
+	})
+	Theme.corner(button, UDim.new(0.5, 0))
+	Theme.stroke(button, Palette.UIText, 2, 0.6)
+	button.InputBegan:Connect(function(input)
+		if input.UserInputType ~= Enum.UserInputType.Touch then
+			return
+		end
+		button.BackgroundTransparency = 0.05
+		Theme.pop(button, 0.08)
+		if dragToLook then
+			lookTouches[input] = true
+		end
+		if onDown then
+			onDown()
+		end
+	end)
+	button.InputEnded:Connect(function(input)
+		if input.UserInputType ~= Enum.UserInputType.Touch then
+			return
+		end
+		button.BackgroundTransparency = 0.25
+		if onUp then
+			onUp()
+		end
+	end)
+	buttons[name] = button
+	return button
+end
+
+local function pill(name, text, pos, onPress)
+	local button = Theme.button({
+		Name = name,
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = pos,
+		Size = UDim2.fromOffset(78, 34),
+		Text = text,
+		TextSize = 14,
+		BackgroundColor3 = Palette.UIPanel,
+		TextColor3 = Palette.UIText,
+		Parent = root,
+	})
+	button.Activated:Connect(onPress)
+	buttons[name] = button
+	return button
+end
+
+local function hold(action)
+	return function()
+		Keybinds.Press(action, true)
+	end, function()
+		Keybinds.Press(action, false)
+	end
+end
+
+local function tap(action)
+	return function()
+		Keybinds.Press(action, true)
+		Keybinds.Press(action, false)
+	end
+end
+
+local function refresh()
+	local show = isTouch() and not ClientState.MenuOpen
+	gui.Enabled = show
+	if not show then
+		return
+	end
+	local stats = ClientState.Stats
+	local inMatch = ClientState.InMatch()
+	buttons.Grapple.Visible = stats.Grapple == true
+	buttons.Blink.Visible = stats.Blink == true
+	buttons.Decoy.Visible = stats.Decoy == true
+	buttons.Lab.Visible = not inMatch
+	buttons.Duel.Visible = not inMatch
+	buttons.Sprint.BackgroundColor3 = sprintOn and Palette.UIAccent or Palette.UIPanel
+end
+
+function MobileControls.Init(controllers)
+	Controllers = controllers
+end
+
+function MobileControls.Start(playerGui)
+	gui = Theme.screen("MobileControls", 1, playerGui)
+	root = Theme.new("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Parent = gui })
+	local scale = Theme.scaleOf(root)
+
+	-- look pad: the right part of the screen (behind the buttons). It's
+	-- Active, so Roblox's camera ignores these touches and we turn instead.
+	lookPad = Theme.new("Frame", {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.fromScale(1, 0),
+		Size = UDim2.fromScale(0.55, 1),
+		BackgroundTransparency = 1,
+		Active = true,
+		ZIndex = 0,
+		Parent = gui,
+	})
+	lookPad.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.Touch then
+			lookTouches[input] = true
+		end
+	end)
+	UserInputService.InputChanged:Connect(function(input)
+		if lookTouches[input] and Controllers and Controllers.Camera.AddTouchLook then
+			Controllers.Camera.AddTouchLook(Vector2.new(input.Delta.X, input.Delta.Y))
+		end
+	end)
+	UserInputService.InputEnded:Connect(function(input)
+		lookTouches[input] = nil
+	end)
+
+	local T = Config.Touch
+	local function br(x, y)
+		return UDim2.new(1, -x, 1, -y) -- from the bottom-right corner
+	end
+	roundButton("Fire", "FIRE", T.FireButtonSize, br(200, 175), Palette.PlayerB, function()
+		Keybinds.Press("Fire", true)
+	end, function()
+		Keybinds.Press("Fire", false)
+	end, true)
+	roundButton("FireLeft", "FIRE", 70, UDim2.new(0, 120, 1, -270), Palette.PlayerB, function()
+		Keybinds.Press("Fire", true)
+	end, function()
+		Keybinds.Press("Fire", false)
+	end)
+	local scopeDown, scopeUp = hold("Scope")
+	roundButton("Scope", "SCOPE", 72, br(85, 215), Palette.UIPanel, scopeDown, scopeUp, true)
+	local jumpDown, jumpUp = hold("Jump")
+	roundButton("Jump", "JUMP", 84, br(80, 95), Palette.UIPanel, jumpDown, jumpUp)
+	roundButton("Slide", "SLIDE", 64, br(190, 65), Palette.UIPanel, tap("Slide"))
+	roundButton("Sprint", "RUN", 56, br(290, 60), Palette.UIPanel, function()
+		sprintOn = not sprintOn
+		Keybinds.Press("Sprint", sprintOn)
+		refresh()
+	end)
+	roundButton("Grapple", "HOOK", 58, br(80, 310), Palette.UIPanel, tap("Grapple"))
+	roundButton("Blink", "BLINK", 58, br(150, 300), Palette.UIPanel, tap("Blink"))
+	roundButton("Decoy", "DECOY", 58, br(220, 300), Palette.UIPanel, tap("Decoy"))
+
+	pill("Lab", "LAB", UDim2.new(0, 60, 0, 120), tap("PowerUpLab"))
+	pill("Duel", "DUEL", UDim2.new(0, 150, 0, 120), tap("DuelFriend"))
+	pill("Settings", "MENU", UDim2.new(1, -60, 0, 64), tap("Settings"))
+
+	-- smaller on small screens
+	local function fit()
+		local viewport = workspace.CurrentCamera.ViewportSize
+		scale.Scale = math.clamp(math.min(viewport.X / 900, viewport.Y / 500), 0.65, 1.2)
+	end
+	fit()
+	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(fit)
+
+	UserInputService.LastInputTypeChanged:Connect(refresh)
+	ClientState.Changed:Connect(refresh)
+	ClientState.MenuChanged:Connect(refresh)
+	player.CharacterAdded:Connect(function()
+		sprintOn = false
+		refresh()
+	end)
+	refresh()
+end
+
+return MobileControls
+]]></string>
+            </Properties>
+          </Item>
+          <Item class="ModuleScript" referent="52">
             <Properties>
               <string name="Name">PickScreen</string>
               <string name="Source"><![CDATA[--[[
@@ -13473,7 +14941,7 @@ return PickScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="49">
+          <Item class="ModuleScript" referent="53">
             <Properties>
               <string name="Name">PowerUpLab</string>
               <string name="Source"><![CDATA[--[[
@@ -13749,9 +15217,12 @@ function PowerUpLab.Start(playerGui)
 		end
 	end)
 
-	UserInputService.InputBegan:Connect(function(input, processed)
+	local function onActionInput(input, processed)
 		if processed and UserInputService:GetFocusedTextBox() then
 			return
+		end
+		if require(script.Parent.SettingsMenu).IsOpen() then
+			return -- rebinding keys / moving sliders in Settings
 		end
 		if Keybinds.Matches("PowerUpLab", input) then
 			if PickScreen.IsPracticeOpen() then
@@ -13762,14 +15233,16 @@ function PowerUpLab.Start(playerGui)
 				PowerUpLab.Open()
 			end
 		end
-	end)
+	end
+	UserInputService.InputBegan:Connect(onActionInput)
+	Keybinds.VirtualBegan:Connect(onActionInput)
 end
 
 return PowerUpLab
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="50">
+          <Item class="ModuleScript" referent="54">
             <Properties>
               <string name="Name">SettingsMenu</string>
               <string name="Source"><![CDATA[--[[
@@ -14009,7 +15482,8 @@ local function bindRow(parent, order, device, action)
 		Parent = row,
 	})
 	button.Activated:Connect(function()
-		capturing = { Device = device, Action = action.Id, Button = button }
+		-- (ReadyAt: ignore the very button press that started the rebind)
+		capturing = { Device = device, Action = action.Id, Button = button, ReadyAt = os.clock() + 0.15 }
 		button.Text = device == "Gamepad" and "PRESS A BUTTON..." or "PRESS A KEY..."
 		button.BackgroundColor3 = Palette.UIAccent
 		button.TextColor3 = Palette.UIBackground
@@ -14035,6 +15509,9 @@ end
 local function tryCapture(input)
 	if not capturing then
 		return false
+	end
+	if os.clock() < (capturing.ReadyAt or 0) then
+		return true
 	end
 	if input.KeyCode == Enum.KeyCode.Escape then
 		capturing = nil
@@ -14114,6 +15591,10 @@ function SettingsMenu.Close()
 	unlocker.Visible = false
 	ClientState.SetMenu("Settings", false)
 	ClientState.SaveSettings()
+end
+
+function SettingsMenu.IsOpen()
+	return isOpen
 end
 
 function SettingsMenu.Toggle()
@@ -14199,9 +15680,12 @@ function SettingsMenu.Start(playerGui)
 	slider(general, 7, "ControllerDeadzone", "Stick deadzone")
 	toggle(general, 8, "InvertY", "Invert look (Y)", { "ON", "OFF" })
 	toggle(general, 9, "AimAssist", "Aim assist", { "ON", "OFF" })
-	sectionTitle(general, 10, "GAME")
-	slider(general, 11, "FieldOfView", "Field of view", 0)
-	toggle(general, 12, "ToggleScope", "Scope mode", { "TOGGLE", "HOLD" })
+	sectionTitle(general, 10, "TOUCH")
+	slider(general, 11, "TouchSensitivity", "Touch sensitivity")
+	slider(general, 12, "TouchScopedSensitivity", "Scoped touch sensitivity")
+	sectionTitle(general, 13, "GAME")
+	slider(general, 14, "FieldOfView", "Field of view", 0)
+	toggle(general, 15, "ToggleScope", "Scope mode", { "TOGGLE", "HOLD" })
 
 	-- KEYBOARD / CONTROLLER
 	local keyboard = makePage("KEYBOARD")
@@ -14275,13 +15759,19 @@ function SettingsMenu.Start(playerGui)
 			SettingsMenu.Close()
 		end
 	end)
+	-- on-screen Settings button (mobile)
+	Keybinds.VirtualBegan:Connect(function(input)
+		if Keybinds.Matches("Settings", input) then
+			SettingsMenu.Toggle()
+		end
+	end)
 end
 
 return SettingsMenu
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="51">
+          <Item class="ModuleScript" referent="55">
             <Properties>
               <string name="Name">Theme</string>
               <string name="Source"><![CDATA[--[[
@@ -14544,7 +16034,7 @@ return Theme
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="52">
+          <Item class="ModuleScript" referent="56">
             <Properties>
               <string name="Name">Toast</string>
               <string name="Source"><![CDATA[--[[
@@ -14631,7 +16121,7 @@ return Toast
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="53">
+          <Item class="ModuleScript" referent="57">
             <Properties>
               <string name="Name">VictoryScreen</string>
               <string name="Source"><![CDATA[--[[

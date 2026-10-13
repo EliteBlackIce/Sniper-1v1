@@ -10,6 +10,8 @@
 		SettingsMenu  sliders + keybinds for mouse and controller (P)
 		PowerUpLab    try power-ups solo in the lobby (B)
 		Toast         short server messages (admin commands)
+		DuelUI        challenge a player, duel / rematch invites
+		MobileControls on-screen buttons + look pad for touch screens
 ]]
 
 local Players = game:GetService("Players")
@@ -24,6 +26,8 @@ local LobbyUI = require(ui.LobbyUI)
 local SettingsMenu = require(ui.SettingsMenu)
 local PowerUpLab = require(ui.PowerUpLab)
 local Toast = require(ui.Toast)
+local DuelUI = require(ui.DuelUI)
+local MobileControls = require(ui.MobileControls)
 
 local UIController = {}
 
@@ -33,6 +37,8 @@ UIController.Settings = SettingsMenu
 function UIController.Init(controllers)
 	controllers.HUD = HUD
 	controllers.Settings = SettingsMenu
+	controllers.Duel = DuelUI
+	MobileControls.Init(controllers)
 	HUD.Init(controllers)
 	LobbyUI.Init(controllers)
 	SettingsMenu.Init(controllers)
@@ -66,6 +72,8 @@ function UIController.Start()
 	SettingsMenu.Start(playerGui)
 	PowerUpLab.Start(playerGui)
 	Toast.Start(playerGui)
+	DuelUI.Start(playerGui)
+	MobileControls.Start(playerGui)
 
 	ClientState.Changed:Connect(function(snapshot, old)
 		HUD.OnState(snapshot, old)

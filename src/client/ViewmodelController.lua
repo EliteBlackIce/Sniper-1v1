@@ -274,6 +274,9 @@ local function buildAvatarArms(character)
 		armParts[name] = part
 		base[name] = source.Size
 	end
+	for _, part in pairs(armParts) do
+		part.LocalTransparencyModifier = visible and 0 or 1
+	end
 	rig.Parent = model
 	avatarArms = { Model = rig, Parts = armParts, Base = base }
 	setBlockArms(false)
@@ -282,7 +285,8 @@ end
 -- CFrame (gun space) for an avatar limb stretched from a to b, `thick` studs wide.
 local function avatarLimb(name, a, b, thick)
 	local part, base = avatarArms.Parts[name], avatarArms.Base[name]
-	local length = math.max((b - a).Magnitude, 0.05)
+	-- rounded so the mesh isn't resized every frame (that can hitch)
+	local length = math.max(math.floor((b - a).Magnitude * 20 + 0.5) / 20, 0.05)
 	local k = thick / math.max(base.X, 0.01)
 	local size = Vector3.new(base.X * k, length, base.Z * k)
 	if (part.Size - size).Magnitude > 0.001 then
@@ -827,7 +831,7 @@ function Viewmodel.Start()
 		moveSpring:Impulse(Vector3.new(0, -1.5, 2.5))
 	end)
 
-	UserInputService.InputBegan:Connect(function(input, processed)
+	local function onActionInput(input, processed)
 		if processed and UserInputService:GetFocusedTextBox() then
 			return
 		end
@@ -836,7 +840,9 @@ function Viewmodel.Start()
 			inspectStart = os.clock()
 			Sfx.Play("CardHover", { Pitch = 0.8, Volume = 1.5 })
 		end
-	end)
+	end
+	UserInputService.InputBegan:Connect(onActionInput)
+	Keybinds.VirtualBegan:Connect(onActionInput)
 
 	-- your avatar's arms (rebuilt for every new character / appearance)
 	local function refreshArms()
@@ -861,6 +867,7 @@ function Viewmodel.Start()
 	local function onRifleChanged(child)
 		if child.Name == (Config.Viewmodel.MeshTemplate or "SniperRifle") then
 			task.defer(buildGun)
+			task.delay(1, buildGun) -- its meshes may replicate a moment later
 		end
 	end
 	ReplicatedStorage.ChildAdded:Connect(onRifleChanged)

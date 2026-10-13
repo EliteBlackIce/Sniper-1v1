@@ -159,6 +159,10 @@ function Match:SpawnPlayers()
 				PowerUps = self.Owned[player],
 			})
 			done += 1
+			-- a slow spawn (avatar download) can finish after the round started
+			if self.Phase == "Fight" and not self.Aborted then
+				CharacterService.SetFrozen(player, false)
+			end
 		end)
 	end
 	-- wait for both LoadCharacter calls (with a safety timeout)

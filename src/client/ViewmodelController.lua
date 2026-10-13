@@ -123,6 +123,19 @@ local function build()
 	addPart("FlashA", Vector3.new(0.07, 0.9, 0.07), Palette.MuzzleFlash)
 	addPart("FlashB", Vector3.new(0.9, 0.07, 0.07), Palette.MuzzleFlash)
 	addPart("FlashLong", Vector3.new(0.12, 0.12, 0.7), Palette.MuzzleFlash)
+	for _, name in ipairs({ "FlashCore", "FlashA", "FlashB", "FlashLong" }) do
+		if Config.Effects.NeonEffects then
+			parts[name].Material = Enum.Material.Neon -- glows with bloom
+		end
+	end
+	-- a light that flashes with each shot (lights up your arms and the room)
+	local light = Instance.new("PointLight")
+	light.Name = "MuzzleLight"
+	light.Color = Palette.MuzzleFlash
+	light.Range = 14
+	light.Brightness = 0
+	light.Shadows = false
+	light.Parent = parts.FlashCore
 
 	model.Parent = workspace.CurrentCamera
 end
@@ -381,6 +394,9 @@ local function update(dt)
 	for _, name in ipairs({ "FlashCore", "FlashA", "FlashB", "FlashLong" }) do
 		parts[name].LocalTransparencyModifier = flashing and 0 or 1
 	end
+	if Config.Effects.Lights then
+		parts.FlashCore.MuzzleLight.Brightness = flashing and 7 or 0
+	end
 	put(parts.FlashCore, muzzle * CFrame.new(0, 0, -0.15))
 	put(parts.FlashA, muzzle * CFrame.new(0, 0, -0.15))
 	put(parts.FlashB, muzzle * CFrame.new(0, 0, -0.15))
@@ -407,8 +423,8 @@ function Viewmodel.Start()
 		moveSpring:Impulse(Vector3.new(0, -3.5 * strength, 0))
 		recoilSpring:Impulse(Vector3.new(-10 * strength, 0, 0))
 	end)
-	Controllers.Movement.Dashed:Connect(function()
-		moveSpring:Impulse(Vector3.new(0, 0, 4))
+	Controllers.Movement.Slid:Connect(function()
+		moveSpring:Impulse(Vector3.new(0, -1.5, 2.5))
 	end)
 
 	UserInputService.InputBegan:Connect(function(input, processed)

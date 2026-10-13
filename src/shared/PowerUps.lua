@@ -537,8 +537,8 @@ PowerUps.Definitions = {
 	},
 	{
 		Id = "PhantomDash",
-		Name = "Phantom Dash",
-		Description = "Your air dash makes you invisible for 0.5 seconds.",
+		Name = "Phantom Step",
+		Description = "Sliding or wall jumping makes you invisible for 0.5 seconds.",
 		Stacking = "+0.35s invisible per stack",
 		Rarity = "Rare",
 		Tags = { "Movement", "Defence" },

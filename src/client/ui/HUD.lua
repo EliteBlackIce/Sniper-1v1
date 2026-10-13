@@ -42,6 +42,10 @@ local banner, bannerTitle, bannerSub
 local vignette, indicator
 local lastCountdownNumber
 local bannerToken = 0
+local bannerLine
+local speedLines = {}
+local speedLinesFrame
+local lastWins = {}
 local speedLabel
 
 ----------------------------------------------------------------------------
@@ -348,8 +352,17 @@ local function buildBanner()
 		FontFace = Theme.Font(Enum.FontWeight.Heavy),
 		Parent = banner,
 	})
+	Theme.new("UIStroke", { Thickness = 2, Transparency = 0.55, Color = Palette.UIBackground, Parent = bannerTitle })
+	bannerLine = Theme.new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 88),
+		Size = UDim2.fromOffset(0, 4),
+		BackgroundColor3 = Palette.UIAccent,
+		Parent = banner,
+	})
+	Theme.corner(bannerLine, 2)
 	bannerSub = Theme.label({
-		Position = UDim2.fromOffset(0, 92),
+		Position = UDim2.fromOffset(0, 96),
 		Size = UDim2.new(1, 0, 0, 30),
 		TextSize = 22,
 		TextColor3 = Palette.UISubText,
@@ -370,6 +383,55 @@ local function buildSpeedometer()
 		Parent = gui,
 	})
 	Theme.new("UIStroke", { Thickness = 1.5, Transparency = 0.6, Color = Palette.UIBackground, Parent = speedLabel })
+end
+
+-- Speed lines: thin streaks at the screen edges when you're moving fast.
+local function buildSpeedLines()
+	speedLinesFrame = Theme.new("Frame", {
+		Name = "SpeedLines",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		Parent = gui,
+	})
+	for i = 1, 18 do
+		local line = Theme.new("Frame", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			BackgroundColor3 = Color3.new(1, 1, 1),
+			BackgroundTransparency = 1,
+			Parent = speedLinesFrame,
+		})
+		Theme.new("UIGradient", {
+			Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(1, 0.2) }),
+			Parent = line,
+		})
+		speedLines[i] = { Frame = line, Angle = (i / 18) * math.pi * 2 }
+	end
+end
+
+local function updateSpeedLines(speed, scoped)
+	if not speedLinesFrame then
+		return
+	end
+	local from = Config.Effects.SpeedLinesFrom
+	local alpha = Config.Effects.SpeedLines and not scoped and math.clamp((speed - from) / 45, 0, 1) or 0
+	speedLinesFrame.Visible = alpha > 0
+	if alpha <= 0 then
+		return
+	end
+	local viewport = workspace.CurrentCamera.ViewportSize
+	local center = viewport / 2
+	local radius = math.min(viewport.X, viewport.Y) * 0.42
+	for _, l in ipairs(speedLines) do
+		local angle = l.Angle + (math.random() - 0.5) * 0.12
+		local r = radius + math.random() * radius * 0.5
+		local length = 60 + math.random() * 140 * alpha
+		local dir = Vector2.new(math.cos(angle), math.sin(angle))
+		local pos = center + dir * (r + length / 2)
+		l.Frame.Position = UDim2.fromOffset(pos.X, pos.Y)
+		l.Frame.Size = UDim2.fromOffset(length, 2)
+		l.Frame.Rotation = math.deg(angle)
+		l.Frame.BackgroundTransparency = 1 - alpha * (0.25 + math.random() * 0.35)
+	end
 end
 
 local function buildDamage()
@@ -430,14 +492,23 @@ local function showBanner(title, sub, color, duration)
 	bannerTitle.Text = title
 	bannerTitle.TextColor3 = color or Palette.UIText
 	bannerSub.Text = sub or ""
-	bannerTitle.TextTransparency = 0
+	-- punch in: big + transparent -> normal, underline wipes open, subtitle fades in
+	bannerTitle.TextTransparency = 1
 	bannerTitle.Size = UDim2.new(1, 0, 0, 90)
-	bannerTitle.TextSize = 96
-	Theme.tween(bannerTitle, 0.25, { TextSize = 78 }, Enum.EasingStyle.Back)
+	bannerTitle.TextSize = 110
+	Theme.tween(bannerTitle, 0.3, { TextSize = 78, TextTransparency = 0 }, Enum.EasingStyle.Back)
+	bannerLine.BackgroundColor3 = color or Palette.UIAccent
+	bannerLine.BackgroundTransparency = 0
+	bannerLine.Size = UDim2.fromOffset(0, 4)
+	Theme.tween(bannerLine, 0.4, { Size = UDim2.fromOffset(title == "" and 0 or 260, 4) }, Enum.EasingStyle.Quint)
+	bannerSub.TextTransparency = 1
+	Theme.tween(bannerSub, 0.5, { TextTransparency = 0 })
 	if duration then
 		task.delay(duration, function()
 			if bannerToken == token then
 				Theme.tween(bannerTitle, 0.25, { TextTransparency = 1 })
+				Theme.tween(bannerSub, 0.25, { TextTransparency = 1 })
+				Theme.tween(bannerLine, 0.25, { BackgroundTransparency = 1, Size = UDim2.fromOffset(0, 4) })
 				task.wait(0.25)
 				if bannerToken == token then
 					banner.Visible = false
@@ -507,9 +578,50 @@ local function onDamaged(data)
 	end
 end
 
+-- Floating damage number at the hit position (rises, pops and fades).
+local function damageNumber(position, amount, headshot, splash, killed)
+	if not Config.Effects.DamageNumbers or not position or not amount then
+		return
+	end
+	local anchor = Instance.new("Attachment")
+	anchor.WorldPosition = position
+	anchor.Parent = workspace.Terrain
+	local billboard = Theme.new("BillboardGui", {
+		Adornee = anchor,
+		Size = UDim2.fromOffset(160, 50),
+		AlwaysOnTop = true,
+		LightInfluence = 0,
+		StudsOffsetWorldSpace = Vector3.new((math.random() - 0.5) * 1.5, 1, 0),
+		Parent = gui.Parent, -- BillboardGuis live directly in PlayerGui
+	})
+	local color = headshot and Palette.UIHeadshot or splash and Palette.TracerExplosive or killed and Palette.UIAccent or Palette.UIText
+	local label = Theme.label({
+		Size = UDim2.fromScale(1, 1),
+		Text = headshot and "HEADSHOT" or tostring(math.floor(amount + 0.5)),
+		TextSize = headshot and 30 or math.clamp(18 + amount * 0.12, 18, 34),
+		TextColor3 = color,
+		FontFace = Theme.Font(Enum.FontWeight.Heavy),
+		Parent = billboard,
+	})
+	Theme.new("UIStroke", { Thickness = 2, Color = Palette.UIBackground, Transparency = 0.2, Parent = label })
+	Theme.pop(label, 0.5)
+	Theme.tween(billboard, 0.8, { StudsOffsetWorldSpace = billboard.StudsOffsetWorldSpace + Vector3.new(0, 3, 0) }, Enum.EasingStyle.Quint)
+	task.delay(0.45, function()
+		Theme.tween(label, 0.35, { TextTransparency = 1 })
+	end)
+	task.delay(0.85, function()
+		billboard:Destroy()
+		anchor:Destroy()
+	end)
+end
+
 local function onHitConfirm(data)
 	HUD.Hitmarker(data.Headshot, data.Killed)
+	damageNumber(data.Position, data.Damage, data.Headshot, data.Splash, data.Killed)
 	if data.Killed then
+		local viewport = workspace.CurrentCamera.ViewportSize
+		Theme.burst(gui, viewport / 2, data.Headshot and Palette.UIHeadshot or Palette.UIAccent, 18, 120, 7)
+		Theme.ring(gui, viewport / 2, data.Headshot and Palette.UIHeadshot or Color3.new(1, 1, 1), 160, 5)
 		Sfx.Play("Kill")
 		showBanner(data.Headshot and "HEADSHOT" or "ELIMINATED", nil, data.Headshot and Palette.UIHeadshot or Palette.UIText, 1.2)
 	elseif data.Headshot then
@@ -579,7 +691,7 @@ local function rebuildAbilities()
 		table.insert(entries, { Key = "RMB", Name = "Bullet Time (air)", Cooldown = "BulletTime" })
 	end
 	if stats.PhantomDash then
-		table.insert(entries, { Key = "SHIFT", Name = "Phantom Dash (air)" })
+		table.insert(entries, { Key = "C", Name = "Phantom Step (slide)" })
 	end
 	if stats.CeilingRun then
 		table.insert(entries, { Key = "SPACE", Name = "Ceiling run (hold)" })
@@ -640,6 +752,14 @@ function HUD.OnState(snapshot, old)
 		nameLabels[slot].Text = entry and entry.Name or "-"
 		nameLabels[slot].TextColor3 = (entry and entry.UserId == player.UserId) and Palette.UIAccent or Palette.UIText
 		winLabels[slot].Text = entry and tostring(entry.Wins) or "0"
+		-- pop + burst when a score goes up
+		if entry and lastWins[slot] and entry.Wins > lastWins[slot] then
+			local chip = winLabels[slot].Parent
+			Theme.pop(chip, 0.4)
+			local center = chip.AbsolutePosition + chip.AbsoluteSize / 2
+			Theme.burst(gui, center, ClientState.GetSlotColor(slot), 12, 70, 6)
+		end
+		lastWins[slot] = entry and entry.Wins or 0
 	end
 	roundLabel.Text = ("ROUND %d  -  FIRST TO %d"):format(snapshot.Round or 1, snapshot.RoundsToWin or 5)
 	rebuildIcons(snapshot)
@@ -689,6 +809,7 @@ local function update()
 	speedLabel.Visible = inArena and scopeAlpha < 0.85 and not ClientState.MenuOpen
 	speedLabel.Text = tostring(math.floor(speed + 0.5)) .. " u/s"
 	speedLabel.TextColor3 = speed > Config.Movement.SprintSpeed + 6 and Palette.UIAccent or Palette.UIText
+	updateSpeedLines(inArena and speed or 0, scopeAlpha > 0.3)
 
 	-- health
 	local character = player.Character
@@ -752,6 +873,7 @@ function HUD.Start(playerGui)
 	buildBanner()
 	buildDamage()
 	buildSpeedometer()
+	buildSpeedLines()
 
 	Remotes.Get("HitConfirm").OnClientEvent:Connect(onHitConfirm)
 	Remotes.Get("Damaged").OnClientEvent:Connect(onDamaged)

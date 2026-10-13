@@ -153,7 +153,7 @@ Config.Camera = {
 	FOVLerpSpeed = 12, -- how quickly FOV follows its target
 	SprintFOVKick = 5,
 	SlideFOVKick = 9,
-	DashFOVKick = 14,
+	BlinkFOVKick = 18,
 	WallRunFOVKick = 6,
 	SpeedFOVPerStud = 0.22, -- extra FOV per stud/s above sprint speed
 	MaxSpeedFOV = 14,
@@ -198,15 +198,15 @@ Config.SettingsLimits = {
 -- MOVEMENT
 ----------------------------------------------------------------------------
 Config.Movement = {
-	Gravity = 170, -- workspace gravity (default Roblox is 196.2)
+	Gravity = 185, -- workspace gravity (default Roblox is 196.2). Higher = snappier jumps
 
 	-- Movement uses the same model as Source games (CS / TF2 / Titanfall):
 	-- ground friction + acceleration, and "air strafing" in the air, which is
 	-- what makes bunny hopping work.
 	RunSpeed = 30, -- normal top speed on the ground
 	SprintSpeed = 38, -- top speed while holding Shift on the ground
-	GroundAccel = 11, -- how quickly you reach top speed (higher = snappier)
-	Friction = 6, -- ground friction (higher = stop faster)
+	GroundAccel = 15, -- how quickly you reach top speed (higher = snappier)
+	Friction = 7, -- ground friction (higher = stop faster)
 	StopSpeed = 10, -- below this speed friction acts as if you were going this fast
 
 	-- BUNNY HOPPING
@@ -217,13 +217,16 @@ Config.Movement = {
 	JumpBuffer = 0.15, -- a jump pressed this long before landing still counts
 	CoyoteTime = 0.12, -- you can still jump this long after leaving the ground
 	AirAccel = 14, -- air strafe strength (Source uses 10-12)
-	AirSpeedCap = 3.6, -- small cap per frame = the classic strafe gain (Source: 30 units)
+	AirSpeedCap = 4.2, -- small cap per frame = the classic strafe gain (Source: 30 units)
 	AirControlSpeed = 30, -- wish speed used in the air
+	AirSteer = 4.5, -- holding W in the air turns your momentum toward your aim (per second)
+	AirMinSpeed = 26, -- in the air you can always accelerate up to this speed...
+	AirLowSpeedAccel = 7, -- ...this quickly (so standing jumps aren't stuck)
 	MaxSpeed = 120, -- hard limit on horizontal speed
 
-	JumpPower = 52,
+	JumpPower = 55,
 	AirJumps = 0, -- no double jump by default (the Double Jump power-up adds one)
-	AirJumpVelocity = 50,
+	AirJumpVelocity = 53,
 	AirJumpMinSpeed = 30, -- a double jump re-aims you toward your keys at least this fast
 
 	-- Slide
@@ -237,13 +240,6 @@ Config.Movement = {
 	SlideSteer = 2.2, -- how much you can steer a slide
 	SlideCooldown = 0.25,
 	SlideJumpBoost = 4, -- extra speed for jumping out of a slide (up to SlideBoostCap)
-
-	-- Air dash (press Shift in the air)
-	DashSpeed = 82,
-	DashDuration = 0.16,
-	DashExitSpeed = 44, -- speed you keep after the dash
-	DashesPerAir = 1, -- refills on landing / wall run
-	DashCooldown = 0.5,
 
 	-- Wall run (automatic: be in the air, moving, next to a wall)
 	WallCheckDistance = 3.4,
@@ -385,6 +381,22 @@ Config.Sounds = {
 	Go = { Id = "rbxasset://sounds/electronicpingshort.wav", Volume = 0.6, Pitch = 1.2 },
 	Victory = { Id = "rbxasset://sounds/electronicpingshort.wav", Volume = 0.8, Pitch = 0.5 },
 	Ability = { Id = "rbxasset://sounds/swordlunge.wav", Volume = 0.4, Pitch = 0.8 },
+}
+
+----------------------------------------------------------------------------
+-- VISUAL EFFECTS (client). Turn things off here if you want a calmer look
+-- or better performance.
+----------------------------------------------------------------------------
+Config.Effects = {
+	NeonEffects = true, -- tracers, flashes and explosions glow (Neon + bloom)
+	Particles = true, -- sparks / smoke / dust (Roblox's built-in particle textures)
+	Lights = true, -- muzzle, impact and explosion light flashes
+	KillShatter = true, -- bodies burst into shards on a kill
+	DamageNumbers = true, -- floating numbers where your shots land
+	SpeedLines = true, -- streaks at the screen edges when you're fast
+	SpeedLinesFrom = 44, -- speed (u/s) where speed lines start
+	SparkTexture = "rbxasset://textures/particles/sparkles_main.dds",
+	SmokeTexture = "rbxasset://textures/particles/smoke_main.dds",
 }
 
 ----------------------------------------------------------------------------

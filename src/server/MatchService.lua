@@ -30,6 +30,8 @@ local arenas = {} -- [index] = arena info (built on first use)
 local arenaInUse = {} -- [index] = true
 local practiceOwned = {} -- [player] = { [powerUpId] = stacks }  (lobby Power-Up Lab)
 local practiceStats = {} -- [player] = cached stats
+local inPlayground = {} -- [player] = true while free-roaming the Playground
+local playground -- arena info for the Playground (built the first time someone enters)
 
 ----------------------------------------------------------------------------
 -- Helpers
@@ -60,6 +62,7 @@ local function lobbySnapshot(player)
 		QueueCount = #queue,
 		PlayersOnline = #Players:GetPlayers(),
 		PowerUps = table.clone(practiceOwned[player] or {}),
+		Playground = inPlayground[player] == true,
 	}
 end
 
@@ -75,8 +78,45 @@ local function broadcastLobby()
 	end
 end
 
+-- PLAYGROUND: a free-roam copy of the match map with dummies everywhere and
+-- the Power-Up Lab, for trying movement and builds without an opponent.
+local PLAYGROUND_DUMMIES = {
+	{ Position = Vector3.new(-120, 0.5, 5), Motion = "Strafe", Amount = 10, Speed = 0.3, Face = Vector3.new(1, 0, 0) },
+	{ Position = Vector3.new(60, 0.5, -5), Motion = "Strafe", Amount = 12, Speed = 0.25, Face = Vector3.new(-1, 0, 0) },
+	{ Position = Vector3.new(-95, 48.8, 62), Face = Vector3.new(0, 0, -1) },
+	{ Position = Vector3.new(95, 48.8, 62), Face = Vector3.new(0, 0, -1) },
+	{ Position = Vector3.new(-152, 24.8, 60), Face = Vector3.new(1, 0, -1) },
+	{ Position = Vector3.new(12, 26.8, 62), Face = Vector3.new(0, 0, -1) },
+	{ Position = Vector3.new(0, 31.3, -75), Face = Vector3.new(0, 0, 1) },
+	{ Position = Vector3.new(-60, 22, -75), Motion = "Strafe", Amount = 16, Speed = 0.2, Face = Vector3.new(0, 0, 1) },
+	{ Position = Vector3.new(-90, 0.3, -47), Motion = "Bob", Amount = 9, Speed = 0.5, Face = Vector3.new(0, 0, 1) },
+	{ Position = Vector3.new(150, 0.5, -100), Face = Vector3.new(-1, 0, 0) },
+	{ Position = Vector3.new(30, 0.5, -112), Motion = "Strafe", Amount = 8, Speed = 0.4, Face = Vector3.new(0, 0, 1) },
+	{ Position = Vector3.new(40, 0.5, 30), Face = Vector3.new(0, 0, -1) },
+}
+
+local function getPlayground()
+	if not playground then
+		playground = MapBuilder.BuildArena(Config.Match.MaxArenas + 2)
+		playground.Model.Name = "Playground"
+		DummyService.AddSpots(PLAYGROUND_DUMMIES, playground.Origin)
+	end
+	return playground
+end
+
 local function spawnInLobby(player)
 	if not player.Parent or matchByPlayer[player] then
+		return
+	end
+	if inPlayground[player] then
+		local arena = getPlayground()
+		player.CameraMode = Enum.CameraMode.LockFirstPerson
+		CharacterService.Spawn(player, arena.Spawns[math.random(1, 2)], {
+			Color = Config.Palette.LobbyPlayer,
+			MaxHealth = MatchService.GetPracticeStats(player).MaxHealth,
+			KillY = arena.FloorY - Config.Match.VoidDepth,
+		})
+		sendLobbyState(player)
 		return
 	end
 	player.CameraMode = Config.Camera.FirstPersonInLobby and Enum.CameraMode.LockFirstPerson
@@ -133,6 +173,8 @@ local function tryStartMatches()
 		local p1 = table.remove(queue, 1)
 		local p2 = table.remove(queue, 1)
 		local match = Match.new(p1, p2, arena, onMatchFinished)
+		inPlayground[p1] = nil
+		inPlayground[p2] = nil
 		matchByPlayer[p1] = match
 		matchByPlayer[p2] = match
 		match:Start()
@@ -171,6 +213,15 @@ function MatchService.Init()
 	end
 
 	Remotes.Get("QueueToggle").OnServerEvent:Connect(onQueueToggle)
+
+	-- enter / leave the Playground
+	Remotes.Get("PlaygroundToggle").OnServerEvent:Connect(function(player)
+		if matchByPlayer[player] then
+			return
+		end
+		inPlayground[player] = not inPlayground[player] or nil
+		task.spawn(spawnInLobby, player)
+	end)
 
 	-- POWER-UP LAB: try any power-up in the lobby
 	Remotes.Get("Practice").OnServerEvent:Connect(function(player, action, id)
@@ -219,6 +270,7 @@ function MatchService.Init()
 	Players.PlayerRemoving:Connect(function(player)
 		practiceOwned[player] = nil
 		practiceStats[player] = nil
+		inPlayground[player] = nil
 		local index = table.find(queue, player)
 		if index then
 			table.remove(queue, index)

@@ -160,29 +160,38 @@ end
 	                 Amount = studs, Speed = cycles per second }
 	Dummies face +Z (toward the lobby).
 ]]
-function DummyService.Init(spots)
-	folder = Instance.new("Folder")
-	folder.Name = "Dummies"
-	folder.Parent = workspace
-
-	for i, spot in ipairs(spots or {}) do
-		local base = CFrame.lookAt(spot.Position, spot.Position + Vector3.new(0, 0, 1))
+-- Adds dummies at `spots` (positions are offset by `origin`, e.g. an arena).
+function DummyService.AddSpots(spots, origin)
+	origin = origin or Vector3.zero
+	for _, spot in ipairs(spots or {}) do
+		local position = origin + spot.Position
+		local face = spot.Face or Vector3.new(0, 0, 1)
+		local base = CFrame.lookAt(position, position + face)
 		table.insert(dummies, {
 			Model = makeDummy(base),
 			Base = base,
 			Motion = spot.Motion or "Static",
 			Amount = spot.Amount or 0,
 			Speed = spot.Speed or 0.5,
-			Phase = i * 1.3,
+			Phase = #dummies * 1.3,
 		})
 	end
+end
+
+function DummyService.Init(spots)
+	folder = Instance.new("Folder")
+	folder.Name = "Dummies"
+	folder.Parent = workspace
+
+	DummyService.AddSpots(spots)
 
 	RunService.Heartbeat:Connect(function()
 		local t = os.clock()
 		for _, d in ipairs(dummies) do
 			if d.Motion ~= "Static" and d.Model.Parent then
 				local wave = math.sin(t * d.Speed * math.pi * 2 + d.Phase)
-				local offset = d.Motion == "Strafe" and Vector3.new(wave * d.Amount, 0, 0)
+				-- strafe sideways (relative to the way the dummy faces) or bob up and down
+				local offset = d.Motion == "Strafe" and d.Base.RightVector * (wave * d.Amount)
 					or Vector3.new(0, (wave + 1) * 0.5 * d.Amount, 0)
 				d.Model:PivotTo(d.Base + offset)
 			end

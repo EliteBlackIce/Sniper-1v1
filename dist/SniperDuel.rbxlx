@@ -427,7 +427,7 @@ Config.Camera = {
 	FOVLerpSpeed = 12, -- how quickly FOV follows its target
 	SprintFOVKick = 5,
 	SlideFOVKick = 9,
-	DashFOVKick = 14,
+	BlinkFOVKick = 18,
 	WallRunFOVKick = 6,
 	SpeedFOVPerStud = 0.22, -- extra FOV per stud/s above sprint speed
 	MaxSpeedFOV = 14,
@@ -472,15 +472,15 @@ Config.SettingsLimits = {
 -- MOVEMENT
 ----------------------------------------------------------------------------
 Config.Movement = {
-	Gravity = 170, -- workspace gravity (default Roblox is 196.2)
+	Gravity = 185, -- workspace gravity (default Roblox is 196.2). Higher = snappier jumps
 
 	-- Movement uses the same model as Source games (CS / TF2 / Titanfall):
 	-- ground friction + acceleration, and "air strafing" in the air, which is
 	-- what makes bunny hopping work.
 	RunSpeed = 30, -- normal top speed on the ground
 	SprintSpeed = 38, -- top speed while holding Shift on the ground
-	GroundAccel = 11, -- how quickly you reach top speed (higher = snappier)
-	Friction = 6, -- ground friction (higher = stop faster)
+	GroundAccel = 15, -- how quickly you reach top speed (higher = snappier)
+	Friction = 7, -- ground friction (higher = stop faster)
 	StopSpeed = 10, -- below this speed friction acts as if you were going this fast
 
 	-- BUNNY HOPPING
@@ -491,13 +491,16 @@ Config.Movement = {
 	JumpBuffer = 0.15, -- a jump pressed this long before landing still counts
 	CoyoteTime = 0.12, -- you can still jump this long after leaving the ground
 	AirAccel = 14, -- air strafe strength (Source uses 10-12)
-	AirSpeedCap = 3.6, -- small cap per frame = the classic strafe gain (Source: 30 units)
+	AirSpeedCap = 4.2, -- small cap per frame = the classic strafe gain (Source: 30 units)
 	AirControlSpeed = 30, -- wish speed used in the air
+	AirSteer = 4.5, -- holding W in the air turns your momentum toward your aim (per second)
+	AirMinSpeed = 26, -- in the air you can always accelerate up to this speed...
+	AirLowSpeedAccel = 7, -- ...this quickly (so standing jumps aren't stuck)
 	MaxSpeed = 120, -- hard limit on horizontal speed
 
-	JumpPower = 52,
+	JumpPower = 55,
 	AirJumps = 0, -- no double jump by default (the Double Jump power-up adds one)
-	AirJumpVelocity = 50,
+	AirJumpVelocity = 53,
 	AirJumpMinSpeed = 30, -- a double jump re-aims you toward your keys at least this fast
 
 	-- Slide
@@ -511,13 +514,6 @@ Config.Movement = {
 	SlideSteer = 2.2, -- how much you can steer a slide
 	SlideCooldown = 0.25,
 	SlideJumpBoost = 4, -- extra speed for jumping out of a slide (up to SlideBoostCap)
-
-	-- Air dash (press Shift in the air)
-	DashSpeed = 82,
-	DashDuration = 0.16,
-	DashExitSpeed = 44, -- speed you keep after the dash
-	DashesPerAir = 1, -- refills on landing / wall run
-	DashCooldown = 0.5,
 
 	-- Wall run (automatic: be in the air, moving, next to a wall)
 	WallCheckDistance = 3.4,
@@ -659,6 +655,22 @@ Config.Sounds = {
 	Go = { Id = "rbxasset://sounds/electronicpingshort.wav", Volume = 0.6, Pitch = 1.2 },
 	Victory = { Id = "rbxasset://sounds/electronicpingshort.wav", Volume = 0.8, Pitch = 0.5 },
 	Ability = { Id = "rbxasset://sounds/swordlunge.wav", Volume = 0.4, Pitch = 0.8 },
+}
+
+----------------------------------------------------------------------------
+-- VISUAL EFFECTS (client). Turn things off here if you want a calmer look
+-- or better performance.
+----------------------------------------------------------------------------
+Config.Effects = {
+	NeonEffects = true, -- tracers, flashes and explosions glow (Neon + bloom)
+	Particles = true, -- sparks / smoke / dust (Roblox's built-in particle textures)
+	Lights = true, -- muzzle, impact and explosion light flashes
+	KillShatter = true, -- bodies burst into shards on a kill
+	DamageNumbers = true, -- floating numbers where your shots land
+	SpeedLines = true, -- streaks at the screen edges when you're fast
+	SpeedLinesFrom = 44, -- speed (u/s) where speed lines start
+	SparkTexture = "rbxasset://textures/particles/sparkles_main.dds",
+	SmokeTexture = "rbxasset://textures/particles/smoke_main.dds",
 }
 
 ----------------------------------------------------------------------------
@@ -1468,8 +1480,8 @@ PowerUps.Definitions = {
 	},
 	{
 		Id = "PhantomDash",
-		Name = "Phantom Dash",
-		Description = "Your air dash makes you invisible for 0.5 seconds.",
+		Name = "Phantom Step",
+		Description = "Sliding or wall jumping makes you invisible for 0.5 seconds.",
 		Stacking = "+0.35s invisible per stack",
 		Rarity = "Rare",
 		Tags = { "Movement", "Defence" },
@@ -1751,6 +1763,7 @@ Remotes.Names = {
 	"SettingsSave", -- C->S  save settings
 	"Aim", -- C->S  where you're looking up/down (others see your aim pose)
 	"Practice", -- C->S  lobby power-up lab: add / remove / clear practice power-ups
+	"PlaygroundToggle", -- C->S  enter / leave Playground mode
 }
 
 local FOLDER_NAME = "Remotes"
@@ -2413,7 +2426,7 @@ return ArenaDowntown
 	    SmoothPlastic, no face/accessories) and gets a simple third-person
 	    sniper so the enemy can see where your gun is.
 	  * Freeze / unfreeze (used during countdowns and the pick screen).
-	  * Temporary invisibility (Phantom Dash).
+	  * Temporary invisibility (Phantom Step).
 	  * Falling into the void kills you.
 ]]
 
@@ -2868,7 +2881,21 @@ function CombatService.Damage(match, attacker, victim, amount, info)
 			Killed = after <= 0,
 			Damage = dealt,
 			Splash = info.Splash == true,
+			Position = info.Position,
 		})
+	end
+
+	-- kill effect: the body shatters (everyone in the match sees it)
+	if after <= 0 then
+		local root = victim.Character and victim.Character:FindFirstChild("HumanoidRootPart")
+		if root then
+			sendToMatch(match, "Effect", {
+				Type = "Kill",
+				Position = root.Position,
+				Color = match:ColorFor(victim),
+				Headshot = info.Headshot == true,
+			})
+		end
 	end
 
 	local attackerRoot = attacker and attacker.Character and attacker.Character:FindFirstChild("HumanoidRootPart")
@@ -2895,13 +2922,18 @@ local function damageTarget(match, attacker, stats, target, amount, info)
 	if target.Player then
 		CombatService.Damage(match, attacker, target.Player, amount, info)
 	else
+		local torso = getTorso(target.Model)
 		local killed = DummyService.Damage(target.Model, amount)
 		Remotes.Get("HitConfirm"):FireClient(attacker, {
 			Headshot = info.Headshot == true,
 			Killed = killed,
 			Damage = amount,
 			Splash = info.Splash == true,
+			Position = info.Position,
 		})
+		if killed and torso then
+			sendFx(nil, { Type = "Kill", Position = torso.Position, Color = Config.Palette.PlayerB, Headshot = info.Headshot == true })
+		end
 	end
 
 	if stats.MarkBonus > 0 then
@@ -2967,7 +2999,10 @@ local function explode(match, attacker, stats, mult, targets, position, directMo
 			local distance = offset.Magnitude
 			if distance <= radius then
 				local falloff = 1 - (distance / radius) * 0.5
-				damageTarget(match, attacker, stats, target, stats.ExplosionDamage * falloff * mult, { Splash = true })
+				damageTarget(match, attacker, stats, target, stats.ExplosionDamage * falloff * mult, {
+					Splash = true,
+					Position = torso.Position,
+				})
 				if target.Player then
 					local away = Util.safeUnit(offset + Vector3.new(0, 2, 0), Vector3.yAxis)
 					knockback(target.Player, away * cfg.Knockback * falloff)
@@ -3018,7 +3053,7 @@ local function shrapnel(match, attacker, stats, mult, targets, impacts, exclude,
 			if ray then
 				local target = targetForModel(targets, Ballistics.FindTargetModel(ray.Instance))
 				if target then
-					damageTarget(match, attacker, stats, target, cfg.Damage * mult, { Splash = true })
+					damageTarget(match, attacker, stats, target, cfg.Damage * mult, { Splash = true, Position = ray.Position })
 				end
 			end
 		end
@@ -3041,7 +3076,10 @@ local function staticCharge(match, attacker, stats, mult, targets, sim, exclude,
 				params.FilterDescendantsInstances = list
 				if not workspace:Raycast(point, torso.Position - point, params) then
 					zapped[target.Model] = true
-					damageTarget(match, attacker, stats, target, stats.StaticChargeDamage * mult, { Splash = true })
+					damageTarget(match, attacker, stats, target, stats.StaticChargeDamage * mult, {
+						Splash = true,
+						Position = torso.Position,
+					})
 					sendFx(match, { Type = "Zap", From = point, To = torso.Position })
 				end
 			end
@@ -3202,7 +3240,7 @@ local function onFire(player, origin, direction, claims)
 		if hitTarget then
 			anyHit = true
 			local damage, headshot = bulletDamage(hitPart, hops, stats, mult)
-			damageTarget(match, player, stats, hitTarget, damage, { Headshot = headshot })
+			damageTarget(match, player, stats, hitTarget, damage, { Headshot = headshot, Position = hitPos })
 		elseif stats.StaticChargeDamage > 0 then
 			staticCharge(match, player, stats, mult, targets, sim, exclude, zapped)
 		end
@@ -3373,7 +3411,7 @@ local function onAbility(player, name, data)
 	local opponent = match and match:GetOpponent(player)
 
 	if name == "PhantomDash" and stats.PhantomDash then
-		if useCooldown(player, name, Config.Movement.DashCooldown * 0.8) then
+		if useCooldown(player, name, 0.5) then
 			CharacterService.MakeInvisible(player, stats.PhantomTime)
 		end
 	elseif name == "Decoy" and stats.Decoy then
@@ -3396,6 +3434,7 @@ local function onAbility(player, name, data)
 						if stats.ShockwaveDamage > 0 then
 							damageTarget(match, player, stats, target, stats.ShockwaveDamage * stats.DamageMultiplier, {
 								Splash = true,
+								Position = torso.Position,
 							})
 						end
 						if target.Player then
@@ -3632,29 +3671,38 @@ end
 	                 Amount = studs, Speed = cycles per second }
 	Dummies face +Z (toward the lobby).
 ]]
-function DummyService.Init(spots)
-	folder = Instance.new("Folder")
-	folder.Name = "Dummies"
-	folder.Parent = workspace
-
-	for i, spot in ipairs(spots or {}) do
-		local base = CFrame.lookAt(spot.Position, spot.Position + Vector3.new(0, 0, 1))
+-- Adds dummies at `spots` (positions are offset by `origin`, e.g. an arena).
+function DummyService.AddSpots(spots, origin)
+	origin = origin or Vector3.zero
+	for _, spot in ipairs(spots or {}) do
+		local position = origin + spot.Position
+		local face = spot.Face or Vector3.new(0, 0, 1)
+		local base = CFrame.lookAt(position, position + face)
 		table.insert(dummies, {
 			Model = makeDummy(base),
 			Base = base,
 			Motion = spot.Motion or "Static",
 			Amount = spot.Amount or 0,
 			Speed = spot.Speed or 0.5,
-			Phase = i * 1.3,
+			Phase = #dummies * 1.3,
 		})
 	end
+end
+
+function DummyService.Init(spots)
+	folder = Instance.new("Folder")
+	folder.Name = "Dummies"
+	folder.Parent = workspace
+
+	DummyService.AddSpots(spots)
 
 	RunService.Heartbeat:Connect(function()
 		local t = os.clock()
 		for _, d in ipairs(dummies) do
 			if d.Motion ~= "Static" and d.Model.Parent then
 				local wave = math.sin(t * d.Speed * math.pi * 2 + d.Phase)
-				local offset = d.Motion == "Strafe" and Vector3.new(wave * d.Amount, 0, 0)
+				-- strafe sideways (relative to the way the dummy faces) or bob up and down
+				local offset = d.Motion == "Strafe" and d.Base.RightVector * (wave * d.Amount)
 					or Vector3.new(0, (wave + 1) * 0.5 * d.Amount, 0)
 				d.Model:PivotTo(d.Base + offset)
 			end
@@ -4502,6 +4550,8 @@ local arenas = {} -- [index] = arena info (built on first use)
 local arenaInUse = {} -- [index] = true
 local practiceOwned = {} -- [player] = { [powerUpId] = stacks }  (lobby Power-Up Lab)
 local practiceStats = {} -- [player] = cached stats
+local inPlayground = {} -- [player] = true while free-roaming the Playground
+local playground -- arena info for the Playground (built the first time someone enters)
 
 ----------------------------------------------------------------------------
 -- Helpers
@@ -4532,6 +4582,7 @@ local function lobbySnapshot(player)
 		QueueCount = #queue,
 		PlayersOnline = #Players:GetPlayers(),
 		PowerUps = table.clone(practiceOwned[player] or {}),
+		Playground = inPlayground[player] == true,
 	}
 end
 
@@ -4547,8 +4598,45 @@ local function broadcastLobby()
 	end
 end
 
+-- PLAYGROUND: a free-roam copy of the match map with dummies everywhere and
+-- the Power-Up Lab, for trying movement and builds without an opponent.
+local PLAYGROUND_DUMMIES = {
+	{ Position = Vector3.new(-120, 0.5, 5), Motion = "Strafe", Amount = 10, Speed = 0.3, Face = Vector3.new(1, 0, 0) },
+	{ Position = Vector3.new(60, 0.5, -5), Motion = "Strafe", Amount = 12, Speed = 0.25, Face = Vector3.new(-1, 0, 0) },
+	{ Position = Vector3.new(-95, 48.8, 62), Face = Vector3.new(0, 0, -1) },
+	{ Position = Vector3.new(95, 48.8, 62), Face = Vector3.new(0, 0, -1) },
+	{ Position = Vector3.new(-152, 24.8, 60), Face = Vector3.new(1, 0, -1) },
+	{ Position = Vector3.new(12, 26.8, 62), Face = Vector3.new(0, 0, -1) },
+	{ Position = Vector3.new(0, 31.3, -75), Face = Vector3.new(0, 0, 1) },
+	{ Position = Vector3.new(-60, 22, -75), Motion = "Strafe", Amount = 16, Speed = 0.2, Face = Vector3.new(0, 0, 1) },
+	{ Position = Vector3.new(-90, 0.3, -47), Motion = "Bob", Amount = 9, Speed = 0.5, Face = Vector3.new(0, 0, 1) },
+	{ Position = Vector3.new(150, 0.5, -100), Face = Vector3.new(-1, 0, 0) },
+	{ Position = Vector3.new(30, 0.5, -112), Motion = "Strafe", Amount = 8, Speed = 0.4, Face = Vector3.new(0, 0, 1) },
+	{ Position = Vector3.new(40, 0.5, 30), Face = Vector3.new(0, 0, -1) },
+}
+
+local function getPlayground()
+	if not playground then
+		playground = MapBuilder.BuildArena(Config.Match.MaxArenas + 2)
+		playground.Model.Name = "Playground"
+		DummyService.AddSpots(PLAYGROUND_DUMMIES, playground.Origin)
+	end
+	return playground
+end
+
 local function spawnInLobby(player)
 	if not player.Parent or matchByPlayer[player] then
+		return
+	end
+	if inPlayground[player] then
+		local arena = getPlayground()
+		player.CameraMode = Enum.CameraMode.LockFirstPerson
+		CharacterService.Spawn(player, arena.Spawns[math.random(1, 2)], {
+			Color = Config.Palette.LobbyPlayer,
+			MaxHealth = MatchService.GetPracticeStats(player).MaxHealth,
+			KillY = arena.FloorY - Config.Match.VoidDepth,
+		})
+		sendLobbyState(player)
 		return
 	end
 	player.CameraMode = Config.Camera.FirstPersonInLobby and Enum.CameraMode.LockFirstPerson
@@ -4605,6 +4693,8 @@ local function tryStartMatches()
 		local p1 = table.remove(queue, 1)
 		local p2 = table.remove(queue, 1)
 		local match = Match.new(p1, p2, arena, onMatchFinished)
+		inPlayground[p1] = nil
+		inPlayground[p2] = nil
 		matchByPlayer[p1] = match
 		matchByPlayer[p2] = match
 		match:Start()
@@ -4643,6 +4733,15 @@ function MatchService.Init()
 	end
 
 	Remotes.Get("QueueToggle").OnServerEvent:Connect(onQueueToggle)
+
+	-- enter / leave the Playground
+	Remotes.Get("PlaygroundToggle").OnServerEvent:Connect(function(player)
+		if matchByPlayer[player] then
+			return
+		end
+		inPlayground[player] = not inPlayground[player] or nil
+		task.spawn(spawnInLobby, player)
+	end)
 
 	-- POWER-UP LAB: try any power-up in the lobby
 	Remotes.Get("Practice").OnServerEvent:Connect(function(player, action, id)
@@ -4691,6 +4790,7 @@ function MatchService.Init()
 	Players.PlayerRemoving:Connect(function(player)
 		practiceOwned[player] = nil
 		practiceStats[player] = nil
+		inPlayground[player] = nil
 		local index = table.find(queue, player)
 		if index then
 			table.remove(queue, index)
@@ -5400,13 +5500,18 @@ return ClientState
             <string name="Source"><![CDATA[--[[
 	EffectsController.lua  (Client.EffectsController)
 
-	All local visual effects (flat-coloured parts that fade out):
-		* bullet tracers (yours + the enemy's), bright teal after a ricochet
-		* impact puffs, ghost-round wall passes
-		* explosions, shockwave rings, decoy pops, Second Wind flash
-		* grapple ropes (yours and the enemy's)
-		* Wallhack Pulse highlight on the enemy
-		* Bullet Time and Phantom Dash screen tints
+	All local visual effects. Effects are built from glowing flat parts
+	(Neon, so they bloom), Roblox's built-in particle textures (sparks and
+	smoke) and short light flashes. Everything can be toned down in
+	Config.Effects.
+
+		shots       glowing tracers with a travelling bullet head, muzzle flash
+		            light, impact sparks + smoke + light, ricochet / ghost marks
+		explosions  fireball, shockwave ring, sparks, smoke, light, camera shake
+		kills       the body shatters into flat shards, headshots get a red burst
+		movement    landing dust ring, jump puff, slide dust
+		powers      shrapnel, static zaps, blink trail, grapple rope, marks,
+		            wallhack pulse, Bullet Time / Phantom Step tints
 
 	Local effects live in a folder inside the camera so they never block
 	bullets or movement raycasts.
@@ -5425,6 +5530,7 @@ local ClientState = require(script.Parent.ClientState)
 local Sfx = require(script.Parent.Sfx)
 
 local Palette = Config.Palette
+local FX = Config.Effects
 local player = Players.LocalPlayer
 
 local Effects = {}
@@ -5437,7 +5543,7 @@ local bulletTimeCC
 local bulletTimeOn = false
 
 ----------------------------------------------------------------------------
--- Helpers
+-- Building blocks
 ----------------------------------------------------------------------------
 local function getFolder()
 	local camera = workspace.CurrentCamera
@@ -5449,14 +5555,15 @@ local function getFolder()
 	return folder
 end
 
-local function flatPart(size, cf, color, shape)
+-- An effect part. `glow` = Neon (blooms) when Config.Effects.NeonEffects is on.
+local function fxPart(size, cf, color, shape, glow)
 	local part = Instance.new("Part")
 	part.Anchored = true
 	part.CanCollide = false
 	part.CanQuery = false
 	part.CanTouch = false
 	part.CastShadow = false
-	part.Material = Enum.Material.SmoothPlastic
+	part.Material = (glow and FX.NeonEffects) and Enum.Material.Neon or Enum.Material.SmoothPlastic
 	part.Size = size
 	part.CFrame = cf
 	part.Color = color
@@ -5467,47 +5574,132 @@ local function flatPart(size, cf, color, shape)
 	return part
 end
 
-local function fadeOut(part, time, extraGoals)
+local function fadeOut(part, time, extraGoals, style)
 	local goals = { Transparency = 1 }
 	if extraGoals then
 		for k, v in pairs(extraGoals) do
 			goals[k] = v
 		end
 	end
-	TweenService:Create(part, TweenInfo.new(time, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), goals):Play()
+	TweenService:Create(part, TweenInfo.new(time, style or Enum.EasingStyle.Quad, Enum.EasingDirection.Out), goals):Play()
 	Debris:AddItem(part, time + 0.1)
 end
 
--- A tracer line from a to b (a thin core plus a softer outer glow).
+-- An invisible anchor at a world position (for particles, lights, sounds).
+local function anchorAt(position, life)
+	local attachment = Instance.new("Attachment")
+	attachment.WorldPosition = position
+	attachment.Parent = workspace.Terrain
+	Debris:AddItem(attachment, life or 3)
+	return attachment
+end
+
+--[[
+	Particle burst using Roblox's built-in textures.
+	kind: "Sparks" | "Smoke" | "Dust"
+]]
+local function emit(position, kind, color, count, direction)
+	if not FX.Particles or count <= 0 then
+		return
+	end
+	local attachment = anchorAt(position, 3)
+	if direction and direction.Magnitude > 0.01 then
+		attachment.WorldCFrame = CFrame.lookAt(position, position + direction) * CFrame.Angles(-math.pi / 2, 0, 0)
+	end
+	local e = Instance.new("ParticleEmitter")
+	e.Enabled = false
+	e.Color = ColorSequence.new(color)
+	e.LightInfluence = 0
+	if kind == "Sparks" then
+		e.Texture = FX.SparkTexture
+		e.LightEmission = 1
+		e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.45), NumberSequenceKeypoint.new(1, 0) })
+		e.Speed = NumberRange.new(18, 42)
+		e.Lifetime = NumberRange.new(0.15, 0.4)
+		e.SpreadAngle = direction and Vector2.new(55, 55) or Vector2.new(180, 180)
+		e.Acceleration = Vector3.new(0, -60, 0)
+		e.Drag = 3
+	else -- Smoke / Dust
+		e.Texture = FX.SmokeTexture
+		e.LightEmission = 0
+		local big = kind == "Smoke" and 3.5 or 2.2
+		e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, big * 0.4), NumberSequenceKeypoint.new(1, big) })
+		e.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.35), NumberSequenceKeypoint.new(1, 1) })
+		e.Speed = NumberRange.new(2, kind == "Smoke" and 8 or 5)
+		e.Lifetime = NumberRange.new(0.5, 1.1)
+		e.SpreadAngle = Vector2.new(180, 180)
+		e.Rotation = NumberRange.new(0, 360)
+		e.RotSpeed = NumberRange.new(-40, 40)
+		e.Drag = 2
+	end
+	e.Parent = attachment
+	e:Emit(count)
+end
+
+-- A brief point-light flash (looks great with Future lighting).
+local function lightFlash(position, color, brightness, range, time)
+	if not FX.Lights then
+		return
+	end
+	local attachment = anchorAt(position, time + 0.2)
+	local light = Instance.new("PointLight")
+	light.Color = color
+	light.Brightness = brightness
+	light.Range = range
+	light.Shadows = false
+	light.Parent = attachment
+	TweenService:Create(light, TweenInfo.new(time, Enum.EasingStyle.Quad), { Brightness = 0 }):Play()
+end
+
+-- A glowing tracer line from a to b (thin hot core + soft outer glow).
 local function tracer(a, b, color, thickness, life)
 	local length = (b - a).Magnitude
 	if length < 0.05 then
 		return
 	end
 	local cf = CFrame.lookAt((a + b) / 2, b)
-	local core = flatPart(Vector3.new(thickness, thickness, length), cf, color)
-	core.Transparency = 0.05
-	fadeOut(core, life, { Size = Vector3.new(thickness * 0.3, thickness * 0.3, length) })
-	local glow = flatPart(Vector3.new(thickness * 3, thickness * 3, length), cf, color)
-	glow.Transparency = 0.75
-	fadeOut(glow, life * 0.7)
+	local core = fxPart(Vector3.new(thickness, thickness, length), cf, color:Lerp(Color3.new(1, 1, 1), 0.4), nil, true)
+	fadeOut(core, life, { Size = Vector3.new(0.02, 0.02, length) })
+	local glow = fxPart(Vector3.new(thickness * 3.5, thickness * 3.5, length), cf, color, nil, true)
+	glow.Transparency = 0.82
+	fadeOut(glow, life * 0.6)
 end
 
-local function puff(position, color, size, life)
-	local ball = flatPart(Vector3.one * size, CFrame.new(position), color, Enum.PartType.Ball)
-	ball.Transparency = 0.2
+-- A glowing ball that flies along a path (the "bullet").
+local function bulletHead(points, color)
+	if #points < 2 then
+		return
+	end
+	local head = fxPart(Vector3.new(0.35, 0.35, 2.2), CFrame.lookAt(points[1], points[2]), color, nil, true)
+	task.spawn(function()
+		for i = 1, #points - 1 do
+			local a, b = points[i], points[i + 1]
+			local time = math.min((b - a).Magnitude / 1400, 0.4)
+			head.CFrame = CFrame.lookAt(a, b)
+			local tween = TweenService:Create(head, TweenInfo.new(time, Enum.EasingStyle.Linear), { CFrame = CFrame.lookAt(b, b + (b - a)) })
+			tween:Play()
+			tween.Completed:Wait()
+		end
+		head:Destroy()
+	end)
+end
+
+local function puff(position, color, size, life, glow)
+	local ball = fxPart(Vector3.one * size, CFrame.new(position), color, Enum.PartType.Ball, glow)
+	ball.Transparency = 0.15
 	fadeOut(ball, life, { Size = Vector3.one * size * 3 })
 end
 
-local function ring(position, color, radius, life)
-	local disc = flatPart(
-		Vector3.new(0.4, 2, 2),
+local function ring(position, color, radius, life, glow)
+	local disc = fxPart(
+		Vector3.new(0.3, 2, 2),
 		CFrame.new(position) * CFrame.Angles(0, 0, math.rad(90)),
 		color,
-		Enum.PartType.Cylinder
+		Enum.PartType.Cylinder,
+		glow
 	)
-	disc.Transparency = 0.3
-	fadeOut(disc, life, { Size = Vector3.new(0.2, radius * 2, radius * 2) })
+	disc.Transparency = 0.25
+	fadeOut(disc, life, { Size = Vector3.new(0.1, radius * 2, radius * 2) }, Enum.EasingStyle.Quint)
 end
 
 ----------------------------------------------------------------------------
@@ -5523,30 +5715,55 @@ end
 ]]
 function Effects.DrawShot(segments, passes, endPosition, endNormal, startPos, options)
 	options = options or {}
+	local headPoints = {}
 	for i, seg in ipairs(segments) do
 		local from = seg.From
 		if i == 1 and startPos then
 			from = startPos
 		end
+		table.insert(headPoints, from)
 		local color = Palette.Tracer
-		local thickness = 0.12
+		local thickness = 0.1
 		if seg.Kind == "Bounce" then
 			color = Palette.TracerBounce
-			thickness = 0.2
+			thickness = 0.16
 		elseif options.Explosive then
 			color = Palette.TracerExplosive
 		end
-		tracer(from, seg.To, color, thickness, seg.Kind == "Bounce" and 0.7 or 0.45)
-		if seg.Kind == "Bounce" or (segments[i + 1] and segments[i + 1].Kind == "Bounce" and seg.Kind ~= "Bounce") then
-			puff(seg.To, Palette.TracerBounce, 0.8, 0.35)
+		tracer(from, seg.To, color, thickness, seg.Kind == "Bounce" and 0.7 or 0.5)
+		-- ricochet flash
+		if segments[i + 1] and segments[i + 1].Kind == "Bounce" and (segments[i + 1].Hops or 0) > (seg.Hops or 0) then
+			puff(seg.To, Palette.TracerBounce, 0.9, 0.3, true)
+			emit(seg.To, "Sparks", Palette.TracerBounce, 10)
+			lightFlash(seg.To, Palette.TracerBounce, 3, 10, 0.2)
 		end
 	end
+	if #segments > 0 then
+		table.insert(headPoints, segments[#segments].To)
+		bulletHead(headPoints, options.Explosive and Palette.TracerExplosive or Palette.Tracer)
+	end
 	for _, p in ipairs(passes or {}) do
-		puff(p, Palette.Hologram, 1.4, 0.4)
+		puff(p, Palette.Hologram, 1.4, 0.4, true)
+		emit(p, "Dust", Palette.Light, 6)
 	end
-	if endPosition and not options.HitPlayer then
-		puff(endPosition, Palette.Mid, 0.7, 0.35)
+	if endPosition then
+		if options.HitPlayer then
+			emit(endPosition, "Sparks", Color3.fromRGB(255, 120, 120), 16)
+			lightFlash(endPosition, Color3.fromRGB(255, 120, 120), 3, 10, 0.2)
+		else
+			-- impact on the world: sparks bouncing off the surface + a dust puff
+			emit(endPosition, "Sparks", Color3.fromRGB(255, 220, 160), 12, endNormal)
+			emit(endPosition, "Dust", Palette.Light, 4)
+			puff(endPosition, Palette.Tracer, 0.5, 0.2, true)
+			lightFlash(endPosition, Color3.fromRGB(255, 220, 170), 2, 8, 0.15)
+		end
 	end
+end
+
+-- Muzzle flash light + smoke at a world position (your own gun or theirs).
+function Effects.MuzzleFlash(position, direction)
+	lightFlash(position, Palette.MuzzleFlash, 6, 16, 0.08)
+	emit(position, "Smoke", Color3.fromRGB(220, 220, 225), 3, direction)
 end
 
 -- Enemy shot from the server: start tracers at their gun's muzzle.
@@ -5566,7 +5783,88 @@ local function onEnemyShot(userId, bullets, explosive)
 	end
 	if muzzleAttachment then
 		Sfx.Play("Fire", { Parent = muzzleAttachment, Volume = 1.4 })
-		puff(muzzle, Palette.Tracer, 0.6, 0.15)
+		puff(muzzle, Palette.MuzzleFlash, 0.9, 0.12, true)
+		Effects.MuzzleFlash(muzzle)
+	end
+end
+
+----------------------------------------------------------------------------
+-- Kills: the body shatters into flat shards
+----------------------------------------------------------------------------
+local function shatter(position, color, headshot)
+	if not FX.KillShatter then
+		return
+	end
+	puff(position, Color3.new(1, 1, 1), 3, 0.35, true)
+	lightFlash(position, Color3.new(1, 1, 1), 4, 18, 0.3)
+	emit(position, "Sparks", color, 24)
+	for _ = 1, 14 do
+		local size = 0.5 + math.random() * 0.8
+		local shard = Instance.new("Part")
+		shard.Size = Vector3.new(size, size, size)
+		shard.CFrame = CFrame.new(position + Vector3.new(math.random() - 0.5, math.random() * 2 - 1, math.random() - 0.5) * 2)
+			* CFrame.Angles(math.random() * 6, math.random() * 6, math.random() * 6)
+		shard.Color = color
+		shard.Material = Enum.Material.SmoothPlastic
+		shard.CanCollide = true
+		shard.CanQuery = false
+		shard.CanTouch = false
+		shard.CastShadow = true
+		-- in workspace.Effects (ignored by bullets + movement) so physics runs
+		shard.Parent = workspace:FindFirstChild("Effects") or getFolder()
+		shard.AssemblyLinearVelocity = Vector3.new(math.random() - 0.5, 0.6 + math.random(), math.random() - 0.5).Unit
+			* (25 + math.random() * 30)
+		shard.AssemblyAngularVelocity = Vector3.new(math.random() - 0.5, math.random() - 0.5, math.random() - 0.5) * 30
+		task.delay(1.4, function()
+			if shard.Parent then
+				fadeOut(shard, 0.6, { Size = Vector3.new(0.05, 0.05, 0.05) })
+			end
+		end)
+	end
+	if headshot then
+		ring(position + Vector3.new(0, 1.5, 0), Palette.UIHeadshot, 7, 0.45, true)
+	end
+end
+
+----------------------------------------------------------------------------
+-- Movement dust (your own character)
+----------------------------------------------------------------------------
+local function feetPosition()
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	return root and (root.Position - Vector3.new(0, 3, 0)) or nil
+end
+
+local function onLanded(fallSpeed)
+	local feet = feetPosition()
+	if not feet or fallSpeed < 40 then
+		return
+	end
+	local strength = math.clamp((fallSpeed - 40) / 60, 0, 1)
+	ring(feet + Vector3.new(0, 0.2, 0), Palette.Light, 4 + strength * 7, 0.45)
+	emit(feet, "Dust", Palette.Light, math.floor(4 + strength * 10))
+end
+
+local function onJumped()
+	local feet = feetPosition()
+	if feet then
+		emit(feet, "Dust", Palette.Light, 3)
+	end
+end
+
+local slideDustTimer = 0
+local function updateMovementFx(dt)
+	if Controllers.Movement.GetMode() ~= "Slide" then
+		return
+	end
+	slideDustTimer += dt
+	if slideDustTimer > 0.06 then
+		slideDustTimer = 0
+		local feet = feetPosition()
+		if feet then
+			emit(feet, "Dust", Palette.Light, 1)
+			emit(feet, "Sparks", Color3.fromRGB(255, 220, 170), 2)
+		end
 	end
 end
 
@@ -5582,24 +5880,25 @@ local function updateRope(rope, fromPos)
 		return
 	end
 	if not rope.Part then
-		rope.Part = flatPart(Vector3.new(0.1, 0.1, 1), CFrame.identity, Palette.Grapple)
+		rope.Part = fxPart(Vector3.new(0.12, 0.12, 1), CFrame.identity, Palette.Grapple, nil, true)
 	end
 	local length = (rope.Point - fromPos).Magnitude
-	rope.Part.Size = Vector3.new(0.1, 0.1, length)
+	rope.Part.Size = Vector3.new(0.12, 0.12, length)
 	rope.Part.CFrame = CFrame.lookAt((rope.Point + fromPos) / 2, rope.Point)
 end
 
 function Effects.SetLocalGrapple(point)
 	localRope.Point = point
 	if point then
-		puff(point, Palette.Grapple, 1, 0.3)
+		puff(point, Palette.Grapple, 1.2, 0.3, true)
+		emit(point, "Sparks", Palette.Grapple, 10)
 	else
 		updateRope(localRope, nil)
 	end
 end
 
 ----------------------------------------------------------------------------
--- Screen tints
+-- Screen tints + power visuals
 ----------------------------------------------------------------------------
 function Effects.SetBulletTime(on)
 	bulletTimeOn = on
@@ -5622,9 +5921,13 @@ function Effects.Blink(from, to)
 	if not from or not to then
 		return
 	end
-	puff(from, Palette.Hologram, 3, 0.35)
-	puff(to, Color3.fromRGB(190, 160, 255), 3.5, 0.4)
-	tracer(from, to, Color3.fromRGB(190, 160, 255), 0.5, 0.35)
+	local color = Color3.fromRGB(190, 160, 255)
+	puff(from, Palette.Hologram, 3, 0.35, true)
+	puff(to, color, 3.5, 0.4, true)
+	tracer(from, to, color, 0.5, 0.4)
+	emit(from, "Sparks", Palette.Hologram, 14)
+	emit(to, "Sparks", color, 18)
+	lightFlash(to, color, 4, 16, 0.3)
 	Sfx.PlayAt("Dash", to, { Pitch = 1.6 })
 end
 
@@ -5637,11 +5940,13 @@ function Effects.PhantomFlash()
 	cc.TintColor = Color3.fromRGB(190, 230, 255)
 	cc.Saturation = -0.3
 	cc.Parent = workspace.CurrentCamera
-	TweenService:Create(cc, TweenInfo.new(math.max(ClientState.Stats.PhantomTime, 0.3)), {
-		TintColor = Color3.new(1, 1, 1),
-		Saturation = 0,
-	}):Play()
-	Debris:AddItem(cc, math.max(ClientState.Stats.PhantomTime, 0.3) + 0.1)
+	local time = math.max(ClientState.Stats.PhantomTime, 0.3)
+	TweenService:Create(cc, TweenInfo.new(time), { TintColor = Color3.new(1, 1, 1), Saturation = 0 }):Play()
+	Debris:AddItem(cc, time + 0.1)
+	local feet = feetPosition()
+	if feet then
+		emit(feet + Vector3.new(0, 2, 0), "Smoke", Palette.Hologram, 6)
+	end
 end
 
 ----------------------------------------------------------------------------
@@ -5693,24 +5998,38 @@ local function onEffect(data)
 	local t = data.Type
 	if t == "Explosion" then
 		local radius = data.Radius or 10
-		local ball = flatPart(Vector3.one * 2, CFrame.new(data.Position), Palette.Explosion, Enum.PartType.Ball)
-		ball.Transparency = 0.1
-		fadeOut(ball, 0.45, { Size = Vector3.one * radius * 2 })
-		puff(data.Position, Color3.new(1, 1, 1), 2, 0.25)
-		Sfx.PlayAt("Explosion", data.Position)
+		local p = data.Position
+		local ball = fxPart(Vector3.one * 2, CFrame.new(p), Palette.Explosion, Enum.PartType.Ball, true)
+		ball.Transparency = 0.05
+		fadeOut(ball, 0.5, { Size = Vector3.one * radius * 2 }, Enum.EasingStyle.Quint)
+		local core = fxPart(Vector3.one * 2, CFrame.new(p), Color3.fromRGB(255, 240, 200), Enum.PartType.Ball, true)
+		fadeOut(core, 0.25, { Size = Vector3.one * radius })
+		ring(p, Palette.Explosion, radius * 1.4, 0.5, true)
+		emit(p, "Sparks", Palette.Explosion, 36)
+		emit(p, "Smoke", Color3.fromRGB(90, 92, 100), 14)
+		lightFlash(p, Palette.Explosion, 8, radius * 3, 0.45)
+		Sfx.PlayAt("Explosion", p)
 		local camera = workspace.CurrentCamera
-		local distance = (camera.CFrame.Position - data.Position).Magnitude
-		if distance < radius * 3 then
-			Controllers.Camera.Shake(4 * (1 - distance / (radius * 3)))
+		local distance = (camera.CFrame.Position - p).Magnitude
+		if distance < radius * 4 then
+			Controllers.Camera.Shake(5 * (1 - distance / (radius * 4)))
 		end
 	elseif t == "Shockwave" then
-		ring(data.Position - Vector3.new(0, 2.5, 0), Palette.AccentB, data.Radius or 20, 0.5)
+		local ground = data.Position - Vector3.new(0, 2.5, 0)
+		ring(ground, Palette.AccentB, data.Radius or 20, 0.55, true)
+		ring(ground, Color3.new(1, 1, 1), (data.Radius or 20) * 0.6, 0.35, true)
+		emit(ground, "Dust", Palette.Light, 18)
+		lightFlash(ground, Palette.AccentB, 4, 24, 0.3)
 		Sfx.PlayAt("Explosion", data.Position, { Pitch = 0.6 })
 	elseif t == "DecoyPop" then
-		puff(data.Position, Palette.Hologram, 3, 0.4)
+		puff(data.Position, Palette.Hologram, 3, 0.4, true)
+		emit(data.Position, "Sparks", Palette.Hologram, 16)
+	elseif t == "Kill" then
+		shatter(data.Position, data.Color or Palette.PlayerB, data.Headshot)
 	elseif t == "SecondWind" then
 		if data.Position then
-			puff(data.Position, Color3.fromRGB(90, 230, 140), 4, 0.6)
+			puff(data.Position, Color3.fromRGB(90, 230, 140), 4, 0.6, true)
+			emit(data.Position, "Sparks", Color3.fromRGB(90, 230, 140), 24)
 		end
 		if data.UserId == player.UserId then
 			Controllers.HUD.Flash(Color3.fromRGB(90, 230, 140), "SECOND WIND")
@@ -5721,22 +6040,26 @@ local function onEffect(data)
 	elseif t == "Shards" then
 		-- SHRAPNEL
 		for _, seg in ipairs(data.Segments or {}) do
-			tracer(seg.From, seg.To, Palette.TracerExplosive, 0.06, 0.3)
-			puff(seg.To, Palette.TracerExplosive, 0.35, 0.25)
+			tracer(seg.From, seg.To, Palette.TracerExplosive, 0.05, 0.3)
+			emit(seg.To, "Sparks", Palette.TracerExplosive, 3)
 		end
-		Sfx.PlayAt("Hit", data.Segments[1] and data.Segments[1].From or Vector3.zero, { Pitch = 2.2, Volume = 0.4 })
+		if data.Segments and data.Segments[1] then
+			Sfx.PlayAt("Hit", data.Segments[1].From, { Pitch = 2.2, Volume = 0.4 })
+		end
 	elseif t == "Zap" then
 		-- STATIC CHARGE: a jagged bolt from the bullet path to the target
 		local points = { data.From }
-		for i = 1, 3 do
-			local p = data.From:Lerp(data.To, i / 4)
-			table.insert(points, p + Vector3.new(math.random() - 0.5, math.random() - 0.5, math.random() - 0.5) * 1.6)
+		for i = 1, 4 do
+			local p = data.From:Lerp(data.To, i / 5)
+			table.insert(points, p + Vector3.new(math.random() - 0.5, math.random() - 0.5, math.random() - 0.5) * 1.8)
 		end
 		table.insert(points, data.To)
 		for i = 1, #points - 1 do
 			tracer(points[i], points[i + 1], Palette.Hologram, 0.12, 0.3)
 		end
-		puff(data.To, Palette.Hologram, 1.2, 0.3)
+		puff(data.To, Palette.Hologram, 1.4, 0.3, true)
+		emit(data.To, "Sparks", Palette.Hologram, 14)
+		lightFlash(data.To, Palette.Hologram, 4, 14, 0.25)
 		Sfx.PlayAt("Hit", data.To, { Pitch = 2.6, Volume = 0.6 })
 	elseif t == "Mark" then
 		-- MARKED: the target glows for you while the mark lasts
@@ -5766,7 +6089,7 @@ local function onEffect(data)
 	end
 end
 
-local function updateRopes()
+local function updateRopes(dt)
 	if not ClientState.IsFighting() then
 		for _, rope in pairs(enemyRopes) do
 			rope.Point = nil
@@ -5781,6 +6104,7 @@ local function updateRopes()
 		local hand = other and other.Character and (other.Character:FindFirstChild("LeftHand") or other.Character:FindFirstChild("Left Arm"))
 		updateRope(rope, hand and hand.Position or nil)
 	end
+	updateMovementFx(dt)
 end
 
 function Effects.Init(controllers)
@@ -5790,6 +6114,8 @@ end
 function Effects.Start()
 	Remotes.Get("ShotFx").OnClientEvent:Connect(onEnemyShot)
 	Remotes.Get("Effect").OnClientEvent:Connect(onEffect)
+	Controllers.Movement.Landed:Connect(onLanded)
+	Controllers.Movement.Jumped:Connect(onJumped)
 	RunService:BindToRenderStep("SniperEffects", Enum.RenderPriority.Camera.Value + 3, updateRopes)
 	task.spawn(wallhackLoop)
 end
@@ -5874,7 +6200,7 @@ end
 		               land and keep all your speed). Wall jump too.
 		A/D + mouse    air strafe: hold A and turn the mouse left (or D + right)
 		               while in the air to GAIN speed, like CS / TF2
-		Left Shift     sprint (hold) on the ground / AIR DASH when in the air
+		Left Shift     sprint (hold)
 		C or L-Ctrl    slide (tap; tap again to stand). Press it in the air =
 		               slide the moment you land. Jump out of a slide any time.
 		E              Grapple Hook (power-up)
@@ -5895,8 +6221,8 @@ end
 	with a LinearVelocity in Plane mode (horizontal only), so gravity and
 	jumping still use normal Roblox physics.
 
-	Modes: Ground, Air, Slide, WallRun, Dash, Grapple, Ceiling.
-	Other scripts can listen to Movement.Jumped / Landed / Dashed.
+	Modes: Ground, Air, Slide, WallRun, Grapple, Ceiling.
+	Other scripts can listen to Movement.Jumped / Landed / Slid.
 ]]
 
 local Players = game:GetService("Players")
@@ -5922,7 +6248,7 @@ local Controllers
 
 Movement.Jumped = Signal.new() -- ()
 Movement.Landed = Signal.new() -- (fallSpeed)
-Movement.Dashed = Signal.new() -- ()
+Movement.Slid = Signal.new() -- () a slide started
 
 -- Character references
 local character, humanoid, root, linearVelocity
@@ -5934,7 +6260,6 @@ local lastDrive = Vector3.zero -- what we actually commanded last frame
 local pendingImpulse = Vector3.zero -- knockback etc. added next frame
 local pendingLift = nil -- vertical velocity to set next frame
 local airJumpsLeft = 0
-local dashesLeft = 0
 
 local sprintHeld, slideHeld, jumpHeld = false, false, false
 local jumpPressedAt = -10 -- for the jump buffer
@@ -5946,11 +6271,10 @@ local now = os.clock
 local lastGroundJumpTime = 0
 local lastLiftTime = 0
 local lastSlideTime = 0
-local lastDashTime = 0
+local lastPhantomTime = 0
 local peakY = 0
 local lowestVelocityY = 0 -- fastest fall speed this air time (for landing effects)
 
-local dash = { Timer = 0, Dir = Vector3.zero, ExitSpeed = 0 }
 local wall = { Normal = Vector3.zero, Side = 0, Timer = 0, Y = 0, LastNormal = nil, LastTime = 0 }
 local grapple = { Point = nil, Timer = 0, ReadyAt = 0 }
 local speedBoost = { Until = 0, Multiplier = 1 }
@@ -6158,6 +6482,15 @@ end
 ----------------------------------------------------------------------------
 -- Moves
 ----------------------------------------------------------------------------
+-- PHANTOM STEP power-up: slides and wall jumps turn you invisible briefly.
+local function phantomStep()
+	if stats().PhantomDash and now() - lastPhantomTime > 0.6 then
+		lastPhantomTime = now()
+		Remotes.Get("Ability"):FireServer("PhantomDash", {})
+		Controllers.Effects.PhantomFlash()
+	end
+end
+
 local function startSlide()
 	if now() - lastSlideTime < M.SlideCooldown then
 		return
@@ -6174,6 +6507,8 @@ local function startSlide()
 	end
 	momentum = momentum.Unit * speed
 	Sfx.Play("Dash", { Pitch = 0.7, Volume = 0.6 })
+	Movement.Slid:Fire()
+	phantomStep()
 end
 
 local function onLanded()
@@ -6183,7 +6518,6 @@ local function onLanded()
 	lowestVelocityY = 0
 	mode = "Ground"
 	airJumpsLeft = stats().AirJumps
-	dashesLeft = M.DashesPerAir
 	bulletTime.UsedThisAir = false
 	if fallSpeed > 30 then
 		Sfx.Play("Land", { Volume = math.clamp(fallSpeed / 80, 0.3, 1.2) })
@@ -6218,28 +6552,6 @@ local function groundJump()
 	peakY = root.Position.Y
 	Sfx.Play("Jump", { Pitch = 0.95 + math.random() * 0.1 })
 	Movement.Jumped:Fire()
-end
-
-local function startDash()
-	if dashesLeft <= 0 or now() - lastDashTime < M.DashCooldown then
-		return
-	end
-	dashesLeft -= 1
-	lastDashTime = now()
-	local wish = wishDirection()
-	local dir = wish.Magnitude > 0.1 and wish.Unit or cameraFlatLook()
-	dash.Dir = dir
-	dash.Timer = M.DashDuration
-	dash.ExitSpeed = math.max(M.DashExitSpeed, momentum.Magnitude) * speedMultiplier()
-	mode = "Dash"
-	Controllers.Camera.AddFovPunch(C.DashFOVKick)
-	Sfx.Play("Dash")
-	Movement.Dashed:Fire()
-	-- PHANTOM DASH power-up: the server makes us invisible
-	if stats().PhantomDash then
-		Remotes.Get("Ability"):FireServer("PhantomDash", {})
-		Controllers.Effects.PhantomFlash()
-	end
 end
 
 local function endGrapple(popUp)
@@ -6302,7 +6614,7 @@ local function startBlink()
 	if mode == "Ground" or mode == "Slide" then
 		mode = "Air"
 	end
-	Controllers.Camera.AddFovPunch(C.DashFOVKick * 1.3)
+	Controllers.Camera.AddFovPunch(C.BlinkFOVKick)
 	Controllers.Effects.Blink(from, to)
 	Remotes.Get("Ability"):FireServer("Blink", { From = from, To = to })
 	Sfx.Play("Dash", { Pitch = 1.7 })
@@ -6329,6 +6641,7 @@ local function wallJump()
 	airJumpsLeft = stats().AirJumps -- wall jumps refresh your air jumps
 	Sfx.Play("Jump", { Pitch = 1.15 })
 	Movement.Jumped:Fire()
+	phantomStep()
 end
 
 local function airJump()
@@ -6336,9 +6649,6 @@ local function airJump()
 	pendingLift = M.AirJumpVelocity * stats().JumpMultiplier
 	-- re-aim momentum toward your keys (keeps your speed)
 	local wish = wishDirection()
-	if mode == "Dash" then
-		momentum = dash.Dir * dash.ExitSpeed
-	end
 	if wish.Magnitude > 0.1 then
 		momentum = wish.Unit * math.max(momentum.Magnitude, M.AirJumpMinSpeed * speedMultiplier())
 	end
@@ -6358,11 +6668,11 @@ local function onJumpPressed()
 		endGrapple(true)
 	elseif mode == "Air" and now() - lastGroundedTime < M.CoyoteTime then
 		groundJump() -- just ran or slid off a ledge: still counts as a ground jump
-	elseif mode == "Air" or mode == "Dash" then
+	elseif mode == "Air" then
 		if now() - lastGroundJumpTime < 0.12 then
 			return -- we only just left the ground
 		end
-		if mode == "Air" and groundIsClose() then
+		if groundIsClose() then
 			return -- about to land: the jump buffer turns this into a bunny hop
 		end
 		if airJumpsLeft > 0 then
@@ -6385,15 +6695,23 @@ local function updateGround(dt, wish)
 end
 
 local function updateAir(dt, wish)
-	if wish.Magnitude > 0.05 then
-		momentum = accelerate(
-			momentum,
-			wish.Unit,
-			M.AirControlSpeed * speedMultiplier(),
-			M.AirAccel,
-			dt,
-			M.AirSpeedCap * speedMultiplier()
-		)
+	if wish.Magnitude < 0.05 then
+		return
+	end
+	local dir = wish.Unit
+	local mult = speedMultiplier()
+	-- 1) Source air strafing: a small cap in the pressed direction but no
+	--    limit on total speed (A/D + turning the mouse = more speed)
+	momentum = accelerate(momentum, dir, M.AirControlSpeed * mult, M.AirAccel, dt, M.AirSpeedCap * mult)
+	-- 2) Air steering: holding forward turns your momentum toward where you
+	--    look, keeping your speed (easy, snappy control in the air)
+	local forwardness = math.max(0, dir:Dot(cameraFlatLook()))
+	if forwardness > 0 then
+		momentum = steer(momentum, dir, M.AirSteer * forwardness * dt)
+	end
+	-- 3) When you're slow you can always get up to running speed in the air
+	if momentum.Magnitude < M.AirMinSpeed * mult then
+		momentum = accelerate(momentum, dir, M.AirMinSpeed * mult, M.AirLowSpeedAccel, dt)
 	end
 end
 
@@ -6422,8 +6740,7 @@ local function tryStartWallRun(wish)
 				wall.Timer = 0
 				wall.Y = math.max(root.AssemblyLinearVelocity.Y * 0.4, M.WallRunStartLift)
 				airJumpsLeft = stats().AirJumps
-				dashesLeft = M.DashesPerAir
-				return true
+							return true
 			end
 		end
 	end
@@ -6470,16 +6787,6 @@ local function updateSlide(dt, wish)
 	humanoid.WalkSpeed = 4 -- calm the run animation while sliding
 end
 
-local function updateDash(dt)
-	dash.Timer -= dt
-	momentum = dash.Dir * M.DashSpeed * speedMultiplier()
-	setVerticalVelocity(1.5) -- dashes are flat
-	if dash.Timer <= 0 then
-		momentum = dash.Dir * dash.ExitSpeed
-		mode = Movement.IsGrounded() and "Ground" or "Air"
-	end
-end
-
 local function updateGrapple(dt)
 	grapple.Timer += dt
 	local toPoint = grapple.Point - root.Position
@@ -6518,7 +6825,6 @@ local function updateCeiling(dt, wish)
 	end
 	setVerticalVelocity(3) -- keep pressed against the ceiling
 	airJumpsLeft = stats().AirJumps
-	dashesLeft = M.DashesPerAir
 end
 
 ----------------------------------------------------------------------------
@@ -6581,7 +6887,7 @@ local function step(dt)
 	-- If something blocked us (a wall), the real velocity is lower than what
 	-- we commanded last frame: swap that part of our momentum for the real
 	-- velocity. Changes made since then (slide boost, wall jump...) are kept.
-	if mode ~= "Dash" and mode ~= "Grapple" and mode ~= "WallRun" and not Movement.IsBulletTime() then
+	if mode ~= "Grapple" and mode ~= "WallRun" and not Movement.IsBulletTime() then
 		if horizontal.Magnitude < lastDrive.Magnitude - 3 then
 			momentum = horizontal + (momentum - lastDrive)
 		end
@@ -6644,8 +6950,6 @@ local function step(dt)
 		end
 	elseif mode == "WallRun" then
 		updateWallRun(dt, wish)
-	elseif mode == "Dash" then
-		updateDash(dt)
 	elseif mode == "Grapple" then
 		updateGrapple(dt)
 	elseif mode == "Ceiling" then
@@ -6660,7 +6964,7 @@ local function step(dt)
 
 	-- FEATHERWEIGHT power-up: cancel part of gravity while airborne
 	local gravityScale = stats().GravityScale
-	if gravityScale < 1 and (mode == "Air" or mode == "Dash") and not Movement.IsBulletTime() then
+	if gravityScale < 1 and mode == "Air" and not Movement.IsBulletTime() then
 		local v = root.AssemblyLinearVelocity
 		setVerticalVelocity(v.Y + workspace.Gravity * (1 - gravityScale) * dt)
 	end
@@ -6683,8 +6987,6 @@ local function step(dt)
 		kick = C.SlideFOVKick
 	elseif mode == "WallRun" then
 		kick = C.WallRunFOVKick
-	elseif mode == "Dash" then
-		kick = C.DashFOVKick
 	elseif speed > M.RunSpeed + 2 then
 		kick = C.SprintFOVKick
 	end
@@ -6726,7 +7028,6 @@ local function onCharacterAdded(newCharacter)
 	momentum = Vector3.zero
 	lastDrive = Vector3.zero
 	airJumpsLeft = stats().AirJumps
-	dashesLeft = M.DashesPerAir
 	grapple.Point = nil
 	speedBoost.Until = 0
 	bulletTime.Until = 0
@@ -6761,9 +7062,6 @@ local function onInputBegan(input, processed)
 		onJumpPressed()
 	elseif key == Enum.KeyCode.LeftShift or key == Enum.KeyCode.ButtonL3 then
 		sprintHeld = true
-		if canMove() and (mode == "Air" or mode == "WallRun") then
-			startDash()
-		end
 	elseif key == M.SlideKey or key == Enum.KeyCode.LeftControl or key == Enum.KeyCode.ButtonB then
 		slideHeld = true
 		if canMove() then
@@ -7153,6 +7451,19 @@ local function build()
 	addPart("FlashA", Vector3.new(0.07, 0.9, 0.07), Palette.MuzzleFlash)
 	addPart("FlashB", Vector3.new(0.9, 0.07, 0.07), Palette.MuzzleFlash)
 	addPart("FlashLong", Vector3.new(0.12, 0.12, 0.7), Palette.MuzzleFlash)
+	for _, name in ipairs({ "FlashCore", "FlashA", "FlashB", "FlashLong" }) do
+		if Config.Effects.NeonEffects then
+			parts[name].Material = Enum.Material.Neon -- glows with bloom
+		end
+	end
+	-- a light that flashes with each shot (lights up your arms and the room)
+	local light = Instance.new("PointLight")
+	light.Name = "MuzzleLight"
+	light.Color = Palette.MuzzleFlash
+	light.Range = 14
+	light.Brightness = 0
+	light.Shadows = false
+	light.Parent = parts.FlashCore
 
 	model.Parent = workspace.CurrentCamera
 end
@@ -7411,6 +7722,9 @@ local function update(dt)
 	for _, name in ipairs({ "FlashCore", "FlashA", "FlashB", "FlashLong" }) do
 		parts[name].LocalTransparencyModifier = flashing and 0 or 1
 	end
+	if Config.Effects.Lights then
+		parts.FlashCore.MuzzleLight.Brightness = flashing and 7 or 0
+	end
 	put(parts.FlashCore, muzzle * CFrame.new(0, 0, -0.15))
 	put(parts.FlashA, muzzle * CFrame.new(0, 0, -0.15))
 	put(parts.FlashB, muzzle * CFrame.new(0, 0, -0.15))
@@ -7437,8 +7751,8 @@ function Viewmodel.Start()
 		moveSpring:Impulse(Vector3.new(0, -3.5 * strength, 0))
 		recoilSpring:Impulse(Vector3.new(-10 * strength, 0, 0))
 	end)
-	Controllers.Movement.Dashed:Connect(function()
-		moveSpring:Impulse(Vector3.new(0, 0, 4))
+	Controllers.Movement.Slid:Connect(function()
+		moveSpring:Impulse(Vector3.new(0, -1.5, 2.5))
 	end)
 
 	UserInputService.InputBegan:Connect(function(input, processed)
@@ -7624,6 +7938,7 @@ local function fire()
 	end
 
 	Remotes.Get("Fire"):FireServer(origin, direction, claims)
+	Controllers.Effects.MuzzleFlash(Controllers.Viewmodel.GetMuzzlePosition(), camera.CFrame.LookVector)
 
 	-- Bolt delay (Quickdraw is already in stats.BoltTime; Bullet Time speeds it up)
 	local boltTime = stats.BoltTime
@@ -7757,6 +8072,10 @@ local banner, bannerTitle, bannerSub
 local vignette, indicator
 local lastCountdownNumber
 local bannerToken = 0
+local bannerLine
+local speedLines = {}
+local speedLinesFrame
+local lastWins = {}
 local speedLabel
 
 ----------------------------------------------------------------------------
@@ -8063,8 +8382,17 @@ local function buildBanner()
 		FontFace = Theme.Font(Enum.FontWeight.Heavy),
 		Parent = banner,
 	})
+	Theme.new("UIStroke", { Thickness = 2, Transparency = 0.55, Color = Palette.UIBackground, Parent = bannerTitle })
+	bannerLine = Theme.new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 88),
+		Size = UDim2.fromOffset(0, 4),
+		BackgroundColor3 = Palette.UIAccent,
+		Parent = banner,
+	})
+	Theme.corner(bannerLine, 2)
 	bannerSub = Theme.label({
-		Position = UDim2.fromOffset(0, 92),
+		Position = UDim2.fromOffset(0, 96),
 		Size = UDim2.new(1, 0, 0, 30),
 		TextSize = 22,
 		TextColor3 = Palette.UISubText,
@@ -8085,6 +8413,55 @@ local function buildSpeedometer()
 		Parent = gui,
 	})
 	Theme.new("UIStroke", { Thickness = 1.5, Transparency = 0.6, Color = Palette.UIBackground, Parent = speedLabel })
+end
+
+-- Speed lines: thin streaks at the screen edges when you're moving fast.
+local function buildSpeedLines()
+	speedLinesFrame = Theme.new("Frame", {
+		Name = "SpeedLines",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		Parent = gui,
+	})
+	for i = 1, 18 do
+		local line = Theme.new("Frame", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			BackgroundColor3 = Color3.new(1, 1, 1),
+			BackgroundTransparency = 1,
+			Parent = speedLinesFrame,
+		})
+		Theme.new("UIGradient", {
+			Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(1, 0.2) }),
+			Parent = line,
+		})
+		speedLines[i] = { Frame = line, Angle = (i / 18) * math.pi * 2 }
+	end
+end
+
+local function updateSpeedLines(speed, scoped)
+	if not speedLinesFrame then
+		return
+	end
+	local from = Config.Effects.SpeedLinesFrom
+	local alpha = Config.Effects.SpeedLines and not scoped and math.clamp((speed - from) / 45, 0, 1) or 0
+	speedLinesFrame.Visible = alpha > 0
+	if alpha <= 0 then
+		return
+	end
+	local viewport = workspace.CurrentCamera.ViewportSize
+	local center = viewport / 2
+	local radius = math.min(viewport.X, viewport.Y) * 0.42
+	for _, l in ipairs(speedLines) do
+		local angle = l.Angle + (math.random() - 0.5) * 0.12
+		local r = radius + math.random() * radius * 0.5
+		local length = 60 + math.random() * 140 * alpha
+		local dir = Vector2.new(math.cos(angle), math.sin(angle))
+		local pos = center + dir * (r + length / 2)
+		l.Frame.Position = UDim2.fromOffset(pos.X, pos.Y)
+		l.Frame.Size = UDim2.fromOffset(length, 2)
+		l.Frame.Rotation = math.deg(angle)
+		l.Frame.BackgroundTransparency = 1 - alpha * (0.25 + math.random() * 0.35)
+	end
 end
 
 local function buildDamage()
@@ -8145,14 +8522,23 @@ local function showBanner(title, sub, color, duration)
 	bannerTitle.Text = title
 	bannerTitle.TextColor3 = color or Palette.UIText
 	bannerSub.Text = sub or ""
-	bannerTitle.TextTransparency = 0
+	-- punch in: big + transparent -> normal, underline wipes open, subtitle fades in
+	bannerTitle.TextTransparency = 1
 	bannerTitle.Size = UDim2.new(1, 0, 0, 90)
-	bannerTitle.TextSize = 96
-	Theme.tween(bannerTitle, 0.25, { TextSize = 78 }, Enum.EasingStyle.Back)
+	bannerTitle.TextSize = 110
+	Theme.tween(bannerTitle, 0.3, { TextSize = 78, TextTransparency = 0 }, Enum.EasingStyle.Back)
+	bannerLine.BackgroundColor3 = color or Palette.UIAccent
+	bannerLine.BackgroundTransparency = 0
+	bannerLine.Size = UDim2.fromOffset(0, 4)
+	Theme.tween(bannerLine, 0.4, { Size = UDim2.fromOffset(title == "" and 0 or 260, 4) }, Enum.EasingStyle.Quint)
+	bannerSub.TextTransparency = 1
+	Theme.tween(bannerSub, 0.5, { TextTransparency = 0 })
 	if duration then
 		task.delay(duration, function()
 			if bannerToken == token then
 				Theme.tween(bannerTitle, 0.25, { TextTransparency = 1 })
+				Theme.tween(bannerSub, 0.25, { TextTransparency = 1 })
+				Theme.tween(bannerLine, 0.25, { BackgroundTransparency = 1, Size = UDim2.fromOffset(0, 4) })
 				task.wait(0.25)
 				if bannerToken == token then
 					banner.Visible = false
@@ -8222,9 +8608,50 @@ local function onDamaged(data)
 	end
 end
 
+-- Floating damage number at the hit position (rises, pops and fades).
+local function damageNumber(position, amount, headshot, splash, killed)
+	if not Config.Effects.DamageNumbers or not position or not amount then
+		return
+	end
+	local anchor = Instance.new("Attachment")
+	anchor.WorldPosition = position
+	anchor.Parent = workspace.Terrain
+	local billboard = Theme.new("BillboardGui", {
+		Adornee = anchor,
+		Size = UDim2.fromOffset(160, 50),
+		AlwaysOnTop = true,
+		LightInfluence = 0,
+		StudsOffsetWorldSpace = Vector3.new((math.random() - 0.5) * 1.5, 1, 0),
+		Parent = gui.Parent, -- BillboardGuis live directly in PlayerGui
+	})
+	local color = headshot and Palette.UIHeadshot or splash and Palette.TracerExplosive or killed and Palette.UIAccent or Palette.UIText
+	local label = Theme.label({
+		Size = UDim2.fromScale(1, 1),
+		Text = headshot and "HEADSHOT" or tostring(math.floor(amount + 0.5)),
+		TextSize = headshot and 30 or math.clamp(18 + amount * 0.12, 18, 34),
+		TextColor3 = color,
+		FontFace = Theme.Font(Enum.FontWeight.Heavy),
+		Parent = billboard,
+	})
+	Theme.new("UIStroke", { Thickness = 2, Color = Palette.UIBackground, Transparency = 0.2, Parent = label })
+	Theme.pop(label, 0.5)
+	Theme.tween(billboard, 0.8, { StudsOffsetWorldSpace = billboard.StudsOffsetWorldSpace + Vector3.new(0, 3, 0) }, Enum.EasingStyle.Quint)
+	task.delay(0.45, function()
+		Theme.tween(label, 0.35, { TextTransparency = 1 })
+	end)
+	task.delay(0.85, function()
+		billboard:Destroy()
+		anchor:Destroy()
+	end)
+end
+
 local function onHitConfirm(data)
 	HUD.Hitmarker(data.Headshot, data.Killed)
+	damageNumber(data.Position, data.Damage, data.Headshot, data.Splash, data.Killed)
 	if data.Killed then
+		local viewport = workspace.CurrentCamera.ViewportSize
+		Theme.burst(gui, viewport / 2, data.Headshot and Palette.UIHeadshot or Palette.UIAccent, 18, 120, 7)
+		Theme.ring(gui, viewport / 2, data.Headshot and Palette.UIHeadshot or Color3.new(1, 1, 1), 160, 5)
 		Sfx.Play("Kill")
 		showBanner(data.Headshot and "HEADSHOT" or "ELIMINATED", nil, data.Headshot and Palette.UIHeadshot or Palette.UIText, 1.2)
 	elseif data.Headshot then
@@ -8294,7 +8721,7 @@ local function rebuildAbilities()
 		table.insert(entries, { Key = "RMB", Name = "Bullet Time (air)", Cooldown = "BulletTime" })
 	end
 	if stats.PhantomDash then
-		table.insert(entries, { Key = "SHIFT", Name = "Phantom Dash (air)" })
+		table.insert(entries, { Key = "C", Name = "Phantom Step (slide)" })
 	end
 	if stats.CeilingRun then
 		table.insert(entries, { Key = "SPACE", Name = "Ceiling run (hold)" })
@@ -8355,6 +8782,14 @@ function HUD.OnState(snapshot, old)
 		nameLabels[slot].Text = entry and entry.Name or "-"
 		nameLabels[slot].TextColor3 = (entry and entry.UserId == player.UserId) and Palette.UIAccent or Palette.UIText
 		winLabels[slot].Text = entry and tostring(entry.Wins) or "0"
+		-- pop + burst when a score goes up
+		if entry and lastWins[slot] and entry.Wins > lastWins[slot] then
+			local chip = winLabels[slot].Parent
+			Theme.pop(chip, 0.4)
+			local center = chip.AbsolutePosition + chip.AbsoluteSize / 2
+			Theme.burst(gui, center, ClientState.GetSlotColor(slot), 12, 70, 6)
+		end
+		lastWins[slot] = entry and entry.Wins or 0
 	end
 	roundLabel.Text = ("ROUND %d  -  FIRST TO %d"):format(snapshot.Round or 1, snapshot.RoundsToWin or 5)
 	rebuildIcons(snapshot)
@@ -8404,6 +8839,7 @@ local function update()
 	speedLabel.Visible = inArena and scopeAlpha < 0.85 and not ClientState.MenuOpen
 	speedLabel.Text = tostring(math.floor(speed + 0.5)) .. " u/s"
 	speedLabel.TextColor3 = speed > Config.Movement.SprintSpeed + 6 and Palette.UIAccent or Palette.UIText
+	updateSpeedLines(inArena and speed or 0, scopeAlpha > 0.3)
 
 	-- health
 	local character = player.Character
@@ -8467,6 +8903,7 @@ function HUD.Start(playerGui)
 	buildBanner()
 	buildDamage()
 	buildSpeedometer()
+	buildSpeedLines()
 
 	Remotes.Get("HitConfirm").OnClientEvent:Connect(onHitConfirm)
 	Remotes.Get("Damaged").OnClientEvent:Connect(onDamaged)
@@ -8544,12 +8981,18 @@ return Icons
               <string name="Name">LobbyUI</string>
               <string name="Source"><![CDATA[--[[
 	LobbyUI.lua  (Client.ui.LobbyUI)
-	Lobby screen: PLAY / queue button, queue status, controls list and a
-	settings button. Hidden while you're in a match.
+
+	The lobby / playground screen (hidden while you're in a match):
+		[F] find a match (animated "searching" state while queued)
+		[G] enter / leave the PLAYGROUND (free roam on the match map)
+		[H] show / hide the controls list
+		[B] Power-Up Lab, [P] settings
+	The mouse is locked in first person, so everything has a key.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
@@ -8558,46 +9001,79 @@ local Sfx = require(script.Parent.Parent.Sfx)
 local Theme = require(script.Parent.Theme)
 
 local Palette = Config.Palette
+local PLAYGROUND_KEY = Enum.KeyCode.G
+local CONTROLS_KEY = Enum.KeyCode.H
 
 local LobbyUI = {}
 local Controllers
 
-local gui, playButton, statusLabel
+local gui, root, title, subtitle, controls, playButton, playgroundButton, statusLabel, modeChip, spinner
+local shown = false
+local queued = false
+local controlsVisible = true
 
 local CONTROLS = {
-	{ "WASD", "Move" },
-	{ "SHIFT", "Sprint  /  Air dash" },
+	{ "WASD", "Move (hold W in the air to steer)" },
+	{ "SHIFT", "Sprint" },
 	{ "C / CTRL", "Slide (tap). Jump out of it any time" },
 	{ "SPACE", "Jump  /  Wall jump" },
 	{ "HOLD SPACE", "Bunny hop (keeps all your speed)" },
 	{ "", "Air strafe: hold A or D + turn the mouse that way" },
 	{ "", "Wall run: jump next to a wall and hold W" },
-	{ "RMB", "Scope" },
-	{ "LMB", "Fire" },
+	{ "RMB / LMB", "Scope / Fire" },
 	{ "E / Q / R", "Grapple / Decoy / Blink (power-ups)" },
 	{ "V", "Inspect rifle" },
-	{ "B", "Power-Up Lab: try any power-up solo" },
+	{ "B", "Power-Up Lab: try any power-up" },
+	{ "G", "Playground: free roam on the match map" },
 	{ "F", "Find a match" },
-	{ "P", "Settings (frees the mouse)" },
+	{ "H / P", "Hide this list / Settings" },
 }
 
+local function styleButton(button, active)
+	button.BackgroundColor3 = active and Palette.UIAccent or Palette.UIPanelLight
+	button.TextColor3 = active and Palette.UIBackground or Palette.UIText
+end
+
 function LobbyUI.OnState(snapshot)
-	gui.Enabled = not snapshot.InMatch
-	if snapshot.InMatch then
+	local visible = not snapshot.InMatch
+	if visible and not shown then
+		-- fade + slide the whole screen in
+		gui.Enabled = true
+		root.GroupTransparency = 1
+		root.Position = UDim2.fromOffset(0, 24)
+		Theme.tween(root, 0.45, { GroupTransparency = 0, Position = UDim2.fromOffset(0, 0) }, Enum.EasingStyle.Quint)
+	elseif not visible then
+		gui.Enabled = false
+	end
+	shown = visible
+	if not visible then
 		return
 	end
-	if snapshot.Queued then
-		playButton.Text = "IN QUEUE  -  [F] CANCEL"
-		playButton.BackgroundColor3 = Palette.UIPanelLight
-		playButton.TextColor3 = Palette.UIText
-		statusLabel.Text = "Waiting for an opponent...  (" .. tostring(snapshot.QueueCount or 1) .. " in queue)"
+
+	queued = snapshot.Queued == true
+	if queued then
+		playButton.Text = "SEARCHING...   [F] CANCEL"
+		styleButton(playButton, false)
+		statusLabel.Text = "Waiting for an opponent  (" .. tostring(snapshot.QueueCount or 1) .. " in queue)"
 	else
 		playButton.Text = "[F]  FIND MATCH"
-		playButton.BackgroundColor3 = Palette.UIAccent
-		playButton.TextColor3 = Palette.UIBackground
-		local queued = snapshot.QueueCount or 0
-		statusLabel.Text = queued > 0 and (tostring(queued) .. " player(s) waiting - press PLAY to duel")
-			or ("Practise on the range while you wait  -  first to %d rounds"):format(Config.Match.RoundsToWin)
+		styleButton(playButton, true)
+		local count = snapshot.QueueCount or 0
+		statusLabel.Text = count > 0 and (tostring(count) .. " player(s) waiting - press F to duel")
+			or ("Lose a round, pick a power-up, stack a build. First to %d wins."):format(Config.Match.RoundsToWin)
+	end
+	spinner.Visible = queued
+
+	if snapshot.Playground then
+		title.Text = "PLAYGROUND"
+		subtitle.Text = "Free roam on the match map. Press B to try power-ups on the dummies."
+		playgroundButton.Text = "[G]  BACK TO LOBBY"
+		modeChip.Visible = true
+	else
+		title.Text = "SNIPER DUEL"
+		subtitle.Text = "Practise on the range, or press G for the Playground."
+		playgroundButton.Text = "[G]  PLAYGROUND"
+		modeChip.Visible = false
 	end
 end
 
@@ -8607,37 +9083,64 @@ end
 
 function LobbyUI.Start(playerGui)
 	gui = Theme.screen("Lobby", 2, playerGui)
+	root = Theme.new("CanvasGroup", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		Parent = gui,
+	})
 
 	-- Title
-	Theme.label({
+	title = Theme.label({
 		Position = UDim2.fromOffset(28, 64),
-		Size = UDim2.fromOffset(400, 48),
+		Size = UDim2.fromOffset(500, 48),
 		Text = "SNIPER DUEL",
 		TextSize = 44,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		FontFace = Theme.Font(Enum.FontWeight.Heavy),
-		Parent = gui,
+		Parent = root,
 	})
-	Theme.label({
-		Position = UDim2.fromOffset(30, 110),
-		Size = UDim2.fromOffset(400, 20),
-		Text = ("Lose a round, pick a power-up. Stack them into a build. First to %d wins."):format(
-			Config.Match.RoundsToWin
-		),
+	local underline = Theme.new("Frame", {
+		Position = UDim2.fromOffset(30, 112),
+		Size = UDim2.fromOffset(70, 4),
+		BackgroundColor3 = Palette.UIAccent,
+		Parent = root,
+	})
+	Theme.corner(underline, 2)
+	subtitle = Theme.label({
+		Position = UDim2.fromOffset(30, 122),
+		Size = UDim2.fromOffset(600, 20),
 		TextSize = 15,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextColor3 = Palette.UISubText,
 		FontFace = Theme.Font(Enum.FontWeight.Medium),
-		Parent = gui,
+		Parent = root,
+	})
+
+	-- "PLAYGROUND" chip at the top
+	modeChip = Theme.panel({
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 64),
+		Size = UDim2.fromOffset(220, 34),
+		BackgroundColor3 = Palette.UIAccent,
+		Visible = false,
+		Parent = root,
+	})
+	Theme.label({
+		Size = UDim2.fromScale(1, 1),
+		Text = "PLAYGROUND MODE",
+		TextSize = 16,
+		TextColor3 = Palette.UIBackground,
+		FontFace = Theme.Font(Enum.FontWeight.Heavy),
+		Parent = modeChip,
 	})
 
 	-- Controls
-	local controls = Theme.panel({
+	controls = Theme.panel({
 		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, 24, 0.5, 20),
-		Size = UDim2.fromOffset(390, 28 + #CONTROLS * 26),
-		Parent = gui,
-	}, nil)
+		Position = UDim2.new(0, 24, 0.5, 30),
+		Size = UDim2.fromOffset(400, 28 + #CONTROLS * 26),
+		Parent = root,
+	})
 	Theme.padding(controls, 14)
 	Theme.new("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder, Parent = controls })
 	for i, c in ipairs(CONTROLS) do
@@ -8649,7 +9152,7 @@ function LobbyUI.Start(playerGui)
 		})
 		if c[1] ~= "" then
 			local key = Theme.new("Frame", {
-				Size = UDim2.fromOffset(78, 22),
+				Size = UDim2.fromOffset(88, 22),
 				BackgroundColor3 = Palette.UIPanelLight,
 				Parent = line,
 			})
@@ -8657,8 +9160,8 @@ function LobbyUI.Start(playerGui)
 			Theme.label({ Size = UDim2.fromScale(1, 1), Text = c[1], TextSize = 12, Parent = key })
 		end
 		Theme.label({
-			Position = UDim2.fromOffset(88, 0),
-			Size = UDim2.new(1, -88, 1, 0),
+			Position = UDim2.fromOffset(98, 0),
+			Size = UDim2.new(1, -98, 1, 0),
 			Text = c[2],
 			TextSize = 14,
 			TextXAlignment = Enum.TextXAlignment.Left,
@@ -8668,38 +9171,81 @@ function LobbyUI.Start(playerGui)
 		})
 	end
 
-	-- Play button + status
+	-- Buttons + status
 	playButton = Theme.button({
 		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -64),
-		Size = UDim2.fromOffset(340, 64),
-		Text = "[F]  FIND MATCH",
-		TextSize = 28,
-		Parent = gui,
+		Position = UDim2.new(0.5, -180, 1, -64),
+		Size = UDim2.fromOffset(340, 60),
+		TextSize = 24,
+		Parent = root,
 	})
+	playgroundButton = Theme.button({
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 180, 1, -64),
+		Size = UDim2.fromOffset(340, 60),
+		TextSize = 24,
+		BackgroundColor3 = Palette.UIPanelLight,
+		TextColor3 = Palette.UIText,
+		Parent = root,
+	})
+	spinner = Theme.new("Frame", {
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 16, 0.5, 0),
+		Size = UDim2.fromOffset(22, 22),
+		BackgroundTransparency = 1,
+		Visible = false,
+		Parent = playButton,
+	})
+	Theme.corner(spinner, UDim.new(0.5, 0))
+	local spinStroke = Theme.stroke(spinner, Palette.UIAccent, 3, 0)
+	Theme.new("UIGradient", {
+		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(1, 1) }),
+		Parent = spinStroke,
+	})
+	statusLabel = Theme.label({
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -30),
+		Size = UDim2.fromOffset(700, 22),
+		TextSize = 15,
+		TextColor3 = Palette.UISubText,
+		FontFace = Theme.Font(Enum.FontWeight.Medium),
+		Parent = root,
+	})
+
 	local function toggleQueue()
 		Sfx.Play("CardPick", { Volume = 0.6 })
+		Theme.pop(playButton)
 		Remotes.Get("QueueToggle"):FireServer()
 	end
+	local function togglePlayground()
+		Sfx.Play("CardPick", { Volume = 0.6, Pitch = 0.8 })
+		Theme.pop(playgroundButton)
+		Remotes.Get("PlaygroundToggle"):FireServer()
+	end
+	local function toggleControls()
+		controlsVisible = not controlsVisible
+		Theme.tween(controls, 0.3, {
+			Position = controlsVisible and UDim2.new(0, 24, 0.5, 30) or UDim2.new(0, -440, 0.5, 30),
+		}, Enum.EasingStyle.Quint)
+	end
 	playButton.Activated:Connect(toggleQueue)
-	-- the mouse is locked in first person, so the queue is on a key
+	playgroundButton.Activated:Connect(togglePlayground)
+
 	UserInputService.InputBegan:Connect(function(input, processed)
 		if processed and UserInputService:GetFocusedTextBox() then
 			return
 		end
-		if input.KeyCode == Config.Lobby.QueueKey and gui.Enabled then
+		if not gui.Enabled then
+			return
+		end
+		if input.KeyCode == Config.Lobby.QueueKey then
 			toggleQueue()
+		elseif input.KeyCode == PLAYGROUND_KEY then
+			togglePlayground()
+		elseif input.KeyCode == CONTROLS_KEY then
+			toggleControls()
 		end
 	end)
-	statusLabel = Theme.label({
-		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -30),
-		Size = UDim2.fromOffset(600, 22),
-		TextSize = 15,
-		TextColor3 = Palette.UISubText,
-		FontFace = Theme.Font(Enum.FontWeight.Medium),
-		Parent = gui,
-	})
 
 	-- Settings button
 	local settingsButton = Theme.button({
@@ -8710,10 +9256,23 @@ function LobbyUI.Start(playerGui)
 		TextSize = 15,
 		BackgroundColor3 = Palette.UIPanel,
 		TextColor3 = Palette.UIText,
-		Parent = gui,
+		Parent = root,
 	})
 	settingsButton.Activated:Connect(function()
 		Controllers.Settings.Toggle()
+	end)
+
+	-- idle animations: spinner while searching, a soft pulse on the find button
+	RunService.RenderStepped:Connect(function()
+		if not gui.Enabled then
+			return
+		end
+		local t = os.clock()
+		spinner.Rotation = (t * 360) % 360
+		if not queued then
+			local pulse = (math.sin(t * 3) + 1) / 2
+			playButton.BackgroundColor3 = Palette.UIAccent:Lerp(Color3.new(1, 1, 1), pulse * 0.12)
+		end
 	end)
 
 	LobbyUI.OnState({ InMatch = false, Phase = "Lobby" })
@@ -8730,18 +9289,31 @@ return LobbyUI
 	PickScreen.lua  (Client.ui.PickScreen)
 
 	Between rounds the player who DIED picks 1 of 5 power-up cards.
-		* cards flip in one after another
-		* glowing border in the rarity colour, flat icon, name, description
-		* Legendary cards shimmer and play a special sound when they flip
-		* hover = lift + glow, click = pick animation
-		* the winner sees the same cards but can't pick
-		* 15 second timer (server picks randomly if it runs out)
-		* the mouse is unlocked while this screen is open
+
+	CARD LAYOUT (top to bottom)
+		rarity pill + "owned x1 > x2" badge
+		icon on a glowing disc
+		name, tag chips (Bullets / Damage / Movement ...)
+		description
+		STACKS footer: what another copy adds
+
+	ANIMATION
+		open     background fades in, title slides down
+		deal     cards rise from below one after another, face down
+		flip     each card flips over with a white flash; Legendary cards burst
+		         with gold particles, a ring and a looping shine
+		idle     cards float gently, glows breathe
+		hover    lift + tilt toward the mouse + brighter glow (picker only)
+		pick     chosen card flies to the centre with a burst; the rest fall away
+		timer    bar drains, ticks and turns red in the last 5 seconds
+
+	The winner sees the same cards but can't pick. The mouse is unlocked.
+	Also used solo by the Power-Up Lab ("practice pick").
 ]]
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
@@ -8756,25 +9328,51 @@ local Icons = require(script.Parent.Icons)
 local Palette = Config.Palette
 local player = Players.LocalPlayer
 
-local CARD_W, CARD_H = 196, 290
+local CARD_W, CARD_H = 210, 318
+local GAP = 22
 
 local PickScreen = {}
 
 local gui, overlay, title, subtitle, timerTrack, timerFill, timerText, row, unlocker
-local cards = {} -- list of card records
+local cards = {} -- card records
 local isOpen = false
 local isPicker = false
 local pickedIndex = nil
 local openToken = 0
 local practiceCallback = nil -- set when opened from the Power-Up Lab (solo practice)
+local lastTimerSecond = nil
 
 ----------------------------------------------------------------------------
 -- Card construction
 ----------------------------------------------------------------------------
+local function chip(parent, text, color)
+	local c = Theme.new("Frame", {
+		AutomaticSize = Enum.AutomaticSize.X,
+		Size = UDim2.fromOffset(0, 18),
+		BackgroundColor3 = color,
+		BackgroundTransparency = 0.82,
+		Parent = parent,
+	})
+	Theme.corner(c, 9)
+	Theme.new("UIPadding", { PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8), Parent = c })
+	Theme.label({
+		AutomaticSize = Enum.AutomaticSize.X,
+		Size = UDim2.fromScale(0, 1),
+		Text = string.upper(text),
+		TextSize = 10,
+		TextColor3 = color:Lerp(Color3.new(1, 1, 1), 0.45),
+		FontFace = Theme.Font(Enum.FontWeight.Heavy),
+		Parent = c,
+	})
+	return c
+end
+
 local function makeCard(index, def, ownedStacks)
 	local rarity = Config.Rarity[def.Rarity]
-	local rec = { Index = index, Def = def, Flipped = false }
+	local color = rarity.Color
+	local rec = { Index = index, Def = def, Flipped = false, Phase = index * 0.9 }
 
+	-- holder: fixed slot in the row layout
 	local holder = Theme.new("Frame", {
 		Name = "Card" .. index,
 		Size = UDim2.fromOffset(CARD_W, CARD_H),
@@ -8782,206 +9380,296 @@ local function makeCard(index, def, ownedStacks)
 		LayoutOrder = index,
 		Parent = row,
 	})
+	-- mover: everything that animates (position / rotation / scale)
+	local mover = Theme.new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(0.5, 0, 0.5, 160),
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		Parent = holder,
+	})
+	local scale = Theme.new("UIScale", { Parent = mover })
 
-	-- soft glow behind the card
+	-- soft glow (two layers) behind the card
 	local glow = Theme.new("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromOffset(0, CARD_H + 18),
-		BackgroundColor3 = rarity.Color,
-		BackgroundTransparency = 0.82,
-		Parent = holder,
+		Size = UDim2.new(1, 26, 1, 26),
+		BackgroundColor3 = color,
+		BackgroundTransparency = 1,
+		Parent = mover,
 	})
-	Theme.corner(glow, 22)
-
-	local card = Theme.new("Frame", {
+	Theme.corner(glow, 26)
+	local glowInner = Theme.new("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromOffset(0, CARD_H), -- width 0 = not flipped in yet
-		BackgroundColor3 = Palette.UIPanel,
-		ClipsDescendants = true,
-		Parent = holder,
+		Size = UDim2.new(1, 10, 1, 10),
+		BackgroundColor3 = color,
+		BackgroundTransparency = 1,
+		Parent = mover,
 	})
-	Theme.corner(card, 14)
-	local stroke = Theme.stroke(card, rarity.Color, 3, 0)
-	local scale = Theme.new("UIScale", { Parent = card })
+	Theme.corner(glowInner, 20)
 
-	-- FRONT
-	local front = Theme.new("Frame", {
+	-- flipper: its width animates for the card flip
+	local flipper = Theme.new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
 		Size = UDim2.fromScale(1, 1),
 		BackgroundTransparency = 1,
-		Visible = false,
-		Parent = card,
+		Parent = mover,
 	})
-	-- rarity tint strip at the top
-	local strip = Theme.new("Frame", {
-		Position = UDim2.fromOffset(8, 8),
-		Size = UDim2.new(1, -16, 0, 26),
-		BackgroundColor3 = rarity.Color,
-		BackgroundTransparency = 0.75,
+
+	-- the card face (a CanvasGroup so it fades and clips as one piece)
+	local card = Theme.new("CanvasGroup", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Palette.UIPanel,
+		GroupTransparency = 1,
+		Parent = flipper,
+	})
+	Theme.corner(card, 16)
+	local stroke = Theme.stroke(card, color, 2.5, 0)
+
+	-- FRONT -----------------------------------------------------------
+	local front = Theme.new("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Visible = false, Parent = card })
+	-- colour wash from the top
+	local wash = Theme.new("Frame", { Size = UDim2.new(1, 0, 0.55, 0), BackgroundColor3 = color, Parent = front })
+	Theme.new("UIGradient", {
+		Rotation = 90,
+		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.72), NumberSequenceKeypoint.new(1, 1) }),
+		Parent = wash,
+	})
+	-- rarity pill
+	local pill = Theme.new("Frame", {
+		Position = UDim2.fromOffset(12, 12),
+		AutomaticSize = Enum.AutomaticSize.X,
+		Size = UDim2.fromOffset(0, 20),
+		BackgroundColor3 = color,
 		Parent = front,
 	})
-	Theme.corner(strip, 8)
+	Theme.corner(pill, 10)
+	Theme.new("UIPadding", { PaddingLeft = UDim.new(0, 9), PaddingRight = UDim.new(0, 9), Parent = pill })
 	Theme.label({
-		Size = UDim2.fromScale(1, 1),
+		AutomaticSize = Enum.AutomaticSize.X,
+		Size = UDim2.fromScale(0, 1),
 		Text = string.upper(def.Rarity),
-		TextSize = 13,
-		TextColor3 = rarity.Color:Lerp(Color3.new(1, 1, 1), 0.35),
+		TextSize = 11,
+		TextColor3 = Palette.UIBackground,
 		FontFace = Theme.Font(Enum.FontWeight.Heavy),
-		Parent = strip,
+		Parent = pill,
 	})
-	local icon = Icons.Create(def, 86)
-	icon.AnchorPoint = Vector2.new(0.5, 0)
-	icon.Position = UDim2.new(0.5, 0, 0, 54)
-	icon.Parent = front
+	if ownedStacks > 0 then
+		local badge = Theme.new("Frame", {
+			AnchorPoint = Vector2.new(1, 0),
+			Position = UDim2.new(1, -12, 0, 12),
+			Size = UDim2.fromOffset(64, 20),
+			BackgroundColor3 = Palette.UIBackground,
+			BackgroundTransparency = 0.3,
+			Parent = front,
+		})
+		Theme.corner(badge, 10)
+		Theme.label({
+			Size = UDim2.fromScale(1, 1),
+			Text = ("x%d > x%d"):format(ownedStacks, ownedStacks + 1),
+			TextSize = 11,
+			TextColor3 = color:Lerp(Color3.new(1, 1, 1), 0.4),
+			FontFace = Theme.Font(Enum.FontWeight.Heavy),
+			Parent = badge,
+		})
+	end
+	-- icon on a glowing disc
+	local disc = Theme.new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 44),
+		Size = UDim2.fromOffset(112, 112),
+		BackgroundColor3 = color,
+		BackgroundTransparency = 0.82,
+		Parent = front,
+	})
+	Theme.corner(disc, UDim.new(0.5, 0))
+	Theme.stroke(disc, color, 1.5, 0.55)
+	local icon = Icons.Create(def, 74)
+	icon.AnchorPoint = Vector2.new(0.5, 0.5)
+	icon.Position = UDim2.fromScale(0.5, 0.5)
+	icon.Parent = disc
+	-- name
 	Theme.label({
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 152),
-		Size = UDim2.new(1, -20, 0, 26),
+		Position = UDim2.new(0.5, 0, 0, 166),
+		Size = UDim2.new(1, -24, 0, 26),
 		Text = def.Name,
 		TextSize = 21,
+		TextTruncate = Enum.TextTruncate.AtEnd,
 		FontFace = Theme.Font(Enum.FontWeight.Heavy),
 		Parent = front,
 	})
+	-- tag chips
+	local tags = Theme.new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 194),
+		Size = UDim2.new(1, -24, 0, 18),
+		BackgroundTransparency = 1,
+		Parent = front,
+	}, {
+		Theme.new("UIListLayout", {
+			FillDirection = Enum.FillDirection.Horizontal,
+			HorizontalAlignment = Enum.HorizontalAlignment.Center,
+			Padding = UDim.new(0, 5),
+		}),
+	})
+	for _, tag in ipairs(def.Tags or {}) do
+		chip(tags, tag, color)
+	end
+	-- description
 	Theme.label({
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 182),
-		Size = UDim2.new(1, -26, 0, 54),
+		Position = UDim2.new(0.5, 0, 0, 220),
+		Size = UDim2.new(1, -28, 0, 52),
 		Text = def.Description,
-		TextSize = 14,
+		TextSize = 13,
 		TextWrapped = true,
 		TextYAlignment = Enum.TextYAlignment.Top,
 		TextColor3 = Palette.UISubText,
 		FontFace = Theme.Font(Enum.FontWeight.Medium),
 		Parent = front,
 	})
-	-- what picking this again would add (power-ups are built to stack)
-	if def.Stacking then
-		Theme.label({
-			AnchorPoint = Vector2.new(0.5, 1),
-			Position = UDim2.new(0.5, 0, 1, -30),
-			Size = UDim2.new(1, -20, 0, 28),
-			Text = "STACKS: " .. def.Stacking,
-			TextSize = 11,
-			TextWrapped = true,
-			TextColor3 = rarity.Color:Lerp(Color3.new(1, 1, 1), 0.3),
-			FontFace = Theme.Font(Enum.FontWeight.Bold),
-			Parent = front,
-		})
-	end
-	if ownedStacks > 0 then
-		Theme.label({
-			AnchorPoint = Vector2.new(0.5, 1),
-			Position = UDim2.new(0.5, 0, 1, -10),
-			Size = UDim2.new(1, 0, 0, 18),
-			Text = ("OWNED x%d  >  x%d"):format(ownedStacks, ownedStacks + 1),
-			TextSize = 12,
-			TextColor3 = rarity.Color,
-			Parent = front,
-		})
-	end
+	-- stacking footer
+	local footer = Theme.new("Frame", {
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.fromScale(0, 1),
+		Size = UDim2.new(1, 0, 0, 40),
+		BackgroundColor3 = Palette.UIBackground,
+		BackgroundTransparency = 0.35,
+		Parent = front,
+	})
+	Theme.new("Frame", { Size = UDim2.new(1, 0, 0, 1), BackgroundColor3 = color, BackgroundTransparency = 0.5, Parent = footer })
+	Theme.label({
+		Position = UDim2.fromOffset(12, 0),
+		Size = UDim2.new(1, -24, 1, 0),
+		Text = "STACKS  " .. (def.Stacking or "-"),
+		TextSize = 11,
+		TextWrapped = true,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextColor3 = color:Lerp(Color3.new(1, 1, 1), 0.35),
+		FontFace = Theme.Font(Enum.FontWeight.Bold),
+		Parent = footer,
+	})
 
-	-- Legendary shimmer: a bright diagonal band sliding across the card
-	if def.Rarity == "Legendary" then
-		local shimmer = Theme.new("Frame", {
-			Size = UDim2.fromScale(1, 1),
-			BackgroundColor3 = Color3.new(1, 1, 1),
-			ZIndex = 3,
-			Parent = front,
-		})
-		Theme.corner(shimmer, 14)
-		local gradient = Theme.new("UIGradient", {
-			Rotation = 25,
-			Transparency = NumberSequence.new({
-				NumberSequenceKeypoint.new(0, 1),
-				NumberSequenceKeypoint.new(0.42, 1),
-				NumberSequenceKeypoint.new(0.5, 0.55),
-				NumberSequenceKeypoint.new(0.58, 1),
-				NumberSequenceKeypoint.new(1, 1),
-			}),
-			Offset = Vector2.new(-1, 0),
-			Parent = shimmer,
-		})
-		rec.Shimmer = TweenService:Create(
-			gradient,
-			TweenInfo.new(1.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, false, 0.5),
-			{ Offset = Vector2.new(1, 0) }
-		)
-	end
-
-	-- BACK (shown during the first half of the flip)
+	-- BACK ------------------------------------------------------------
 	local back = Theme.new("Frame", {
 		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = rarity.Color:Lerp(Palette.UIBackground, 0.55),
+		BackgroundColor3 = color:Lerp(Palette.UIBackground, 0.7),
 		Parent = card,
 	})
-	Theme.corner(back, 14)
+	for i = -4, 4 do
+		Theme.new("Frame", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.new(0.5, i * 34, 0.5, 0),
+			Size = UDim2.new(0, 10, 1.6, 0),
+			Rotation = 30,
+			BackgroundColor3 = color,
+			BackgroundTransparency = 0.85,
+			Parent = back,
+		})
+	end
+	local diamond = Theme.new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(70, 70),
+		Rotation = 45,
+		BackgroundColor3 = color,
+		BackgroundTransparency = 0.2,
+		Parent = back,
+	})
+	Theme.corner(diamond, 12)
 	Theme.label({
-		Size = UDim2.fromScale(1, 1),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(60, 60),
 		Text = "?",
-		TextSize = 64,
+		TextSize = 42,
+		TextColor3 = Palette.UIBackground,
 		FontFace = Theme.Font(Enum.FontWeight.Heavy),
-		TextColor3 = rarity.Color,
 		Parent = back,
 	})
 
-	-- dim layer used when another card is picked
-	local dim = Theme.new("Frame", {
+	-- white flash layer used when the card flips / is picked
+	local flash = Theme.new("Frame", {
 		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = Palette.UIBackground,
+		BackgroundColor3 = Color3.new(1, 1, 1),
 		BackgroundTransparency = 1,
-		ZIndex = 4,
+		ZIndex = 9,
 		Parent = card,
 	})
-	Theme.corner(dim, 14)
 
 	local button = Theme.new("TextButton", {
 		Size = UDim2.fromScale(1, 1),
 		BackgroundTransparency = 1,
 		Text = "",
-		ZIndex = 5,
-		Parent = card,
+		ZIndex = 11,
+		Parent = mover,
 	})
 
-	rec.Holder, rec.Card, rec.Glow, rec.Stroke, rec.Scale = holder, card, glow, stroke, scale
-	rec.Front, rec.Back, rec.Dim, rec.Button = front, back, dim, button
+	rec.Holder, rec.Mover, rec.Scale, rec.Glow, rec.GlowInner = holder, mover, scale, glow, glowInner
+	rec.Flipper, rec.Card, rec.Stroke, rec.Front, rec.Back = flipper, card, stroke, front, back
+	rec.Flash, rec.Button, rec.Color = flash, button, color
+	rec.BaseGlow = def.Rarity == "Legendary" and 0.6 or def.Rarity == "Epic" and 0.72 or 0.82
 	return rec
+end
+
+local function cardCenter(rec)
+	local p, s = rec.Mover.AbsolutePosition, rec.Mover.AbsoluteSize
+	return p + s / 2
 end
 
 ----------------------------------------------------------------------------
 -- Animations
 ----------------------------------------------------------------------------
-local function flipIn(rec, delay, token)
+local function dealAndFlip(rec, delay, token)
 	task.delay(delay, function()
 		if token ~= openToken then
 			return
 		end
-		local rarity = rec.Def.Rarity
-		-- back face grows in...
-		Theme.tween(rec.Card, 0.14, { Size = UDim2.fromOffset(CARD_W, CARD_H) })
-		Theme.tween(rec.Glow, 0.14, { Size = UDim2.fromOffset(CARD_W + 18, CARD_H + 18) })
-		task.wait(0.2)
-		-- ...flips edge-on...
-		Theme.tween(rec.Card, 0.1, { Size = UDim2.fromOffset(0, CARD_H) }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
-		task.wait(0.1)
+		rec.Mover.Rotation = (rec.Index % 2 == 0) and 6 or -6
+		-- 1) rise in, face down
+		Theme.tween(rec.Card, 0.35, { GroupTransparency = 0 })
+		Theme.tween(rec.Mover, 0.5, { Position = UDim2.fromScale(0.5, 0.5), Rotation = 0 }, Enum.EasingStyle.Back)
+		Sfx.Play("CardHover", { Pitch = 0.7 + rec.Index * 0.08, Volume = 1.2 })
+		task.wait(0.55)
 		if token ~= openToken then
 			return
 		end
-		-- ...and the front flips open
+		-- 2) flip: squash to edge-on...
+		Theme.tween(rec.Flipper, 0.12, { Size = UDim2.fromScale(0, 1) }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		task.wait(0.12)
+		if token ~= openToken then
+			return
+		end
+		-- ...swap faces and open up with a flash
 		rec.Back.Visible = false
 		rec.Front.Visible = true
-		Theme.tween(rec.Card, 0.22, { Size = UDim2.fromOffset(CARD_W, CARD_H) }, Enum.EasingStyle.Back)
+		rec.Flash.BackgroundTransparency = 0.2
+		Theme.tween(rec.Flash, 0.45, { BackgroundTransparency = 1 })
+		Theme.tween(rec.Flipper, 0.24, { Size = UDim2.fromScale(1, 1) }, Enum.EasingStyle.Back)
 		rec.Flipped = true
+		rec.GlowInner.BackgroundTransparency = 0.4
+		Theme.tween(rec.GlowInner, 0.6, { BackgroundTransparency = rec.BaseGlow })
+
+		local rarity = rec.Def.Rarity
 		if rarity == "Legendary" then
 			Sfx.Play("CardLegendary")
-			if rec.Shimmer then
-				rec.Shimmer:Play()
-			end
-			-- pulse the glow
-			rec.Glow.BackgroundTransparency = 0.35
-			Theme.tween(rec.Glow, 0.8, { BackgroundTransparency = 0.7 })
+			task.wait(0.05)
+			local center = cardCenter(rec)
+			Theme.burst(gui, center, rec.Color, 22, 200, 9)
+			Theme.ring(gui, center, rec.Color, 380, 8)
+			Theme.shine(rec.Card, 1.4, true, 0.4)
+			Theme.pop(rec.Mover, 0.1)
+		elseif rarity == "Epic" then
+			Sfx.Play("CardFlip", { Pitch = 1.25 })
+			Theme.burst(gui, cardCenter(rec), rec.Color, 10, 130, 7)
+			Theme.shine(rec.Card, 0.7, false, 0.35)
 		else
 			Sfx.Play("CardFlip", { Pitch = 1 + Config.Rarity[rarity].Order * 0.08 })
+			Theme.shine(rec.Card, 0.6, false, 0.25)
 		end
 	end)
 end
@@ -8990,17 +9678,18 @@ local function setHover(rec, hovered)
 	if not isPicker or pickedIndex or not rec.Flipped then
 		return
 	end
+	rec.Hovered = hovered
 	if hovered then
 		Sfx.Play("CardHover")
-		Theme.tween(rec.Card, 0.15, { Position = UDim2.new(0.5, 0, 0.5, -16) }, Enum.EasingStyle.Back)
-		Theme.tween(rec.Glow, 0.15, { Position = UDim2.new(0.5, 0, 0.5, -16), BackgroundTransparency = 0.5 })
-		Theme.tween(rec.Scale, 0.15, { Scale = 1.05 })
-		Theme.tween(rec.Stroke, 0.15, { Thickness = 5 })
+		Theme.tween(rec.Mover, 0.18, { Position = UDim2.new(0.5, 0, 0.5, -20) }, Enum.EasingStyle.Back)
+		Theme.tween(rec.Scale, 0.18, { Scale = 1.07 }, Enum.EasingStyle.Back)
+		Theme.tween(rec.Stroke, 0.18, { Thickness = 4.5 })
+		Theme.tween(rec.Glow, 0.18, { BackgroundTransparency = 0.7 })
 	else
-		Theme.tween(rec.Card, 0.15, { Position = UDim2.fromScale(0.5, 0.5) })
-		Theme.tween(rec.Glow, 0.15, { Position = UDim2.fromScale(0.5, 0.5), BackgroundTransparency = 0.82 })
-		Theme.tween(rec.Scale, 0.15, { Scale = 1 })
-		Theme.tween(rec.Stroke, 0.15, { Thickness = 3 })
+		Theme.tween(rec.Mover, 0.2, { Position = UDim2.fromScale(0.5, 0.5), Rotation = 0 })
+		Theme.tween(rec.Scale, 0.2, { Scale = 1 })
+		Theme.tween(rec.Stroke, 0.2, { Thickness = 2.5 })
+		Theme.tween(rec.Glow, 0.2, { BackgroundTransparency = 1 })
 	end
 end
 
@@ -9016,30 +9705,49 @@ local function playPickAnimation(index)
 	chosen.Animated = true
 	Sfx.Play("CardPick")
 
+	-- the chosen card flies to the centre of the screen
+	local viewport = workspace.CurrentCamera.ViewportSize
+	local center = cardCenter(chosen)
+	local rowScale = row:FindFirstChildOfClass("UIScale")
+	local s = rowScale and rowScale.Scale or 1
+	local dx = (viewport.X / 2 - center.X) / s
+	chosen.Back.Visible = false
+	chosen.Front.Visible = true
+	chosen.Card.GroupTransparency = 0
+	chosen.Flipper.Size = UDim2.fromScale(1, 1)
+	chosen.Holder.ZIndex = 5
+	Theme.tween(chosen.Mover, 0.45, { Position = UDim2.new(0.5, dx, 0.5, -10), Rotation = 0 }, Enum.EasingStyle.Quint)
+	chosen.Scale.Scale = 1.3
+	Theme.tween(chosen.Scale, 0.5, { Scale = 1.18 }, Enum.EasingStyle.Back)
+	Theme.tween(chosen.Stroke, 0.2, { Thickness = 5, Color = Color3.new(1, 1, 1) })
+	chosen.Flash.BackgroundTransparency = 0
+	Theme.tween(chosen.Flash, 0.5, { BackgroundTransparency = 1 })
+	chosen.Glow.BackgroundTransparency = 0.35
+	Theme.tween(chosen.Glow, 0.8, { BackgroundTransparency = 0.6 })
+	task.delay(0.3, function()
+		if not chosen.Mover.Parent then
+			return
+		end
+		local c = cardCenter(chosen)
+		Theme.burst(gui, c, chosen.Color, 26, 260, 10)
+		Theme.burst(gui, c, Color3.new(1, 1, 1), 12, 180, 6)
+		Theme.ring(gui, c, chosen.Color, 520, 10)
+		Theme.tween(chosen.Stroke, 0.4, { Color = chosen.Color })
+		Theme.shine(chosen.Card, 0.6, false, 0.5)
+	end)
+
+	-- the others fall away
 	for i, rec in ipairs(cards) do
-		if i == index then
-			rec.Back.Visible = false
-			rec.Front.Visible = true
-			rec.Card.Size = UDim2.fromOffset(CARD_W, CARD_H)
-			Theme.tween(rec.Card, 0.2, { Position = UDim2.new(0.5, 0, 0.5, -26) }, Enum.EasingStyle.Back)
-			Theme.tween(rec.Glow, 0.2, {
-				Position = UDim2.new(0.5, 0, 0.5, -26),
-				Size = UDim2.fromOffset(CARD_W + 40, CARD_H + 40),
-				BackgroundTransparency = 0.3,
-			})
-			rec.Scale.Scale = 1.25
-			Theme.tween(rec.Scale, 0.35, { Scale = 1.12 }, Enum.EasingStyle.Back)
-			Theme.tween(rec.Stroke, 0.2, { Thickness = 6, Color = Color3.new(1, 1, 1) })
-			task.delay(0.25, function()
-				if rec.Stroke.Parent then
-					Theme.tween(rec.Stroke, 0.4, { Color = Config.Rarity[rec.Def.Rarity].Color })
-				end
+		if i ~= index then
+			task.delay(math.abs(i - index) * 0.05, function()
+				Theme.tween(rec.Mover, 0.55, {
+					Position = UDim2.new(0.5, 0, 0.5, 420),
+					Rotation = (i < index) and -18 or 18,
+				}, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
+				Theme.tween(rec.Card, 0.45, { GroupTransparency = 1 })
+				Theme.tween(rec.Glow, 0.3, { BackgroundTransparency = 1 })
+				Theme.tween(rec.GlowInner, 0.3, { BackgroundTransparency = 1 })
 			end)
-		else
-			Theme.tween(rec.Scale, 0.3, { Scale = 0.86 })
-			Theme.tween(rec.Dim, 0.3, { BackgroundTransparency = 0.35 })
-			Theme.tween(rec.Glow, 0.3, { BackgroundTransparency = 1 })
-			Theme.tween(rec.Card, 0.3, { Position = UDim2.new(0.5, 0, 0.5, 12) })
 		end
 	end
 
@@ -9050,8 +9758,9 @@ local function playPickAnimation(index)
 		local opp = ClientState.GetOpponentEntry()
 		title.Text = (opp and string.upper(opp.Name) or "OPPONENT") .. " PICKED " .. string.upper(def.Name)
 	end
-	title.TextColor3 = Config.Rarity[def.Rarity].Color
-	subtitle.Text = "Stacks for the rest of the match"
+	title.TextColor3 = chosen.Color
+	Theme.pop(title, 0.2)
+	subtitle.Text = "STACKS  " .. (def.Stacking or "")
 end
 
 ----------------------------------------------------------------------------
@@ -9059,9 +9768,6 @@ end
 ----------------------------------------------------------------------------
 local function clearCards()
 	for _, rec in ipairs(cards) do
-		if rec.Shimmer then
-			rec.Shimmer:Cancel()
-		end
 		rec.Holder:Destroy()
 	end
 	table.clear(cards)
@@ -9073,18 +9779,25 @@ local function open(snapshot)
 	clearCards()
 	isOpen = true
 	pickedIndex = nil
+	lastTimerSecond = nil
 	isPicker = snapshot.PickerUserId == player.UserId
 
 	gui.Enabled = true
 	unlocker.Visible = true
 	ClientState.SetMenu("Pick", true)
 	overlay.BackgroundTransparency = 1
-	Theme.tween(overlay, 0.3, { BackgroundTransparency = 0.25 })
+	Theme.tween(overlay, 0.35, { BackgroundTransparency = 0.3 })
+	-- title slides down
+	title.Position = UDim2.new(0.5, 0, 0.1, -40)
+	title.TextTransparency = 1
+	subtitle.TextTransparency = 1
+	Theme.tween(title, 0.5, { Position = UDim2.fromScale(0.5, 0.1), TextTransparency = 0 }, Enum.EasingStyle.Quint)
+	Theme.tween(subtitle, 0.6, { TextTransparency = 0 })
 
 	if isPicker then
 		title.Text = "PICK A POWER-UP"
 		title.TextColor3 = Palette.UIText
-		subtitle.Text = "You lost the round - choose one card. It stacks for the rest of the match."
+		subtitle.Text = "You lost the round. Choose one card - it stacks for the rest of the match."
 	else
 		local opp = ClientState.GetOpponentEntry()
 		title.Text = (opp and string.upper(opp.Name) or "OPPONENT") .. " IS CHOOSING"
@@ -9118,7 +9831,7 @@ local function open(snapshot)
 						local callback = practiceCallback
 						playPickAnimation(i)
 						callback(id)
-						task.delay(1.6, function()
+						task.delay(1.8, function()
 							if practiceCallback == callback then
 								PickScreen.Close()
 							end
@@ -9129,7 +9842,7 @@ local function open(snapshot)
 					end
 				end
 			end)
-			flipIn(rec, 0.25 + (i - 1) * 0.22, token)
+			dealAndFlip(rec, 0.2 + (i - 1) * 0.16, token)
 		end
 	end
 end
@@ -9144,11 +9857,16 @@ local function close()
 	local token = openToken
 	unlocker.Visible = false
 	ClientState.SetMenu("Pick", false)
-	Theme.tween(overlay, 0.25, { BackgroundTransparency = 1 })
+	Theme.tween(overlay, 0.3, { BackgroundTransparency = 1 })
+	Theme.tween(title, 0.25, { TextTransparency = 1 })
+	Theme.tween(subtitle, 0.25, { TextTransparency = 1 })
 	for _, rec in ipairs(cards) do
-		Theme.tween(rec.Scale, 0.2, { Scale = 0 })
+		Theme.tween(rec.Card, 0.25, { GroupTransparency = 1 })
+		Theme.tween(rec.Scale, 0.25, { Scale = 0.85 })
+		Theme.tween(rec.Glow, 0.2, { BackgroundTransparency = 1 })
+		Theme.tween(rec.GlowInner, 0.2, { BackgroundTransparency = 1 })
 	end
-	task.delay(0.3, function()
+	task.delay(0.35, function()
 		if token == openToken then
 			clearCards()
 			gui.Enabled = false
@@ -9165,12 +9883,12 @@ function PickScreen.IsPracticeOpen()
 end
 
 --[[
-	Opens the real pick screen with `cards` for solo practice (from the
+	Opens the real pick screen with `cardIds` for solo practice (from the
 	Power-Up Lab). `onPick(id)` is called with the chosen power-up.
 ]]
-function PickScreen.OpenPractice(cards, owned, onPick)
+function PickScreen.OpenPractice(cardIds, owned, onPick)
 	open({
-		Cards = cards,
+		Cards = cardIds,
 		PickerUserId = player.UserId,
 		Players = { { UserId = player.UserId, PowerUps = owned or {} } },
 	})
@@ -9198,8 +9916,8 @@ function PickScreen.OnState(snapshot, old)
 			open(snapshot)
 		end
 		if snapshot.PickedIndex then
-			-- wait for the flip-ins if we opened late
-			task.delay(wasOpen and 0 or 1.4, function()
+			-- wait for the deal + flip if we opened late
+			task.delay(wasOpen and 0 or 1.6, function()
 				playPickAnimation(snapshot.PickedIndex)
 			end)
 		end
@@ -9208,17 +9926,49 @@ function PickScreen.OnState(snapshot, old)
 	end
 end
 
+----------------------------------------------------------------------------
+-- Per-frame: idle float, hover tilt, timer
+----------------------------------------------------------------------------
 local function update()
 	if not isOpen then
 		return
 	end
+	local t = os.clock()
+	local mouse = UserInputService:GetMouseLocation()
+	for _, rec in ipairs(cards) do
+		if rec.Flipped and not pickedIndex then
+			-- gentle float + breathing glow
+			local bob = UDim2.new(0.5, 0, 0.5, math.sin(t * 2 + rec.Phase) * 3)
+			rec.Flipper.Position = bob
+			rec.Glow.Position = bob
+			rec.GlowInner.Position = bob
+			rec.GlowInner.BackgroundTransparency = rec.BaseGlow + math.sin(t * 2.4 + rec.Phase) * 0.06
+			-- tilt toward the mouse while hovered
+			if rec.Hovered then
+				local center = cardCenter(rec)
+				local dx = math.clamp((mouse.X - center.X) / (CARD_W / 2), -1, 1)
+				rec.Mover.Rotation = dx * 3
+			end
+		end
+	end
+
 	local snapshot = ClientState.Snapshot
-	if snapshot.Phase == "Pick" then
+	if snapshot.Phase == "Pick" and not practiceCallback then
 		local left = ClientState.TimeLeft() or 0
 		timerTrack.Visible = true
 		timerFill.Size = UDim2.fromScale(math.clamp(left / Config.Match.PickTime, 0, 1), 1)
-		timerFill.BackgroundColor3 = left < 5 and Palette.UIDanger or Palette.UIAccent
-		timerText.Text = tostring(math.ceil(left))
+		local urgent = left < 5
+		timerFill.BackgroundColor3 = urgent and Palette.UIDanger or Palette.UIAccent
+		local second = math.ceil(left)
+		timerText.Text = tostring(second)
+		timerText.TextColor3 = urgent and Palette.UIDanger or Palette.UIText
+		if second ~= lastTimerSecond then
+			lastTimerSecond = second
+			if urgent and not pickedIndex then
+				Theme.pop(timerText, 0.35)
+				Sfx.Play("Countdown", { Pitch = 1.4, Volume = 0.5 })
+			end
+		end
 	else
 		timerTrack.Visible = false
 		timerText.Text = ""
@@ -9239,34 +9989,34 @@ function PickScreen.Start(playerGui)
 
 	title = Theme.label({
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.fromScale(0.5, 0.12),
-		Size = UDim2.fromOffset(900, 56),
+		Position = UDim2.fromScale(0.5, 0.1),
+		Size = UDim2.fromOffset(1000, 56),
 		TextSize = 46,
 		FontFace = Theme.Font(Enum.FontWeight.Heavy),
-		Parent = overlay,
+		Parent = gui,
 	})
 	subtitle = Theme.label({
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0.12, 58),
-		Size = UDim2.fromOffset(900, 24),
+		Position = UDim2.new(0.5, 0, 0.1, 58),
+		Size = UDim2.fromOffset(1000, 24),
 		TextSize = 17,
 		TextColor3 = Palette.UISubText,
 		FontFace = Theme.Font(Enum.FontWeight.Medium),
-		Parent = overlay,
+		Parent = gui,
 	})
 
 	row = Theme.new("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.53),
-		Size = UDim2.fromOffset(5 * CARD_W + 4 * 20, CARD_H + 60),
+		Position = UDim2.fromScale(0.5, 0.54),
+		Size = UDim2.fromOffset(5 * CARD_W + 4 * GAP, CARD_H + 80),
 		BackgroundTransparency = 1,
-		Parent = overlay,
+		Parent = gui,
 	}, {
 		Theme.new("UIListLayout", {
 			FillDirection = Enum.FillDirection.Horizontal,
 			HorizontalAlignment = Enum.HorizontalAlignment.Center,
 			VerticalAlignment = Enum.VerticalAlignment.Center,
-			Padding = UDim.new(0, 20),
+			Padding = UDim.new(0, GAP),
 			SortOrder = Enum.SortOrder.LayoutOrder,
 		}),
 	})
@@ -9274,32 +10024,32 @@ function PickScreen.Start(playerGui)
 	local rowScale = Theme.new("UIScale", { Parent = row })
 	local function fit()
 		local viewport = workspace.CurrentCamera.ViewportSize
-		rowScale.Scale = math.min(1, (viewport.X - 40) / row.Size.X.Offset, (viewport.Y * 0.6) / row.Size.Y.Offset)
+		rowScale.Scale = math.min(1, (viewport.X - 40) / row.Size.X.Offset, (viewport.Y * 0.62) / row.Size.Y.Offset)
 	end
 	fit()
 	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(fit)
 
 	timerTrack = Theme.new("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.fromScale(0.5, 0.86),
-		Size = UDim2.fromOffset(420, 8),
+		Position = UDim2.fromScale(0.5, 0.88),
+		Size = UDim2.fromOffset(460, 6),
 		BackgroundColor3 = Palette.UIPanelLight,
-		Parent = overlay,
+		Parent = gui,
 	})
-	Theme.corner(timerTrack, 4)
+	Theme.corner(timerTrack, 3)
 	timerFill = Theme.new("Frame", {
 		Size = UDim2.fromScale(1, 1),
 		BackgroundColor3 = Palette.UIAccent,
 		Parent = timerTrack,
 	})
-	Theme.corner(timerFill, 4)
+	Theme.corner(timerFill, 3)
 	timerText = Theme.label({
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0.86, 14),
+		Position = UDim2.new(0.5, 0, 0.88, 12),
 		Size = UDim2.fromOffset(80, 30),
 		TextSize = 26,
 		FontFace = Theme.Font(Enum.FontWeight.Heavy),
-		Parent = overlay,
+		Parent = gui,
 	})
 
 	RunService.RenderStepped:Connect(update)
@@ -9322,7 +10072,7 @@ return PickScreen
 	Then close the lab and try them on the shooting range dummies.
 
 	The server keeps your lab picks, so server-checked effects like Explosive
-	Rounds, Ricochet, Decoy and Phantom Dash really work. Lab picks never
+	Rounds, Ricochet, Decoy and Phantom Step really work. Lab picks never
 	carry into a match (matches always start with no power-ups).
 ]]
 
@@ -9972,6 +10722,116 @@ function Theme.tween(inst, time, goals, style, direction)
 	return tween
 end
 
+-- Returns the UIScale of a GUI object (creates one if needed).
+function Theme.scaleOf(inst)
+	local scale = inst:FindFirstChildOfClass("UIScale")
+	if not scale then
+		scale = Theme.new("UIScale", { Parent = inst })
+	end
+	return scale
+end
+
+-- Quick "pop" animation (grow a little, spring back).
+function Theme.pop(inst, amount)
+	local scale = Theme.scaleOf(inst)
+	scale.Scale = 1 + (amount or 0.12)
+	Theme.tween(scale, 0.35, { Scale = 1 }, Enum.EasingStyle.Back)
+end
+
+--[[
+	UI particle burst: `count` little flat squares fly out from `center`
+	(absolute screen position, Vector2) inside `parent`, then fade away.
+]]
+function Theme.burst(parent, center, color, count, distance, size)
+	count = count or 14
+	distance = distance or 140
+	size = size or 8
+	for i = 1, count do
+		local angle = (i / count) * math.pi * 2 + math.random() * 0.4
+		local reach = distance * (0.55 + math.random() * 0.6)
+		local bit = Theme.new("Frame", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromOffset(center.X, center.Y),
+			Size = UDim2.fromOffset(size, size),
+			Rotation = math.random(0, 90),
+			BackgroundColor3 = color,
+			ZIndex = 20,
+			Parent = parent,
+		})
+		Theme.corner(bit, 2)
+		local target = center + Vector2.new(math.cos(angle), math.sin(angle)) * reach
+		local time = 0.5 + math.random() * 0.35
+		Theme.tween(bit, time, {
+			Position = UDim2.fromOffset(target.X, target.Y),
+			Size = UDim2.fromOffset(2, 2),
+			Rotation = bit.Rotation + math.random(-180, 180),
+			BackgroundTransparency = 1,
+		}, Enum.EasingStyle.Quint)
+		task.delay(time + 0.05, function()
+			bit:Destroy()
+		end)
+	end
+end
+
+-- An expanding ring (UI shockwave) at an absolute screen position.
+function Theme.ring(parent, center, color, size, thickness)
+	local ring = Theme.new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromOffset(center.X, center.Y),
+		Size = UDim2.fromOffset(10, 10),
+		BackgroundTransparency = 1,
+		ZIndex = 19,
+		Parent = parent,
+	})
+	Theme.corner(ring, UDim.new(0.5, 0))
+	local stroke = Theme.stroke(ring, color, thickness or 6, 0)
+	Theme.tween(ring, 0.55, { Size = UDim2.fromOffset(size, size) }, Enum.EasingStyle.Quint)
+	Theme.tween(stroke, 0.55, { Transparency = 1, Thickness = 1 })
+	task.delay(0.6, function()
+		ring:Destroy()
+	end)
+end
+
+-- A diagonal white shine that sweeps across `inst` once (or forever).
+function Theme.shine(inst, duration, loop, strength)
+	local band = Theme.new("Frame", {
+		Name = "Shine",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		ZIndex = 8,
+		Parent = inst,
+	})
+	local corner = inst:FindFirstChildOfClass("UICorner")
+	if corner then
+		Theme.corner(band, corner.CornerRadius)
+	end
+	local peak = 1 - (strength or 0.45)
+	local gradient = Theme.new("UIGradient", {
+		Rotation = 25,
+		Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 1),
+			NumberSequenceKeypoint.new(0.4, 1),
+			NumberSequenceKeypoint.new(0.5, peak),
+			NumberSequenceKeypoint.new(0.6, 1),
+			NumberSequenceKeypoint.new(1, 1),
+		}),
+		Offset = Vector2.new(-1, 0),
+		Parent = band,
+	})
+	local tween = TweenService:Create(
+		gradient,
+		TweenInfo.new(duration or 0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, loop and -1 or 0, false, loop and 0.9 or 0),
+		{ Offset = Vector2.new(1, 0) }
+	)
+	tween:Play()
+	if not loop then
+		task.delay((duration or 0.8) + 0.05, function()
+			band:Destroy()
+		end)
+	end
+	return band, tween
+end
+
 -- A ScreenGui that ignores the top bar inset and survives respawns.
 function Theme.screen(name, displayOrder, parent)
 	return Theme.new("ScreenGui", {
@@ -10110,6 +10970,23 @@ local function open(snapshot)
 	end
 	overlay.BackgroundTransparency = 1
 	Theme.tween(overlay, 0.4, { BackgroundTransparency = 0.15 })
+	-- columns slide up, then confetti / embers
+	columns.Position = UDim2.new(0.5, 0, 0.1, 260)
+	Theme.tween(columns, 0.6, { Position = UDim2.new(0.5, 0, 0.1, 210) }, Enum.EasingStyle.Quint)
+	task.spawn(function()
+		local viewport = workspace.CurrentCamera.ViewportSize
+		local colors = won and { Palette.UIAccent, Palette.AccentB, Palette.PlayerA, Palette.PlayerB, Color3.new(1, 1, 1) }
+			or { Palette.UIDanger, Palette.UIPanelLight }
+		for i = 1, won and 10 or 4 do
+			if not isOpen then
+				break
+			end
+			local x = viewport.X * (0.15 + math.random() * 0.7)
+			local y = viewport.Y * (0.12 + math.random() * 0.25)
+			Theme.burst(gui, Vector2.new(x, y), colors[(i % #colors) + 1], 16, 220, 9)
+			task.wait(0.18)
+		end
+	end)
 end
 
 local function close()

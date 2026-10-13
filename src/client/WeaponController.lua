@@ -159,6 +159,7 @@ local function fire()
 	end
 
 	Remotes.Get("Fire"):FireServer(origin, direction, claims)
+	Controllers.Effects.MuzzleFlash(Controllers.Viewmodel.GetMuzzlePosition(), camera.CFrame.LookVector)
 
 	-- Bolt delay (Quickdraw is already in stats.BoltTime; Bullet Time speeds it up)
 	local boltTime = stats.BoltTime

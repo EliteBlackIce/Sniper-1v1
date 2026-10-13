@@ -118,6 +118,116 @@ function Theme.tween(inst, time, goals, style, direction)
 	return tween
 end
 
+-- Returns the UIScale of a GUI object (creates one if needed).
+function Theme.scaleOf(inst)
+	local scale = inst:FindFirstChildOfClass("UIScale")
+	if not scale then
+		scale = Theme.new("UIScale", { Parent = inst })
+	end
+	return scale
+end
+
+-- Quick "pop" animation (grow a little, spring back).
+function Theme.pop(inst, amount)
+	local scale = Theme.scaleOf(inst)
+	scale.Scale = 1 + (amount or 0.12)
+	Theme.tween(scale, 0.35, { Scale = 1 }, Enum.EasingStyle.Back)
+end
+
+--[[
+	UI particle burst: `count` little flat squares fly out from `center`
+	(absolute screen position, Vector2) inside `parent`, then fade away.
+]]
+function Theme.burst(parent, center, color, count, distance, size)
+	count = count or 14
+	distance = distance or 140
+	size = size or 8
+	for i = 1, count do
+		local angle = (i / count) * math.pi * 2 + math.random() * 0.4
+		local reach = distance * (0.55 + math.random() * 0.6)
+		local bit = Theme.new("Frame", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromOffset(center.X, center.Y),
+			Size = UDim2.fromOffset(size, size),
+			Rotation = math.random(0, 90),
+			BackgroundColor3 = color,
+			ZIndex = 20,
+			Parent = parent,
+		})
+		Theme.corner(bit, 2)
+		local target = center + Vector2.new(math.cos(angle), math.sin(angle)) * reach
+		local time = 0.5 + math.random() * 0.35
+		Theme.tween(bit, time, {
+			Position = UDim2.fromOffset(target.X, target.Y),
+			Size = UDim2.fromOffset(2, 2),
+			Rotation = bit.Rotation + math.random(-180, 180),
+			BackgroundTransparency = 1,
+		}, Enum.EasingStyle.Quint)
+		task.delay(time + 0.05, function()
+			bit:Destroy()
+		end)
+	end
+end
+
+-- An expanding ring (UI shockwave) at an absolute screen position.
+function Theme.ring(parent, center, color, size, thickness)
+	local ring = Theme.new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromOffset(center.X, center.Y),
+		Size = UDim2.fromOffset(10, 10),
+		BackgroundTransparency = 1,
+		ZIndex = 19,
+		Parent = parent,
+	})
+	Theme.corner(ring, UDim.new(0.5, 0))
+	local stroke = Theme.stroke(ring, color, thickness or 6, 0)
+	Theme.tween(ring, 0.55, { Size = UDim2.fromOffset(size, size) }, Enum.EasingStyle.Quint)
+	Theme.tween(stroke, 0.55, { Transparency = 1, Thickness = 1 })
+	task.delay(0.6, function()
+		ring:Destroy()
+	end)
+end
+
+-- A diagonal white shine that sweeps across `inst` once (or forever).
+function Theme.shine(inst, duration, loop, strength)
+	local band = Theme.new("Frame", {
+		Name = "Shine",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		ZIndex = 8,
+		Parent = inst,
+	})
+	local corner = inst:FindFirstChildOfClass("UICorner")
+	if corner then
+		Theme.corner(band, corner.CornerRadius)
+	end
+	local peak = 1 - (strength or 0.45)
+	local gradient = Theme.new("UIGradient", {
+		Rotation = 25,
+		Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 1),
+			NumberSequenceKeypoint.new(0.4, 1),
+			NumberSequenceKeypoint.new(0.5, peak),
+			NumberSequenceKeypoint.new(0.6, 1),
+			NumberSequenceKeypoint.new(1, 1),
+		}),
+		Offset = Vector2.new(-1, 0),
+		Parent = band,
+	})
+	local tween = TweenService:Create(
+		gradient,
+		TweenInfo.new(duration or 0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, loop and -1 or 0, false, loop and 0.9 or 0),
+		{ Offset = Vector2.new(1, 0) }
+	)
+	tween:Play()
+	if not loop then
+		task.delay((duration or 0.8) + 0.05, function()
+			band:Destroy()
+		end)
+	end
+	return band, tween
+end
+
 -- A ScreenGui that ignores the top bar inset and survives respawns.
 function Theme.screen(name, displayOrder, parent)
 	return Theme.new("ScreenGui", {

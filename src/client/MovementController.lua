@@ -9,7 +9,7 @@
 		               land and keep all your speed). Wall jump too.
 		A/D + mouse    air strafe: hold A and turn the mouse left (or D + right)
 		               while in the air to GAIN speed, like CS / TF2
-		Left Shift     sprint (hold) on the ground / AIR DASH when in the air
+		Left Shift     sprint (hold)
 		C or L-Ctrl    slide (tap; tap again to stand). Press it in the air =
 		               slide the moment you land. Jump out of a slide any time.
 		E              Grapple Hook (power-up)
@@ -30,8 +30,8 @@
 	with a LinearVelocity in Plane mode (horizontal only), so gravity and
 	jumping still use normal Roblox physics.
 
-	Modes: Ground, Air, Slide, WallRun, Dash, Grapple, Ceiling.
-	Other scripts can listen to Movement.Jumped / Landed / Dashed.
+	Modes: Ground, Air, Slide, WallRun, Grapple, Ceiling.
+	Other scripts can listen to Movement.Jumped / Landed / Slid.
 ]]
 
 local Players = game:GetService("Players")
@@ -57,7 +57,7 @@ local Controllers
 
 Movement.Jumped = Signal.new() -- ()
 Movement.Landed = Signal.new() -- (fallSpeed)
-Movement.Dashed = Signal.new() -- ()
+Movement.Slid = Signal.new() -- () a slide started
 
 -- Character references
 local character, humanoid, root, linearVelocity
@@ -69,7 +69,6 @@ local lastDrive = Vector3.zero -- what we actually commanded last frame
 local pendingImpulse = Vector3.zero -- knockback etc. added next frame
 local pendingLift = nil -- vertical velocity to set next frame
 local airJumpsLeft = 0
-local dashesLeft = 0
 
 local sprintHeld, slideHeld, jumpHeld = false, false, false
 local jumpPressedAt = -10 -- for the jump buffer
@@ -81,11 +80,10 @@ local now = os.clock
 local lastGroundJumpTime = 0
 local lastLiftTime = 0
 local lastSlideTime = 0
-local lastDashTime = 0
+local lastPhantomTime = 0
 local peakY = 0
 local lowestVelocityY = 0 -- fastest fall speed this air time (for landing effects)
 
-local dash = { Timer = 0, Dir = Vector3.zero, ExitSpeed = 0 }
 local wall = { Normal = Vector3.zero, Side = 0, Timer = 0, Y = 0, LastNormal = nil, LastTime = 0 }
 local grapple = { Point = nil, Timer = 0, ReadyAt = 0 }
 local speedBoost = { Until = 0, Multiplier = 1 }
@@ -293,6 +291,15 @@ end
 ----------------------------------------------------------------------------
 -- Moves
 ----------------------------------------------------------------------------
+-- PHANTOM STEP power-up: slides and wall jumps turn you invisible briefly.
+local function phantomStep()
+	if stats().PhantomDash and now() - lastPhantomTime > 0.6 then
+		lastPhantomTime = now()
+		Remotes.Get("Ability"):FireServer("PhantomDash", {})
+		Controllers.Effects.PhantomFlash()
+	end
+end
+
 local function startSlide()
 	if now() - lastSlideTime < M.SlideCooldown then
 		return
@@ -309,6 +316,8 @@ local function startSlide()
 	end
 	momentum = momentum.Unit * speed
 	Sfx.Play("Dash", { Pitch = 0.7, Volume = 0.6 })
+	Movement.Slid:Fire()
+	phantomStep()
 end
 
 local function onLanded()
@@ -318,7 +327,6 @@ local function onLanded()
 	lowestVelocityY = 0
 	mode = "Ground"
 	airJumpsLeft = stats().AirJumps
-	dashesLeft = M.DashesPerAir
 	bulletTime.UsedThisAir = false
 	if fallSpeed > 30 then
 		Sfx.Play("Land", { Volume = math.clamp(fallSpeed / 80, 0.3, 1.2) })
@@ -353,28 +361,6 @@ local function groundJump()
 	peakY = root.Position.Y
 	Sfx.Play("Jump", { Pitch = 0.95 + math.random() * 0.1 })
 	Movement.Jumped:Fire()
-end
-
-local function startDash()
-	if dashesLeft <= 0 or now() - lastDashTime < M.DashCooldown then
-		return
-	end
-	dashesLeft -= 1
-	lastDashTime = now()
-	local wish = wishDirection()
-	local dir = wish.Magnitude > 0.1 and wish.Unit or cameraFlatLook()
-	dash.Dir = dir
-	dash.Timer = M.DashDuration
-	dash.ExitSpeed = math.max(M.DashExitSpeed, momentum.Magnitude) * speedMultiplier()
-	mode = "Dash"
-	Controllers.Camera.AddFovPunch(C.DashFOVKick)
-	Sfx.Play("Dash")
-	Movement.Dashed:Fire()
-	-- PHANTOM DASH power-up: the server makes us invisible
-	if stats().PhantomDash then
-		Remotes.Get("Ability"):FireServer("PhantomDash", {})
-		Controllers.Effects.PhantomFlash()
-	end
 end
 
 local function endGrapple(popUp)
@@ -437,7 +423,7 @@ local function startBlink()
 	if mode == "Ground" or mode == "Slide" then
 		mode = "Air"
 	end
-	Controllers.Camera.AddFovPunch(C.DashFOVKick * 1.3)
+	Controllers.Camera.AddFovPunch(C.BlinkFOVKick)
 	Controllers.Effects.Blink(from, to)
 	Remotes.Get("Ability"):FireServer("Blink", { From = from, To = to })
 	Sfx.Play("Dash", { Pitch = 1.7 })
@@ -464,6 +450,7 @@ local function wallJump()
 	airJumpsLeft = stats().AirJumps -- wall jumps refresh your air jumps
 	Sfx.Play("Jump", { Pitch = 1.15 })
 	Movement.Jumped:Fire()
+	phantomStep()
 end
 
 local function airJump()
@@ -471,9 +458,6 @@ local function airJump()
 	pendingLift = M.AirJumpVelocity * stats().JumpMultiplier
 	-- re-aim momentum toward your keys (keeps your speed)
 	local wish = wishDirection()
-	if mode == "Dash" then
-		momentum = dash.Dir * dash.ExitSpeed
-	end
 	if wish.Magnitude > 0.1 then
 		momentum = wish.Unit * math.max(momentum.Magnitude, M.AirJumpMinSpeed * speedMultiplier())
 	end
@@ -493,11 +477,11 @@ local function onJumpPressed()
 		endGrapple(true)
 	elseif mode == "Air" and now() - lastGroundedTime < M.CoyoteTime then
 		groundJump() -- just ran or slid off a ledge: still counts as a ground jump
-	elseif mode == "Air" or mode == "Dash" then
+	elseif mode == "Air" then
 		if now() - lastGroundJumpTime < 0.12 then
 			return -- we only just left the ground
 		end
-		if mode == "Air" and groundIsClose() then
+		if groundIsClose() then
 			return -- about to land: the jump buffer turns this into a bunny hop
 		end
 		if airJumpsLeft > 0 then
@@ -520,15 +504,23 @@ local function updateGround(dt, wish)
 end
 
 local function updateAir(dt, wish)
-	if wish.Magnitude > 0.05 then
-		momentum = accelerate(
-			momentum,
-			wish.Unit,
-			M.AirControlSpeed * speedMultiplier(),
-			M.AirAccel,
-			dt,
-			M.AirSpeedCap * speedMultiplier()
-		)
+	if wish.Magnitude < 0.05 then
+		return
+	end
+	local dir = wish.Unit
+	local mult = speedMultiplier()
+	-- 1) Source air strafing: a small cap in the pressed direction but no
+	--    limit on total speed (A/D + turning the mouse = more speed)
+	momentum = accelerate(momentum, dir, M.AirControlSpeed * mult, M.AirAccel, dt, M.AirSpeedCap * mult)
+	-- 2) Air steering: holding forward turns your momentum toward where you
+	--    look, keeping your speed (easy, snappy control in the air)
+	local forwardness = math.max(0, dir:Dot(cameraFlatLook()))
+	if forwardness > 0 then
+		momentum = steer(momentum, dir, M.AirSteer * forwardness * dt)
+	end
+	-- 3) When you're slow you can always get up to running speed in the air
+	if momentum.Magnitude < M.AirMinSpeed * mult then
+		momentum = accelerate(momentum, dir, M.AirMinSpeed * mult, M.AirLowSpeedAccel, dt)
 	end
 end
 
@@ -557,8 +549,7 @@ local function tryStartWallRun(wish)
 				wall.Timer = 0
 				wall.Y = math.max(root.AssemblyLinearVelocity.Y * 0.4, M.WallRunStartLift)
 				airJumpsLeft = stats().AirJumps
-				dashesLeft = M.DashesPerAir
-				return true
+							return true
 			end
 		end
 	end
@@ -605,16 +596,6 @@ local function updateSlide(dt, wish)
 	humanoid.WalkSpeed = 4 -- calm the run animation while sliding
 end
 
-local function updateDash(dt)
-	dash.Timer -= dt
-	momentum = dash.Dir * M.DashSpeed * speedMultiplier()
-	setVerticalVelocity(1.5) -- dashes are flat
-	if dash.Timer <= 0 then
-		momentum = dash.Dir * dash.ExitSpeed
-		mode = Movement.IsGrounded() and "Ground" or "Air"
-	end
-end
-
 local function updateGrapple(dt)
 	grapple.Timer += dt
 	local toPoint = grapple.Point - root.Position
@@ -653,7 +634,6 @@ local function updateCeiling(dt, wish)
 	end
 	setVerticalVelocity(3) -- keep pressed against the ceiling
 	airJumpsLeft = stats().AirJumps
-	dashesLeft = M.DashesPerAir
 end
 
 ----------------------------------------------------------------------------
@@ -716,7 +696,7 @@ local function step(dt)
 	-- If something blocked us (a wall), the real velocity is lower than what
 	-- we commanded last frame: swap that part of our momentum for the real
 	-- velocity. Changes made since then (slide boost, wall jump...) are kept.
-	if mode ~= "Dash" and mode ~= "Grapple" and mode ~= "WallRun" and not Movement.IsBulletTime() then
+	if mode ~= "Grapple" and mode ~= "WallRun" and not Movement.IsBulletTime() then
 		if horizontal.Magnitude < lastDrive.Magnitude - 3 then
 			momentum = horizontal + (momentum - lastDrive)
 		end
@@ -779,8 +759,6 @@ local function step(dt)
 		end
 	elseif mode == "WallRun" then
 		updateWallRun(dt, wish)
-	elseif mode == "Dash" then
-		updateDash(dt)
 	elseif mode == "Grapple" then
 		updateGrapple(dt)
 	elseif mode == "Ceiling" then
@@ -795,7 +773,7 @@ local function step(dt)
 
 	-- FEATHERWEIGHT power-up: cancel part of gravity while airborne
 	local gravityScale = stats().GravityScale
-	if gravityScale < 1 and (mode == "Air" or mode == "Dash") and not Movement.IsBulletTime() then
+	if gravityScale < 1 and mode == "Air" and not Movement.IsBulletTime() then
 		local v = root.AssemblyLinearVelocity
 		setVerticalVelocity(v.Y + workspace.Gravity * (1 - gravityScale) * dt)
 	end
@@ -818,8 +796,6 @@ local function step(dt)
 		kick = C.SlideFOVKick
 	elseif mode == "WallRun" then
 		kick = C.WallRunFOVKick
-	elseif mode == "Dash" then
-		kick = C.DashFOVKick
 	elseif speed > M.RunSpeed + 2 then
 		kick = C.SprintFOVKick
 	end
@@ -861,7 +837,6 @@ local function onCharacterAdded(newCharacter)
 	momentum = Vector3.zero
 	lastDrive = Vector3.zero
 	airJumpsLeft = stats().AirJumps
-	dashesLeft = M.DashesPerAir
 	grapple.Point = nil
 	speedBoost.Until = 0
 	bulletTime.Until = 0
@@ -896,9 +871,6 @@ local function onInputBegan(input, processed)
 		onJumpPressed()
 	elseif key == Enum.KeyCode.LeftShift or key == Enum.KeyCode.ButtonL3 then
 		sprintHeld = true
-		if canMove() and (mode == "Air" or mode == "WallRun") then
-			startDash()
-		end
 	elseif key == M.SlideKey or key == Enum.KeyCode.LeftControl or key == Enum.KeyCode.ButtonB then
 		slideHeld = true
 		if canMove() then

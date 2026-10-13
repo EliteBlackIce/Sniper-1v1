@@ -41,7 +41,7 @@ src/client/                -> StarterPlayerScripts.Client
   Main.client.lua             entry point, starts every controller
   ClientState.lua             latest match snapshot, my power-up stats, settings
   CameraController.lua        first-person lock, FOV kicks, tilt, recoil, sensitivity
-  MovementController.lua      bhop, sprint, slide, air dash, wall run, grapple...
+  MovementController.lua      bhop, air control, sprint, slide, wall run, grapple...
   ViewmodelController.lua     arms + sniper on the camera (sway, bob, recoil, bolt)
   WeaponController.lua        scope + fire, local tracers, sends shots to the server
   CharacterPoser.lua          third-person rifle-holding pose for other players
@@ -159,7 +159,8 @@ the sniper on your own. You need a second player to start a match.
 | WASD | Move |
 | Hold Space | **Bunny hop**: re-jump the instant you land, keeping all your speed |
 | A or D + mouse | **Air strafe**: in the air, hold A and turn left (or D and right) to gain speed |
-| Left Shift | Sprint (hold) / **Air dash** (press in the air) |
+| Left Shift | Sprint (hold) |
+| W (in the air) | Steer your momentum toward where you look (keeps your speed) |
 | C or Left Ctrl | Slide (tap, tap again to stand). Press in the air to slide on landing. Jump out of a slide any time |
 | Space | Jump / wall jump (no double jump unless you pick the Double Jump power-up) |
 | (automatic) | Wall run: jump next to a wall while moving and holding W |
@@ -170,7 +171,9 @@ the sniper on your own. You need a second player to start a match.
 | Q | Decoy (power-up) |
 | Space (hold) | Ceiling run under a ceiling (Magnetic Boots) |
 | V | Inspect your rifle |
-| B | **Power-Up Lab** (lobby): try any power-up solo |
+| B | **Power-Up Lab** (lobby / playground): try any power-up solo |
+| G | **Playground** (lobby): free roam on the match map with dummies |
+| H | Hide / show the controls list (lobby) |
 | F | Find a match / leave the queue (lobby) |
 | P | Settings (frees the mouse) |
 
@@ -193,10 +196,9 @@ Files: `Config`, `CameraController`, `MovementController`, `CharacterService`, `
       Speed bleeds off and the slide ends on its own (or tap C again).
 - [ ] Slide, then Space: you jump straight away and keep the slide speed.
 - [ ] Space in the air does nothing (no double jump by default).
-- [ ] Shift in the air: a fast flat dash (one per jump, refills on landing or wall run).
+- [ ] Hold W in the air and look left/right: you curve that way without losing speed.
 - [ ] Jump next to the long lobby wall holding W: you wall run, the camera
       tilts away from the wall, and you slowly sink. Space jumps off the wall.
-- [ ] Wall run, then Shift: you dash off the wall with the speed carried.
 - [ ] Walking into walls doesn't stick or jitter, and you stop quickly when you let go of WASD.
 - [ ] Tune feel in `Config.Movement` / `Config.Camera` while Rojo is connected.
 
@@ -266,6 +268,23 @@ Files: `ArenaDowntown` (city map), `MapBuilder` (lobby + helpers), `LightingSetu
 
 ---
 
+## Playground mode
+
+Press **G** in the lobby. You're dropped into your own copy of the Downtown map
+(shared with anyone else in the playground) with practice dummies on the
+rooftops, the train, the avenue and the park. Open the **Power-Up Lab (B)** and
+try any build on the real map; press **G** again to go back to the lobby, or
+**F** to queue for a match from there.
+
+## Visual effects
+
+Glowing tracers with a travelling bullet, muzzle flash lights, impact sparks
+and smoke, ricochet flashes, fireball explosions with shockwave rings, kills
+that shatter the body into shards, floating damage numbers, speed lines when
+you're fast, landing dust, slide sparks, and animated UI everywhere (card
+deal/flip/pick, banners, score pops, victory confetti). Tone any of it down in
+`Config.Effects`.
+
 ## Power-ups and builds
 
 There are 30 power-ups and almost all of them **stack**. Every card shows what
@@ -326,7 +345,7 @@ Movement uses the Source-engine model (Half-Life / CS / TF2):
 
 ## Tuning and extending
 
-- **All numbers live in `src/shared/Config.lua`**: movement speeds, slide/dash/
+- **All numbers live in `src/shared/Config.lua`**: movement speeds, slide/
   wall run, damage, bolt time, scope speed, server validation tolerances,
   power-up strengths, rarity weights, sensitivity defaults, palette, lighting
   and sound IDs.

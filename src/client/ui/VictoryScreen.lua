@@ -103,6 +103,23 @@ local function open(snapshot)
 	end
 	overlay.BackgroundTransparency = 1
 	Theme.tween(overlay, 0.4, { BackgroundTransparency = 0.15 })
+	-- columns slide up, then confetti / embers
+	columns.Position = UDim2.new(0.5, 0, 0.1, 260)
+	Theme.tween(columns, 0.6, { Position = UDim2.new(0.5, 0, 0.1, 210) }, Enum.EasingStyle.Quint)
+	task.spawn(function()
+		local viewport = workspace.CurrentCamera.ViewportSize
+		local colors = won and { Palette.UIAccent, Palette.AccentB, Palette.PlayerA, Palette.PlayerB, Color3.new(1, 1, 1) }
+			or { Palette.UIDanger, Palette.UIPanelLight }
+		for i = 1, won and 10 or 4 do
+			if not isOpen then
+				break
+			end
+			local x = viewport.X * (0.15 + math.random() * 0.7)
+			local y = viewport.Y * (0.12 + math.random() * 0.25)
+			Theme.burst(gui, Vector2.new(x, y), colors[(i % #colors) + 1], 16, 220, 9)
+			task.wait(0.18)
+		end
+	end)
 end
 
 local function close()

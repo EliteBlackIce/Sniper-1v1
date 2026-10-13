@@ -7,7 +7,7 @@
 	    SmoothPlastic, no face/accessories) and gets a simple third-person
 	    sniper so the enemy can see where your gun is.
 	  * Freeze / unfreeze (used during countdowns and the pick screen).
-	  * Temporary invisibility (Phantom Dash).
+	  * Temporary invisibility (Phantom Step).
 	  * Falling into the void kills you.
 ]]
 

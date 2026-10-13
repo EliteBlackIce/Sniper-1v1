@@ -31,6 +31,7 @@ Remotes.Names = {
 	"SettingsSave", -- C->S  save settings
 	"Aim", -- C->S  where you're looking up/down (others see your aim pose)
 	"Practice", -- C->S  lobby power-up lab: add / remove / clear practice power-ups
+	"PlaygroundToggle", -- C->S  enter / leave Playground mode
 }
 
 local FOLDER_NAME = "Remotes"

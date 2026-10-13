@@ -251,7 +251,21 @@ function CombatService.Damage(match, attacker, victim, amount, info)
 			Killed = after <= 0,
 			Damage = dealt,
 			Splash = info.Splash == true,
+			Position = info.Position,
 		})
+	end
+
+	-- kill effect: the body shatters (everyone in the match sees it)
+	if after <= 0 then
+		local root = victim.Character and victim.Character:FindFirstChild("HumanoidRootPart")
+		if root then
+			sendToMatch(match, "Effect", {
+				Type = "Kill",
+				Position = root.Position,
+				Color = match:ColorFor(victim),
+				Headshot = info.Headshot == true,
+			})
+		end
 	end
 
 	local attackerRoot = attacker and attacker.Character and attacker.Character:FindFirstChild("HumanoidRootPart")
@@ -278,13 +292,18 @@ local function damageTarget(match, attacker, stats, target, amount, info)
 	if target.Player then
 		CombatService.Damage(match, attacker, target.Player, amount, info)
 	else
+		local torso = getTorso(target.Model)
 		local killed = DummyService.Damage(target.Model, amount)
 		Remotes.Get("HitConfirm"):FireClient(attacker, {
 			Headshot = info.Headshot == true,
 			Killed = killed,
 			Damage = amount,
 			Splash = info.Splash == true,
+			Position = info.Position,
 		})
+		if killed and torso then
+			sendFx(nil, { Type = "Kill", Position = torso.Position, Color = Config.Palette.PlayerB, Headshot = info.Headshot == true })
+		end
 	end
 
 	if stats.MarkBonus > 0 then
@@ -350,7 +369,10 @@ local function explode(match, attacker, stats, mult, targets, position, directMo
 			local distance = offset.Magnitude
 			if distance <= radius then
 				local falloff = 1 - (distance / radius) * 0.5
-				damageTarget(match, attacker, stats, target, stats.ExplosionDamage * falloff * mult, { Splash = true })
+				damageTarget(match, attacker, stats, target, stats.ExplosionDamage * falloff * mult, {
+					Splash = true,
+					Position = torso.Position,
+				})
 				if target.Player then
 					local away = Util.safeUnit(offset + Vector3.new(0, 2, 0), Vector3.yAxis)
 					knockback(target.Player, away * cfg.Knockback * falloff)
@@ -401,7 +423,7 @@ local function shrapnel(match, attacker, stats, mult, targets, impacts, exclude,
 			if ray then
 				local target = targetForModel(targets, Ballistics.FindTargetModel(ray.Instance))
 				if target then
-					damageTarget(match, attacker, stats, target, cfg.Damage * mult, { Splash = true })
+					damageTarget(match, attacker, stats, target, cfg.Damage * mult, { Splash = true, Position = ray.Position })
 				end
 			end
 		end
@@ -424,7 +446,10 @@ local function staticCharge(match, attacker, stats, mult, targets, sim, exclude,
 				params.FilterDescendantsInstances = list
 				if not workspace:Raycast(point, torso.Position - point, params) then
 					zapped[target.Model] = true
-					damageTarget(match, attacker, stats, target, stats.StaticChargeDamage * mult, { Splash = true })
+					damageTarget(match, attacker, stats, target, stats.StaticChargeDamage * mult, {
+						Splash = true,
+						Position = torso.Position,
+					})
 					sendFx(match, { Type = "Zap", From = point, To = torso.Position })
 				end
 			end
@@ -585,7 +610,7 @@ local function onFire(player, origin, direction, claims)
 		if hitTarget then
 			anyHit = true
 			local damage, headshot = bulletDamage(hitPart, hops, stats, mult)
-			damageTarget(match, player, stats, hitTarget, damage, { Headshot = headshot })
+			damageTarget(match, player, stats, hitTarget, damage, { Headshot = headshot, Position = hitPos })
 		elseif stats.StaticChargeDamage > 0 then
 			staticCharge(match, player, stats, mult, targets, sim, exclude, zapped)
 		end
@@ -756,7 +781,7 @@ local function onAbility(player, name, data)
 	local opponent = match and match:GetOpponent(player)
 
 	if name == "PhantomDash" and stats.PhantomDash then
-		if useCooldown(player, name, Config.Movement.DashCooldown * 0.8) then
+		if useCooldown(player, name, 0.5) then
 			CharacterService.MakeInvisible(player, stats.PhantomTime)
 		end
 	elseif name == "Decoy" and stats.Decoy then
@@ -779,6 +804,7 @@ local function onAbility(player, name, data)
 						if stats.ShockwaveDamage > 0 then
 							damageTarget(match, player, stats, target, stats.ShockwaveDamage * stats.DamageMultiplier, {
 								Splash = true,
+								Position = torso.Position,
 							})
 						end
 						if target.Player then

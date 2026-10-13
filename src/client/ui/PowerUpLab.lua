@@ -8,7 +8,7 @@
 	Then close the lab and try them on the shooting range dummies.
 
 	The server keeps your lab picks, so server-checked effects like Explosive
-	Rounds, Ricochet, Decoy and Phantom Dash really work. Lab picks never
+	Rounds, Ricochet, Decoy and Phantom Step really work. Lab picks never
 	carry into a match (matches always start with no power-ups).
 ]]
 

@@ -15,6 +15,7 @@
 		"X"   also place a copy mirrored across X = 0 (other team's side)
 		"Z"   also place a copy mirrored across Z = 0
 		"XZ"  place 4 copies (both mirrors)
+		"R"   also place a copy turned 180 degrees around the centre (point symmetry)
 
 	Collision (clean hitboxes): only the big solid shapes collide. Detail
 	parts (window frames, railings, steps, car trim...) are built inside
@@ -115,6 +116,10 @@ local function makeBuilder(origin, parent)
 
 	function builder.place(className, size, localCF, color, mirror, shape)
 		local cfs = { localCF }
+		if mirror == "R" then
+			-- point symmetry: a copy turned 180 degrees around the centre
+			table.insert(cfs, CFrame.Angles(0, math.pi, 0) * localCF)
+		end
 		if mirror == "X" or mirror == "XZ" then
 			table.insert(cfs, mirrorX(localCF))
 		end

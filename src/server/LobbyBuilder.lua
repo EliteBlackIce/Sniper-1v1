@@ -53,7 +53,7 @@ local WALL_H = 26 -- ceiling height
 local PIT_R = 22 -- the sunken centre
 local PIT_DEPTH = 2.5
 local COLUMN_R = 31 -- the ring of columns holding up the skylight
-local SEGMENTS = 48
+local SEGMENTS = 72 -- more segments = smoother circles
 
 ----------------------------------------------------------------------------
 -- Helpers
@@ -118,13 +118,20 @@ local function neon(b, parts)
 end
 
 -- Adds a light to the first part (indoor lighting).
+-- Plain accent trim (not glowing; Neon + bloom everywhere looked harsh).
+local function accent(_b, parts)
+	return parts
+end
+
+-- Indoor lights are kept soft: LIGHT_SCALE dims every light in the hall.
+local LIGHT_SCALE = 0.45
 local function light(parts, color, range, brightness)
 	local part = parts and parts[1]
 	if part then
 		local l = Instance.new("PointLight")
 		l.Color = color
-		l.Range = range or 24
-		l.Brightness = brightness or 1.4
+		l.Range = (range or 24) * 0.75
+		l.Brightness = (brightness or 1.4) * LIGHT_SCALE
 		l.Shadows = false
 		l.Parent = part
 	end
@@ -234,7 +241,7 @@ local function path(b, r1, r2, deg, width, color)
 		b.part(V(width, 0.12, len), frame * CFrame.new(0, 0.06, 0), color or C.Sidewalk)
 		for _, s in ipairs({ -1, 1 }) do
 			b.part(V(0.5, 0.25, len), frame * CFrame.new(s * (width / 2 + 0.25), 0.12, 0), C.Trim)
-			neon(b, b.part(V(0.18, 0.06, len), frame * CFrame.new(s * (width / 2 - 0.4), 0.13, 0), P.AccentA))
+			accent(b, b.part(V(0.18, 0.06, len), frame * CFrame.new(s * (width / 2 - 0.4), 0.13, 0), C.Trim))
 		end
 		for z = -len / 2 + 3, len / 2 - 3, 3 do
 			b.part(V(width - 1, 0.02, 0.12), frame * CFrame.new(0, 0.13, z), C.Curb)
@@ -266,7 +273,7 @@ function LobbyBuilder.Build()
 		-- ...and the steps you see
 		for k = 0, 2 do
 			ring(b, PIT_R + k * 2, PIT_R + 6, -PIT_DEPTH + (k + 1) * PIT_DEPTH / 3, PIT_DEPTH / 3 + 0.02, k % 2 == 0 and C.Stone or C.Sidewalk, SEGMENTS)
-			neon(b, ring(b, PIT_R + k * 2, PIT_R + k * 2 + 0.25, -PIT_DEPTH + (k + 1) * PIT_DEPTH / 3 + 0.03, 0.06, P.AccentA, SEGMENTS))
+			ring(b, PIT_R + k * 2, PIT_R + k * 2 + 0.3, -PIT_DEPTH + (k + 1) * PIT_DEPTH / 3 + 0.03, 0.06, C.Trim, SEGMENTS) -- step nosing
 		end
 		-- floor pattern: radial joints and rings
 		for i = 0, 23 do
@@ -279,8 +286,14 @@ function LobbyBuilder.Build()
 		end
 		-- pit floor: inlaid rings
 		b.cylinder(0.1, PIT_R * 2 - 2, V(0, -PIT_DEPTH + 0.05, 0), C.Stone)
-		neon(b, b.cylinder(0.12, 30, V(0, -PIT_DEPTH + 0.06, 0), P.AccentB))
-		b.cylinder(0.14, 29, V(0, -PIT_DEPTH + 0.07, 0), C.Sidewalk)
+		b.cylinder(0.12, 30, V(0, -PIT_DEPTH + 0.06, 0), C.Trim)
+		b.cylinder(0.14, 29.2, V(0, -PIT_DEPTH + 0.07, 0), C.Sidewalk)
+		-- star inlay: alternating tiles around the statue
+		for i = 0, 15 do
+			local deg = i * 22.5
+			local pos = polar(11, deg, -PIT_DEPTH + 0.1)
+			b.part(V(3.2, 0.1, 6), CFrame.lookAt(pos, pos + outward(deg)), i % 2 == 0 and C.Stone or C.Concrete)
+		end
 	end)
 
 	-- OUTER WALL (with the tunnel gap to the north) + detail --------------------------
@@ -297,10 +310,10 @@ function LobbyBuilder.Build()
 				local cf = facingIn(R - 0.1, deg, 5.8)
 				b.part(V(w * 0.78, 7, 0.2), cf, C.FrameDark)
 				b.part(V(w * 0.68, 6.2, 0.3), cf * CFrame.new(0, 0, -0.1), C.BuildingB)
-				neon(b, b.part(V(w * 0.7, 0.15, 0.32), cf * CFrame.new(0, -3.2, -0.1), P.AccentA))
+				b.part(V(w * 0.7, 0.15, 0.32), cf * CFrame.new(0, -3.2, -0.1), C.Trim)
 				local up = facingIn(R - 0.1, deg, 17)
 				b.part(V(w * 0.7, 9, 0.2), up, C.FrameDark)
-				b.material(b.part(V(w * 0.6, 8.2, 0.3), up * CFrame.new(0, 0, -0.1), C.WindowLit), Enum.Material.SmoothPlastic, 0.2)
+				b.material(b.part(V(w * 0.6, 8.2, 0.3), up * CFrame.new(0, 0, -0.1), C.Window), Enum.Material.SmoothPlastic, 0.15)
 				-- pilaster between panels
 				local edge = facingIn(R - 0.5, deg + 180 / SEGMENTS, WALL_H / 2)
 				b.part(V(1.4, WALL_H - 2, 1), edge, C.Stone)
@@ -326,7 +339,16 @@ function LobbyBuilder.Build()
 			local base = polar(COLUMN_R, deg, 0)
 			b.block(V(3.6, 1.2, 3.6), base + V(0, 0.6, 0), C.Stone)
 			b.block(V(3.8, 1.2, 3.8), base + V(0, WALL_H - 0.6, 0), C.Stone)
-			neon(b, b.cylinder(0.3, 2.9, base + V(0, 3, 0), P.AccentA))
+			b.cylinder(0.3, 2.9, base + V(0, 3, 0), C.Trim)
+			for f = 0, 3 do -- fluting
+				b.part(V(0.3, WALL_H - 4, 2.75), CFrame.new(base + V(0, WALL_H / 2, 0)) * CFrame.Angles(0, f * math.pi / 4, 0), C.Stone)
+			end
+			if i % 2 == 0 then -- potted plant at the base
+				local pot = polar(COLUMN_R - 3, deg, 0)
+				b.cylinder(1.6, 2.4, pot + V(0, 0.8, 0), C.Trim)
+				b.ball(2.6, pot + V(0, 2.4, 0), C.FoliageDark)
+				b.ball(1.8, pot + V(0.5, 3.2, 0.3), C.Foliage)
+			end
 			-- banners between columns, alternating team colours
 			local mid = polar(COLUMN_R, deg + 15, 17)
 			b.part(V(4.5, 9, 0.3), CFrame.lookAt(mid, V(0, 17, 0)), i % 2 == 0 and P.PlayerA or P.PlayerB)
@@ -340,8 +362,11 @@ function LobbyBuilder.Build()
 			light(neon(b, b.block(V(2, 0.3, 2), hang - V(0, 5.6, 0), C.LampLight)), C.LampLight, 32, 1.4)
 		end
 		ring(b, R - 2, R + 3, WALL_H + 0.2, 0.4, C.Trim, SEGMENTS) -- ceiling edge trim
+		for _, r in ipairs({ 40, 52 }) do -- ceiling beam rings (coffers)
+			ring(b, r, r + 1.2, WALL_H - 0.1, 1.2, C.Trim, SEGMENTS)
+		end
 		-- skylight drum + glass dome over the centre
-		ring(b, COLUMN_R - 1.5, COLUMN_R, WALL_H + 7, 7, C.BuildingA, 24)
+		ring(b, COLUMN_R - 1.5, COLUMN_R, WALL_H + 7, 7, C.BuildingA, SEGMENTS)
 		local glass = b.cylinder(0.5, (COLUMN_R - 0.5) * 2, V(0, WALL_H + 7.25, 0), C.Glass)
 		b.material(glass, Enum.Material.Glass, 0.1)
 		for _, part in ipairs(glass) do
@@ -351,7 +376,7 @@ function LobbyBuilder.Build()
 			local deg = i * 45
 			bar(b, polar(COLUMN_R - 1, deg, WALL_H + 7.5), V(0, WALL_H + 9, 0), 0.6, C.Trim)
 		end
-		ring(b, COLUMN_R - 2, COLUMN_R, WALL_H + 0.2, 0.4, P.AccentA, 24)
+		ring(b, COLUMN_R - 2, COLUMN_R, WALL_H + 0.2, 0.4, C.Trim, SEGMENTS)
 	end)
 	-- the ceiling also covers everything outside the dome edge (no gaps to the sky)
 	ring(b, COLUMN_R - 2, COLUMN_R, WALL_H + 7.5, 0.5, C.Roof, 24)
@@ -362,7 +387,7 @@ function LobbyBuilder.Build()
 	b.cylinder(3, 8, V(0, pitY + 2.3, 0), C.BuildingA) -- pedestal
 	b.decor(function()
 		b.cylinder(0.5, 8.6, V(0, pitY + 3.6, 0), C.Trim)
-		neon(b, b.cylinder(0.2, 8.8, V(0, pitY + 1.2, 0), P.AccentB))
+		b.cylinder(0.2, 8.8, V(0, pitY + 1.2, 0), C.Trim)
 		b.block(V(0.9, 4.2, 0.9), V(0, pitY + 5.6, 0), C.Metal) -- support post
 	end)
 	local okStatue, GunModel = pcall(require, ReplicatedStorage.Shared.GunModel)
@@ -381,6 +406,40 @@ function LobbyBuilder.Build()
 	for k = 0, 3 do
 		local deg = 45 + k * 90
 		bench(b, facingIn(PIT_R - 4, deg, pitY))
+	end
+
+	-- GLASS RAILING around the top of the steps (gaps where the paths are)
+	local function onPath(deg)
+		for _, d in ipairs({ 0, 90, 180, 270 }) do
+			if math.abs((deg - d + 180) % 360 - 180) < 11 then
+				return true
+			end
+		end
+		for _, d in ipairs({ 45, 135, 225, 315 }) do
+			if math.abs((deg - d + 180) % 360 - 180) < 7 then
+				return true
+			end
+		end
+		return false
+	end
+	local railR = PIT_R + 6.6
+	for i = 0, SEGMENTS - 1 do
+		local deg = (i + 0.5) * 360 / SEGMENTS
+		if not onPath(deg) then
+			local w = 2 * math.pi * railR / SEGMENTS * 1.04
+			local cf = facingIn(railR, deg, 1.6)
+			local panel = b.part(V(w, 2.6, 0.25), cf, C.Glass)
+			b.material(panel, Enum.Material.Glass, 0.1)
+			for _, part in ipairs(panel) do
+				part.Transparency = 0.55
+			end
+			b.decor(function()
+				b.part(V(w + 0.05, 0.3, 0.45), cf * CFrame.new(0, 1.45, 0), C.Trim) -- handrail
+				if i % 3 == 0 then
+					b.part(V(0.3, 3.1, 0.3), cf * CFrame.new(-w / 2, 0, 0), C.Metal) -- post
+				end
+			end)
+		end
 	end
 
 	-- PATHS (from the top of the steps out to each place) ------------------------------
@@ -427,7 +486,7 @@ function LobbyBuilder.Build()
 	b.block(V(12, 1.4, 30), V(56, 0.7, 0), C.Stone)
 	b.ramp(V(48, 0, 0), V(1, 0, 0), 2.5, 1.4, 12, C.Stone)
 	b.decor(function()
-		neon(b, b.block(V(12.2, 0.2, 30.2), V(56, 1.45, 0), P.AccentA))
+		accent(b, b.block(V(12.2, 0.2, 30.2), V(56, 1.45, 0), P.AccentA))
 		for i, z in ipairs({ -7.5, 7.5 }) do
 			local color = i == 1 and P.PlayerA or P.PlayerB
 			neon(b, b.cylinder(0.15, 10, V(56, 1.5, z), color))
@@ -440,7 +499,7 @@ function LobbyBuilder.Build()
 			b.block(V(1, 14, 1), V(50.5, 8.4, z), C.Metal)
 		end
 		b.block(V(13, 0.8, 30), V(56.5, 15.6, 0), C.BuildingA)
-		neon(b, b.block(V(13.2, 0.25, 30.2), V(56.5, 15.1, 0), P.AccentA))
+		accent(b, b.block(V(13.2, 0.25, 30.2), V(56.5, 15.1, 0), P.AccentA))
 	end)
 	sign(model, V(24, 8, 1), CFrame.new(R - 1.6, 9, 0) * CFrame.Angles(0, math.pi / 2, 0), "1v1 DUEL", "FIND MATCH [F]  -  DUEL A PLAYER [U]")
 
@@ -455,7 +514,7 @@ function LobbyBuilder.Build()
 	b.block(V(1.6, 2.2, 31.6), V(front, 13.1, 0), C.BuildingC) -- lintel
 	b.block(V(3, 3.4, 18), V(-60.5, 2.7, 0), C.Wood) -- counter
 	b.decor(function()
-		neon(b, b.block(V(14.2, 0.2, 30.2), V(-55, 1.05, 0), P.AccentB))
+		accent(b, b.block(V(14.2, 0.2, 30.2), V(-55, 1.05, 0), P.AccentB))
 		b.block(V(15.6, 0.9, 32), V(-55.5, 15.8, 0), C.Stone) -- cornice
 		b.block(V(3.2, 0.4, 18.2), V(-60.5, 4.55, 0), C.Stone)
 		neon(b, b.block(V(0.2, 0.3, 18), V(-58.9, 4.2, 0), P.AccentB))
@@ -498,11 +557,36 @@ function LobbyBuilder.Build()
 		spot.Parent = spots
 	end
 
+	-- VENDING MACHINES + BINS ---------------------------------------------------------------
+	local function vending(cf, color)
+		b.part(V(4, 7, 3), cf * CFrame.new(0, 3.5, 0), color)
+		b.decor(function()
+			b.material(b.part(V(2.6, 4, 0.2), cf * CFrame.new(-0.4, 4.2, -1.55), C.Glass), Enum.Material.Glass, 0.2)
+			for row = 0, 3 do
+				for col = 0, 2 do
+					b.part(V(0.5, 0.6, 0.3), cf * CFrame.new(-1.2 + col * 0.8, 2.8 + row * 0.9, -1.35), C.Awning[((row + col) % 3) + 1])
+				end
+			end
+			b.part(V(0.6, 2, 0.2), cf * CFrame.new(1.4, 4.4, -1.55), C.Dark) -- keypad
+			light(neon(b, b.part(V(3.6, 0.6, 0.2), cf * CFrame.new(0, 6.5, -1.55), C.LampLight)), color, 10, 0.6)
+		end)
+	end
+	vending(facingIn(R - 3, 243, 0), P.PlayerB)
+	vending(facingIn(R - 3, 297, 0), P.AccentA)
+	vending(facingIn(R - 3, 117, 0), P.PlayerA)
+	for _, deg in ipairs({ 20, 160, 200, 340 }) do -- bins by the paths
+		local pos = polar(31, deg, 0)
+		b.decor(function()
+			b.cylinder(2.4, 1.6, pos + V(0, 1.2, 0), C.Metal)
+			b.cylinder(0.3, 1.8, pos + V(0, 2.5, 0), C.Dark)
+		end)
+	end
+
 	-- SOUTH: STAGE --------------------------------------------------------------------------
 	b.block(V(36, 3, 12), V(0, 1.5, 55), C.Stone)
 	b.ramp(V(0, 0, 44), V(0, 0, 1), 5, 3, 16, C.Stone)
 	b.decor(function()
-		neon(b, b.block(V(36.4, 0.3, 12.4), V(0, 3.05, 55), P.AccentA))
+		accent(b, b.block(V(36.4, 0.3, 12.4), V(0, 3.05, 55), P.AccentA))
 		for _, x in ipairs({ -15, 15 }) do
 			b.block(V(4, 5, 3), V(x, 5.5, 58), C.Dark) -- speakers
 			b.block(V(3.4, 3, 2.6), V(x, 9.5, 58), C.Dark)
@@ -540,7 +624,7 @@ function LobbyBuilder.Build()
 	local across = V(-facing.Z, 0, facing.X)
 	b.cylinder(1, 14, portalBase + V(0, 0.5, 0), C.Stone)
 	b.decor(function()
-		neon(b, b.cylinder(0.12, 14.4, portalBase + V(0, 1.02, 0), P.AccentA))
+		accent(b, b.cylinder(0.12, 14.4, portalBase + V(0, 1.02, 0), P.AccentA))
 		local centre = portalBase + V(0, 7.5, 0)
 		for k = 0, 23 do
 			local a = k / 24 * math.pi * 2
@@ -567,7 +651,7 @@ function LobbyBuilder.Build()
 	b.decor(function()
 		for _, info in ipairs({ { 53, 125, 3 }, { 53, 140, 6 }, { 55, 155, 9 } }) do
 			local pos = pk(info[1], info[2], info[3] + 0.1)
-			neon(b, b.part(V(6.2, 0.25, 6.2), CFrame.lookAt(pos, pos + outward(info[2])), P.AccentA))
+			accent(b, b.part(V(6.2, 0.25, 6.2), CFrame.lookAt(pos, pos + outward(info[2])), P.AccentA))
 		end
 	end)
 
@@ -576,7 +660,7 @@ function LobbyBuilder.Build()
 	local wallCf = facingIn(50, wallDeg, 7) * CFrame.Angles(0, rad(90), 0)
 	b.part(V(24, 14, 1.4), wallCf, P.Light)
 	b.decor(function()
-		neon(b, b.part(V(24.2, 0.4, 1.6), wallCf * CFrame.new(0, 7.1, 0), P.AccentA))
+		accent(b, b.part(V(24.2, 0.4, 1.6), wallCf * CFrame.new(0, 7.1, 0), P.AccentA))
 		for x = -10, 10, 4 do
 			b.part(V(0.5, 12, 1.5), wallCf * CFrame.new(x, 0, 0), C.Stone)
 		end

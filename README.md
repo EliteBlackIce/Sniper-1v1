@@ -29,7 +29,8 @@ src/server/                -> ServerScriptService.Server
   Main.server.lua             entry point, starts every service
   LightingSetup.lua           Future lighting, Atmosphere, Bloom, ColorCorrection, SunRays
   MapBuilder.lua              builds the lobby and the arena from parts
-  ArenaCrossfire.lua          the default map: a compact Rivals-style duel map
+  ArenaNuketown.lua           the default map: the Nuketown cul-de-sac (flat colours)
+  ArenaCrossfire.lua          optional compact Rivals-style duel map
   ArenaSimple.lua             optional open ramps arena (Config.Match.Map = "Simple")
   ArenaDowntown.lua           optional detailed city map (Config.Match.Map = "Downtown")
   DummyService.lua            practice dummies on the lobby shooting range
@@ -335,8 +336,11 @@ from the centre to alcoves around the curved wall:
 - **Diagonals**: the Playground portal, an indoor garden with a pond, a
   parkour corner (ramp, boxes, rising blocks) and a wall-run wall with a low
   ceiling for Magnetic Boots.
-- The walls have framed panels, lit windows, pilasters, a cornice and lit
-  sconces; the ceiling has beams and hanging lights.
+- The walls have framed panels, windows, pilasters, a cornice and soft
+  sconces; the ceiling has beam rings and hanging lights. A glass railing
+  runs round the sunken centre, the centre floor has a tiled star, the
+  columns are fluted with potted plants, and there are vending machines and
+  bins. Lights are kept soft (`LIGHT_SCALE` in `LobbyBuilder.lua`).
 
 It's built in `src/server/LobbyBuilder.lua`.
 
@@ -480,11 +484,35 @@ Momentum (speed) x Pinball (hops) x Marked. Headshots always kill instantly.
 
 Test them solo in the lobby with the **Power-Up Lab** (press B).
 
+## The map: Nuketown
+
+![Nuketown](dist/nuketown-preview.png)
+
+The default map (`Config.Match.Map = "Nuketown"`) is the classic 1960s
+test-site cul-de-sac, rebuilt 1:1 in layout with flat colours (no textures).
+It's point-symmetric (the green side is the yellow side turned around), so
+both spawns are fair:
+- **Two houses** facing each other across the street, the yellow one and the
+  green one. You can go inside: front door, back door, a door to the garage,
+  windows downstairs, stairs up to two bedrooms whose windows look over the
+  street, and furniture. Pitched roofs with chimneys and TV antennas.
+- **Garages** with the roller door open onto the driveway.
+- **Side alleys** between each house and its fence, leading to the
+  **backyards** where you spawn: patio, picnic table, swing set and a shed.
+- **The street**: the school bus on one side, the moving truck on the other,
+  a car by each driveway, concrete barriers in the middle, picket fences,
+  front lawns, mailboxes and hydrants.
+- **Map ends**: rocks, the test-site fence, mannequins and the "NUKETOWN"
+  sign.
+
+It's in `src/server/ArenaNuketown.lua`. The other maps are still there:
+`"Crossfire"`, `"Simple"`, `"Downtown"` and `"Classic"`.
+
 ## The map: Crossfire
 
 ![Crossfire](dist/arena-preview.png)
 
-The default map (`Config.Match.Map = "Crossfire"`) is a compact duel map in
+`Config.Match.Map = "Crossfire"` is a compact duel map in
 the style of Rivals: small enough that you find each other fast, mirrored so
 both sides are identical, with three routes between the spawns:
 - **Spawn buildings** on each end (tinted with your team colour) with a

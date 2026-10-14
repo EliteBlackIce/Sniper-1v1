@@ -875,7 +875,9 @@ local function onFire(player, origin, direction, claims)
 	local deadeye = 1
 	if stats.DeadeyeBonus > 0 and scopedSince[player] then
 		local chargedFrom = math.max(scopedSince[player], lastShot[player] or 0)
-		if now - chargedFrom >= PU.Deadeye.ChargeTime * 0.85 then -- (slack for latency)
+		-- (small fixed slack for network jitter: a % slack would let every
+		-- full-cadence scoped shot count, as the bolt time is close to the charge time)
+		if now - chargedFrom >= PU.Deadeye.ChargeTime - 0.1 then
 			deadeye = 1 + stats.DeadeyeBonus
 		end
 	end
@@ -1273,18 +1275,21 @@ end
 local function recall(player, match, character, humanoid, root, data, stats)
 	local cfg = PU.Recall
 	local now = os.clock()
-	local plausible, past = false, nil
+	-- the past sample closest to where the client says it went (it must be a
+	-- real, not-too-recent position). Its health is what the recall restores,
+	-- so claiming a recent spot can't heal back what you lost 3s ago.
+	local past, bestDistance = nil, cfg.PositionTolerance
 	for _, sample in ipairs(history[player] or {}) do
-		if sample.Character == character then
-			if (sample.Position - data.To).Magnitude <= cfg.PositionTolerance then
-				plausible = true
-			end
-			if not past or math.abs(now - sample.T - cfg.Rewind) < math.abs(now - past.T - cfg.Rewind) then
-				past = sample
+		if sample.Character == character and now - sample.T >= 0.3 then
+			local distance = (sample.Position - data.To).Magnitude
+			-- (oldest first: a newer sample only wins if clearly closer, so
+			-- recalling to a spot you stood on for a while picks the old one)
+			if (not past and distance <= bestDistance) or (past and distance < bestDistance - 1) then
+				past, bestDistance = sample, distance
 			end
 		end
 	end
-	if not plausible then
+	if not past then
 		return
 	end
 	if past and past.Health > humanoid.Health then

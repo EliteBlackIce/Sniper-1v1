@@ -786,7 +786,7 @@ another copy adds ("STACKS: ..."). They're designed to combine into builds:
 | Air Dash | Rare | Sprint in the air to dash (recharges on landing) |
 | Kinetic Armor | Rare | 25% less damage while moving fast |
 | Recall (X) | Epic | Rewind 3s in time and heal back up to 40 HP |
-| Barrier Dome (Z) | Epic | A dome that stops all bullets for 3s |
+| Barrier Dome (Z) | Epic | A dome that stops incoming bullets for 3s (you can shoot out) |
 | Smoke Grenade (3) | Rare | Throw a thick smoke cloud |
 | Sonar | Rare | The enemy is revealed through walls when they fire |
 | Regeneration | Common | Heal 5 HP/s after 3s without damage |

@@ -1172,7 +1172,7 @@ PowerUps.Definitions = {
 	{
 		Id = "BarrierDome",
 		Name = "Barrier Dome",
-		Description = "Press Z to drop a dome around you that stops ALL bullets (yours too) for 3 seconds.",
+		Description = "Press Z to drop a dome around you for 3 seconds. Bullets from outside can't get in, but you can shoot out.",
 		Stacking = "Bigger dome, +1s per stack. Ghost Round bullets pass through",
 		Rarity = "Epic",
 		Tags = { "Defence", "Utility" },

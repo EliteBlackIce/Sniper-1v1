@@ -19,7 +19,8 @@
 	              '-.______ STAGE ___________.-'
 
 	  * Centre: a sunken ring with smooth steps down, the monument (the
-	    SNIPER DUEL crosshair as two crossed rings over a pool) and a ring of
+	    SNIPER DUEL crosshair: two slim crossed rings with ticks and a glowing
+	    dot, over a pool) and a ring of
 	    columns holding up a glass skylight dome. You spawn here.
 	  * The wall: panels with glowing trims, a plinth, a cornice and lit
 	    sconces. The ceiling has radial beams and hanging lights.
@@ -163,7 +164,7 @@ local function plant(b, pos, scale)
 			b.ball(5.4 * scale, pos + V(-2.2, 8.4, -1.6) * scale, C.FoliageLight),
 			b.ball(4.6 * scale, pos + V(0.6, 11.6, 0.4) * scale, C.FoliageLight),
 		}) do
-			b.material(parts, Enum.Material.Grass)
+			b.material(parts, Enum.Material.SmoothPlastic)
 		end
 	end)
 end
@@ -210,7 +211,7 @@ local function bush(b, pos, size)
 		clump(1.9, V(-0.4, 0.85, 1.0), C.FoliageDark)
 		clump(1.6, V(0.25, 2.05, 0.15), C.FoliageLight)
 		clump(1.3, V(-0.55, 1.85, -0.45), C.FoliageLight)
-		b.material(parts, Enum.Material.Grass)
+		b.material(parts, Enum.Material.SmoothPlastic)
 	end)
 end
 
@@ -436,33 +437,26 @@ function LobbyBuilder.Build()
 				local a = (i + 0.5) / count * math.pi * 2
 				local pos = V(0, coreY, 0) + across * math.cos(a) * radius + V(0, math.sin(a) * radius, 0)
 				local tangent = across * -math.sin(a) + V(0, math.cos(a), 0)
-				local length = 2 * math.pi * radius / count * 1.08
+				local length = 2 * math.pi * radius / count * 1.04
 				b.part(V(depth, thick, length), CFrame.lookAt(pos, pos + tangent), color)
 			end
 		end
-		-- the main ring (facing the stage / the range) and the crossed ring
-		vring(5.2, 0.8, 0.9, 0, C.BuildingA, 40)
-		vring(4.55, 0.25, 1.06, 0, P.AccentA, 40) -- inner accent band
-		vring(4.7, 0.6, 0.7, 90, C.Metal, 40)
-		-- the crosshair ticks: through the ring at top, bottom, left and right
-		for _, info in ipairs({ { 0, 1 }, { 0, -1 }, { 1, 0 }, { -1, 0 } }) do
-			local across = outward(90)
-			local dir = across * info[1] + V(0, info[2], 0)
-			local mid = V(0, coreY, 0) + dir * 5.2
-			local vertical = info[2] ~= 0
-			b.part(vertical and V(0.7, 3.4, 1.2) or V(3.4, 0.7, 1.2), CFrame.new(mid), C.BuildingA)
+		-- two slim rings crossed like a globe (so the crosshair reads from
+		-- every side), each with a teal pinstripe on both faces. (The second
+		-- ring is a hair smaller so their surfaces never overlap.)
+		-- (turned 45 degrees, so from every path you see both rings, never one edge-on)
+		vring(5, 0.6, 0.6, 45, C.BuildingA, 64)
+		vring(5, 0.18, 0.66, 45, P.AccentA, 64)
+		vring(4.96, 0.56, 0.56, 135, C.BuildingA, 64)
+		vring(4.96, 0.18, 0.62, 135, P.AccentA, 64)
+		-- the crosshair's ticks: in from each ring toward the centre
+		local centre = V(0, coreY, 0)
+		for _, dir in ipairs({ V(0, 1, 0), V(0, -1, 0), outward(45), -outward(45), outward(135), -outward(135) }) do
+			local a, c = centre + dir * 4.75, centre + dir * 3.1
+			bar(b, a, c, 0.3, C.Metal)
 		end
-		-- the core: a glowing ball in a small metal cage
-		light(neon(b, b.ball(1.5, V(0, coreY, 0), P.AccentA)), P.AccentA, 18, 1.2)
-		for k = 0, 2 do
-			local spin = CFrame.new(0, coreY, 0) * CFrame.Angles(0, rad(k * 60), 0) -- upright discs at 0/60/120
-			b.cylinder(0.12, 2.3, nil, C.Metal, nil, spin)
-		end
-		-- thin spokes from the core to the ring (the crosshair's lines)
-		for _, dir in ipairs({ V(0, 1, 0), V(0, -1, 0), outward(90), -outward(90) }) do
-			local a, c = V(0, coreY, 0) + dir * 0.9, V(0, coreY, 0) + dir * 4.4
-			bar(b, a, c, 0.18, C.Metal)
-		end
+		-- the core: a small glowing dot in the middle
+		light(neon(b, b.ball(1.1, centre, P.AccentA)), P.AccentA, 18, 1.2)
 	end)
 	-- a plaque on the plinth
 	local plaque = Instance.new("Part")

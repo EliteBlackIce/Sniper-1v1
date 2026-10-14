@@ -141,7 +141,7 @@ Config.Body = {
 	-- character doing the same moves.
 	FirstPerson = {
 		ArmThickness = 0.4, -- how wide the copied arms are (your real arms are about 1)
-		HandWidth = 0.42,
+		HandWidth = 0.34,
 		UpperLength = 1.15, -- shoulder to elbow
 		LowerLength = 1.1, -- elbow to wrist
 		Shoulder = Vector3.new(0.95, -1.3, 0.25), -- the right shoulder, from your eyes (the left is mirrored)

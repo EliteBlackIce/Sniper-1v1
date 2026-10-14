@@ -246,8 +246,10 @@ end
 local KS = KN.WorldScale
 local KNIFE_IDLE = aim(V(0.5, -0.88, -1.05), V(-0.35, 0.5, -0.8), V(-0.35, -0.8, 0.3))
 local KNIFE_SPRINT = aim(V(0.6, -1.15, -0.8), V(-0.2, -0.1, -1), V(0, -1, 0.1))
--- the fist closes round the handle; the forearm comes from the edge side
-local HAND_ON_KNIFE = CFrame.new(KnifeModel.Grip.Position * KS) * CFrame.Angles(0, 0, math.pi) * CFrame.Angles(rad(-15), 0, 0)
+-- the fist closes round the handle, the thumb on the spine side; the
+-- forearm runs back from the pommel, angled a little toward the edge (like
+-- a real wrist), so turning the knife never twists the arm round
+local HAND_ON_KNIFE = CFrame.new(KnifeModel.Grip.Position * KS) * CFrame.Angles(rad(125), 0, 0)
 
 -- left hand: up in a guard, fist loose
 local GUARD = LEFT_GUARD_KNIFE
@@ -268,37 +270,39 @@ CLIPS.Equip = {
 	},
 }
 
--- Slash, forehand: cock it high on the right, rip across to the lower left
--- with the whole upper body, follow through, settle.
+-- Slash, forehand: a short cock back to the right shoulder, then one fast,
+-- clean diagonal swipe across in front of you (edge first), a follow
+-- through low on the left and straight back to the guard.
 CLIPS.SlashA = {
 	Length = KN.SlashTime,
 	Keys = {
 		{ T = 0, Weapon = "BASE" },
-		{ T = 0.22, Weapon = aim(V(1.15, -0.05, -0.85), V(0.45, 0.75, -0.45), V(-1, 0.1, 0)), Left = GUARD_OUT, Ease = "Wind",
-			Body = { Yaw = 30, Roll = -6, Lean = -4 } },
-		{ T = 0.36, Weapon = aim(V(0.15, -0.3, -1.6), V(-0.85, 0.2, -0.5), V(-1, -0.25, 0.3)), Ease = "Snap",
-			Body = { Yaw = -10, Lean = 6, Dip = 0.1 } },
-		{ T = 0.48, Weapon = aim(V(-1.05, -0.9, -0.8), V(-0.6, -0.6, -0.5), V(-0.6, -1, 0.3)), Left = GUARD_BACK,
-			Body = { Yaw = -38, Roll = 8, Lean = 10, Dip = 0.18 } },
-		{ T = 0.6, Weapon = aim(V(-1.15, -1.0, -0.65), V(-0.5, -0.7, -0.4), V(-0.5, -1, 0.4)),
-			Body = { Yaw = -42, Roll = 9, Lean = 9, Dip = 0.16 } },
+		{ T = 0.18, Weapon = aim(V(0.85, -0.3, -0.9), V(0.45, 0.6, -0.65), V(-0.9, 0.1, -0.1)), Left = GUARD_OUT, Ease = "Wind",
+			Body = { Yaw = 12, Roll = -3 } },
+		{ T = 0.34, Weapon = aim(V(0.1, -0.45, -1.35), V(-0.85, 0.15, -0.55), V(-0.5, -0.8, 0.2)), Ease = "Snap",
+			Body = { Yaw = -6, Lean = 4, Dip = 0.05 } },
+		{ T = 0.48, Weapon = aim(V(-0.75, -0.8, -1.05), V(-0.92, -0.25, -0.3), V(-0.3, -0.95, 0.1)), Left = GUARD_BACK,
+			Body = { Yaw = -16, Roll = 3, Lean = 6, Dip = 0.08 } },
+		{ T = 0.64, Weapon = aim(V(-0.8, -0.88, -0.95), V(-0.88, -0.3, -0.35), V(-0.3, -0.95, 0.15)),
+			Body = { Yaw = -17, Roll = 3, Lean = 5, Dip = 0.07 } },
 		{ T = 1, Weapon = "BASE" },
 	},
 }
 
--- Slash, backhand: wound up across your chest, whips out to the right.
+-- Slash, backhand: the same swipe the other way, from the left of your
+-- chest out to the right.
 CLIPS.SlashB = {
 	Length = KN.SlashTime,
 	Keys = {
 		{ T = 0, Weapon = "BASE" },
-		{ T = 0.22, Weapon = aim(V(-0.45, -0.15, -0.95), V(-0.55, 0.75, -0.4), V(1, 0.1, 0)), Left = GUARD_BACK, Ease = "Wind",
-			Body = { Yaw = -28, Roll = 6, Lean = -3 } },
-		{ T = 0.36, Weapon = aim(V(0.4, -0.3, -1.6), V(0.85, 0.15, -0.5), V(1, -0.25, 0.3)), Ease = "Snap",
-			Body = { Yaw = 8, Lean = 6, Dip = 0.1 } },
-		{ T = 0.48, Weapon = aim(V(1.3, -0.85, -0.8), V(0.6, -0.55, -0.5), V(0.6, -1, 0.3)), Left = GUARD_OUT,
-			Body = { Yaw = 36, Roll = -8, Lean = 9, Dip = 0.16 } },
-		{ T = 0.6, Weapon = aim(V(1.35, -0.95, -0.65), V(0.5, -0.65, -0.45), V(0.5, -1, 0.4)),
-			Body = { Yaw = 38, Roll = -8, Lean = 8, Dip = 0.14 } },
+		{ T = 0.18, Weapon = aim(V(-0.3, -0.35, -0.95), V(-0.55, 0.55, -0.6), V(0.9, 0.1, -0.1)), Left = GUARD_BACK, Ease = "Wind",
+			Body = { Yaw = -12, Roll = 3 } },
+		{ T = 0.34, Weapon = aim(V(0.4, -0.45, -1.35), V(0.85, 0.15, -0.55), V(0.5, -0.8, 0.2)), Ease = "Snap",
+			Body = { Yaw = 6, Lean = 4, Dip = 0.05 } },
+		{ T = 0.48, Weapon = aim(V(1.15, -0.8, -1.0), V(0.92, -0.25, -0.3), V(0.3, -0.95, 0.1)), Left = GUARD_OUT,
+			Body = { Yaw = 15, Roll = -3, Lean = 5, Dip = 0.07 } },
+		{ T = 0.64, Weapon = aim(V(1.2, -0.88, -0.9), V(0.88, -0.3, -0.35), V(0.3, -0.95, 0.15)),
+			Body = { Yaw = 16, Roll = -3, Lean = 4, Dip = 0.06 } },
 		{ T = 1, Weapon = "BASE" },
 	},
 }
@@ -309,7 +313,7 @@ CLIPS.Stab = {
 	Length = KN.StabTime,
 	Keys = {
 		{ T = 0, Weapon = "BASE" },
-		{ T = 0.24, Weapon = aim(V(1.0, -0.6, -0.65), V(-0.05, 0.3, -1), V(0, -1, 0)), Left = GUARD_OUT, Ease = "Wind",
+		{ T = 0.24, Weapon = aim(V(0.95, -0.6, -0.9), V(-0.05, 0.3, -1), V(0, -1, 0)), Left = GUARD_OUT, Ease = "Wind",
 			Body = { Yaw = 22, Lean = -8, Dip = 0.05 } },
 		{ T = 0.37, Weapon = aim(V(0.12, -0.25, -2.25), V(-0.12, 0.04, -1), V(0, -1, 0)), Left = GUARD_BACK, Ease = "Snap",
 			Body = { Yaw = -14, Lean = 22, Dip = 0.5, Forward = 0.6, Step = 1 } },

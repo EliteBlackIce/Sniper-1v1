@@ -351,8 +351,9 @@ Files: `ArenaCrossfire` (the map), `GunModel` (rifle + power-up mods), `Viewmode
 A round, enclosed hall (a rotunda) with a roof. Paved, lamp-lined paths lead
 from the centre to alcoves around the curved wall:
 - **Centre**: a sunken ring with smooth steps, where you spawn around the
-  monument: the SNIPER DUEL crosshair as two crossed rings (white stone and
-  metal, a teal inner band, the four ticks and a glowing core) on a tiered
+  monument: the SNIPER DUEL crosshair as two slim crossed rings (white
+  stone with a teal pinstripe, the crosshair's ticks pointing in and a
+  glowing dot in the middle) on a tiered
   plinth in a shallow pool, lit from below. A ring of columns holds up a
   glass skylight dome; between them hang banners with the
   SNIPER DUEL logo, trimmed in team colours.
@@ -455,9 +456,12 @@ avatar meshes never block or steal a shot.
 Press **2** (or scroll, or RB on a controller) to pull out the knife; **1**
 or scroll again goes back to the rifle. Every life starts with the rifle.
 - **Draw**: up from the hip, a full flip in the air, caught in your grip.
-- **Slash** (left click): cocked high, then ripped across with your whole
-  upper body twisting into it, a follow-through and a settle. Alternates
-  forehand and backhand, with a glowing trail on the blade. 40 damage.
+- **Slash** (left click): a short cock back, then one fast, clean diagonal
+  swipe across in front of you, edge first, and back to the guard.
+  Alternates forehand and backhand, with a glowing trail on the blade.
+  40 damage.
+- **Grip**: your fist closes round the handle with the forearm running
+  back from it, so the arm never twists round when the knife turns.
 - **Stab** (right click): drawn back by the shoulder, then a lunge where you
   lean in, dip and step forward, drive it in, twist, and rip it out.
   70 damage, a bit more reach.

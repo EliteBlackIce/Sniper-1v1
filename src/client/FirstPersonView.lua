@@ -276,7 +276,10 @@ local function placeArm(side, view, handCF, body, parts, cframes)
 
 	local handName = side .. "Hand"
 	local handBase = arms.Base[handName]
-	local handSize = handBase * (FP.HandWidth / math.max(handBase.X, 0.01))
+	-- a fist, not a flat plate: at least as deep and tall as most of its width
+	local k = FP.HandWidth / math.max(handBase.X, 0.01)
+	local w = FP.HandWidth
+	local handSize = V(w, math.max(handBase.Y * k, w * 0.85), math.max(handBase.Z * k, w * 0.9))
 	resize(arms.Parts[handName], handSize)
 	local wrist = (handCF * CFrame.new(0, handSize.Y / 2, 0)).Position
 	local pole = (view.RightVector * (0.7 * sx) + down - look * 0.15).Unit

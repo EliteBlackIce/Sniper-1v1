@@ -641,7 +641,10 @@ Config.Shop = {
 		{ Id = 0, Credits = 1200, Robux = 799, Name = "CRATE LOAD", Tag = "+20%" },
 		{ Id = 0, Credits = 2600, Robux = 1499, Name = "VAULT", Tag = "BEST VALUE" },
 	},
-	-- Key packs for people who'd rather not grind (Developer Products)
+	-- Key packs (Developer Products). Bought keys open crates like any
+	-- others, but can't be wagered on duels (only keys earned by playing
+	-- can be bet: nothing bought with Robux is ever gambled), and crates
+	-- spend bought keys first.
 	KeyPacks = {
 		{ Id = 0, Keys = 30, Robux = 49, Name = "KEY RING" },
 	},
@@ -698,6 +701,9 @@ Config.Match = {
 	MaxRoundTime = 150, -- if nobody dies, higher health % wins the round (tie = replay)
 	CardsPerPick = 5,
 	-- a random map each match (never the same twice in a row); false = always use Map
+	-- Duel wagers: how many keys each player can put up when challenging
+	-- someone (the winner takes both stakes; leaving the match forfeits yours)
+	WagerOptions = { 0, 5, 10, 25, 50 },
 	Maps = { "Polygon", "Crossfire", "Nuketown", "Canyon", "Pillars", "Bridges", "Ziggurat", "Quarry" },
 	Map = "Polygon", -- "Polygon" (compact Rivals-style arena, lots of cover), "Nuketown" (the classic cul-de-sac), "Crossfire" (compact Rivals-style), "Simple" (open ramps arena), "Downtown" (detailed city) or "Classic"
 	MaxArenas = 4, -- how many matches can run at the same time in one server
@@ -8957,6 +8963,15 @@ local function setKeys(player, keys)
 	dirty[player] = true
 end
 
+-- Keys bought with Robux (part of Keys) can't be wagered; spending keys on
+-- crates uses them up first.
+local function spendKeys(player, amount)
+	local d = data[player]
+	d.PaidKeys = math.max(0, (d.PaidKeys or 0) - amount)
+	setKeys(player, d.Keys - amount)
+	player:SetAttribute("WagerKeys", d.Keys - d.PaidKeys)
+end
+
 local function setCredits(player, credits)
 	local d = data[player]
 	d.Credits = math.max(0, math.floor(credits))
@@ -8981,6 +8996,7 @@ local function save(player)
 		store:SetAsync("u" .. player.UserId, {
 			Keys = d.Keys,
 			Credits = d.Credits,
+			PaidKeys = d.PaidKeys,
 			Skins = d.Skins,
 			Opened = d.Opened,
 			Equipped = d.Equipped,
@@ -9018,13 +9034,16 @@ local function load(player)
 	if not player.Parent then
 		return
 	end
-	local d = { Keys = CR.StartingKeys, Credits = 0, Skins = {}, Opened = 0, Equipped = {}, Receipts = {} }
+	local d = { Keys = CR.StartingKeys, PaidKeys = 0, Credits = 0, Skins = {}, Opened = 0, Equipped = {}, Receipts = {} }
 	if typeof(saved) == "table" then
 		if typeof(saved.Keys) == "number" then
 			d.Keys = math.max(0, math.floor(saved.Keys))
 		end
 		if typeof(saved.Credits) == "number" then
 			d.Credits = math.max(0, math.floor(saved.Credits))
+		end
+		if typeof(saved.PaidKeys) == "number" then
+			d.PaidKeys = math.clamp(math.floor(saved.PaidKeys), 0, d.Keys)
 		end
 		if typeof(saved.Receipts) == "table" then
 			for _, id in ipairs(saved.Receipts) do
@@ -9057,6 +9076,7 @@ local function load(player)
 	loaded[player] = true
 	player:SetAttribute("Keys", d.Keys)
 	player:SetAttribute("Credits", d.Credits)
+	player:SetAttribute("WagerKeys", d.Keys - d.PaidKeys)
 	player:SetAttribute("RifleSkin", d.Equipped.Rifle)
 	player:SetAttribute("KnifeSkin", d.Equipped.Knife)
 	if d.Equipped.Rifle or d.Equipped.Knife then
@@ -9155,7 +9175,7 @@ function CrateService.Open(player, typeName)
 		if crateType.Currency == "Credits" then
 			setCredits(player, d.Credits - crateType.Cost)
 		else
-			setKeys(player, d.Keys - crateType.Cost)
+			spendKeys(player, crateType.Cost)
 		end
 	end
 	local rarity, skin = rollSkin(typeName)
@@ -9237,7 +9257,9 @@ local function processReceipt(info)
 			setCredits(player, d.Credits + product.Credits)
 		end
 		if product.Keys then
+			d.PaidKeys = (d.PaidKeys or 0) + product.Keys
 			setKeys(player, d.Keys + product.Keys)
+			player:SetAttribute("WagerKeys", d.Keys - d.PaidKeys)
 		end
 		table.insert(d.Receipts, info.PurchaseId)
 		while #d.Receipts > 50 do
@@ -9266,6 +9288,40 @@ local function checkVip(player)
 end
 
 ----------------------------------------------------------------------------
+-- Duel wagers (MatchService): stakes are taken when the duel starts and
+-- paid out (or refunded) when it ends
+----------------------------------------------------------------------------
+-- Keys a player can wager: the ones they earned (bought keys can't be bet).
+function CrateService.GetKeys(player)
+	local d = data[player]
+	return d and loaded[player] and (d.Keys - (d.PaidKeys or 0)) or 0
+end
+
+-- Takes `amount` earned keys for a wager; false (and nothing taken) if they don't have them.
+function CrateService.TakeKeys(player, amount)
+	local d = data[player]
+	if not d or not loaded[player] or d.Keys - (d.PaidKeys or 0) < amount then
+		return false
+	end
+	setKeys(player, d.Keys - amount)
+	player:SetAttribute("WagerKeys", d.Keys - d.PaidKeys)
+	scheduleSave(player)
+	return true
+end
+
+-- Gives earned keys (wager winnings / refunds).
+function CrateService.GiveKeys(player, amount)
+	local d = data[player]
+	if not d or not player.Parent then
+		return false
+	end
+	setKeys(player, d.Keys + amount)
+	player:SetAttribute("WagerKeys", d.Keys - (d.PaidKeys or 0))
+	scheduleSave(player)
+	return true
+end
+
+----------------------------------------------------------------------------
 -- Keys for playing
 ----------------------------------------------------------------------------
 local function onMatchFinished(match)
@@ -9281,6 +9337,7 @@ local function onMatchFinished(match)
 			end
 			if gain > 0 then
 				setKeys(player, data[player].Keys + gain)
+				player:SetAttribute("WagerKeys", data[player].Keys - (data[player].PaidKeys or 0))
 				notify(player, ("+%d KEY%s  -  open crates in the crate vault"):format(gain, gain == 1 and "" or "S"))
 				task.spawn(save, player)
 			end
@@ -11544,7 +11601,7 @@ local arenaInUse = {} -- [index] = true
 local practiceOwned = {} -- [player] = { [powerUpId] = stacks }  (lobby Power-Up Lab)
 local practiceStats = {} -- [player] = cached stats
 local inPlayground = {} -- [player] = true while free-roaming the Playground
-local invites = {} -- [target] = { [challenger] = os.clock() expiry }
+local invites = {} -- [target] = { [challenger] = { Until = os.clock() expiry, Stake = keys } }
 local rematches = {} -- [player] = { Opponent, BotDifficulty, Name, Until, Wants }
 local playground -- arena info for the Playground (built the first time someone enters)
 
@@ -11672,8 +11729,39 @@ end
 ----------------------------------------------------------------------------
 -- Matchmaking
 ----------------------------------------------------------------------------
+local function notify(player, text)
+	Remotes.Get("Notify"):FireClient(player, text)
+end
+
+-- Duel wagers: the winner takes both stakes; no winner (cancelled) = refunds.
+-- (Whoever leaves forfeits: their stake is already gone.)
+local function settleWager(match)
+	local stake = match.Wager or 0
+	if stake <= 0 then
+		return
+	end
+	local CrateService = require(script.Parent.CrateService)
+	local winner = match.MatchWinner or (match.Aborted and match.ForfeitWinner) or nil
+	if winner then
+		if winner.Parent and CrateService.GiveKeys(winner, stake * 2) then
+			notify(winner, ("WAGER WON  -  +%d KEYS"):format(stake * 2))
+		end
+		local loser = match:GetOpponent(winner)
+		if loser and loser.Parent then
+			notify(loser, ("WAGER LOST  -  %d KEYS"):format(stake))
+		end
+	else
+		for _, player in ipairs(match.Players) do
+			if not Util.isBot(player) and player.Parent and CrateService.GiveKeys(player, stake) then
+				notify(player, ("WAGER REFUNDED  -  %d KEYS"):format(stake))
+			end
+		end
+	end
+end
+
 local function onMatchFinished(match)
 	arenaInUse[match.Arena.Index] = nil
+	settleWager(match)
 	MatchService.MatchFinished:Fire(match)
 	-- remember who you just played so you can ask for a rematch
 	local a, b = match.Players[1], match.Players[2]
@@ -11735,9 +11823,6 @@ end
 ----------------------------------------------------------------------------
 -- Admin commands (bot matches)
 ----------------------------------------------------------------------------
-local function notify(player, text)
-	Remotes.Get("Notify"):FireClient(player, text)
-end
 
 local function isAdmin(player)
 	local admin = Config.Admin
@@ -11863,7 +11948,9 @@ end
 ----------------------------------------------------------------------------
 -- Duels: challenge a player from the lobby, and rematches
 ----------------------------------------------------------------------------
-local function startPrivateMatch(p1, p2)
+-- stake: keys each player puts up (0 = no wager); both have agreed to it
+local function startPrivateMatch(p1, p2, stake)
+	stake = stake or 0
 	if matchByPlayer[p1] or matchByPlayer[p2] or not p1.Parent or not p2.Parent then
 		return false
 	end
@@ -11872,6 +11959,26 @@ local function startPrivateMatch(p1, p2)
 		notify(p1, "All arenas are busy - try again soon")
 		notify(p2, "All arenas are busy - try again soon")
 		return false
+	end
+	if stake > 0 then
+		-- hold both stakes until the duel ends
+		local CrateService = require(script.Parent.CrateService)
+		if not CrateService.TakeKeys(p1, stake) then
+			notify(p1, ("You don't have %d keys for this wager"):format(stake))
+			notify(p2, p1.DisplayName .. " doesn't have the keys for this wager any more")
+			arenaInUse[arena.Index] = nil
+			return false
+		end
+		if not CrateService.TakeKeys(p2, stake) then
+			CrateService.GiveKeys(p1, stake)
+			notify(p2, ("You don't have %d keys for this wager"):format(stake))
+			notify(p1, p2.DisplayName .. " doesn't have the keys for this wager any more")
+			arenaInUse[arena.Index] = nil
+			return false
+		end
+		for _, p in ipairs({ p1, p2 }) do
+			notify(p, ("WAGER: %d KEYS EACH  -  THE WINNER TAKES %d"):format(stake, stake * 2))
+		end
 	end
 	for _, p in ipairs({ p1, p2 }) do
 		local index = table.find(queue, p)
@@ -11883,6 +11990,7 @@ local function startPrivateMatch(p1, p2)
 		rematches[p] = nil
 	end
 	local match = newMatch(p1, p2, arena)
+	match.Wager = stake
 	matchByPlayer[p1] = match
 	matchByPlayer[p2] = match
 	match:Start()
@@ -11892,10 +12000,18 @@ end
 
 local function inviteValid(target, from)
 	local list = invites[target]
-	return list and list[from] and os.clock() < list[from]
+	return list and list[from] and os.clock() < list[from].Until
 end
 
-local function onDuel(player, action, arg)
+-- A wager amount from the client: a whole number of keys, 0 or more.
+local function cleanStake(value)
+	if typeof(value) ~= "number" or value ~= value then
+		return 0
+	end
+	return math.clamp(math.floor(value), 0, 1000000)
+end
+
+local function onDuel(player, action, arg, wager)
 	if typeof(action) ~= "string" or matchByPlayer[player] then
 		return
 	end
@@ -11912,15 +12028,30 @@ local function onDuel(player, action, arg)
 		if inviteValid(target, player) then
 			return -- already waiting
 		end
+		local stake = cleanStake(wager)
+		if stake > 0 then
+			local CrateService = require(script.Parent.CrateService)
+			if CrateService.GetKeys(player) < stake then
+				notify(player, ("You only have %d keys you can wager (bought keys can't be bet)"):format(CrateService.GetKeys(player)))
+				return
+			end
+		end
 		invites[target] = invites[target] or {}
-		invites[target][player] = os.clock() + Config.Match.InviteTime
-		inviteRemote:FireClient(target, { From = player.UserId, Name = player.DisplayName, Kind = "Challenge", Time = Config.Match.InviteTime })
-		notify(player, "Challenge sent to " .. target.DisplayName)
+		invites[target][player] = { Until = os.clock() + Config.Match.InviteTime, Stake = stake }
+		inviteRemote:FireClient(target, {
+			From = player.UserId,
+			Name = player.DisplayName,
+			Kind = "Challenge",
+			Time = Config.Match.InviteTime,
+			Stake = stake,
+		})
+		notify(player, "Challenge sent to " .. target.DisplayName .. (stake > 0 and (" (%d key wager)"):format(stake) or ""))
 	elseif action == "Accept" then
 		local from = typeof(arg) == "number" and Players:GetPlayerByUserId(arg) or nil
 		if from and inviteValid(player, from) then
+			local stake = invites[player][from].Stake or 0
 			invites[player][from] = nil
-			startPrivateMatch(from, player)
+			startPrivateMatch(from, player, stake)
 		else
 			notify(player, "That challenge expired")
 		end
@@ -20036,6 +20167,9 @@ return CrateReveal
 
 	  DUEL A PLAYER (U / controller R-stick click / DUEL button on mobile)
 	      a list of everyone in the server; CHALLENGE sends them an invite.
+	      WAGER: put up keys (presets or any amount you can cover); the
+	      other player sees the bet on the invite and agrees by accepting.
+	      The winner takes both stakes (MatchService holds them).
 	  INVITES
 	      when someone challenges you (or asks for a rematch) a card pops up
 	      at the top: ACCEPT or DECLINE (it expires after Config.Match.InviteTime).
@@ -20063,8 +20197,9 @@ local player = Players.LocalPlayer
 
 local DuelUI = {}
 
-local gui, panel, list, unlocker, inviteHolder
+local gui, panel, list, unlocker, inviteHolder, wagerBox, wagerNote
 local isOpen = false
+local stake = 0 -- keys to wager on the next challenge
 local openInvites = 0
 
 local function updateMouse()
@@ -20112,7 +20247,7 @@ local function refreshList()
 			})
 			if not busy then
 				button.Activated:Connect(function()
-					Remotes.Get("Duel"):FireServer("Challenge", other.UserId)
+					Remotes.Get("Duel"):FireServer("Challenge", other.UserId, stake)
 					Sfx.Play("CardPick", { Volume = 0.6 })
 					button.Text = "SENT"
 					button.BackgroundColor3 = Palette.UIPanel
@@ -20180,10 +20315,23 @@ local function showInvite(data)
 		BackgroundColor3 = Palette.UIAccent,
 		Parent = card,
 	})
+	local wager = tonumber(data.Stake) or 0
+	if wager > 0 then
+		card.Size = UDim2.fromOffset(440, 118)
+		Theme.label({
+			Position = UDim2.fromOffset(16, 46),
+			Size = UDim2.new(1, -32, 0, 20),
+			Text = ("WAGER: %d KEYS EACH  -  THE WINNER TAKES %d"):format(wager, wager * 2),
+			TextSize = 15,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextColor3 = Palette.AccentB,
+			Parent = card,
+		})
+	end
 	local accept = Theme.button({
 		Position = UDim2.new(0, 16, 1, -44),
 		Size = UDim2.new(0.5, -22, 0, 34),
-		Text = "ACCEPT",
+		Text = wager > 0 and ("ACCEPT  (BET %d)"):format(wager) or "ACCEPT",
 		TextSize = 16,
 		Parent = card,
 	})
@@ -20248,7 +20396,7 @@ function DuelUI.Start(playerGui)
 	panel = Theme.panel({
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromOffset(460, 420),
+		Size = UDim2.fromOffset(460, 480),
 		BackgroundColor3 = Palette.UIBackground,
 		Visible = false,
 		Parent = gui,
@@ -20262,9 +20410,78 @@ function DuelUI.Start(playerGui)
 		FontFace = Theme.Font(Enum.FontWeight.Heavy),
 		Parent = panel,
 	})
+	-- WAGER: keys each of you puts up (the winner takes both); any amount you
+	-- can cover, your opponent sees it and agrees by accepting
+	Theme.label({
+		Position = UDim2.fromOffset(0, 40),
+		Size = UDim2.fromOffset(80, 30),
+		Text = "WAGER",
+		TextSize = 15,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextColor3 = Palette.AccentB,
+		Parent = panel,
+	})
+	local presets = {}
+	local function setStake(value)
+		local most = tonumber(player:GetAttribute("WagerKeys")) or 0
+		stake = math.clamp(math.floor(tonumber(value) or 0), 0, most)
+		wagerBox.Text = stake > 0 and tostring(stake) or ""
+		for amount, button in pairs(presets) do
+			local on = amount == stake
+			button.BackgroundColor3 = on and Palette.AccentB or Palette.UIPanelLight
+			button.TextColor3 = on and Palette.UIBackground or (amount <= most and Palette.UIText or Palette.UISubText)
+		end
+		wagerNote.Text = ("You can bet up to %d keys (keys you earned; bought keys can't be bet)"):format(most)
+	end
+	for i, amount in ipairs(Config.Match.WagerOptions or { 0, 5, 10, 25 }) do
+		local button = Theme.button({
+			Position = UDim2.fromOffset(70 + (i - 1) * 56, 40),
+			Size = UDim2.fromOffset(50, 30),
+			Text = amount == 0 and "NONE" or tostring(amount),
+			TextSize = 13,
+			Parent = panel,
+		})
+		button.Activated:Connect(function()
+			Sfx.Play("CardHover")
+			setStake(amount)
+		end)
+		presets[amount] = button
+	end
+	wagerBox = Theme.new("TextBox", {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, 0, 0, 40),
+		Size = UDim2.fromOffset(84, 30),
+		PlaceholderText = "ANY",
+		Text = "",
+		ClearTextOnFocus = false,
+		TextSize = 15,
+		FontFace = Theme.Font(Enum.FontWeight.Bold),
+		TextColor3 = Palette.UIText,
+		PlaceholderColor3 = Palette.UISubText,
+		BackgroundColor3 = Palette.UIPanelLight,
+		Parent = panel,
+	})
+	Theme.corner(wagerBox, 8)
+	wagerBox.FocusLost:Connect(function()
+		setStake(wagerBox.Text:gsub("%D", ""))
+	end)
+	wagerNote = Theme.label({
+		Position = UDim2.fromOffset(0, 74),
+		Size = UDim2.new(1, 0, 0, 16),
+		TextSize = 11,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextColor3 = Palette.UISubText,
+		FontFace = Theme.Font(Enum.FontWeight.Medium),
+		Parent = panel,
+	})
+	setStake(0)
+	player:GetAttributeChangedSignal("WagerKeys"):Connect(function()
+		setStake(stake)
+	end)
+
 	list = Theme.new("ScrollingFrame", {
-		Position = UDim2.fromOffset(0, 42),
-		Size = UDim2.new(1, 0, 1, -96),
+		Position = UDim2.fromOffset(0, 98),
+		Size = UDim2.new(1, 0, 1, -152),
 		BackgroundTransparency = 1,
 		ScrollBarThickness = 4,
 		AutomaticCanvasSize = Enum.AutomaticSize.Y,

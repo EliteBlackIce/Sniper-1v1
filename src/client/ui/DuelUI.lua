@@ -5,6 +5,9 @@
 
 	  DUEL A PLAYER (U / controller R-stick click / DUEL button on mobile)
 	      a list of everyone in the server; CHALLENGE sends them an invite.
+	      WAGER: put up keys (presets or any amount you can cover); the
+	      other player sees the bet on the invite and agrees by accepting.
+	      The winner takes both stakes (MatchService holds them).
 	  INVITES
 	      when someone challenges you (or asks for a rematch) a card pops up
 	      at the top: ACCEPT or DECLINE (it expires after Config.Match.InviteTime).
@@ -32,8 +35,9 @@ local player = Players.LocalPlayer
 
 local DuelUI = {}
 
-local gui, panel, list, unlocker, inviteHolder
+local gui, panel, list, unlocker, inviteHolder, wagerBox, wagerNote
 local isOpen = false
+local stake = 0 -- keys to wager on the next challenge
 local openInvites = 0
 
 local function updateMouse()
@@ -81,7 +85,7 @@ local function refreshList()
 			})
 			if not busy then
 				button.Activated:Connect(function()
-					Remotes.Get("Duel"):FireServer("Challenge", other.UserId)
+					Remotes.Get("Duel"):FireServer("Challenge", other.UserId, stake)
 					Sfx.Play("CardPick", { Volume = 0.6 })
 					button.Text = "SENT"
 					button.BackgroundColor3 = Palette.UIPanel
@@ -149,10 +153,23 @@ local function showInvite(data)
 		BackgroundColor3 = Palette.UIAccent,
 		Parent = card,
 	})
+	local wager = tonumber(data.Stake) or 0
+	if wager > 0 then
+		card.Size = UDim2.fromOffset(440, 118)
+		Theme.label({
+			Position = UDim2.fromOffset(16, 46),
+			Size = UDim2.new(1, -32, 0, 20),
+			Text = ("WAGER: %d KEYS EACH  -  THE WINNER TAKES %d"):format(wager, wager * 2),
+			TextSize = 15,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextColor3 = Palette.AccentB,
+			Parent = card,
+		})
+	end
 	local accept = Theme.button({
 		Position = UDim2.new(0, 16, 1, -44),
 		Size = UDim2.new(0.5, -22, 0, 34),
-		Text = "ACCEPT",
+		Text = wager > 0 and ("ACCEPT  (BET %d)"):format(wager) or "ACCEPT",
 		TextSize = 16,
 		Parent = card,
 	})
@@ -217,7 +234,7 @@ function DuelUI.Start(playerGui)
 	panel = Theme.panel({
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromOffset(460, 420),
+		Size = UDim2.fromOffset(460, 480),
 		BackgroundColor3 = Palette.UIBackground,
 		Visible = false,
 		Parent = gui,
@@ -231,9 +248,78 @@ function DuelUI.Start(playerGui)
 		FontFace = Theme.Font(Enum.FontWeight.Heavy),
 		Parent = panel,
 	})
+	-- WAGER: keys each of you puts up (the winner takes both); any amount you
+	-- can cover, your opponent sees it and agrees by accepting
+	Theme.label({
+		Position = UDim2.fromOffset(0, 40),
+		Size = UDim2.fromOffset(80, 30),
+		Text = "WAGER",
+		TextSize = 15,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextColor3 = Palette.AccentB,
+		Parent = panel,
+	})
+	local presets = {}
+	local function setStake(value)
+		local most = tonumber(player:GetAttribute("WagerKeys")) or 0
+		stake = math.clamp(math.floor(tonumber(value) or 0), 0, most)
+		wagerBox.Text = stake > 0 and tostring(stake) or ""
+		for amount, button in pairs(presets) do
+			local on = amount == stake
+			button.BackgroundColor3 = on and Palette.AccentB or Palette.UIPanelLight
+			button.TextColor3 = on and Palette.UIBackground or (amount <= most and Palette.UIText or Palette.UISubText)
+		end
+		wagerNote.Text = ("You can bet up to %d keys (keys you earned; bought keys can't be bet)"):format(most)
+	end
+	for i, amount in ipairs(Config.Match.WagerOptions or { 0, 5, 10, 25 }) do
+		local button = Theme.button({
+			Position = UDim2.fromOffset(70 + (i - 1) * 56, 40),
+			Size = UDim2.fromOffset(50, 30),
+			Text = amount == 0 and "NONE" or tostring(amount),
+			TextSize = 13,
+			Parent = panel,
+		})
+		button.Activated:Connect(function()
+			Sfx.Play("CardHover")
+			setStake(amount)
+		end)
+		presets[amount] = button
+	end
+	wagerBox = Theme.new("TextBox", {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, 0, 0, 40),
+		Size = UDim2.fromOffset(84, 30),
+		PlaceholderText = "ANY",
+		Text = "",
+		ClearTextOnFocus = false,
+		TextSize = 15,
+		FontFace = Theme.Font(Enum.FontWeight.Bold),
+		TextColor3 = Palette.UIText,
+		PlaceholderColor3 = Palette.UISubText,
+		BackgroundColor3 = Palette.UIPanelLight,
+		Parent = panel,
+	})
+	Theme.corner(wagerBox, 8)
+	wagerBox.FocusLost:Connect(function()
+		setStake(wagerBox.Text:gsub("%D", ""))
+	end)
+	wagerNote = Theme.label({
+		Position = UDim2.fromOffset(0, 74),
+		Size = UDim2.new(1, 0, 0, 16),
+		TextSize = 11,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextColor3 = Palette.UISubText,
+		FontFace = Theme.Font(Enum.FontWeight.Medium),
+		Parent = panel,
+	})
+	setStake(0)
+	player:GetAttributeChangedSignal("WagerKeys"):Connect(function()
+		setStake(stake)
+	end)
+
 	list = Theme.new("ScrollingFrame", {
-		Position = UDim2.fromOffset(0, 42),
-		Size = UDim2.new(1, 0, 1, -96),
+		Position = UDim2.fromOffset(0, 98),
+		Size = UDim2.new(1, 0, 1, -152),
 		BackgroundTransparency = 1,
 		ScrollBarThickness = 4,
 		AutomaticCanvasSize = Enum.AutomaticSize.Y,

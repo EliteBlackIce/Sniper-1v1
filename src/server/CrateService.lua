@@ -90,6 +90,15 @@ local function setKeys(player, keys)
 	dirty[player] = true
 end
 
+-- Keys bought with Robux (part of Keys) can't be wagered; spending keys on
+-- crates uses them up first.
+local function spendKeys(player, amount)
+	local d = data[player]
+	d.PaidKeys = math.max(0, (d.PaidKeys or 0) - amount)
+	setKeys(player, d.Keys - amount)
+	player:SetAttribute("WagerKeys", d.Keys - d.PaidKeys)
+end
+
 local function setCredits(player, credits)
 	local d = data[player]
 	d.Credits = math.max(0, math.floor(credits))
@@ -114,6 +123,7 @@ local function save(player)
 		store:SetAsync("u" .. player.UserId, {
 			Keys = d.Keys,
 			Credits = d.Credits,
+			PaidKeys = d.PaidKeys,
 			Skins = d.Skins,
 			Opened = d.Opened,
 			Equipped = d.Equipped,
@@ -151,13 +161,16 @@ local function load(player)
 	if not player.Parent then
 		return
 	end
-	local d = { Keys = CR.StartingKeys, Credits = 0, Skins = {}, Opened = 0, Equipped = {}, Receipts = {} }
+	local d = { Keys = CR.StartingKeys, PaidKeys = 0, Credits = 0, Skins = {}, Opened = 0, Equipped = {}, Receipts = {} }
 	if typeof(saved) == "table" then
 		if typeof(saved.Keys) == "number" then
 			d.Keys = math.max(0, math.floor(saved.Keys))
 		end
 		if typeof(saved.Credits) == "number" then
 			d.Credits = math.max(0, math.floor(saved.Credits))
+		end
+		if typeof(saved.PaidKeys) == "number" then
+			d.PaidKeys = math.clamp(math.floor(saved.PaidKeys), 0, d.Keys)
 		end
 		if typeof(saved.Receipts) == "table" then
 			for _, id in ipairs(saved.Receipts) do
@@ -190,6 +203,7 @@ local function load(player)
 	loaded[player] = true
 	player:SetAttribute("Keys", d.Keys)
 	player:SetAttribute("Credits", d.Credits)
+	player:SetAttribute("WagerKeys", d.Keys - d.PaidKeys)
 	player:SetAttribute("RifleSkin", d.Equipped.Rifle)
 	player:SetAttribute("KnifeSkin", d.Equipped.Knife)
 	if d.Equipped.Rifle or d.Equipped.Knife then
@@ -288,7 +302,7 @@ function CrateService.Open(player, typeName)
 		if crateType.Currency == "Credits" then
 			setCredits(player, d.Credits - crateType.Cost)
 		else
-			setKeys(player, d.Keys - crateType.Cost)
+			spendKeys(player, crateType.Cost)
 		end
 	end
 	local rarity, skin = rollSkin(typeName)
@@ -370,7 +384,9 @@ local function processReceipt(info)
 			setCredits(player, d.Credits + product.Credits)
 		end
 		if product.Keys then
+			d.PaidKeys = (d.PaidKeys or 0) + product.Keys
 			setKeys(player, d.Keys + product.Keys)
+			player:SetAttribute("WagerKeys", d.Keys - d.PaidKeys)
 		end
 		table.insert(d.Receipts, info.PurchaseId)
 		while #d.Receipts > 50 do
@@ -399,6 +415,40 @@ local function checkVip(player)
 end
 
 ----------------------------------------------------------------------------
+-- Duel wagers (MatchService): stakes are taken when the duel starts and
+-- paid out (or refunded) when it ends
+----------------------------------------------------------------------------
+-- Keys a player can wager: the ones they earned (bought keys can't be bet).
+function CrateService.GetKeys(player)
+	local d = data[player]
+	return d and loaded[player] and (d.Keys - (d.PaidKeys or 0)) or 0
+end
+
+-- Takes `amount` earned keys for a wager; false (and nothing taken) if they don't have them.
+function CrateService.TakeKeys(player, amount)
+	local d = data[player]
+	if not d or not loaded[player] or d.Keys - (d.PaidKeys or 0) < amount then
+		return false
+	end
+	setKeys(player, d.Keys - amount)
+	player:SetAttribute("WagerKeys", d.Keys - d.PaidKeys)
+	scheduleSave(player)
+	return true
+end
+
+-- Gives earned keys (wager winnings / refunds).
+function CrateService.GiveKeys(player, amount)
+	local d = data[player]
+	if not d or not player.Parent then
+		return false
+	end
+	setKeys(player, d.Keys + amount)
+	player:SetAttribute("WagerKeys", d.Keys - (d.PaidKeys or 0))
+	scheduleSave(player)
+	return true
+end
+
+----------------------------------------------------------------------------
 -- Keys for playing
 ----------------------------------------------------------------------------
 local function onMatchFinished(match)
@@ -414,6 +464,7 @@ local function onMatchFinished(match)
 			end
 			if gain > 0 then
 				setKeys(player, data[player].Keys + gain)
+				player:SetAttribute("WagerKeys", data[player].Keys - (data[player].PaidKeys or 0))
 				notify(player, ("+%d KEY%s  -  open crates in the crate vault"):format(gain, gain == 1 and "" or "S"))
 				task.spawn(save, player)
 			end

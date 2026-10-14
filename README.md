@@ -458,7 +458,7 @@ The SHOP has three tabs:
 - **CRATES**: open either crate.
 - **CREDITS**: credit packs. These are Developer Products: 100 credits for
   79 R$, 550 for 399, 1200 for 799 and 2600 for 1499. There's also a key pack
-  (30 keys for 49 R$).
+  (30 keys for 49 R$; bought keys open crates but can't be wagered).
 - **VIP**: a Game Pass (299 R$) that gives 2x keys from every match and a
   gold VIP tag.
 
@@ -590,6 +590,15 @@ All the numbers are in `Config.Knife`. Code: `KnifeController.lua`
 - **Duel a player**: press U (or the DUEL A PLAYER button) in the lobby to
   see everyone in the server and challenge them. They get a card with
   ACCEPT / DECLINE (it expires after `Config.Match.InviteTime`).
+- **Key wagers**: in DUEL A PLAYER, pick how many keys to bet (NONE, 5,
+  10, 25, 50, or type any amount you can cover) before you hit CHALLENGE.
+  Your opponent sees the bet on the invite ("WAGER: 25 KEYS EACH - THE
+  WINNER TAKES 50") and agrees by accepting. Both stakes are held when
+  the duel starts; the winner gets both. Leaving forfeits your stake, and
+  a cancelled duel refunds both. Only keys you **earned** by playing can
+  be bet. Keys bought in the shop open crates (they're spent first) but
+  are never wagered, so nothing bought with Robux is gambled (Roblox
+  rules).
 - **Rematch**: after a match, a REMATCH button shows in the lobby for
   `Config.Match.RematchWindow` seconds. Your opponent gets an invite card;
   when both want it, a new match starts. Against a bot, the rematch starts

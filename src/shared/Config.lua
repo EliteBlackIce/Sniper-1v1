@@ -367,7 +367,10 @@ Config.Shop = {
 		{ Id = 0, Credits = 1200, Robux = 799, Name = "CRATE LOAD", Tag = "+20%" },
 		{ Id = 0, Credits = 2600, Robux = 1499, Name = "VAULT", Tag = "BEST VALUE" },
 	},
-	-- Key packs for people who'd rather not grind (Developer Products)
+	-- Key packs (Developer Products). Bought keys open crates like any
+	-- others, but can't be wagered on duels (only keys earned by playing
+	-- can be bet: nothing bought with Robux is ever gambled), and crates
+	-- spend bought keys first.
 	KeyPacks = {
 		{ Id = 0, Keys = 30, Robux = 49, Name = "KEY RING" },
 	},
@@ -424,6 +427,9 @@ Config.Match = {
 	MaxRoundTime = 150, -- if nobody dies, higher health % wins the round (tie = replay)
 	CardsPerPick = 5,
 	-- a random map each match (never the same twice in a row); false = always use Map
+	-- Duel wagers: how many keys each player can put up when challenging
+	-- someone (the winner takes both stakes; leaving the match forfeits yours)
+	WagerOptions = { 0, 5, 10, 25, 50 },
 	Maps = { "Polygon", "Crossfire", "Nuketown", "Canyon", "Pillars", "Bridges", "Ziggurat", "Quarry" },
 	Map = "Polygon", -- "Polygon" (compact Rivals-style arena, lots of cover), "Nuketown" (the classic cul-de-sac), "Crossfire" (compact Rivals-style), "Simple" (open ramps arena), "Downtown" (detailed city) or "Classic"
 	MaxArenas = 4, -- how many matches can run at the same time in one server

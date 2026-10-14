@@ -39,7 +39,7 @@ local arenaInUse = {} -- [index] = true
 local practiceOwned = {} -- [player] = { [powerUpId] = stacks }  (lobby Power-Up Lab)
 local practiceStats = {} -- [player] = cached stats
 local inPlayground = {} -- [player] = true while free-roaming the Playground
-local invites = {} -- [target] = { [challenger] = os.clock() expiry }
+local invites = {} -- [target] = { [challenger] = { Until = os.clock() expiry, Stake = keys } }
 local rematches = {} -- [player] = { Opponent, BotDifficulty, Name, Until, Wants }
 local playground -- arena info for the Playground (built the first time someone enters)
 
@@ -167,8 +167,39 @@ end
 ----------------------------------------------------------------------------
 -- Matchmaking
 ----------------------------------------------------------------------------
+local function notify(player, text)
+	Remotes.Get("Notify"):FireClient(player, text)
+end
+
+-- Duel wagers: the winner takes both stakes; no winner (cancelled) = refunds.
+-- (Whoever leaves forfeits: their stake is already gone.)
+local function settleWager(match)
+	local stake = match.Wager or 0
+	if stake <= 0 then
+		return
+	end
+	local CrateService = require(script.Parent.CrateService)
+	local winner = match.MatchWinner or (match.Aborted and match.ForfeitWinner) or nil
+	if winner then
+		if winner.Parent and CrateService.GiveKeys(winner, stake * 2) then
+			notify(winner, ("WAGER WON  -  +%d KEYS"):format(stake * 2))
+		end
+		local loser = match:GetOpponent(winner)
+		if loser and loser.Parent then
+			notify(loser, ("WAGER LOST  -  %d KEYS"):format(stake))
+		end
+	else
+		for _, player in ipairs(match.Players) do
+			if not Util.isBot(player) and player.Parent and CrateService.GiveKeys(player, stake) then
+				notify(player, ("WAGER REFUNDED  -  %d KEYS"):format(stake))
+			end
+		end
+	end
+end
+
 local function onMatchFinished(match)
 	arenaInUse[match.Arena.Index] = nil
+	settleWager(match)
 	MatchService.MatchFinished:Fire(match)
 	-- remember who you just played so you can ask for a rematch
 	local a, b = match.Players[1], match.Players[2]
@@ -230,9 +261,6 @@ end
 ----------------------------------------------------------------------------
 -- Admin commands (bot matches)
 ----------------------------------------------------------------------------
-local function notify(player, text)
-	Remotes.Get("Notify"):FireClient(player, text)
-end
 
 local function isAdmin(player)
 	local admin = Config.Admin
@@ -358,7 +386,9 @@ end
 ----------------------------------------------------------------------------
 -- Duels: challenge a player from the lobby, and rematches
 ----------------------------------------------------------------------------
-local function startPrivateMatch(p1, p2)
+-- stake: keys each player puts up (0 = no wager); both have agreed to it
+local function startPrivateMatch(p1, p2, stake)
+	stake = stake or 0
 	if matchByPlayer[p1] or matchByPlayer[p2] or not p1.Parent or not p2.Parent then
 		return false
 	end
@@ -367,6 +397,26 @@ local function startPrivateMatch(p1, p2)
 		notify(p1, "All arenas are busy - try again soon")
 		notify(p2, "All arenas are busy - try again soon")
 		return false
+	end
+	if stake > 0 then
+		-- hold both stakes until the duel ends
+		local CrateService = require(script.Parent.CrateService)
+		if not CrateService.TakeKeys(p1, stake) then
+			notify(p1, ("You don't have %d keys for this wager"):format(stake))
+			notify(p2, p1.DisplayName .. " doesn't have the keys for this wager any more")
+			arenaInUse[arena.Index] = nil
+			return false
+		end
+		if not CrateService.TakeKeys(p2, stake) then
+			CrateService.GiveKeys(p1, stake)
+			notify(p2, ("You don't have %d keys for this wager"):format(stake))
+			notify(p1, p2.DisplayName .. " doesn't have the keys for this wager any more")
+			arenaInUse[arena.Index] = nil
+			return false
+		end
+		for _, p in ipairs({ p1, p2 }) do
+			notify(p, ("WAGER: %d KEYS EACH  -  THE WINNER TAKES %d"):format(stake, stake * 2))
+		end
 	end
 	for _, p in ipairs({ p1, p2 }) do
 		local index = table.find(queue, p)
@@ -378,6 +428,7 @@ local function startPrivateMatch(p1, p2)
 		rematches[p] = nil
 	end
 	local match = newMatch(p1, p2, arena)
+	match.Wager = stake
 	matchByPlayer[p1] = match
 	matchByPlayer[p2] = match
 	match:Start()
@@ -387,10 +438,18 @@ end
 
 local function inviteValid(target, from)
 	local list = invites[target]
-	return list and list[from] and os.clock() < list[from]
+	return list and list[from] and os.clock() < list[from].Until
 end
 
-local function onDuel(player, action, arg)
+-- A wager amount from the client: a whole number of keys, 0 or more.
+local function cleanStake(value)
+	if typeof(value) ~= "number" or value ~= value then
+		return 0
+	end
+	return math.clamp(math.floor(value), 0, 1000000)
+end
+
+local function onDuel(player, action, arg, wager)
 	if typeof(action) ~= "string" or matchByPlayer[player] then
 		return
 	end
@@ -407,15 +466,30 @@ local function onDuel(player, action, arg)
 		if inviteValid(target, player) then
 			return -- already waiting
 		end
+		local stake = cleanStake(wager)
+		if stake > 0 then
+			local CrateService = require(script.Parent.CrateService)
+			if CrateService.GetKeys(player) < stake then
+				notify(player, ("You only have %d keys you can wager (bought keys can't be bet)"):format(CrateService.GetKeys(player)))
+				return
+			end
+		end
 		invites[target] = invites[target] or {}
-		invites[target][player] = os.clock() + Config.Match.InviteTime
-		inviteRemote:FireClient(target, { From = player.UserId, Name = player.DisplayName, Kind = "Challenge", Time = Config.Match.InviteTime })
-		notify(player, "Challenge sent to " .. target.DisplayName)
+		invites[target][player] = { Until = os.clock() + Config.Match.InviteTime, Stake = stake }
+		inviteRemote:FireClient(target, {
+			From = player.UserId,
+			Name = player.DisplayName,
+			Kind = "Challenge",
+			Time = Config.Match.InviteTime,
+			Stake = stake,
+		})
+		notify(player, "Challenge sent to " .. target.DisplayName .. (stake > 0 and (" (%d key wager)"):format(stake) or ""))
 	elseif action == "Accept" then
 		local from = typeof(arg) == "number" and Players:GetPlayerByUserId(arg) or nil
 		if from and inviteValid(player, from) then
+			local stake = invites[player][from].Stake or 0
 			invites[player][from] = nil
-			startPrivateMatch(from, player)
+			startPrivateMatch(from, player, stake)
 		else
 			notify(player, "That challenge expired")
 		end

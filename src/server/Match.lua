@@ -158,6 +158,7 @@ function Match:SpawnPlayers()
 				Frozen = true,
 				KillY = self.Arena.FloorY - Config.Match.VoidDepth,
 				PowerUps = self.Owned[player],
+				Shield = stats.StartShield, -- Overshield: a fresh shield every round
 			})
 			done += 1
 			-- a slow spawn (avatar download) can finish after the round started

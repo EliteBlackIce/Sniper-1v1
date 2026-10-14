@@ -144,6 +144,25 @@ local function sightParams(character)
 	return params
 end
 
+-- Smoke Grenade clouds don't block raycasts (bullets go through them),
+-- so the bot checks its line of sight against the puffs itself.
+local function smokeBlocks(fromPos, toPos)
+	local folder = workspace:FindFirstChild("Smoke")
+	for _, cloud in ipairs(folder and folder:GetChildren() or {}) do
+		for _, puff in ipairs(cloud:GetChildren()) do
+			if puff:IsA("BasePart") and puff.Transparency < 0.6 then
+				local a, b, p = fromPos, toPos, puff.Position
+				local ab = b - a
+				local t = math.clamp((p - a):Dot(ab) / math.max(ab:Dot(ab), 1e-6), 0, 1)
+				if (a + ab * t - p).Magnitude < puff.Size.X * 0.45 then
+					return true
+				end
+			end
+		end
+	end
+	return false
+end
+
 -- Returns the target part we can see (head first), or nil.
 local function findVisiblePart(fromPos, character, targetCharacter)
 	if targetCharacter:GetAttribute("Invisible") then
@@ -154,7 +173,7 @@ local function findVisiblePart(fromPos, character, targetCharacter)
 		local part = targetCharacter:FindFirstChild(name)
 		if part then
 			local result = workspace:Raycast(fromPos, part.Position - fromPos, params)
-			if not result or result.Instance:IsDescendantOf(targetCharacter) then
+			if (not result or result.Instance:IsDescendantOf(targetCharacter)) and not smokeBlocks(fromPos, part.Position) then
 				return part
 			end
 		end
@@ -281,7 +300,9 @@ local function think(bot, brain, dt)
 	animate(brain, humanoid, root)
 
 	local difficulty = B.Difficulties[bot.Difficulty] or B.Difficulties.Normal
-	humanoid.WalkSpeed = difficulty.WalkSpeed
+	-- Frost Rounds slow bots too
+	local slowed = os.clock() < (bot:GetAttribute("SlowedUntil") or 0)
+	humanoid.WalkSpeed = difficulty.WalkSpeed * (slowed and (bot:GetAttribute("SlowMultiplier") or 1) or 1)
 
 	if not match:IsFighting() or character:GetAttribute("Frozen") then
 		humanoid:Move(Vector3.zero)

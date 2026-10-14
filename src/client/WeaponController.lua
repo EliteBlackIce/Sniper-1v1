@@ -11,6 +11,10 @@
 	  2. sends the shot + what it saw itself hit ("claims") to the server,
 	  3. plays recoil, the bolt animation and sound.
 	The SERVER decides the real damage (see CombatService).
+
+	Power-ups read here: Split Shot, Rocket Jump, Quickdraw (bolt / scope
+	times), Hair Trigger and Double Tap (the server's "Rechamber" buff),
+	Deadeye (GetDeadeyeCharge, shown on the scope by the HUD).
 ]]
 
 local Players = game:GetService("Players")
@@ -37,6 +41,8 @@ local Controllers
 local scopeHeld = false
 local scopeAlpha = 0
 local boltReadyAt = 0
+local lastShotAt = 0
+local scopedSince = nil -- when the scope passed half way in (Deadeye; matches what the server is told)
 
 ----------------------------------------------------------------------------
 -- Public API
@@ -47,6 +53,17 @@ end
 
 function Weapon.IsScoped()
 	return scopeAlpha > 0.9
+end
+
+-- DEADEYE power-up: 0..1 charge of the next shot (1 = charged). Mirrors the
+-- server, which charges from when you scoped in or last fired.
+function Weapon.GetDeadeyeCharge()
+	local since = scopedSince
+	if ClientState.Stats.DeadeyeBonus <= 0 or since == nil then
+		return 0
+	end
+	local from = math.max(since, lastShotAt)
+	return math.clamp((os.clock() - from) / Config.PowerUps.Deadeye.ChargeTime, 0, 1)
 end
 
 -- 0 = ready, 1 = just fired
@@ -170,6 +187,7 @@ local function fire()
 		boltTime /= Config.PowerUps.BulletTime.BoltSpeedScale
 	end
 	boltReadyAt = os.clock() + boltTime
+	lastShotAt = os.clock()
 
 	Sfx.Play("Fire", { Pitch = 0.95 + math.random() * 0.1 })
 	Controllers.Viewmodel.PlayFire(scoped)
@@ -222,6 +240,11 @@ local function update(dt)
 	local target = scopeHeld and 1 or 0
 	local scopeTime = ClientState.Stats.ScopeInTime
 	scopeAlpha = Util.approach(scopeAlpha, target, dt / math.max(scopeTime, 0.01))
+	if scopeAlpha > 0.5 then
+		scopedSince = scopedSince or os.clock()
+	else
+		scopedSince = nil
+	end
 end
 
 function Weapon.Init(controllers)
@@ -232,8 +255,15 @@ function Weapon.Start()
 	-- HAIR TRIGGER power-up: the server tells us a hit re-chambered the rifle
 	Remotes.Get("Buff").OnClientEvent:Connect(function(buff)
 		if typeof(buff) == "table" and buff.Type == "Rechamber" then
-			boltReadyAt = math.min(boltReadyAt, os.clock() + 0.1)
-			Controllers.Viewmodel.PlayBolt(0.18)
+			if buff.Quick then
+				-- DOUBLE TAP: the follow-up is ready a moment after the last shot
+				local quick = Config.PowerUps.DoubleTap.QuickBolt
+				boltReadyAt = math.min(boltReadyAt, math.max(os.clock() + 0.03, lastShotAt + quick))
+				Controllers.Viewmodel.PlayBolt(quick)
+			else
+				boltReadyAt = math.min(boltReadyAt, os.clock() + 0.1)
+				Controllers.Viewmodel.PlayBolt(0.18)
+			end
 		end
 	end)
 

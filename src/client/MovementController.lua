@@ -15,6 +15,10 @@
 		E              Grapple Hook (power-up)
 		R              Blink (power-up)
 		Q              Decoy (power-up)
+		Z              Barrier Dome (power-up)
+		X              Recall (power-up): rewind a few seconds
+		3              Smoke Grenade (power-up)
+		Shift in air   Air Dash (power-up)
 
 	HOW IT WORKS
 	The ground and air physics copy the Source engine (Half-Life, CS, TF2):
@@ -91,6 +95,15 @@ local speedBoost = { Until = 0, Multiplier = 1 }
 local bulletTime = { Until = 0, ReadyAt = 0, UsedThisAir = false }
 local decoyReadyAt = 0
 local blinkReadyAt = 0
+local slow = { Until = 0, Multiplier = 1 } -- Frost Rounds (from the enemy)
+local disruptedUntil = 0 -- Disruptor Rounds (from the enemy)
+local airDash = { Left = 0, ReadyAt = 0 }
+local barrierReadyAt = 0
+local recallReadyAt = 0
+local smokeReadyAt = 0
+local recallTrail = {} -- { {T, Position, Velocity, Momentum} } oldest first (Recall)
+local lastTrailSample = 0
+local forceJumpVelocity = 0
 
 local fovKick = 0
 
@@ -158,11 +171,28 @@ local function applyFriction(v, friction, dt)
 	return v * (newSpeed / speed)
 end
 
--- Second Wind boost x Adrenaline power-up
+-- FROST ROUNDS: an enemy hit slows you for a moment
+local function slowMultiplier()
+	return now() < slow.Until and slow.Multiplier or 1
+end
+
+-- LAST STAND power-up: faster while you're low on health
+local function lastStandMultiplier()
+	local s = stats()
+	if s.LastStandSpeed > 0 and humanoid and humanoid.Health > 0
+		and humanoid.Health <= humanoid.MaxHealth * PU.LastStand.HealthFraction then
+		return 1 + s.LastStandSpeed
+	end
+	return 1
+end
+
+-- Second Wind / Fight or Flight boost x Adrenaline x knife (Hunter's Knife)
+-- x Last Stand x Frost slow
 local function speedMultiplier()
+	local s = stats()
 	local boost = now() < speedBoost.Until and speedBoost.Multiplier or 1
-	local knife = ClientState.Weapon == "Knife" and Config.Knife.MoveSpeedMultiplier or 1
-	return boost * stats().MoveSpeedMultiplier * knife
+	local knife = ClientState.Weapon == "Knife" and Config.Knife.MoveSpeedMultiplier * s.KnifeSpeedMultiplier or 1
+	return boost * s.MoveSpeedMultiplier * knife * lastStandMultiplier() * slowMultiplier()
 end
 
 -- Spring Legs power-up
@@ -303,7 +333,20 @@ function Movement.GetCooldowns()
 		Blink = math.max(0, blinkReadyAt - now()),
 		Decoy = math.max(0, decoyReadyAt - now()),
 		BulletTime = math.max(0, bulletTime.ReadyAt - now()),
+		Barrier = math.max(0, barrierReadyAt - now()),
+		Recall = math.max(0, recallReadyAt - now()),
+		Smoke = math.max(0, smokeReadyAt - now()),
+		AirDash = math.max(0, airDash.ReadyAt - now()),
 	}
+end
+
+-- Air dashes left before you land (Air Dash power-up).
+function Movement.GetAirDashesLeft()
+	return airDash.Left
+end
+
+function Movement.IsSlowed()
+	return now() < slow.Until
 end
 
 function Movement.IsGrounded()
@@ -339,7 +382,7 @@ end
 ----------------------------------------------------------------------------
 -- PHANTOM STEP power-up: slides and wall jumps turn you invisible briefly.
 local function phantomStep()
-	if stats().PhantomDash and now() - lastPhantomTime > 0.6 then
+	if stats().PhantomDash and now() - lastPhantomTime > 0.6 and now() >= disruptedUntil then
 		lastPhantomTime = now()
 		Remotes.Get("Ability"):FireServer("PhantomDash", {})
 		Controllers.Effects.PhantomFlash()
@@ -356,9 +399,12 @@ local function startSlide()
 	end
 	lastSlideTime = now()
 	mode = "Slide"
-	-- boost, but never above the cap (so slide spam can't snowball)
-	if speed < M.SlideBoostCap then
-		speed = math.min(speed + M.SlideBoost, M.SlideBoostCap)
+	-- boost, but never above the cap (so slide spam can't snowball).
+	-- POWER SLIDE raises both.
+	local s = stats()
+	local cap = M.SlideBoostCap + s.SlideCapBonus
+	if speed < cap then
+		speed = math.min(speed + M.SlideBoost + s.SlideBoostBonus, cap)
 	end
 	momentum = momentum.Unit * speed
 	Sfx.Play("Dash", { Pitch = 0.7, Volume = 0.6 })
@@ -373,6 +419,7 @@ local function onLanded()
 	lowestVelocityY = 0
 	mode = "Ground"
 	airJumpsLeft = stats().AirJumps
+	airDash.Left = stats().AirDashCharges
 	bulletTime.UsedThisAir = false
 	if fallSpeed > 30 then
 		Sfx.Play("Land", { Volume = math.clamp(fallSpeed / 80, 0.3, 1.2) })
@@ -392,11 +439,15 @@ end
 -- Jump off the ground (or out of a slide). Called from the step so it can
 -- happen on the exact landing frame (bunny hop).
 local function groundJump()
-	if mode == "Slide" and momentum.Magnitude < M.SlideBoostCap then
-		momentum += Util.safeUnit(momentum) * M.SlideJumpBoost
+	local s = stats()
+	local fromSlide = mode == "Slide"
+	-- SLINGSHOT: slide jumps go higher and carry more speed
+	if fromSlide and momentum.Magnitude < M.SlideBoostCap + s.SlideCapBonus + s.SlideJumpSpeed then
+		momentum += Util.safeUnit(momentum) * (M.SlideJumpBoost + s.SlideJumpSpeed)
 	end
 	humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
-	setVerticalVelocity(jumpPower())
+	forceJumpVelocity = jumpPower() * (fromSlide and 1 + s.SlideJumpLift or 1)
+	setVerticalVelocity(forceJumpVelocity)
 	-- the Humanoid can briefly hold us down (e.g. right after landing or
 	-- mid-slide); re-apply the jump velocity for a few frames so jumps never fail
 	forceJumpUntil = now() + 0.08
@@ -485,6 +536,116 @@ local function startDecoy()
 	local dir = wish.Magnitude > 0.1 and wish.Unit or cameraFlatLook()
 	Remotes.Get("Ability"):FireServer("Decoy", { Direction = dir })
 	Sfx.Play("Ability", { Pitch = 1.3 })
+end
+
+-- AIR DASH power-up: Sprint in the air bursts you toward your keys.
+local function tryAirDash()
+	local s = stats()
+	if not s.AirDash or airDash.Left <= 0 or now() < airDash.ReadyAt then
+		return
+	end
+	airDash.Left -= 1
+	airDash.ReadyAt = now() + PU.AirDash.Cooldown
+	local wish = wishDirection()
+	local dir = wish.Magnitude > 0.1 and wish.Unit or cameraFlatLook()
+	momentum = dir * math.max(momentum.Magnitude, PU.AirDash.Speed * speedMultiplier())
+	pendingLift = math.max(pendingLift or 0, PU.AirDash.Lift)
+	Controllers.Camera.AddFovPunch(8)
+	Controllers.Effects.Dash(root.Position, dir)
+	Remotes.Get("Ability"):FireServer("AirDash", {})
+	Sfx.Play("Dash", { Pitch = 1.45 })
+end
+
+-- BARRIER DOME power-up: the server builds the dome (it blocks bullets).
+local function startBarrier()
+	local s = stats()
+	if not s.Barrier or now() < barrierReadyAt then
+		return
+	end
+	barrierReadyAt = now() + PU.BarrierDome.Cooldown
+	Remotes.Get("Ability"):FireServer("Barrier", {})
+	Sfx.Play("Ability", { Pitch = 0.7 })
+end
+
+-- SMOKE GRENADE power-up: thrown where you look; the server makes the cloud.
+local function throwSmoke()
+	local s = stats()
+	if not s.Smoke or now() < smokeReadyAt then
+		return
+	end
+	smokeReadyAt = now() + s.SmokeCooldown
+	Remotes.Get("Ability"):FireServer("Smoke", { Direction = workspace.CurrentCamera.CFrame.LookVector })
+	Sfx.Play("Ability", { Pitch = 1.15 })
+end
+
+-- RECALL power-up: rewind to where you were (with the speed you had then).
+local function recordTrail()
+	if now() - lastTrailSample < 0.05 then
+		return
+	end
+	lastTrailSample = now()
+	table.insert(recallTrail, {
+		T = now(),
+		Position = root.Position,
+		Velocity = root.AssemblyLinearVelocity,
+		Momentum = momentum,
+	})
+	while recallTrail[1] and now() - recallTrail[1].T > PU.Recall.Rewind + 0.5 do
+		table.remove(recallTrail, 1)
+	end
+end
+
+local function startRecall()
+	local s = stats()
+	if not s.Recall or now() < recallReadyAt then
+		return
+	end
+	-- the oldest point that's still inside the rewind window
+	local target
+	for _, sample in ipairs(recallTrail) do
+		if now() - sample.T <= PU.Recall.Rewind then
+			target = sample
+			break
+		end
+	end
+	if not target or now() - target.T < 0.5 then
+		return -- nothing to rewind to yet (you only just spawned)
+	end
+	recallReadyAt = now() + s.RecallCooldown
+	if grapple.Point then
+		endGrapple(false)
+	end
+	local from = root.Position
+	root.CFrame = CFrame.new(target.Position) * root.CFrame.Rotation
+	root.AssemblyLinearVelocity = target.Velocity
+	momentum = target.Momentum
+	lastDrive = momentum
+	pendingImpulse = Vector3.zero
+	pendingLift = nil
+	mode = "Air"
+	peakY = target.Position.Y
+	recallTrail = {}
+	Controllers.Camera.AddFovPunch(C.BlinkFOVKick)
+	Controllers.Effects.Recall(from, target.Position)
+	Remotes.Get("Ability"):FireServer("Recall", { From = from, To = target.Position })
+	Sfx.Play("Dash", { Pitch = 0.75 })
+end
+
+-- DISRUPTOR ROUNDS (the enemy's): every ability goes on cooldown for a moment.
+function Movement.Disrupt(duration)
+	local untilTime = now() + duration
+	if grapple.Point then
+		endGrapple(false)
+	end
+	grapple.ReadyAt = math.max(grapple.ReadyAt, untilTime)
+	blinkReadyAt = math.max(blinkReadyAt, untilTime)
+	decoyReadyAt = math.max(decoyReadyAt, untilTime)
+	bulletTime.ReadyAt = math.max(bulletTime.ReadyAt, untilTime)
+	barrierReadyAt = math.max(barrierReadyAt, untilTime)
+	recallReadyAt = math.max(recallReadyAt, untilTime)
+	smokeReadyAt = math.max(smokeReadyAt, untilTime)
+	airDash.ReadyAt = math.max(airDash.ReadyAt, untilTime)
+	disruptedUntil = math.max(disruptedUntil, untilTime)
 end
 
 local function wallJump()
@@ -634,7 +795,7 @@ local function updateWallRun(dt, wish)
 end
 
 local function updateSlide(dt, wish)
-	momentum = applyFriction(momentum, M.SlideFriction, dt)
+	momentum = applyFriction(momentum, M.SlideFriction * stats().SlideFrictionScale, dt) -- (Power Slide)
 	momentum = steer(momentum, wish, M.SlideSteer * dt)
 	if momentum.Magnitude < M.SlideEndSpeed or (M.SlideHold and not slideHeld) then
 		mode = "Ground"
@@ -736,6 +897,7 @@ local function step(dt)
 		return
 	end
 	linearVelocity.Enabled = true
+	recordTrail()
 
 	local velocity = root.AssemblyLinearVelocity
 	local horizontal = Util.flat(velocity)
@@ -769,8 +931,8 @@ local function step(dt)
 	local justLaunched = now() - math.max(lastGroundJumpTime, lastLiftTime) < 0.12
 	local grounded = Movement.IsGrounded() and not justLaunched
 	local wish = wishDirection()
-	if now() < forceJumpUntil and root.AssemblyLinearVelocity.Y < jumpPower() * 0.75 then
-		setVerticalVelocity(jumpPower())
+	if now() < forceJumpUntil and root.AssemblyLinearVelocity.Y < forceJumpVelocity * 0.75 then
+		setVerticalVelocity(forceJumpVelocity)
 	end
 	if not grounded then
 		peakY = math.max(peakY, root.Position.Y) -- for Shockwave Landing
@@ -813,8 +975,8 @@ local function step(dt)
 		updateCeiling(dt, wish)
 	end
 
-	-- hard speed limit
-	local maxSpeed = M.MaxSpeed * stats().MoveSpeedMultiplier
+	-- hard speed limit (Frost Rounds lower it while you're chilled)
+	local maxSpeed = M.MaxSpeed * stats().MoveSpeedMultiplier * slowMultiplier()
 	if momentum.Magnitude > maxSpeed then
 		momentum = momentum.Unit * maxSpeed
 	end
@@ -892,9 +1054,13 @@ local function onCharacterAdded(newCharacter)
 	momentum = Vector3.zero
 	lastDrive = Vector3.zero
 	airJumpsLeft = stats().AirJumps
+	airDash.Left = stats().AirDashCharges
 	grapple.Point = nil
 	speedBoost.Until = 0
 	bulletTime.Until = 0
+	slow.Until = 0
+	disruptedUntil = 0
+	recallTrail = {}
 	peakY = root.Position.Y
 	lowestVelocityY = 0
 
@@ -925,6 +1091,9 @@ local function onInputBegan(input, processed)
 		onJumpPressed()
 	elseif Keybinds.Matches("Sprint", input) then
 		sprintHeld = true
+		if mode == "Air" and canMove() then
+			tryAirDash() -- (Air Dash power-up)
+		end
 	elseif Keybinds.Matches("Slide", input) then
 		slideHeld = true
 		if canMove() then
@@ -951,6 +1120,22 @@ local function onInputBegan(input, processed)
 	elseif Keybinds.Matches("Decoy", input) then
 		if canMove() and ClientState.CanShoot() then
 			startDecoy()
+		end
+	elseif Keybinds.Matches("Barrier", input) then
+		if canMove() and ClientState.CanShoot() then
+			startBarrier()
+		end
+	elseif Keybinds.Matches("Recall", input) then
+		if canMove() and ClientState.CanShoot() then
+			startRecall()
+		end
+	elseif Keybinds.Matches("Smoke", input) then
+		if canMove() and ClientState.CanShoot() then
+			throwSmoke()
+		end
+	elseif Keybinds.Matches("AirDash", input) then -- (the mobile DASH button)
+		if mode == "Air" and canMove() then
+			tryAirDash()
 		end
 	end
 end
@@ -990,9 +1175,27 @@ function Movement.Start()
 	end)
 
 	Remotes.Get("Buff").OnClientEvent:Connect(function(buff)
+		if typeof(buff) ~= "table" then
+			return
+		end
 		if buff.Type == "SpeedBoost" then
-			speedBoost.Until = now() + buff.Duration
-			speedBoost.Multiplier = buff.Multiplier
+			-- a weaker boost never cuts a stronger one short
+			if now() >= speedBoost.Until or buff.Multiplier >= speedBoost.Multiplier then
+				speedBoost.Until = now() + buff.Duration
+				speedBoost.Multiplier = buff.Multiplier
+			end
+		elseif buff.Type == "Slow" and typeof(buff.Multiplier) == "number" and typeof(buff.Duration) == "number" then
+			-- FROST ROUNDS: slower for a moment, and the chill bleeds your momentum
+			local multiplier = math.clamp(buff.Multiplier, 0.2, 1)
+			if now() >= slow.Until or multiplier <= slow.Multiplier then
+				slow.Multiplier = multiplier
+			end
+			slow.Until = math.max(slow.Until, now() + buff.Duration)
+			momentum *= multiplier
+			Controllers.Effects.Chill(buff.Duration)
+		elseif buff.Type == "Disrupt" and typeof(buff.Duration) == "number" then
+			Movement.Disrupt(buff.Duration)
+			Controllers.Effects.Jammed(buff.Duration)
 		end
 	end)
 

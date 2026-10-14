@@ -28,9 +28,22 @@
 	                x (1 + Momentum Rounds bonus, from your speed)
 	                x (1 + Pinball bonus x bounces/wall passes before the hit)
 	                x (1 + Marked bonus, if the target is marked)
+	                x Deadeye (fully charged scoped shot), Long Shot (distance)
+	                x Last Stand (you're low), Executioner (they're low)
 	  Headshots are always an instant kill.
-	  Explosions, Shrapnel and Static Charge use the same shot multiplier
-	  (Glass Cannon, Sky Sniper, Momentum) and the Marked bonus.
+	  Explosions, Shrapnel, Static Charge, Acid pools and Serrated bleed use
+	  the same shot multiplier (Glass Cannon, Sky Sniper, Momentum, Deadeye)
+	  and the Marked / Last Stand / Executioner bonuses.
+
+	TAKING DAMAGE (CombatService.Damage)
+	  Kinetic Armor (moving fast) reduces it, then the shield (the "Shield"
+	  character attribute: Overshield / Bloodlust) soaks it, then health.
+	  Second Wind saves you from a lethal hit.
+
+	WAVE 2 POWER-UPS handled here: on-hit effects (Frost slow, Serrated
+	bleed, Impact shove, Disruptor jam, Bloodlust shield), Acid pools,
+	Double Tap, Deadeye, Sonar, Regeneration, and the actives Barrier Dome,
+	Smoke Grenade, Recall and Air Dash.
 
 	"Targets" are the enemy player in a match, or the practice dummies in the
 	lobby, so every power-up works on the range too.
@@ -43,6 +56,7 @@
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
@@ -63,9 +77,24 @@ local lastMelee = {} -- [player] = os.clock() of the last accepted swing
 local cooldowns = {} -- [player] = { [abilityName] = os.clock() ready time }
 local bulletTimeUntil = {} -- [player] = os.clock()
 local markedUntil = {} -- [player or dummy model] = os.clock()
+local lastShot = {} -- [player] = os.clock() of the last shot (Deadeye charge; Hair Trigger doesn't fake it)
+local scopedSince = {} -- [player] = os.clock() they scoped in (Deadeye)
+local quickShotReady = {} -- [player] = true while a Double Tap follow-up is available
+local lastHurt = {} -- [player] = os.clock() they last took damage (Regeneration)
+local history = {} -- [player] = { {T, Position, Health, Character} } the last few seconds (Recall)
+local pools = {} -- Acid Rounds pools { Id, Owner, Match, Stats, Mult, Position, Radius, Until, NextTick }
+local bleeds = {} -- [player or dummy model] = { Attacker, Match, Stats, Target, Left, Rate, NextTick }
+local barriers = {} -- { Part, Owner, Match, Until }
+local smokes = {} -- { Model, Owner, Match, Until, Fading }
+local nextPoolId = 0
+
+-- abilities Disruptor Rounds can jam (server cooldown names)
+local DISRUPTABLE = { "Decoy", "BulletTime", "Blink", "PhantomDash", "Barrier", "Recall", "Smoke", "AirDash" }
 
 local decoyFolder
 local effectsFolder
+local barrierFolder -- Barrier Dome shells (they stop bullets)
+local smokeFolder -- Smoke Grenade clouds (bullets pass through)
 
 ----------------------------------------------------------------------------
 -- Helpers
@@ -222,12 +251,31 @@ function CombatService.Damage(match, attacker, victim, amount, info)
 		return false
 	end
 
+	local victimStats = match:GetStats(victim)
+	local victimCharacter = victim.Character
+
+	-- KINETIC ARMOR: less damage while moving fast
+	if victimStats.KineticArmor > 0 then
+		local victimRoot = victimCharacter and victimCharacter:FindFirstChild("HumanoidRootPart")
+		if victimRoot and Util.flat(victimRoot.AssemblyLinearVelocity).Magnitude >= PU.KineticArmor.MinSpeed then
+			amount *= 1 - victimStats.KineticArmor
+		end
+	end
+
+	-- SHIELD (Overshield / Bloodlust) soaks damage before health
+	local absorbed = 0
+	local shield = victimCharacter and victimCharacter:GetAttribute("Shield") or 0
+	if shield > 0 and amount > 0 then
+		absorbed = math.min(shield, amount)
+		amount -= absorbed
+		victimCharacter:SetAttribute("Shield", shield - absorbed)
+	end
+
 	local before = humanoid.Health
 	local after = before - amount
 
 	-- SECOND WIND: survive lethal hits (one save per stack, each round)
 	if after <= 0 then
-		local victimStats = match:GetStats(victim)
 		local used = match.SecondWindUsed[victim] or 0
 		if used < victimStats.SecondWindCharges then
 			match.SecondWindUsed[victim] = used + 1
@@ -247,9 +295,20 @@ function CombatService.Damage(match, attacker, victim, amount, info)
 	end
 
 	after = math.max(after, 0)
-	local dealt = before - after
+	local dealt = before - after + absorbed
 	match:NoteHit(attacker, victim, info.Headshot == true)
 	humanoid.Health = after
+	if dealt > 0 then
+		lastHurt[victim] = os.clock()
+		-- FIGHT OR FLIGHT: getting hurt gives a burst of speed
+		if after > 0 and victimStats.HurtSpeedTime > 0 then
+			Remotes.Get("Buff"):FireClient(victim, {
+				Type = "SpeedBoost",
+				Multiplier = victimStats.HurtSpeedBoost,
+				Duration = victimStats.HurtSpeedTime,
+			})
+		end
+	end
 
 	if attacker and attacker.Parent then
 		-- VAMPIRE: heal for a fraction of the damage dealt
@@ -297,8 +356,27 @@ end
 	Damages any target (player or dummy) and handles Marked.
 	info = { Headshot, Splash }
 ]]
+local function healthFraction(target)
+	if target.Player then
+		local humanoid = CharacterService.GetAliveHumanoid(target.Player)
+		return humanoid and humanoid.Health / math.max(humanoid.MaxHealth, 1) or 0
+	end
+	return (target.Model:GetAttribute("Health") or 0) / math.max(Config.Lobby.DummyHealth or 100, 1)
+end
+
 local function damageTarget(match, attacker, stats, target, amount, info)
 	info = info or {}
+	-- LAST STAND: more damage while you're low
+	if stats.LastStandBonus > 0 and attacker then
+		local attackerHumanoid = CharacterService.GetAliveHumanoid(attacker)
+		if attackerHumanoid and attackerHumanoid.Health <= attackerHumanoid.MaxHealth * PU.LastStand.HealthFraction then
+			amount *= 1 + stats.LastStandBonus
+		end
+	end
+	-- EXECUTIONER: more damage against a target below half health
+	if stats.ExecuteBonus > 0 and healthFraction(target) <= PU.Executioner.HealthFraction then
+		amount *= 1 + stats.ExecuteBonus
+	end
 	-- MARKED: bonus damage against a target you hit recently
 	local key = markKey(target)
 	if stats.MarkBonus > 0 and (markedUntil[key] or 0) > os.clock() then
@@ -349,7 +427,7 @@ local function shotMultiplier(stats, shooterCharacter)
 		if stats.AirDamageBonus > 0 then
 			local params = RaycastParams.new()
 			params.FilterType = Enum.RaycastFilterType.Exclude
-			params.FilterDescendantsInstances = { shooterCharacter, effectsFolder, decoyFolder }
+			params.FilterDescendantsInstances = { shooterCharacter, effectsFolder, decoyFolder, barrierFolder }
 			local airborne = workspace:Raycast(root.Position, Vector3.new(0, -4.5, 0), params) == nil
 			if airborne then
 				mult *= 1 + stats.AirDamageBonus
@@ -365,14 +443,21 @@ local function shotMultiplier(stats, shooterCharacter)
 	return mult
 end
 
-local function bulletDamage(part, hops, stats, mult)
+local function bulletDamage(part, hops, stats, mult, distance)
 	local zone = Util.hitZone(part.Name)
 	if zone == "Head" then
 		return W.HeadDamage, true -- always an instant kill
 	end
 	local base = zone == "Body" and W.BodyDamage or W.LimbDamage
+	-- LONG SHOT: more damage the further the bullet flew
+	local longShot = 0
+	if stats.LongShotBonus > 0 and distance then
+		local cfg = PU.LongShot
+		longShot = stats.LongShotBonus
+			* math.clamp((distance - cfg.MinDistance) / math.max(cfg.FullDistance - cfg.MinDistance, 1), 0, 1)
+	end
 	-- PINBALL: more damage for every bounce / wall pass before the hit
-	return base * mult * (1 + stats.HopDamageBonus * (hops or 0)), false
+	return base * mult * (1 + stats.HopDamageBonus * (hops or 0)) * (1 + longShot), false
 end
 
 ----------------------------------------------------------------------------
@@ -482,6 +567,212 @@ local function staticCharge(match, attacker, stats, mult, targets, sim, exclude,
 end
 
 ----------------------------------------------------------------------------
+-- Wave 2: shields, on-hit effects, acid pools, bleeds
+----------------------------------------------------------------------------
+
+-- Adds shield to a player's character (capped by their MaxShield).
+local function addShield(player, stats, amount)
+	local character = player and player.Character
+	if not character or amount <= 0 or stats.MaxShield <= 0 then
+		return
+	end
+	local current = character:GetAttribute("Shield") or 0
+	character:SetAttribute("Shield", math.min(stats.MaxShield, current + amount))
+end
+
+-- True while effects owned by `owner` (pools, bleeds, domes...) should keep going.
+local function stillActive(match, owner)
+	if not owner or not owner.Parent then
+		return false
+	end
+	if match then
+		return match:IsFighting() and not match.Finished
+	end
+	return MatchService.GetMatch(owner) == nil -- still practising in the lobby
+end
+
+-- The target is still the same living body it was when the effect started.
+local function targetAlive(target)
+	if not target.Model.Parent then
+		return false
+	end
+	if target.Player then
+		local _, character = CharacterService.GetAliveHumanoid(target.Player)
+		return character == target.Model
+	end
+	return (target.Model:GetAttribute("Health") or 0) > 0
+end
+
+-- FROST ROUNDS: slows the target (the client owns its movement, bots are server-side).
+local function slowTarget(match, target, multiplier, duration)
+	local victim = target.Player
+	if victim then
+		if Util.isBot(victim) then
+			victim:SetAttribute("SlowedUntil", os.clock() + duration)
+			victim:SetAttribute("SlowMultiplier", multiplier)
+		else
+			Remotes.Get("Buff"):FireClient(victim, { Type = "Slow", Multiplier = multiplier, Duration = duration })
+		end
+	end
+	sendFx(match, { Type = "Frost", Target = target.Model, Duration = duration })
+end
+
+-- DISRUPTOR ROUNDS: jams every active ability for a moment.
+local function disrupt(victim, duration)
+	cooldowns[victim] = cooldowns[victim] or {}
+	local untilTime = os.clock() + duration * 0.9
+	for _, name in ipairs(DISRUPTABLE) do
+		cooldowns[victim][name] = math.max(cooldowns[victim][name] or 0, untilTime)
+	end
+	if not Util.isBot(victim) then
+		Remotes.Get("Buff"):FireClient(victim, { Type = "Disrupt", Duration = duration })
+	end
+end
+
+-- SERRATED ROUNDS: damage over time (adds to a bleed you already caused).
+local function startBleed(match, attacker, stats, target, amount)
+	local cfg = PU.SerratedRounds
+	local key = markKey(target)
+	local bleed = bleeds[key]
+	if bleed and bleed.Attacker == attacker and bleed.Target.Model == target.Model then
+		bleed.Left += amount
+		bleed.Rate = math.max(bleed.Rate, bleed.Left / cfg.Duration)
+	else
+		bleed = {
+			Attacker = attacker,
+			Match = match,
+			Stats = stats,
+			Target = target,
+			Left = amount,
+			Rate = amount / cfg.Duration,
+			NextTick = os.clock() + cfg.TickInterval,
+		}
+		bleeds[key] = bleed
+	end
+	sendFx(match, { Type = "Bleed", Target = target.Model, Duration = bleed.Left / bleed.Rate })
+end
+
+-- Everything a DIRECT bullet hit does besides damage (once per target per shot).
+local function onBulletHit(match, attacker, stats, mult, target, direction)
+	if stats.ShieldOnHit > 0 then
+		addShield(attacker, stats, stats.ShieldOnHit) -- BLOODLUST
+	end
+	if not targetAlive(target) then
+		return -- (that hit was the kill)
+	end
+	if stats.SlowAmount > 0 then
+		slowTarget(match, target, 1 - stats.SlowAmount, stats.SlowDuration)
+	end
+	if stats.BleedDamage > 0 then
+		startBleed(match, attacker, stats, target, stats.BleedDamage * mult)
+	end
+	if target.Player then
+		-- IMPACT ROUNDS: shove them along the bullet
+		if stats.HitKnockback > 0 then
+			local push = Util.safeUnit(Util.flat(direction), Vector3.zAxis) + Vector3.new(0, PU.ImpactRounds.Lift, 0)
+			knockback(target.Player, push.Unit * stats.HitKnockback)
+		end
+		if stats.DisruptTime > 0 then
+			disrupt(target.Player, stats.DisruptTime)
+		end
+	end
+end
+
+-- ACID ROUNDS: a damaging pool where the shot landed.
+local function spawnPool(match, owner, stats, mult, position, targets)
+	local cfg = PU.AcidRounds
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	local exclude = buildExclude(owner)
+	table.insert(exclude, barrierFolder)
+	table.insert(exclude, smokeFolder)
+	for _, target in ipairs(targets) do
+		table.insert(exclude, target.Model)
+	end
+	params.FilterDescendantsInstances = exclude
+	-- settle on the floor under the impact (a hit on a body drips to the ground)
+	local floor = workspace:Raycast(position + Vector3.new(0, 1, 0), Vector3.new(0, -16, 0), params)
+	local center = floor and floor.Position or position
+
+	-- each player keeps only a few pools: the oldest dries up
+	local mine = {}
+	for i, pool in ipairs(pools) do
+		if pool.Owner == owner then
+			table.insert(mine, i)
+		end
+	end
+	if #mine >= cfg.MaxPools then
+		local oldest = table.remove(pools, mine[1])
+		sendFx(oldest.Match, { Type = "AcidPoolEnd", Id = oldest.Id })
+	end
+
+	nextPoolId += 1
+	table.insert(pools, {
+		Id = nextPoolId,
+		Owner = owner,
+		Match = match,
+		Stats = stats,
+		Mult = mult,
+		Position = center,
+		Radius = stats.AcidRadius,
+		Until = os.clock() + stats.AcidDuration,
+		NextTick = os.clock() + cfg.TickInterval * 0.5,
+	})
+	sendFx(match, {
+		Type = "AcidPool",
+		Id = nextPoolId,
+		Position = center,
+		Radius = stats.AcidRadius,
+		Duration = stats.AcidDuration,
+	})
+end
+
+local function updatePools(now)
+	local cfg = PU.AcidRounds
+	for i = #pools, 1, -1 do
+		local pool = pools[i]
+		if now >= pool.Until or not stillActive(pool.Match, pool.Owner) then
+			table.remove(pools, i)
+			if now < pool.Until then
+				sendFx(pool.Match, { Type = "AcidPoolEnd", Id = pool.Id })
+			end
+		elseif now >= pool.NextTick then
+			pool.NextTick += cfg.TickInterval
+			for _, target in ipairs(getTargets(pool.Owner, pool.Match)) do
+				local torso = getTorso(target.Model)
+				if torso then
+					local offset = torso.Position - pool.Position
+					if Util.flat(offset).Magnitude <= pool.Radius and offset.Y > -2 and offset.Y < cfg.Height then
+						damageTarget(pool.Match, pool.Owner, pool.Stats, target, cfg.TickDamage * pool.Mult, {
+							Splash = true,
+							Position = torso.Position,
+						})
+					end
+				end
+			end
+		end
+	end
+end
+
+local function updateBleeds(now)
+	local cfg = PU.SerratedRounds
+	for key, bleed in pairs(bleeds) do
+		if bleed.Left <= 0.01 or not stillActive(bleed.Match, bleed.Attacker) or not targetAlive(bleed.Target) then
+			bleeds[key] = nil
+		elseif now >= bleed.NextTick then
+			bleed.NextTick += cfg.TickInterval
+			local damage = math.min(bleed.Left, bleed.Rate * cfg.TickInterval)
+			bleed.Left -= damage
+			local torso = getTorso(bleed.Target.Model)
+			damageTarget(bleed.Match, bleed.Attacker, bleed.Stats, bleed.Target, damage, {
+				Splash = true,
+				Position = torso and torso.Position or nil,
+			})
+		end
+	end
+end
+
+----------------------------------------------------------------------------
 -- Fire
 ----------------------------------------------------------------------------
 
@@ -557,7 +848,13 @@ local function onFire(player, origin, direction, claims)
 	if (bulletTimeUntil[player] or 0) > now then
 		boltTime /= PU.BulletTime.BoltSpeedScale
 	end
-	if lastFire[player] and now - lastFire[player] < boltTime * W.FireRateTolerance then
+	-- DOUBLE TAP: a follow-up shot only needs the quick bolt
+	local required = boltTime
+	if stats.DoubleTap and quickShotReady[player] then
+		required = math.min(required, PU.DoubleTap.QuickBolt)
+	end
+	local previous = lastFire[player]
+	if previous and now - previous < required * W.FireRateTolerance then
 		return
 	end
 
@@ -573,8 +870,32 @@ local function onFire(player, origin, direction, claims)
 		return
 	end
 	lastFire[player] = now
+
+	-- DEADEYE: scoped (and not firing) for the charge time = a charged shot
+	local deadeye = 1
+	if stats.DeadeyeBonus > 0 and scopedSince[player] then
+		local chargedFrom = math.max(scopedSince[player], lastShot[player] or 0)
+		if now - chargedFrom >= PU.Deadeye.ChargeTime * 0.85 then -- (slack for latency)
+			deadeye = 1 + stats.DeadeyeBonus
+		end
+	end
+	lastShot[player] = now
+
+	-- DOUBLE TAP: a full-bolt shot grants a quick follow-up; using it spends it
+	local animBolt = boltTime
+	if stats.DoubleTap then
+		local wasQuick = previous ~= nil and now - previous < boltTime * W.FireRateTolerance
+		if quickShotReady[player] and wasQuick then
+			quickShotReady[player] = nil
+		else
+			quickShotReady[player] = true
+			animBolt = PU.DoubleTap.QuickBolt
+			Remotes.Get("Buff"):FireClient(player, { Type = "Rechamber", Quick = true })
+		end
+	end
+
 	-- everyone's game plays the shot on your character (recoil + bolt)
-	character:SetAttribute("BoltTime", boltTime)
+	character:SetAttribute("BoltTime", animBolt)
 	character:SetAttribute("Shot", ((character:GetAttribute("Shot") or 0) + 1) % 1000)
 
 	-- 5) trace every bullet on the server
@@ -587,11 +908,12 @@ local function onFire(player, origin, direction, claims)
 		end
 	end
 	local exclude = buildExclude(player)
-	local mult = shotMultiplier(stats, character)
+	local mult = shotMultiplier(stats, character) * deadeye
 	local shardBudget = { Left = PU.Shrapnel.MaxShardsPerShot }
 	local shardSegments = {}
 	local zapped = {}
 	local anyHit = false
+	local hitOnce = {} -- [model] = true: on-hit effects apply once per target per shot
 
 	local fx = {}
 	for i, dir in ipairs(Ballistics.GetShotDirections(direction.Unit, stats.Bullets)) do
@@ -639,14 +961,25 @@ local function onFire(player, origin, direction, claims)
 
 		if hitTarget then
 			anyHit = true
-			local damage, headshot = bulletDamage(hitPart, hops, stats, mult)
+			local damage, headshot = bulletDamage(hitPart, hops, stats, mult, (hitPos - origin).Magnitude)
 			damageTarget(match, player, stats, hitTarget, damage, { Headshot = headshot, Position = hitPos })
+			if not hitOnce[hitTarget.Model] then
+				hitOnce[hitTarget.Model] = true
+				onBulletHit(match, player, stats, mult, hitTarget, dir)
+			end
 		elseif stats.StaticChargeDamage > 0 then
 			staticCharge(match, player, stats, mult, targets, sim, exclude, zapped)
 		end
 
 		if stats.Explosive then
 			explode(match, player, stats, mult, targets, hitPos or sim.EndPosition, hitTarget and hitTarget.Model)
+		end
+		-- ACID ROUNDS: one pool per trigger pull, where the first bullet landed
+		if stats.AcidPool and i == 1 then
+			local landing = hitPos or sim.EndPosition
+			if landing and (landing - origin).Magnitude < W.MaxRange - 1 then
+				spawnPool(match, player, stats, mult, landing, targets)
+			end
 		end
 		if stats.ShrapnelCount > 0 then
 			for _, seg in ipairs(shrapnel(match, player, stats, mult, targets, sim.Impacts, exclude, shardBudget)) do
@@ -671,6 +1004,20 @@ local function onFire(player, origin, direction, claims)
 	if anyHit and stats.HairTrigger then
 		lastFire[player] = now - boltTime
 		Remotes.Get("Buff"):FireClient(player, { Type = "Rechamber" })
+	end
+
+	-- SONAR: the opponent sees where this shot came from, through walls
+	if match then
+		local opponent = match:GetOpponent(player)
+		local opponentStats = match:GetStats(opponent)
+		if opponent.Parent and opponentStats.SonarTime > 0 then
+			Remotes.Get("Effect"):FireClient(opponent, {
+				Type = "Reveal",
+				Target = character,
+				Position = head.Position,
+				Duration = opponentStats.SonarTime,
+			})
+		end
 	end
 
 	-- Let others draw this shot (the shooter already drew it locally):
@@ -756,7 +1103,7 @@ local function spawnDecoy(player, match, direction)
 
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
-	params.FilterDescendantsInstances = { decoyFolder, effectsFolder, character }
+	params.FilterDescendantsInstances = { decoyFolder, effectsFolder, character, barrierFolder } -- (decoys run through domes)
 
 	local alive = 0
 	local connection
@@ -799,6 +1146,153 @@ local function spawnDecoys(player, match, direction, count)
 		local dir = CFrame.fromAxisAngle(Vector3.yAxis, offset):VectorToWorldSpace(direction)
 		spawnDecoy(player, match, dir)
 	end
+end
+
+-- Shows an ability effect to everyone who should see it except its user
+-- (they already drew it themselves).
+local function sendFxToOthers(player, match, data)
+	local remote = Remotes.Get("Effect")
+	if match then
+		local opponent = match:GetOpponent(player)
+		if opponent.Parent then
+			remote:FireClient(opponent, data)
+		end
+		return
+	end
+	for _, other in ipairs(Players:GetPlayers()) do
+		if other ~= player and not MatchService.GetMatch(other) then
+			remote:FireClient(other, data)
+		end
+	end
+end
+
+-- Everyone who can fight: real players and bots.
+local function everyone()
+	local list = Players:GetPlayers()
+	for bot in pairs(CharacterService.Bots) do
+		table.insert(list, bot)
+	end
+	return list
+end
+
+-- BARRIER DOME: a shell around you that stops every bullet (both ways)
+-- for a few seconds. It's a plain queryable part, so the shared
+-- Ballistics code treats it like a wall: Ghost Round passes it, Ricochet
+-- bounces off it, explosions still splash through.
+local function spawnBarrier(player, match, position, stats)
+	for i = #barriers, 1, -1 do
+		if barriers[i].Owner == player then
+			barriers[i].Part:Destroy()
+			table.remove(barriers, i)
+		end
+	end
+	local radius = stats.BarrierRadius
+	local dome = Instance.new("Part")
+	dome.Name = "BarrierDome"
+	dome.Shape = Enum.PartType.Ball
+	dome.Size = Vector3.one * radius * 2
+	dome.CFrame = CFrame.new(position)
+	dome.Anchored = true
+	dome.CanCollide = false -- you walk through it...
+	dome.CanTouch = false
+	dome.CanQuery = true -- ...bullets don't
+	dome.CastShadow = false
+	dome.Material = Enum.Material.ForceField
+	dome.Color = match and match:ColorFor(player) or Config.Palette.Hologram
+	dome:SetAttribute("OwnerUserId", player.UserId)
+	dome.Parent = barrierFolder
+	table.insert(barriers, { Part = dome, Owner = player, Match = match, Until = os.clock() + stats.BarrierDuration })
+	sendFx(match, { Type = "Barrier", Position = position, Radius = radius, Duration = stats.BarrierDuration })
+end
+
+-- SMOKE GRENADE: a cloud of solid puffs (they hide you, and highlights,
+-- like walls do) that bullets pass straight through (CanQuery = false).
+local function spawnSmoke(owner, match, center, radius, duration)
+	local cloud = Instance.new("Model")
+	cloud.Name = "SmokeCloud"
+	local rng = Random.new()
+	local count = 12
+	for i = 1, count do
+		local angle = (i / count) * math.pi * 2 + rng:NextNumber(0, 0.6)
+		local distance = i <= 2 and rng:NextNumber(0, radius * 0.2) or radius * rng:NextNumber(0.35, 0.75)
+		local size = radius * (i <= 2 and 1.5 or rng:NextNumber(0.8, 1.2))
+		local height = size * 0.38 + rng:NextNumber(0, radius * 0.35)
+		local puff = Instance.new("Part")
+		puff.Name = "Puff"
+		puff.Shape = Enum.PartType.Ball
+		puff.Size = Vector3.one * 2
+		puff.CFrame = CFrame.new(center + Vector3.new(math.cos(angle) * distance, height, math.sin(angle) * distance))
+		puff.Anchored = true
+		puff.CanCollide = false
+		puff.CanQuery = false -- bullets fly straight through smoke
+		puff.CanTouch = false
+		puff.CastShadow = false
+		puff.Material = Enum.Material.SmoothPlastic
+		puff.Color = Color3.fromRGB(206, 210, 218):Lerp(Color3.fromRGB(240, 242, 246), rng:NextNumber())
+		puff.Parent = cloud
+		TweenService:Create(puff, TweenInfo.new(rng:NextNumber(0.5, 0.9), Enum.EasingStyle.Quint), {
+			Size = Vector3.one * size,
+		}):Play()
+	end
+	cloud:SetAttribute("OwnerUserId", owner.UserId)
+	cloud.Parent = smokeFolder
+	table.insert(smokes, { Model = cloud, Owner = owner, Match = match, Until = os.clock() + duration })
+end
+
+local function throwSmoke(player, match, character, direction, stats)
+	local head = character:FindFirstChild("Head")
+	if not head then
+		return
+	end
+	local cfg = PU.SmokeGrenade
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	local exclude = buildExclude(player)
+	table.insert(exclude, barrierFolder)
+	table.insert(exclude, smokeFolder)
+	for _, target in ipairs(getTargets(player, match)) do
+		table.insert(exclude, target.Model)
+	end
+	params.FilterDescendantsInstances = exclude
+	local from = head.Position
+	local ray = workspace:Raycast(from, direction * cfg.Range, params)
+	local landing = ray and (ray.Position + ray.Normal * 1.5) or (from + direction * cfg.Range)
+	local floor = workspace:Raycast(landing + Vector3.new(0, 1, 0), Vector3.new(0, -60, 0), params)
+	local center = floor and floor.Position or landing
+	sendFx(match, { Type = "SmokeThrow", From = from, To = center })
+	local radius, duration = stats.SmokeRadius, stats.SmokeDuration
+	task.delay(0.4, function()
+		if stillActive(match, player) then
+			spawnSmoke(player, match, center, radius, duration)
+		end
+	end)
+end
+
+-- RECALL: the client rewinds itself (it owns its character); the server
+-- checks you really were there a moment ago and heals back what you lost.
+local function recall(player, match, character, humanoid, root, data, stats)
+	local cfg = PU.Recall
+	local now = os.clock()
+	local plausible, past = false, nil
+	for _, sample in ipairs(history[player] or {}) do
+		if sample.Character == character then
+			if (sample.Position - data.To).Magnitude <= cfg.PositionTolerance then
+				plausible = true
+			end
+			if not past or math.abs(now - sample.T - cfg.Rewind) < math.abs(now - past.T - cfg.Rewind) then
+				past = sample
+			end
+		end
+	end
+	if not plausible then
+		return
+	end
+	if past and past.Health > humanoid.Health then
+		local heal = math.min(past.Health - humanoid.Health, stats.RecallHealCap)
+		humanoid.Health = math.min(humanoid.MaxHealth, humanoid.Health + heal)
+	end
+	local from = Util.isFiniteVector3(data.From) and data.From or root.Position
+	sendFxToOthers(player, match, { Type = "Recall", From = from, To = data.To, UserId = player.UserId })
 end
 
 local function onAbility(player, name, data)
@@ -870,6 +1364,23 @@ local function onAbility(player, name, data)
 					sendFx(nil, fxData)
 				end
 			end
+		end
+	elseif name == "AirDash" and stats.AirDash and root then
+		if useCooldown(player, name, PU.AirDash.Cooldown * 0.5) then
+			sendFxToOthers(player, match, { Type = "Dash", Position = root.Position, UserId = player.UserId })
+		end
+	elseif name == "Barrier" and stats.Barrier and root then
+		if useCooldown(player, name, PU.BarrierDome.Cooldown * 0.9) then
+			spawnBarrier(player, match, root.Position, stats)
+		end
+	elseif name == "Smoke" and stats.Smoke and root then
+		local dir = data.Direction
+		if Util.isFiniteVector3(dir) and dir.Magnitude > 0.5 and useCooldown(player, name, stats.SmokeCooldown * 0.9) then
+			throwSmoke(player, match, character, dir.Unit, stats)
+		end
+	elseif name == "Recall" and stats.Recall and root then
+		if Util.isFiniteVector3(data.To) and useCooldown(player, name, stats.RecallCooldown * 0.85) then
+			recall(player, match, character, humanoid, root, data, stats)
 		end
 	elseif name == "GrappleStart" and stats.Grapple and root then
 		if Util.isFiniteVector3(data.Point) and (data.Point - root.Position).Magnitude < Config.Movement.GrappleRange + 30 then
@@ -981,13 +1492,27 @@ local function onMelee(player, kind, targetModel, look)
 	if victimFacing and fromVictim and victimFacing:Dot(fromVictim) < -math.cos(math.rad(K.BackstabAngle)) then
 		backstab = true
 	end
-	local damage = backstab and K.BackstabDamage or (kind == "Stab" and K.StabDamage or K.SlashDamage)
 	local stats = getStats(player, match)
+	-- KEEN EDGE: sharper knife
+	local damage = backstab and K.BackstabDamage
+		or (kind == "Stab" and K.StabDamage or K.SlashDamage) * stats.KnifeDamageMultiplier
 	damageTarget(match, player, stats, target, damage, {
 		Position = torso.Position,
 		Melee = true,
 		Backstab = backstab,
 	})
+	-- BLOODLUST: knife hits give shield too
+	if stats.ShieldOnHit > 0 then
+		addShield(player, stats, stats.ShieldOnHit)
+	end
+	-- HUNTER'S KNIFE: a knife hit = a burst of speed
+	if stats.KnifeHitBoost then
+		Remotes.Get("Buff"):FireClient(player, {
+			Type = "SpeedBoost",
+			Multiplier = PU.HuntersKnife.BoostMultiplier,
+			Duration = PU.HuntersKnife.BoostTime,
+		})
+	end
 end
 
 -- Cosmetic animation events everyone should see on your character:
@@ -1003,6 +1528,8 @@ local function onAnim(player, kind, value, variant)
 		-- a state, not an event: always take the latest (it's only sent on change)
 		if typeof(value) == "boolean" then
 			character:SetAttribute("Scoped", value)
+			-- DEADEYE charges while you stay scoped
+			scopedSince[player] = value and (scopedSince[player] or os.clock()) or nil
 		end
 		return
 	end
@@ -1029,12 +1556,132 @@ local function onEquip(player, weapon)
 	end
 end
 
+-- Wave 2 per-player state (shared by Forget and PlayerRemoving).
+local function forgetWave2(player)
+	lastShot[player] = nil
+	scopedSince[player] = nil
+	quickShotReady[player] = nil
+	lastHurt[player] = nil
+	history[player] = nil
+	bleeds[player] = nil
+	for key, bleed in pairs(bleeds) do
+		if bleed.Attacker == player then
+			bleeds[key] = nil
+		end
+	end
+	for i = #barriers, 1, -1 do
+		if barriers[i].Owner == player then
+			barriers[i].Part:Destroy()
+			table.remove(barriers, i)
+		end
+	end
+	for i = #smokes, 1, -1 do
+		if smokes[i].Owner == player then
+			smokes[i].Model:Destroy()
+			table.remove(smokes, i)
+		end
+	end
+	-- (acid pools stop by themselves once their owner is gone)
+end
+
 function CombatService.Forget(player)
 	lastMelee[player] = nil
 	lastFire[player] = nil
 	cooldowns[player] = nil
 	bulletTimeUntil[player] = nil
 	markedUntil[player] = nil
+	forgetWave2(player)
+end
+
+----------------------------------------------------------------------------
+-- Wave 2 per-frame upkeep: acid pools, bleeds, domes, smoke, regeneration,
+-- and the short position/health history Recall checks against.
+----------------------------------------------------------------------------
+local nextHistory = 0
+
+local function updateBarriers(now)
+	for i = #barriers, 1, -1 do
+		local barrier = barriers[i]
+		if now >= barrier.Until or not barrier.Part.Parent or not stillActive(barrier.Match, barrier.Owner) then
+			table.remove(barriers, i)
+			local part = barrier.Part
+			if part.Parent then
+				part.CanQuery = false -- stops blocking straight away
+				TweenService:Create(part, TweenInfo.new(0.25), { Size = Vector3.one * 0.5 }):Play()
+				task.delay(0.3, function()
+					part:Destroy()
+				end)
+			end
+		end
+	end
+end
+
+local function updateSmokes(now)
+	for i = #smokes, 1, -1 do
+		local cloud = smokes[i]
+		if not cloud.Fading and (now >= cloud.Until - 1 or not stillActive(cloud.Match, cloud.Owner)) then
+			cloud.Fading = true
+			cloud.Until = math.min(cloud.Until, now + 1)
+			for _, puff in ipairs(cloud.Model:GetChildren()) do
+				if puff:IsA("BasePart") then
+					TweenService:Create(puff, TweenInfo.new(1), { Transparency = 1 }):Play()
+				end
+			end
+		end
+		if now >= cloud.Until then
+			table.remove(smokes, i)
+			cloud.Model:Destroy()
+		end
+	end
+end
+
+local function updatePlayers(now, dt)
+	local sample = now >= nextHistory
+	if sample then
+		nextHistory = now + 0.1
+	end
+	for _, player in ipairs(everyone()) do
+		local match = MatchService.GetMatch(player)
+		if match or not Util.isBot(player) then
+			local stats = getStats(player, match)
+			local humanoid, character = CharacterService.GetAliveHumanoid(player)
+
+			-- REGENERATION (live rounds, or the lobby)
+			if humanoid and stats.RegenRate > 0 and (not match or match:IsFighting()) then
+				if now - (lastHurt[player] or 0) >= stats.RegenDelay and humanoid.Health < humanoid.MaxHealth then
+					humanoid.Health = math.min(humanoid.MaxHealth, humanoid.Health + stats.RegenRate * dt)
+				end
+			end
+
+			-- RECALL history
+			if sample then
+				local list = history[player]
+				local root = character and character:FindFirstChild("HumanoidRootPart")
+				if stats.Recall and root then
+					list = list or {}
+					history[player] = list
+					table.insert(list, { T = now, Position = root.Position, Health = humanoid.Health, Character = character })
+				end
+				if list then
+					while list[1] and now - list[1].T > PU.Recall.Rewind + 1.5 do
+						table.remove(list, 1)
+					end
+					if not stats.Recall then
+						history[player] = nil
+					end
+				end
+			end
+		end
+	end
+end
+
+local function upkeep(dt)
+	local now = os.clock()
+	updatePools(now)
+	updateBleeds(now)
+	updateBarriers(now)
+	updateSmokes(now)
+	updatePlayers(now, dt)
 end
 
 -- Bots shoot through the exact same validation and damage code as players.
@@ -1059,6 +1706,21 @@ function CombatService.Init()
 	decoyFolder.Name = "Decoys"
 	decoyFolder.Parent = workspace
 
+	barrierFolder = Instance.new("Folder")
+	barrierFolder.Name = "Barriers"
+	barrierFolder.Parent = workspace
+
+	smokeFolder = Instance.new("Folder")
+	smokeFolder.Name = "Smoke"
+	smokeFolder.Parent = workspace
+
+	RunService.Heartbeat:Connect(function(dt)
+		local ok, err = pcall(upkeep, dt)
+		if not ok then
+			warn("[Combat] upkeep:", err)
+		end
+	end)
+
 	Remotes.Get("Fire").OnServerEvent:Connect(onFire)
 	Remotes.Get("Ability").OnServerEvent:Connect(onAbility)
 	Remotes.Get("Aim").OnServerEvent:Connect(onAim)
@@ -1074,6 +1736,7 @@ function CombatService.Init()
 		cooldowns[player] = nil
 		bulletTimeUntil[player] = nil
 		markedUntil[player] = nil
+		forgetWave2(player)
 		for _, d in ipairs(decoyFolder:GetChildren()) do
 			if d:GetAttribute("OwnerUserId") == player.UserId then
 				d:Destroy()

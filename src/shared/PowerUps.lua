@@ -24,6 +24,14 @@
 	  * Gunslinger: Hair Trigger + Split Shot + Quickdraw (hits re-chamber instantly)
 	  * Tank:       Thick Skin + Vampire + Second Wind
 	  * Glass:      Glass Cannon x3 + Momentum Rounds (huge damage, 40 HP)
+	  * Railgunner: Railgun + Sonar / Wallhack Pulse + Pinball (shoot them through the map)
+	  * Patient:    Deadeye + Glass Cannon + Long Shot (one charged body shot kills)
+	  * Bruiser:    Overshield + Bloodlust + Regeneration + Kinetic Armor
+	  * Control:    Frost Rounds + Impact Rounds + Disruptor Rounds (they can't escape)
+	  * Attrition:  Acid Rounds + Serrated Rounds + Explosive Rounds (damage that lingers)
+	  * Slider:     Power Slide + Slingshot + Air Dash + Momentum Rounds
+	  * Cutthroat:  Keen Edge + Hunter's Knife + Phantom Step + Smoke Grenade
+	  * Turtle:     Barrier Dome + Recall + Regeneration (buy time, heal up)
 
 	HOW EFFECTS WORK
 	All game systems (movement, sniper, server damage) read a single "stats"
@@ -122,6 +130,63 @@ local function baseStats()
 		WallhackDuration = 0,
 		Decoy = false,
 		DecoyCount = 0,
+
+		-- shields + sustain (CombatService). Shield soaks damage before health.
+		StartShield = 0, -- shield you spawn with every round (Overshield)
+		ShieldOnHit = 0, -- shield gained per hit on the enemy (Bloodlust)
+		MaxShield = 0, -- shield can't go above this
+		RegenRate = 0, -- HP per second once you haven't been hurt for RegenDelay
+		RegenDelay = 0,
+		KineticArmor = 0, -- damage reduction while you're moving fast
+		HurtSpeedBoost = 1, -- speed multiplier for a moment after taking damage (Fight or Flight)
+		HurtSpeedTime = 0,
+
+		-- rifle (wave 2)
+		DoubleTap = false, -- every other shot re-chambers almost instantly
+		DeadeyeBonus = 0, -- extra damage for a fully charged scoped shot
+
+		-- on-hit / on-impact bullet effects (CombatService)
+		AcidPool = false, -- the bullet's impact leaves a damaging pool
+		AcidRadius = 0,
+		AcidDuration = 0,
+		SlowAmount = 0, -- direct hits slow the enemy by this fraction...
+		SlowDuration = 0, -- ...for this long
+		BleedDamage = 0, -- direct hits add this much damage over time
+		HitKnockback = 0, -- direct hits shove the enemy
+		DisruptTime = 0, -- direct hits lock the enemy's abilities for this long
+
+		-- damage (wave 2)
+		LastStandBonus = 0, -- extra damage while you're low on health
+		LastStandSpeed = 0, -- extra speed while you're low on health
+		ExecuteBonus = 0, -- extra damage against a target below half health
+		LongShotBonus = 0, -- extra damage at long range (full bonus at Config range)
+
+		-- knife
+		KnifeDamageMultiplier = 1,
+		KnifeSpeedMultiplier = 1, -- extra speed with the knife out
+		KnifeHitBoost = false, -- knife hits give a short speed boost
+
+		-- slides (MovementController)
+		SlideBoostBonus = 0, -- extra speed when a slide starts
+		SlideCapBonus = 0, -- higher slide boost cap
+		SlideFrictionScale = 1, -- lower = slides last longer
+		SlideJumpLift = 0, -- jumping out of a slide goes this much higher (fraction)
+		SlideJumpSpeed = 0, -- and adds this much speed
+
+		-- actives (wave 2)
+		AirDash = false, -- press Sprint in the air to dash
+		AirDashCharges = 0, -- dashes per air time
+		Recall = false, -- rewind to where you were a few seconds ago
+		RecallCooldown = 0,
+		RecallHealCap = 0,
+		Barrier = false, -- drop a dome that blocks bullets
+		BarrierRadius = 0,
+		BarrierDuration = 0,
+		Smoke = false, -- throw a smoke cloud
+		SmokeRadius = 0,
+		SmokeDuration = 0,
+		SmokeCooldown = 0,
+		SonarTime = 0, -- the enemy is revealed through walls this long when they fire
 	}
 end
 
@@ -736,6 +801,515 @@ PowerUps.Definitions = {
 		Effect = function(s, n)
 			s.Decoy = true
 			s.DecoyCount = n
+		end,
+	},
+
+	-------------------------------------------------------------- BULLETS (wave 2)
+	{
+		Id = "AcidRounds",
+		Name = "Acid Rounds",
+		Description = "Your shot leaves a pool of acid where it lands that burns the enemy.",
+		Stacking = "Bigger pool that lasts longer per stack",
+		Rarity = "Rare",
+		Tags = { "Bullets", "Damage" },
+		IconColor = Color3.fromRGB(120, 210, 60),
+		MaxStacks = 3,
+		Icon = {
+			{ "Rect", 0.5, 0.74, 0.76, 0.16, 0, Round = 0.5 },
+			{ "Circle", 0.5, 0.36, 0.26 },
+			{ "Rect", 0.5, 0.5, 0.1, 0.2, 0 },
+		},
+		Effect = function(s, n)
+			local cfg = P.AcidRounds
+			s.AcidPool = true
+			s.AcidRadius = cfg.Radius + cfg.RadiusPerStack * (n - 1)
+			s.AcidDuration = cfg.Duration + cfg.DurationPerStack * (n - 1)
+		end,
+	},
+	{
+		Id = "FrostRounds",
+		Name = "Frost Rounds",
+		Description = "Hits chill the enemy: 35% slower and they lose their momentum.",
+		Stacking = "Stronger and longer slow per stack",
+		Rarity = "Rare",
+		Tags = { "Bullets", "Utility" },
+		IconColor = Color3.fromRGB(120, 200, 255),
+		MaxStacks = 3,
+		Icon = {
+			{ "Rect", 0.5, 0.5, 0.08, 0.76, 0 },
+			{ "Rect", 0.5, 0.5, 0.08, 0.76, 60 },
+			{ "Rect", 0.5, 0.5, 0.08, 0.76, -60 },
+			{ "Circle", 0.5, 0.5, 0.2, Dark = true },
+		},
+		Effect = function(s, n)
+			local cfg = P.FrostRounds
+			s.SlowAmount = math.min(cfg.Slow + cfg.SlowPerStack * (n - 1), cfg.MaxSlow)
+			s.SlowDuration = cfg.Duration + cfg.DurationPerStack * (n - 1)
+		end,
+	},
+	{
+		Id = "SerratedRounds",
+		Name = "Serrated Rounds",
+		Description = "Hits make the enemy bleed for 22 extra damage over 2.5 seconds.",
+		Stacking = "+16 bleed per stack",
+		Rarity = "Rare",
+		Tags = { "Bullets", "Damage" },
+		IconColor = Color3.fromRGB(220, 50, 70),
+		MaxStacks = 3,
+		Icon = {
+			{ "Rect", 0.5, 0.42, 0.14, 0.5, 0 },
+			{ "Circle", 0.5, 0.7, 0.24 },
+			{ "Rect", 0.36, 0.3, 0.12, 0.12, 45, A = 0.4 },
+			{ "Rect", 0.64, 0.42, 0.12, 0.12, 45, A = 0.4 },
+		},
+		Effect = function(s, n)
+			local cfg = P.SerratedRounds
+			s.BleedDamage += cfg.BleedDamage + cfg.BleedPerStack * (n - 1)
+		end,
+	},
+	{
+		Id = "ImpactRounds",
+		Name = "Impact Rounds",
+		Description = "Hits shove the enemy hard. Knock them off ledges and out of their bunny hop.",
+		Stacking = "Harder shove per stack",
+		Rarity = "Common",
+		Tags = { "Bullets" },
+		IconColor = Color3.fromRGB(240, 140, 90),
+		MaxStacks = 3,
+		Icon = {
+			{ "Circle", 0.3, 0.5, 0.26 },
+			{ "Rect", 0.62, 0.5, 0.3, 0.08, 0, A = 0.3 },
+			{ "Rect", 0.66, 0.34, 0.24, 0.06, -20, A = 0.5 },
+			{ "Rect", 0.66, 0.66, 0.24, 0.06, 20, A = 0.5 },
+		},
+		Effect = function(s, n)
+			local cfg = P.ImpactRounds
+			s.HitKnockback += cfg.Knockback + cfg.KnockbackPerStack * (n - 1)
+		end,
+	},
+	{
+		Id = "DisruptorRounds",
+		Name = "Disruptor Rounds",
+		Description = "Hits jam the enemy's abilities (Blink, Grapple, Dome...) for 2.5 seconds.",
+		Stacking = "+1.5s jam per stack",
+		Rarity = "Rare",
+		Tags = { "Bullets", "Utility" },
+		IconColor = Color3.fromRGB(90, 110, 230),
+		MaxStacks = 2,
+		Icon = {
+			{ "Ring", 0.5, 0.5, 0.7, 4 },
+			{ "Rect", 0.5, 0.5, 0.08, 0.7, 45 },
+			{ "Rect", 0.5, 0.5, 0.2, 0.2, 0, Round = 0.5 },
+		},
+		Effect = function(s, n)
+			local cfg = P.DisruptorRounds
+			s.DisruptTime = cfg.Duration + cfg.DurationPerStack * (n - 1)
+		end,
+	},
+	{
+		Id = "Railgun",
+		Name = "Railgun",
+		Description = "Bullets pass through EVERY wall, but your bolt cycles 50% slower.",
+		Stacking = "Doesn't stack. Pair it with Wallhack Pulse or Sonar",
+		Rarity = "Legendary",
+		Tags = { "Bullets", "Rifle" },
+		IconColor = Color3.fromRGB(70, 230, 220),
+		MaxStacks = 1,
+		Icon = {
+			{ "Rect", 0.5, 0.5, 0.86, 0.08, 0 },
+			{ "Rect", 0.3, 0.5, 0.08, 0.5, 0, A = 0.4 },
+			{ "Rect", 0.5, 0.5, 0.08, 0.5, 0, A = 0.4 },
+			{ "Rect", 0.7, 0.5, 0.08, 0.5, 0, A = 0.4 },
+		},
+		Effect = function(s)
+			s.GhostWalls += P.Railgun.Walls
+			s.BoltTime *= P.Railgun.BoltScale
+		end,
+	},
+	{
+		Id = "DoubleTap",
+		Name = "Double Tap",
+		Description = "Every other shot re-chambers almost instantly. Two shots, then a normal bolt.",
+		Stacking = "Doesn't stack",
+		Rarity = "Legendary",
+		Tags = { "Rifle" },
+		IconColor = Color3.fromRGB(255, 200, 60),
+		MaxStacks = 1,
+		Icon = {
+			{ "Rect", 0.38, 0.5, 0.12, 0.6, 0 },
+			{ "Rect", 0.62, 0.5, 0.12, 0.6, 0 },
+			{ "Circle", 0.38, 0.2, 0.12 },
+			{ "Circle", 0.62, 0.2, 0.12 },
+		},
+		Effect = function(s)
+			s.DoubleTap = true
+		end,
+	},
+	{
+		Id = "Deadeye",
+		Name = "Deadeye",
+		Description = "Stay scoped for 1.2s without firing to charge your next shot: +35% damage.",
+		Stacking = "+35% per stack. Glass Cannon makes it a one-shot body kill",
+		Rarity = "Epic",
+		Tags = { "Rifle", "Damage" },
+		IconColor = Color3.fromRGB(230, 70, 60),
+		MaxStacks = 2,
+		Icon = {
+			{ "Ring", 0.5, 0.5, 0.72, 3 },
+			{ "Circle", 0.5, 0.5, 0.18 },
+			{ "Rect", 0.5, 0.5, 0.86, 0.04, 0, A = 0.4 },
+			{ "Rect", 0.5, 0.5, 0.04, 0.86, 0, A = 0.4 },
+		},
+		Effect = function(s, n)
+			s.DeadeyeBonus += P.Deadeye.BonusPerStack * n
+		end,
+	},
+
+	-------------------------------------------------------------- DAMAGE (wave 2)
+	{
+		Id = "LastStand",
+		Name = "Last Stand",
+		Description = "Below 40% health: +30% damage and +15% speed.",
+		Stacking = "+30% damage per stack",
+		Rarity = "Rare",
+		Tags = { "Damage", "Defence" },
+		IconColor = Color3.fromRGB(200, 60, 40),
+		MaxStacks = 3,
+		Icon = {
+			{ "Rect", 0.5, 0.56, 0.5, 0.5, 45 },
+			{ "Rect", 0.5, 0.4, 0.1, 0.36, 0, Dark = true },
+			{ "Circle", 0.5, 0.68, 0.1, Dark = true },
+		},
+		Effect = function(s, n)
+			local cfg = P.LastStand
+			s.LastStandBonus += cfg.DamagePerStack * n
+			s.LastStandSpeed = cfg.Speed
+		end,
+	},
+	{
+		Id = "Executioner",
+		Name = "Executioner",
+		Description = "+30% damage against an enemy below half health.",
+		Stacking = "+30% per stack",
+		Rarity = "Common",
+		Tags = { "Damage" },
+		IconColor = Color3.fromRGB(150, 40, 60),
+		MaxStacks = 3,
+		Icon = {
+			{ "Rect", 0.42, 0.56, 0.08, 0.7, -30 },
+			{ "Rect", 0.62, 0.3, 0.34, 0.26, -30, Round = 0.3 },
+		},
+		Effect = function(s, n)
+			s.ExecuteBonus += P.Executioner.BonusPerStack * n
+		end,
+	},
+	{
+		Id = "LongShot",
+		Name = "Long Shot",
+		Description = "Bullets deal more damage the further they fly: up to +30% at long range.",
+		Stacking = "+30% max bonus per stack",
+		Rarity = "Common",
+		Tags = { "Damage" },
+		IconColor = Color3.fromRGB(100, 160, 230),
+		MaxStacks = 3,
+		Icon = {
+			{ "Circle", 0.16, 0.5, 0.14 },
+			{ "Rect", 0.5, 0.5, 0.5, 0.04, 0, A = 0.4 },
+			{ "Ring", 0.82, 0.5, 0.3, 3 },
+		},
+		Effect = function(s, n)
+			s.LongShotBonus += P.LongShot.BonusPerStack * n
+		end,
+	},
+
+	-------------------------------------------------------------- KNIFE
+	{
+		Id = "KeenEdge",
+		Name = "Keen Edge",
+		Description = "+35% knife damage (slash and stab).",
+		Stacking = "+35% per stack. At 2 stacks a stab kills",
+		Rarity = "Common",
+		Tags = { "Knife", "Damage" },
+		IconColor = Color3.fromRGB(190, 200, 215),
+		MaxStacks = 2,
+		Icon = {
+			{ "Rect", 0.56, 0.38, 0.14, 0.56, 35 },
+			{ "Rect", 0.36, 0.68, 0.1, 0.26, 35, Dark = true },
+			{ "Rect", 0.42, 0.6, 0.26, 0.06, -55 },
+		},
+		Effect = function(s, n)
+			s.KnifeDamageMultiplier *= 1 + P.KeenEdge.DamagePerStack * n
+		end,
+	},
+	{
+		Id = "HuntersKnife",
+		Name = "Hunter's Knife",
+		Description = "+10% speed with the knife out, and knife hits give a burst of speed.",
+		Stacking = "+10% knife speed per stack",
+		Rarity = "Rare",
+		Tags = { "Knife", "Movement" },
+		IconColor = Color3.fromRGB(160, 120, 80),
+		MaxStacks = 2,
+		Icon = {
+			{ "Rect", 0.4, 0.42, 0.12, 0.5, 35 },
+			{ "Rect", 0.26, 0.66, 0.08, 0.2, 35, Dark = true },
+			{ "Rect", 0.72, 0.4, 0.26, 0.06, 0, A = 0.4 },
+			{ "Rect", 0.72, 0.56, 0.2, 0.06, 0, A = 0.6 },
+		},
+		Effect = function(s, n)
+			s.KnifeSpeedMultiplier *= 1 + P.HuntersKnife.SpeedPerStack * n
+			s.KnifeHitBoost = true
+		end,
+	},
+
+	-------------------------------------------------------------- MOVEMENT (wave 2)
+	{
+		Id = "PowerSlide",
+		Name = "Power Slide",
+		Description = "Slides start faster, reach a higher top speed and last longer.",
+		Stacking = "Even faster, longer slides per stack",
+		Rarity = "Common",
+		Tags = { "Movement" },
+		IconColor = Color3.fromRGB(250, 170, 80),
+		MaxStacks = 3,
+		Icon = {
+			{ "Rect", 0.5, 0.78, 0.8, 0.08, 0 },
+			{ "Rect", 0.5, 0.6, 0.5, 0.14, -12, Round = 0.5 },
+			{ "Circle", 0.76, 0.48, 0.16 },
+			{ "Rect", 0.18, 0.62, 0.16, 0.05, 0, A = 0.5 },
+		},
+		Effect = function(s, n)
+			local cfg = P.PowerSlide
+			s.SlideBoostBonus += cfg.BoostPerStack * n
+			s.SlideCapBonus += cfg.CapPerStack * n
+			s.SlideFrictionScale *= cfg.FrictionScalePerStack ^ n
+		end,
+	},
+	{
+		Id = "Slingshot",
+		Name = "Slingshot",
+		Description = "Jumping out of a slide launches you 35% higher and faster.",
+		Stacking = "+35% height per stack",
+		Rarity = "Rare",
+		Tags = { "Movement" },
+		IconColor = Color3.fromRGB(140, 210, 90),
+		MaxStacks = 2,
+		Icon = {
+			{ "Rect", 0.36, 0.5, 0.08, 0.6, -20 },
+			{ "Rect", 0.64, 0.5, 0.08, 0.6, 20 },
+			{ "Rect", 0.5, 0.82, 0.08, 0.3, 0 },
+			{ "Circle", 0.5, 0.26, 0.2 },
+		},
+		Effect = function(s, n)
+			local cfg = P.Slingshot
+			s.SlideJumpLift += cfg.LiftPerStack * n
+			s.SlideJumpSpeed += cfg.SpeedPerStack * n
+		end,
+	},
+	{
+		Id = "AirDash",
+		Name = "Air Dash",
+		Description = "Press Sprint in the air to dash where you're steering. Recharges on landing.",
+		Stacking = "+1 dash per jump per stack",
+		Rarity = "Rare",
+		Tags = { "Movement" },
+		IconColor = Color3.fromRGB(80, 180, 255),
+		MaxStacks = 2,
+		Icon = {
+			{ "Rect", 0.62, 0.5, 0.2, 0.2, 45 },
+			{ "Rect", 0.38, 0.5, 0.36, 0.1, 0 },
+			{ "Rect", 0.26, 0.32, 0.24, 0.06, 0, A = 0.5 },
+			{ "Rect", 0.26, 0.68, 0.24, 0.06, 0, A = 0.5 },
+		},
+		Effect = function(s, n)
+			s.AirDash = true
+			s.AirDashCharges += P.AirDash.ChargesPerStack * n
+		end,
+	},
+	{
+		Id = "KineticArmor",
+		Name = "Kinetic Armor",
+		Description = "Take 25% less damage while you're moving fast (36+ u/s).",
+		Stacking = "+25% reduction per stack. Headshots still kill",
+		Rarity = "Rare",
+		Tags = { "Defence", "Movement" },
+		IconColor = Color3.fromRGB(70, 150, 200),
+		MaxStacks = 2,
+		Icon = {
+			{ "Rect", 0.56, 0.5, 0.4, 0.5, 0, Round = 0.3 },
+			{ "Rect", 0.22, 0.38, 0.2, 0.06, 0, A = 0.5 },
+			{ "Rect", 0.18, 0.62, 0.2, 0.06, 0, A = 0.5 },
+			{ "Rect", 0.56, 0.5, 0.06, 0.3, 0, Dark = true },
+		},
+		Effect = function(s, n)
+			s.KineticArmor = math.min(s.KineticArmor + P.KineticArmor.ReductionPerStack * n, 0.6)
+		end,
+	},
+	{
+		Id = "Recall",
+		Name = "Recall",
+		Description = "Press X to rewind to where you were 3 seconds ago, healing up to 40 of the damage you took since.",
+		Stacking = "Shorter cooldown and +20 max heal per stack",
+		Rarity = "Epic",
+		Tags = { "Movement", "Defence" },
+		IconColor = Color3.fromRGB(230, 180, 70),
+		MaxStacks = 2,
+		Icon = {
+			{ "Ring", 0.5, 0.5, 0.7, 4 },
+			{ "Rect", 0.5, 0.4, 0.08, 0.24, 0 },
+			{ "Rect", 0.42, 0.52, 0.08, 0.2, 60 },
+			{ "Rect", 0.18, 0.3, 0.2, 0.2, 45, Dark = true },
+		},
+		Effect = function(s, n)
+			local cfg = P.Recall
+			s.Recall = true
+			s.RecallCooldown = cfg.Cooldown - cfg.CooldownCutPerStack * (n - 1)
+			s.RecallHealCap = cfg.HealCap + cfg.HealCapPerStack * (n - 1)
+		end,
+	},
+
+	-------------------------------------------------------------- DEFENCE / UTILITY (wave 2)
+	{
+		Id = "BarrierDome",
+		Name = "Barrier Dome",
+		Description = "Press Z to drop a dome around you that stops ALL bullets (yours too) for 3 seconds.",
+		Stacking = "Bigger dome, +1s per stack. Ghost Round bullets pass through",
+		Rarity = "Epic",
+		Tags = { "Defence", "Utility" },
+		IconColor = Color3.fromRGB(90, 170, 255),
+		MaxStacks = 2,
+		Icon = {
+			{ "Circle", 0.5, 0.62, 0.7, A = 0.5 },
+			{ "Rect", 0.5, 0.86, 0.9, 0.24, 0, Dark = true },
+			{ "Circle", 0.5, 0.58, 0.18 },
+		},
+		Effect = function(s, n)
+			local cfg = P.BarrierDome
+			s.Barrier = true
+			s.BarrierRadius = cfg.Radius + cfg.RadiusPerStack * (n - 1)
+			s.BarrierDuration = cfg.Duration + cfg.DurationPerStack * (n - 1)
+		end,
+	},
+	{
+		Id = "SmokeGrenade",
+		Name = "Smoke Grenade",
+		Description = "Press 3 to throw a thick smoke cloud where you're looking. Bullets still go through.",
+		Stacking = "Bigger, longer cloud and shorter cooldown per stack",
+		Rarity = "Rare",
+		Tags = { "Utility" },
+		IconColor = Color3.fromRGB(150, 160, 175),
+		MaxStacks = 2,
+		Icon = {
+			{ "Circle", 0.34, 0.58, 0.36 },
+			{ "Circle", 0.62, 0.5, 0.42 },
+			{ "Circle", 0.5, 0.36, 0.3 },
+			{ "Rect", 0.5, 0.78, 0.7, 0.12, 0, Round = 0.5 },
+		},
+		Effect = function(s, n)
+			local cfg = P.SmokeGrenade
+			s.Smoke = true
+			s.SmokeRadius = cfg.Radius + cfg.RadiusPerStack * (n - 1)
+			s.SmokeDuration = cfg.Duration + cfg.DurationPerStack * (n - 1)
+			s.SmokeCooldown = cfg.Cooldown * cfg.CooldownScalePerStack ^ (n - 1)
+		end,
+	},
+	{
+		Id = "Sonar",
+		Name = "Sonar",
+		Description = "Whenever the enemy fires, they're revealed to you through walls for 1.2 seconds.",
+		Stacking = "+0.6s per stack",
+		Rarity = "Rare",
+		Tags = { "Utility" },
+		IconColor = Color3.fromRGB(60, 200, 170),
+		MaxStacks = 2,
+		Icon = {
+			{ "Circle", 0.5, 0.5, 0.16 },
+			{ "Ring", 0.5, 0.5, 0.46, 3 },
+			{ "Ring", 0.5, 0.5, 0.78, 3, A = 0.5 },
+		},
+		Effect = function(s, n)
+			local cfg = P.Sonar
+			s.SonarTime = cfg.Duration + cfg.DurationPerStack * (n - 1)
+		end,
+	},
+	{
+		Id = "Regeneration",
+		Name = "Regeneration",
+		Description = "After 3 seconds without taking damage, heal 5 HP per second.",
+		Stacking = "+5 HP/s and a shorter wait per stack",
+		Rarity = "Common",
+		Tags = { "Defence" },
+		IconColor = Color3.fromRGB(110, 220, 130),
+		MaxStacks = 3,
+		Icon = {
+			{ "Rect", 0.5, 0.5, 0.14, 0.5, 0 },
+			{ "Rect", 0.5, 0.5, 0.5, 0.14, 0 },
+			{ "Ring", 0.5, 0.5, 0.82, 3, A = 0.5 },
+		},
+		Effect = function(s, n)
+			local cfg = P.Regeneration
+			s.RegenRate += cfg.RatePerStack * n
+			s.RegenDelay = cfg.Delay * cfg.DelayScalePerStack ^ (n - 1)
+		end,
+	},
+	{
+		Id = "Overshield",
+		Name = "Overshield",
+		Description = "Start every round with a 30 point shield that soaks damage before your health.",
+		Stacking = "+30 shield per stack",
+		Rarity = "Common",
+		Tags = { "Defence" },
+		IconColor = Color3.fromRGB(80, 150, 240),
+		MaxStacks = 3,
+		Icon = {
+			{ "Rect", 0.5, 0.42, 0.56, 0.4, 0, Round = 0.2 },
+			{ "Rect", 0.5, 0.62, 0.4, 0.4, 45 },
+			{ "Rect", 0.5, 0.48, 0.08, 0.34, 0, Dark = true },
+		},
+		Effect = function(s, n)
+			local amount = P.Overshield.ShieldPerStack * n
+			s.StartShield += amount
+			s.MaxShield += amount
+		end,
+	},
+	{
+		Id = "Bloodlust",
+		Name = "Bloodlust",
+		Description = "Every bullet or knife hit gives you 12 shield (up to 36).",
+		Stacking = "+12 per hit and +36 max per stack. Great with Split Shot",
+		Rarity = "Epic",
+		Tags = { "Defence" },
+		IconColor = Color3.fromRGB(170, 30, 80),
+		MaxStacks = 2,
+		Icon = {
+			{ "Rect", 0.5, 0.44, 0.56, 0.4, 0, Round = 0.2 },
+			{ "Rect", 0.5, 0.64, 0.4, 0.4, 45 },
+			{ "Circle", 0.5, 0.52, 0.22, Dark = true },
+		},
+		Effect = function(s, n)
+			local cfg = P.Bloodlust
+			s.ShieldOnHit += cfg.ShieldPerHit * n
+			s.MaxShield += cfg.MaxPerStack * n
+		end,
+	},
+	{
+		Id = "FightOrFlight",
+		Name = "Fight or Flight",
+		Description = "Taking damage gives you +25% speed for 1.5 seconds.",
+		Stacking = "+10% speed per stack",
+		Rarity = "Common",
+		Tags = { "Movement", "Defence" },
+		IconColor = Color3.fromRGB(255, 150, 120),
+		MaxStacks = 3,
+		Icon = {
+			{ "Rect", 0.36, 0.5, 0.36, 0.36, 45, A = 0.4 },
+			{ "Rect", 0.62, 0.42, 0.1, 0.4, 30 },
+			{ "Rect", 0.56, 0.62, 0.1, 0.3, -30 },
+		},
+		Effect = function(s, n)
+			local cfg = P.FightOrFlight
+			s.HurtSpeedBoost = cfg.Multiplier + cfg.MultiplierPerStack * (n - 1)
+			s.HurtSpeedTime = cfg.Duration
 		end,
 	},
 }

@@ -843,6 +843,65 @@ Config.PowerUps = {
 	SecondWind = { SpeedMultiplier = 1.35, BoostTime = 3 }, -- one save per stack, each round
 	WallhackPulse = { Interval = 10, IntervalScalePerStack = 0.7, Duration = 1, DurationPerStack = 0.25 },
 	Decoy = { Cooldown = 8, Lifetime = 4, Speed = 26, SpreadDegrees = 30 }, -- one decoy per stack
+
+	-- BULLETS (wave 2)
+	AcidRounds = {
+		Radius = 7, -- pool radius (studs)
+		RadiusPerStack = 2,
+		Duration = 3, -- seconds the pool lasts
+		DurationPerStack = 1,
+		TickDamage = 7, -- every TickInterval to an enemy standing in it (x your shot multiplier)
+		TickInterval = 0.4,
+		Height = 7, -- how far above the pool still counts as "in it"
+		MaxPools = 3, -- pools per player at once (the oldest dries up)
+	},
+	FrostRounds = { Slow = 0.35, SlowPerStack = 0.1, MaxSlow = 0.6, Duration = 1.6, DurationPerStack = 0.5 },
+	SerratedRounds = { BleedDamage = 22, BleedPerStack = 16, Duration = 2.5, TickInterval = 0.25 },
+	ImpactRounds = { Knockback = 45, KnockbackPerStack = 20, Lift = 0.35 },
+	DisruptorRounds = { Duration = 2.5, DurationPerStack = 1.5 },
+	Railgun = { Walls = 25, BoltScale = 1.5 },
+	DoubleTap = { QuickBolt = 0.22 }, -- seconds before the follow-up shot
+	Deadeye = { ChargeTime = 1.2, BonusPerStack = 0.35 },
+
+	-- DAMAGE (wave 2)
+	LastStand = { HealthFraction = 0.4, DamagePerStack = 0.3, Speed = 0.15 },
+	Executioner = { HealthFraction = 0.5, BonusPerStack = 0.3 },
+	LongShot = { MinDistance = 50, FullDistance = 220, BonusPerStack = 0.3 }, -- bonus ramps up between the two
+
+	-- KNIFE
+	KeenEdge = { DamagePerStack = 0.35 },
+	HuntersKnife = { SpeedPerStack = 0.1, BoostMultiplier = 1.3, BoostTime = 1.5 },
+
+	-- MOVEMENT (wave 2)
+	PowerSlide = { BoostPerStack = 5, CapPerStack = 8, FrictionScalePerStack = 0.75 },
+	Slingshot = { LiftPerStack = 0.35, SpeedPerStack = 4 },
+	AirDash = { Speed = 48, Lift = 14, Cooldown = 0.6, ChargesPerStack = 1 }, -- Cooldown = between dashes
+	KineticArmor = { MinSpeed = 36, ReductionPerStack = 0.25 },
+	Recall = {
+		Rewind = 3, -- seconds back in time
+		Cooldown = 14,
+		CooldownCutPerStack = 4,
+		HealCap = 40, -- most health a recall gives back
+		HealCapPerStack = 20,
+		PositionTolerance = 24, -- server check: how far from your real past position you may land
+	},
+
+	-- DEFENCE / UTILITY (wave 2)
+	BarrierDome = { Radius = 8, RadiusPerStack = 2, Duration = 3, DurationPerStack = 1, Cooldown = 14 },
+	SmokeGrenade = {
+		Range = 90, -- how far you can throw it
+		Radius = 12,
+		RadiusPerStack = 3,
+		Duration = 6,
+		DurationPerStack = 2,
+		Cooldown = 12,
+		CooldownScalePerStack = 0.75,
+	},
+	Sonar = { Duration = 1.2, DurationPerStack = 0.6 },
+	Regeneration = { Delay = 3, DelayScalePerStack = 0.75, RatePerStack = 5 },
+	Overshield = { ShieldPerStack = 30 },
+	Bloodlust = { ShieldPerHit = 12, MaxPerStack = 36 },
+	FightOrFlight = { Multiplier = 1.25, MultiplierPerStack = 0.1, Duration = 1.5 },
 }
 
 ----------------------------------------------------------------------------

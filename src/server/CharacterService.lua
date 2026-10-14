@@ -354,6 +354,7 @@ end
 		Frozen     anchor the character in place
 		KillY      falling below this Y kills you
 		PowerUps   { [id] = stacks } shown as attachments on the rifle
+		Shield     starting shield (Overshield); stored in the "Shield" attribute
 ]]
 function CharacterService.Spawn(player, cframe, options)
 	options = options or {}
@@ -393,6 +394,7 @@ function CharacterService.Spawn(player, cframe, options)
 
 	character:PivotTo(cframe)
 	character:SetAttribute("KillY", options.KillY or -100)
+	character:SetAttribute("Shield", options.Shield or 0) -- CombatService soaks damage with it
 	CharacterService.SetFrozen(player, options.Frozen == true)
 
 	humanoid.Died:Connect(function()

@@ -7,7 +7,8 @@
 		scope overlay (black outside a circle, thin reticle)
 		scoreboard (names, round wins, round timer) with each player's
 		    collected power-up icons underneath
-		health bar, ability hints with cooldowns
+		health bar (+ shield from Overshield / Bloodlust), ability hints with cooldowns
+		Deadeye charge bar under the scope reticle
 		big centre banner (countdown, GO, round won/lost)
 		damage vignette + direction indicator
 ]]
@@ -38,6 +39,8 @@ local hitmarker
 local scope
 local scoreboard, nameLabels, winLabels, timerLabel, roundLabel, iconRows
 local healthBar, healthFill, healthText
+local shieldFill, shieldText
+local deadeyeBar, deadeyeFill
 local abilityList
 local banner, bannerTitle, bannerSub
 local vignette, indicator
@@ -196,6 +199,25 @@ local function buildScope()
 		Parent = lens,
 	})
 	Theme.corner(dot, UDim.new(0.5, 0))
+
+	-- DEADEYE: charge bar below the centre (gold when the shot is charged)
+	deadeyeBar = Theme.new("Frame", {
+		Name = "DeadeyeCharge",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0.5, 40),
+		Size = UDim2.fromOffset(120, 5),
+		BackgroundColor3 = Color3.fromRGB(30, 34, 44),
+		BackgroundTransparency = 0.3,
+		Visible = false,
+		Parent = scope,
+	})
+	Theme.corner(deadeyeBar, 3)
+	deadeyeFill = Theme.new("Frame", {
+		Size = UDim2.fromScale(0, 1),
+		BackgroundColor3 = Palette.UIText,
+		Parent = deadeyeBar,
+	})
+	Theme.corner(deadeyeFill, 3)
 end
 
 local function buildScoreboard()
@@ -314,6 +336,29 @@ local function buildHealth()
 		Parent = track,
 	})
 	Theme.corner(healthFill, 4)
+	-- SHIELD (Overshield / Bloodlust): a blue strip over the health bar
+	shieldFill = Theme.new("Frame", {
+		Name = "Shield",
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, 0, 0, -3),
+		Size = UDim2.fromScale(0, 0.6),
+		BackgroundColor3 = Color3.fromRGB(90, 170, 255),
+		Visible = false,
+		Parent = track,
+	})
+	Theme.corner(shieldFill, 3)
+	shieldText = Theme.label({
+		Name = "ShieldText",
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.new(1, -60, 0, -2),
+		Size = UDim2.fromOffset(60, 12),
+		TextXAlignment = Enum.TextXAlignment.Right,
+		TextSize = 11,
+		TextColor3 = Color3.fromRGB(120, 190, 255),
+		FontFace = Theme.Font(Enum.FontWeight.Heavy),
+		Visible = false,
+		Parent = panel,
+	})
 	healthText = Theme.label({
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.fromScale(1, 0.5),
@@ -330,7 +375,7 @@ local function buildAbilities()
 		Name = "Abilities",
 		AnchorPoint = Vector2.new(1, 1),
 		Position = UDim2.new(1, -24, 1, -24),
-		Size = UDim2.fromOffset(220, 140),
+		Size = UDim2.fromOffset(220, 300), -- room for every active power-up
 		BackgroundTransparency = 1,
 		Parent = gui,
 	}, {
@@ -765,6 +810,18 @@ local function rebuildAbilities()
 	if stats.BulletTime then
 		table.insert(entries, { Key = key("Scope"), Name = "Bullet Time (air)", Cooldown = "BulletTime" })
 	end
+	if stats.Barrier then
+		table.insert(entries, { Key = key("Barrier"), Name = "Barrier Dome", Cooldown = "Barrier" })
+	end
+	if stats.Recall then
+		table.insert(entries, { Key = key("Recall"), Name = "Recall", Cooldown = "Recall" })
+	end
+	if stats.Smoke then
+		table.insert(entries, { Key = key("Smoke"), Name = "Smoke Grenade", Cooldown = "Smoke" })
+	end
+	if stats.AirDash then
+		table.insert(entries, { Key = key("Sprint"), Name = "Air Dash (in air)", Cooldown = "AirDash" })
+	end
 	for i, e in ipairs(entries) do
 		local row = Theme.panel({
 			Name = e.Name,
@@ -899,6 +956,22 @@ local function update()
 		healthFill.Size = UDim2.fromScale(fraction, 1)
 		healthFill.BackgroundColor3 = fraction < 0.35 and Palette.UIDanger or Palette.UIText
 		healthText.Text = tostring(math.ceil(humanoid.Health))
+		-- shield strip (Overshield / Bloodlust)
+		local shield = character:GetAttribute("Shield") or 0
+		shieldFill.Visible = shield > 0
+		shieldText.Visible = shield > 0
+		if shield > 0 then
+			shieldFill.Size = UDim2.fromScale(math.clamp(shield / math.max(humanoid.MaxHealth, 1), 0, 1), 0.6)
+			shieldText.Text = "+" .. tostring(math.ceil(shield)) .. " SHIELD"
+		end
+	end
+
+	-- DEADEYE charge (only while scoped)
+	local charge = Controllers.Weapon.GetDeadeyeCharge and Controllers.Weapon.GetDeadeyeCharge() or 0
+	deadeyeBar.Visible = scope.Visible and ClientState.Stats.DeadeyeBonus > 0
+	if deadeyeBar.Visible then
+		deadeyeFill.Size = UDim2.fromScale(charge, 1)
+		deadeyeFill.BackgroundColor3 = charge >= 1 and Color3.fromRGB(255, 200, 60) or Palette.UIText
 	end
 
 	-- timers
@@ -930,10 +1003,16 @@ local function update()
 		if fill then
 			local name = fill:GetAttribute("Cooldown")
 			local stats = ClientState.Stats
+			local PU = Config.PowerUps
 			local total = name == "Grapple" and stats.GrappleCooldown
 				or name == "Blink" and math.max(stats.BlinkCooldown, 0.1)
-				or name == "Decoy" and Config.PowerUps.Decoy.Cooldown
-				or Config.PowerUps.BulletTime.Cooldown
+				or name == "Decoy" and PU.Decoy.Cooldown
+				or name == "Barrier" and PU.BarrierDome.Cooldown
+				or name == "Recall" and math.max(stats.RecallCooldown, 0.1)
+				or name == "Smoke" and math.max(stats.SmokeCooldown, 0.1)
+				or name == "AirDash" and PU.AirDash.Cooldown
+				or PU.BulletTime.Cooldown
+			-- (a jam from Disruptor Rounds can be longer than the cooldown: the bar just stays full)
 			fill.Size = UDim2.fromScale(math.clamp((cooldowns[name] or 0) / total, 0, 1), 1)
 		end
 	end

@@ -124,6 +124,7 @@ local function spawnInLobby(player)
 			MaxHealth = MatchService.GetPracticeStats(player).MaxHealth,
 			PowerUps = practiceOwned[player],
 			KillY = arena.FloorY - Config.Match.VoidDepth,
+			Shield = MatchService.GetPracticeStats(player).StartShield,
 		})
 		sendLobbyState(player)
 		return
@@ -135,6 +136,7 @@ local function spawnInLobby(player)
 		MaxHealth = MatchService.GetPracticeStats(player).MaxHealth,
 		KillY = lobby.KillY,
 		PowerUps = practiceOwned[player],
+		Shield = MatchService.GetPracticeStats(player).StartShield,
 	})
 	sendLobbyState(player)
 end
@@ -624,10 +626,11 @@ function MatchService.Init()
 		practiceOwned[player] = owned
 		practiceStats[player] = nil
 		-- Thick Skin etc. apply right away
-		local humanoid = CharacterService.GetAliveHumanoid(player)
+		local humanoid, character = CharacterService.GetAliveHumanoid(player)
 		if humanoid then
 			humanoid.MaxHealth = MatchService.GetPracticeStats(player).MaxHealth
 			humanoid.Health = humanoid.MaxHealth
+			character:SetAttribute("Shield", MatchService.GetPracticeStats(player).StartShield) -- Overshield
 		end
 		CharacterService.RefreshWorldGun(player, owned)
 		sendLobbyState(player)

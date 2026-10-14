@@ -750,7 +750,7 @@ deal/flip/pick, banners, score pops, victory confetti). Tone any of it down in
 
 ## Power-ups and builds
 
-There are 31 power-ups and almost all of them **stack**. Every card shows what
+There are 56 power-ups and almost all of them **stack**. Every card shows what
 another copy adds ("STACKS: ..."). They're designed to combine into builds:
 
 | Build | Cards | What happens |
@@ -764,9 +764,40 @@ another copy adds ("STACKS: ..."). They're designed to combine into builds:
 | Tank | Thick Skin + Vampire + Second Wind x2 | survive two lethal hits a round |
 | Glass | Glass Cannon x3 + Momentum Rounds | +90% damage (more when fast) on a 40 HP body |
 
-**New in this version:** Shrapnel, Static Charge, Pinball, Momentum Rounds,
-Sky Sniper, Glass Cannon, Marked, Hair Trigger, Adrenaline, Featherweight,
-Spring Legs, Blink (press R).
+**New in this version** (25 more):
+
+| Power-up | Rarity | Effect |
+|---|---|---|
+| Acid Rounds | Rare | Your shot leaves a pool of acid that burns the enemy |
+| Frost Rounds | Rare | Hits slow the enemy 35% and cut their momentum |
+| Serrated Rounds | Rare | Hits add 22 bleed damage over 2.5s |
+| Impact Rounds | Common | Hits shove the enemy hard |
+| Disruptor Rounds | Rare | Hits jam the enemy's abilities for 2.5s |
+| Railgun | Legendary | Bullets pass through every wall; bolt 50% slower |
+| Double Tap | Legendary | Every other shot re-chambers almost instantly |
+| Deadeye | Epic | Stay scoped 1.2s to charge your next shot: +35% damage |
+| Last Stand | Rare | Below 40% HP: +30% damage, +15% speed |
+| Executioner | Common | +30% damage against enemies below half health |
+| Long Shot | Common | Up to +30% damage at long range |
+| Keen Edge | Common | +35% knife damage |
+| Hunter's Knife | Rare | Faster with the knife out; knife hits give a speed burst |
+| Power Slide | Common | Faster, longer slides |
+| Slingshot | Rare | Slide jumps go 35% higher and faster |
+| Air Dash | Rare | Sprint in the air to dash (recharges on landing) |
+| Kinetic Armor | Rare | 25% less damage while moving fast |
+| Recall (X) | Epic | Rewind 3s in time and heal back up to 40 HP |
+| Barrier Dome (Z) | Epic | A dome that stops all bullets for 3s |
+| Smoke Grenade (3) | Rare | Throw a thick smoke cloud |
+| Sonar | Rare | The enemy is revealed through walls when they fire |
+| Regeneration | Common | Heal 5 HP/s after 3s without damage |
+| Overshield | Common | Start each round with a 30 shield |
+| Bloodlust | Epic | Hits give you 12 shield (up to 36) |
+| Fight or Flight | Common | Taking damage gives +25% speed for 1.5s |
+
+Every power-up has its own hand-drawn icon in `src/client/ui/IconArt.lua`
+(the tile, rarity ring and gem are drawn by `Icons.lua`). To draw one for a
+new power-up, add `IconArt.<Id> = art({}, ...)` there; without one, the
+card falls back to the simple `Icon` shapes in its definition.
 
 **Damage formula** (server side): base x Glass Cannon x Sky Sniper (airborne) x
 Momentum (speed) x Pinball (hops) x Marked. Headshots always kill instantly.

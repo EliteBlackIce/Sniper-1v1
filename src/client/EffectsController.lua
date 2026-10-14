@@ -12,7 +12,10 @@
 		kills       the body shatters into flat shards, headshots get a red burst
 		movement    landing dust ring, jump puff, slide dust
 		powers      shrapnel, static zaps, blink trail, grapple rope, marks,
-		            wallhack pulse, Bullet Time / Phantom Step tints
+		            wallhack pulse, Bullet Time / Phantom Step tints,
+		            acid pools, frost / bleed on the target, sonar reveals,
+		            recall + air dash trails, smoke throws (and the fog you
+		            see from inside a smoke cloud), barrier domes going up
 
 	Local effects live in a folder inside the camera so they never block
 	bullets or movement raycasts.
@@ -44,6 +47,9 @@ local localRope = { Point = nil, Part = nil }
 local enemyRopes = {} -- [userId] = { Point, Part }
 local bulletTimeCC
 local bulletTimeOn = false
+local acidPools = {} -- [id] = the pool's parts (Acid Rounds)
+local smokeCC, smokeBlur -- the fog inside a smoke cloud
+local smokeFog = 0
 
 ----------------------------------------------------------------------------
 -- Building blocks
@@ -555,6 +561,121 @@ function Effects.PhantomFlash()
 	end
 end
 
+-- A short full-screen tint that fades out (Frost, Disruptor...).
+local function screenTint(color, saturation, time)
+	local cc = Instance.new("ColorCorrectionEffect")
+	cc.TintColor = color
+	cc.Saturation = saturation or 0
+	cc.Parent = workspace.CurrentCamera
+	TweenService:Create(cc, TweenInfo.new(time, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+		TintColor = Color3.new(1, 1, 1),
+		Saturation = 0,
+	}):Play()
+	Debris:AddItem(cc, time + 0.1)
+end
+
+-- A highlight on a model for a while (Frost, Sonar...). `name` replaces an
+-- older one of the same kind on the same model.
+local tags = { Frost = setmetatable({}, { __mode = "k" }), Sonar = setmetatable({}, { __mode = "k" }) }
+local function tagModel(model, name, fill, outline, depthMode, duration)
+	if typeof(model) ~= "Instance" or not model.Parent then
+		return
+	end
+	local old = tags[name][model]
+	if old then
+		old:Destroy()
+	end
+	local highlight = Instance.new("Highlight")
+	tags[name][model] = highlight
+	highlight.Name = name
+	highlight.DepthMode = depthMode
+	highlight.FillColor = fill
+	highlight.FillTransparency = 0.5
+	highlight.OutlineColor = outline
+	highlight.OutlineTransparency = 0
+	highlight.Adornee = model
+	highlight.Parent = getFolder()
+	Debris:AddItem(highlight, duration)
+end
+
+local function torsoOf(model)
+	return model and (model:FindFirstChild("UpperTorso") or model:FindFirstChild("Torso") or model:FindFirstChild("HumanoidRootPart"))
+end
+
+-- FROST ROUNDS: you've been chilled.
+function Effects.Chill(duration)
+	screenTint(Color3.fromRGB(170, 215, 255), -0.4, math.max(duration, 0.3))
+	Sfx.Play("Hurt", { Pitch = 1.6, Volume = 0.4 })
+end
+
+-- DISRUPTOR ROUNDS: your abilities are jammed.
+function Effects.Jammed(duration)
+	screenTint(Color3.fromRGB(170, 180, 255), -0.6, math.min(duration, 1))
+	if Controllers.HUD then
+		Controllers.HUD.Flash(Color3.fromRGB(90, 110, 230), "JAMMED")
+	end
+end
+
+-- AIR DASH: a burst of wind behind you.
+function Effects.Dash(position, direction)
+	if not position then
+		return
+	end
+	local back = position - (direction or Vector3.zero) * 2
+	puff(back, Color3.fromRGB(150, 210, 255), 2.2, 0.3, true)
+	emit(back, "Dust", Color3.fromRGB(220, 235, 255), 8, direction and -direction or nil)
+end
+
+-- RECALL: a golden streak back to where you were.
+function Effects.Recall(from, to)
+	if not from or not to then
+		return
+	end
+	local color = Color3.fromRGB(255, 205, 90)
+	puff(from, color, 3, 0.45, true)
+	puff(to, Color3.fromRGB(255, 240, 190), 3.5, 0.5, true)
+	tracer(from, to, color, 0.35, 0.6)
+	ring(to - Vector3.new(0, 2.5, 0), color, 6, 0.5, true)
+	emit(to, "Sparks", color, 16)
+	lightFlash(to, color, 4, 16, 0.35)
+	Sfx.PlayAt("Dash", to, { Pitch = 0.75 })
+end
+
+-- SMOKE GRENADE: inside a cloud everything turns to grey fog.
+local function updateSmokeFog(dt)
+	local camera = workspace.CurrentCamera
+	if not smokeCC or smokeCC.Parent ~= camera then
+		smokeCC = Instance.new("ColorCorrectionEffect")
+		smokeCC.Name = "SmokeFog"
+		smokeCC.Parent = camera
+		smokeBlur = Instance.new("BlurEffect")
+		smokeBlur.Name = "SmokeBlur"
+		smokeBlur.Size = 0
+		smokeBlur.Parent = camera
+	end
+	local inside = false
+	local folder = workspace:FindFirstChild("Smoke")
+	if folder then
+		local eye = camera.CFrame.Position
+		for _, puffPart in ipairs(folder:GetDescendants()) do
+			if puffPart:IsA("BasePart") and puffPart.Transparency < 0.7
+				and (puffPart.Position - eye).Magnitude < puffPart.Size.X * 0.5 then
+				inside = true
+				break
+			end
+		end
+	end
+	local goal = inside and 1 or 0
+	local step = dt * 4
+	smokeFog = math.abs(goal - smokeFog) <= step and goal or smokeFog + math.sign(goal - smokeFog) * step
+	smokeCC.Brightness = 0.35 * smokeFog
+	smokeCC.Contrast = -0.6 * smokeFog
+	smokeCC.Saturation = -0.8 * smokeFog
+	smokeBlur.Size = 22 * smokeFog
+	smokeCC.Enabled = smokeFog > 0
+	smokeBlur.Enabled = smokeFog > 0
+end
+
 ----------------------------------------------------------------------------
 -- Wallhack Pulse
 ----------------------------------------------------------------------------
@@ -686,6 +807,131 @@ local function onEffect(data)
 		end
 	elseif t == "Blink" then
 		Effects.Blink(data.From, data.To)
+	elseif t == "AcidPool" then
+		-- ACID ROUNDS: a bubbling green puddle
+		local p, radius = data.Position, data.Radius or 7
+		local duration = data.Duration or 3
+		local color = Color3.fromRGB(120, 230, 60)
+		local disc = fxPart(
+			Vector3.new(0.25, radius * 2, radius * 2),
+			CFrame.new(p + Vector3.new(0, 0.1, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+			color,
+			Enum.PartType.Cylinder,
+			true
+		)
+		disc.Transparency = 0.45
+		local rim = fxPart(
+			Vector3.new(0.15, radius * 2.15, radius * 2.15),
+			CFrame.new(p + Vector3.new(0, 0.05, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+			Color3.fromRGB(70, 150, 40),
+			Enum.PartType.Cylinder
+		)
+		rim.Transparency = 0.3
+		emit(p + Vector3.new(0, 0.5, 0), "Smoke", color, 6)
+		if FX.Particles then
+			local attachment = anchorAt(p + Vector3.new(0, 0.3, 0), duration + 1)
+			local bubbles = Instance.new("ParticleEmitter")
+			bubbles.Texture = FX.SparkTexture
+			bubbles.Color = ColorSequence.new(color)
+			bubbles.LightEmission = 0.6
+			bubbles.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.35), NumberSequenceKeypoint.new(1, 0) })
+			bubbles.Lifetime = NumberRange.new(0.4, 0.8)
+			bubbles.Speed = NumberRange.new(2, 5)
+			bubbles.SpreadAngle = Vector2.new(25, 25)
+			bubbles.Rate = 10 + radius * 2
+			bubbles.Shape = Enum.ParticleEmitterShape.Disc
+			bubbles.ShapeInOut = Enum.ParticleEmitterShapeInOut.Outward
+			bubbles.Orientation = Enum.ParticleOrientation.FacingCamera
+			attachment.WorldCFrame = CFrame.new(p + Vector3.new(0, 0.3, 0))
+			bubbles.Parent = attachment
+			task.delay(duration, function()
+				bubbles.Enabled = false
+			end)
+		end
+		Sfx.PlayAt("Hit", p, { Pitch = 0.6, Volume = 0.5 })
+		local parts = { disc, rim }
+		if data.Id then
+			acidPools[data.Id] = parts
+		end
+		task.delay(math.max(duration - 0.4, 0), function()
+			for _, part in ipairs(parts) do
+				if part.Parent then
+					fadeOut(part, 0.4)
+				end
+			end
+			if data.Id then
+				acidPools[data.Id] = nil
+			end
+		end)
+	elseif t == "AcidPoolEnd" then
+		for _, part in ipairs(acidPools[data.Id] or {}) do
+			if part.Parent then
+				fadeOut(part, 0.3)
+			end
+		end
+		acidPools[data.Id] = nil
+	elseif t == "Frost" then
+		-- FROST ROUNDS: the target frosts over
+		tagModel(data.Target, "Frost", Color3.fromRGB(170, 225, 255), Color3.fromRGB(230, 245, 255), Enum.HighlightDepthMode.Occluded, data.Duration or 1.5)
+		local torso = torsoOf(data.Target)
+		if torso then
+			emit(torso.Position, "Sparks", Color3.fromRGB(190, 235, 255), 18)
+			puff(torso.Position, Color3.fromRGB(200, 235, 255), 2.5, 0.35, true)
+		end
+	elseif t == "Bleed" then
+		-- SERRATED ROUNDS: drips while the bleed lasts
+		local torso = torsoOf(data.Target)
+		if torso and FX.Particles then
+			local old = torso:FindFirstChild("BleedFx")
+			if old then
+				old:Destroy()
+			end
+			local drips = Instance.new("ParticleEmitter")
+			drips.Name = "BleedFx"
+			drips.Texture = FX.SparkTexture
+			drips.Color = ColorSequence.new(Color3.fromRGB(200, 20, 40))
+			drips.LightEmission = 0.2
+			drips.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.3), NumberSequenceKeypoint.new(1, 0.05) })
+			drips.Lifetime = NumberRange.new(0.4, 0.7)
+			drips.Speed = NumberRange.new(1, 3)
+			drips.SpreadAngle = Vector2.new(60, 60)
+			drips.Acceleration = Vector3.new(0, -30, 0)
+			drips.Rate = 18
+			drips.Parent = torso
+			Debris:AddItem(drips, math.clamp(data.Duration or 2.5, 0.3, 8))
+		end
+	elseif t == "Reveal" then
+		-- SONAR: the enemy fired - see them through walls for a moment
+		tagModel(data.Target, "Sonar", Color3.fromRGB(60, 230, 190), Color3.new(1, 1, 1), Enum.HighlightDepthMode.AlwaysOnTop, data.Duration or 1.2)
+		if data.Position then
+			ring(data.Position, Color3.fromRGB(60, 230, 190), 8, 0.6, true)
+		end
+		Sfx.Play("Ability", { Pitch = 1.9, Volume = 0.45 })
+	elseif t == "Recall" then
+		Effects.Recall(data.From, data.To)
+	elseif t == "Dash" then
+		Effects.Dash(data.Position, nil)
+		Sfx.PlayAt("Dash", data.Position, { Pitch = 1.45 })
+	elseif t == "SmokeThrow" then
+		-- SMOKE GRENADE: a quick lob (the cloud itself is built by the server)
+		if data.From and data.To then
+			local mid = (data.From + data.To) / 2 + Vector3.new(0, math.min((data.To - data.From).Magnitude * 0.25, 20), 0)
+			tracer(data.From, mid, Color3.fromRGB(200, 205, 215), 0.18, 0.5)
+			tracer(mid, data.To, Color3.fromRGB(200, 205, 215), 0.18, 0.5)
+			task.delay(0.35, function()
+				emit(data.To + Vector3.new(0, 1, 0), "Smoke", Color3.fromRGB(220, 224, 232), 24)
+				Sfx.PlayAt("Explosion", data.To, { Pitch = 1.6, Volume = 0.4 })
+			end)
+		end
+	elseif t == "Barrier" then
+		-- BARRIER DOME going up
+		local p = data.Position
+		if p then
+			ring(p - Vector3.new(0, 2.5, 0), Palette.Hologram, (data.Radius or 8) * 1.2, 0.45, true)
+			emit(p, "Sparks", Palette.Hologram, 20)
+			lightFlash(p, Palette.Hologram, 3, 18, 0.4)
+			Sfx.PlayAt("Ability", p, { Pitch = 0.6, Volume = 0.8 })
+		end
 	elseif t == "GrappleEnd" then
 		local rope = enemyRopes[data.UserId]
 		if rope then
@@ -711,6 +957,7 @@ local function updateRopes(dt)
 		updateRope(rope, hand and hand.Position or nil)
 	end
 	updateMovementFx(dt)
+	updateSmokeFog(dt)
 end
 
 -- Legendary skins: their glowing trims pulse between two colours (parts

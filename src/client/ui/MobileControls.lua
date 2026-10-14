@@ -9,7 +9,8 @@
 	  right side   drag anywhere to look (sensitivity in Settings > Touch),
 	               FIRE (you can keep dragging on it to aim), SCOPE, JUMP
 	               (hold to bunny hop), SLIDE, SPRINT (toggle) and your
-	               ability buttons (Grapple / Blink / Decoy, when you have them)
+	               ability buttons (Grapple / Blink / Decoy / Dome / Recall /
+	               Smoke / Dash, when you have them)
 	  top left     one MENU button under the lobby wordmark. In the lobby it
 	               opens a small list: SKINS (Locker), SHOP, DUEL, LAB and
 	               SETTINGS; in a match it opens Settings directly. Nothing
@@ -198,6 +199,10 @@ local function refresh()
 	buttons.Grapple.Visible = stats.Grapple == true
 	buttons.Blink.Visible = stats.Blink == true
 	buttons.Decoy.Visible = stats.Decoy == true
+	buttons.Barrier.Visible = stats.Barrier == true
+	buttons.Recall.Visible = stats.Recall == true
+	buttons.Smoke.Visible = stats.Smoke == true
+	buttons.Dash.Visible = stats.AirDash == true
 	if inMatch and menuOpen then
 		setMenuOpen(false) -- the list is lobby-only (MENU opens Settings in a match)
 	end
@@ -265,6 +270,11 @@ function MobileControls.Start(playerGui)
 	roundButton("Grapple", "HOOK", 58, br(80, 310), Palette.UIPanel, tap("Grapple"))
 	roundButton("Blink", "BLINK", 58, br(150, 300), Palette.UIPanel, tap("Blink"))
 	roundButton("Decoy", "DECOY", 58, br(220, 300), Palette.UIPanel, tap("Decoy"))
+	-- wave 2 actives: a second row above the first
+	roundButton("Barrier", "DOME", 58, br(80, 380), Palette.UIPanel, tap("Barrier"))
+	roundButton("Recall", "RECALL", 58, br(150, 370), Palette.UIPanel, tap("Recall"))
+	roundButton("Smoke", "SMOKE", 58, br(220, 370), Palette.UIPanel, tap("Smoke"))
+	roundButton("Dash", "DASH", 58, br(290, 300), Palette.UIPanel, tap("AirDash")) -- Air Dash (works in the air)
 	-- switch rifle <-> knife (with the knife out, FIRE slashes and SCOPE stabs)
 	roundButton("Knife", "KNIFE", 58, br(305, 165), Palette.UIPanel, function()
 		if Controllers and Controllers.Knife then

@@ -12,6 +12,11 @@
 	rebindable.
 
 	Usage:  if Keybinds.Matches("Jump", input) then ... end
+
+	Gamepad note: a few power-up actives share a button with a LOBBY-only
+	action (Barrier = LB like Playground, Recall / Smoke = D-pad right / left
+	like Find match / Power-Up Lab). In a match those lobby actions do
+	nothing, so there's no clash where it matters.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -51,6 +56,11 @@ Keybinds.Actions = {
 	{ Id = "Grapple", Name = "Grapple (power-up)", Keyboard = "E", Gamepad = "ButtonY" },
 	{ Id = "Blink", Name = "Blink (power-up)", Keyboard = "R", Gamepad = "ButtonX" },
 	{ Id = "Decoy", Name = "Decoy (power-up)", Keyboard = "Q", Gamepad = "DPadUp" },
+	{ Id = "Barrier", Name = "Barrier Dome (power-up)", Keyboard = "Z", Gamepad = "ButtonL1" },
+	{ Id = "Recall", Name = "Recall (power-up)", Keyboard = "X", Gamepad = "DPadRight" },
+	{ Id = "Smoke", Name = "Smoke Grenade (power-up)", Keyboard = "Three", Gamepad = "DPadLeft" },
+	-- (Air Dash has no key of its own: it's Sprint while in the air. On a
+	-- touch screen the DASH button presses the virtual "AirDash" action.)
 	{ Id = "Inspect", Name = "Inspect weapon", Keyboard = "V", Gamepad = "DPadDown" },
 	{ Id = "Primary", Name = "Sniper", Keyboard = "One", Gamepad = "ButtonR1" },
 	{ Id = "Knife", Name = "Knife", Keyboard = "Two", Gamepad = "ButtonR1" },

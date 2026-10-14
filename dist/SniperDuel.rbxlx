@@ -1117,6 +1117,65 @@ Config.PowerUps = {
 	SecondWind = { SpeedMultiplier = 1.35, BoostTime = 3 }, -- one save per stack, each round
 	WallhackPulse = { Interval = 10, IntervalScalePerStack = 0.7, Duration = 1, DurationPerStack = 0.25 },
 	Decoy = { Cooldown = 8, Lifetime = 4, Speed = 26, SpreadDegrees = 30 }, -- one decoy per stack
+
+	-- BULLETS (wave 2)
+	AcidRounds = {
+		Radius = 7, -- pool radius (studs)
+		RadiusPerStack = 2,
+		Duration = 3, -- seconds the pool lasts
+		DurationPerStack = 1,
+		TickDamage = 7, -- every TickInterval to an enemy standing in it (x your shot multiplier)
+		TickInterval = 0.4,
+		Height = 7, -- how far above the pool still counts as "in it"
+		MaxPools = 3, -- pools per player at once (the oldest dries up)
+	},
+	FrostRounds = { Slow = 0.35, SlowPerStack = 0.1, MaxSlow = 0.6, Duration = 1.6, DurationPerStack = 0.5 },
+	SerratedRounds = { BleedDamage = 22, BleedPerStack = 16, Duration = 2.5, TickInterval = 0.25 },
+	ImpactRounds = { Knockback = 45, KnockbackPerStack = 20, Lift = 0.35 },
+	DisruptorRounds = { Duration = 2.5, DurationPerStack = 1.5 },
+	Railgun = { Walls = 25, BoltScale = 1.5 },
+	DoubleTap = { QuickBolt = 0.22 }, -- seconds before the follow-up shot
+	Deadeye = { ChargeTime = 1.2, BonusPerStack = 0.35 },
+
+	-- DAMAGE (wave 2)
+	LastStand = { HealthFraction = 0.4, DamagePerStack = 0.3, Speed = 0.15 },
+	Executioner = { HealthFraction = 0.5, BonusPerStack = 0.3 },
+	LongShot = { MinDistance = 50, FullDistance = 220, BonusPerStack = 0.3 }, -- bonus ramps up between the two
+
+	-- KNIFE
+	KeenEdge = { DamagePerStack = 0.35 },
+	HuntersKnife = { SpeedPerStack = 0.1, BoostMultiplier = 1.3, BoostTime = 1.5 },
+
+	-- MOVEMENT (wave 2)
+	PowerSlide = { BoostPerStack = 5, CapPerStack = 8, FrictionScalePerStack = 0.75 },
+	Slingshot = { LiftPerStack = 0.35, SpeedPerStack = 4 },
+	AirDash = { Speed = 48, Lift = 14, Cooldown = 0.6, ChargesPerStack = 1 }, -- Cooldown = between dashes
+	KineticArmor = { MinSpeed = 36, ReductionPerStack = 0.25 },
+	Recall = {
+		Rewind = 3, -- seconds back in time
+		Cooldown = 14,
+		CooldownCutPerStack = 4,
+		HealCap = 40, -- most health a recall gives back
+		HealCapPerStack = 20,
+		PositionTolerance = 24, -- server check: how far from your real past position you may land
+	},
+
+	-- DEFENCE / UTILITY (wave 2)
+	BarrierDome = { Radius = 8, RadiusPerStack = 2, Duration = 3, DurationPerStack = 1, Cooldown = 14 },
+	SmokeGrenade = {
+		Range = 90, -- how far you can throw it
+		Radius = 12,
+		RadiusPerStack = 3,
+		Duration = 6,
+		DurationPerStack = 2,
+		Cooldown = 12,
+		CooldownScalePerStack = 0.75,
+	},
+	Sonar = { Duration = 1.2, DurationPerStack = 0.6 },
+	Regeneration = { Delay = 3, DelayScalePerStack = 0.75, RatePerStack = 5 },
+	Overshield = { ShieldPerStack = 30 },
+	Bloodlust = { ShieldPerHit = 12, MaxPerStack = 36 },
+	FightOrFlight = { Multiplier = 1.25, MultiplierPerStack = 0.1, Duration = 1.5 },
 }
 
 ----------------------------------------------------------------------------
@@ -2784,15 +2843,32 @@ function Logo.Make(parent, options)
 	if layout == "Mark" then
 		Logo.Mark(root, color, accent, options.Stroke)
 	elseif layout == "Inline" then
-		-- [mark] SNIPER DUEL  (subtitle under the words)
-		Logo.Mark(root, color, accent, options.Stroke, UDim2.fromScale(0.09, 0.5), UDim2.fromScale(0.9, 0.9))
+		-- [mark] SNIPER DUEL  (subtitle under the words). Everything sits in
+		-- one centred box with a fixed shape, so the mark and the words line
+		-- up the same on any board, and both words are one label (one size).
 		local hasSub = options.Subtitle ~= nil
-		local wordY = hasSub and 0.38 or 0.5
-		local wordH = hasSub and 0.56 or 0.8
-		word(root, "SNIPER", color, UDim2.fromScale(0.2, wordY), UDim2.fromScale(0.44, wordH), Enum.TextXAlignment.Left)
-		word(root, "DUEL", accent, UDim2.fromScale(0.66, wordY), UDim2.fromScale(0.32, wordH), Enum.TextXAlignment.Left)
+		local box = new("Frame", {
+			Name = "Inline",
+			BackgroundTransparency = 1,
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromScale(0.94, 0.86),
+			Parent = root,
+		})
+		new("UIAspectRatioConstraint", { AspectRatio = 4, Parent = box })
+		-- the mark is a square as tall as the box: 1/4 of its width
+		Logo.Mark(box, color, accent, options.Stroke, UDim2.fromScale(0.125, 0.5), UDim2.fromScale(0.25, 1))
+		local words = word(
+			box,
+			string.format('SNIPER <font color="#%s">DUEL</font>', accent:ToHex()),
+			color,
+			UDim2.fromScale(0.3, hasSub and 0.38 or 0.5),
+			UDim2.fromScale(0.7, hasSub and 0.62 or 0.8),
+			Enum.TextXAlignment.Left
+		)
+		words.RichText = true
 		if hasSub then
-			local sub = word(root, options.Subtitle, color, UDim2.fromScale(0.2, 0.82), UDim2.fromScale(0.78, 0.2), Enum.TextXAlignment.Left)
+			local sub = word(box, options.Subtitle, color, UDim2.fromScale(0.3, 0.84), UDim2.fromScale(0.7, 0.2), Enum.TextXAlignment.Left)
 			sub.FontFace = font(Enum.FontWeight.Bold)
 			sub.TextTransparency = 0.15
 		end
@@ -2864,6 +2940,14 @@ return Logo
 	  * Gunslinger: Hair Trigger + Split Shot + Quickdraw (hits re-chamber instantly)
 	  * Tank:       Thick Skin + Vampire + Second Wind
 	  * Glass:      Glass Cannon x3 + Momentum Rounds (huge damage, 40 HP)
+	  * Railgunner: Railgun + Sonar / Wallhack Pulse + Pinball (shoot them through the map)
+	  * Patient:    Deadeye + Glass Cannon + Long Shot (one charged body shot kills)
+	  * Bruiser:    Overshield + Bloodlust + Regeneration + Kinetic Armor
+	  * Control:    Frost Rounds + Impact Rounds + Disruptor Rounds (they can't escape)
+	  * Attrition:  Acid Rounds + Serrated Rounds + Explosive Rounds (damage that lingers)
+	  * Slider:     Power Slide + Slingshot + Air Dash + Momentum Rounds
+	  * Cutthroat:  Keen Edge + Hunter's Knife + Phantom Step + Smoke Grenade
+	  * Turtle:     Barrier Dome + Recall + Regeneration (buy time, heal up)
 
 	HOW EFFECTS WORK
 	All game systems (movement, sniper, server damage) read a single "stats"
@@ -2962,6 +3046,63 @@ local function baseStats()
 		WallhackDuration = 0,
 		Decoy = false,
 		DecoyCount = 0,
+
+		-- shields + sustain (CombatService). Shield soaks damage before health.
+		StartShield = 0, -- shield you spawn with every round (Overshield)
+		ShieldOnHit = 0, -- shield gained per hit on the enemy (Bloodlust)
+		MaxShield = 0, -- shield can't go above this
+		RegenRate = 0, -- HP per second once you haven't been hurt for RegenDelay
+		RegenDelay = 0,
+		KineticArmor = 0, -- damage reduction while you're moving fast
+		HurtSpeedBoost = 1, -- speed multiplier for a moment after taking damage (Fight or Flight)
+		HurtSpeedTime = 0,
+
+		-- rifle (wave 2)
+		DoubleTap = false, -- every other shot re-chambers almost instantly
+		DeadeyeBonus = 0, -- extra damage for a fully charged scoped shot
+
+		-- on-hit / on-impact bullet effects (CombatService)
+		AcidPool = false, -- the bullet's impact leaves a damaging pool
+		AcidRadius = 0,
+		AcidDuration = 0,
+		SlowAmount = 0, -- direct hits slow the enemy by this fraction...
+		SlowDuration = 0, -- ...for this long
+		BleedDamage = 0, -- direct hits add this much damage over time
+		HitKnockback = 0, -- direct hits shove the enemy
+		DisruptTime = 0, -- direct hits lock the enemy's abilities for this long
+
+		-- damage (wave 2)
+		LastStandBonus = 0, -- extra damage while you're low on health
+		LastStandSpeed = 0, -- extra speed while you're low on health
+		ExecuteBonus = 0, -- extra damage against a target below half health
+		LongShotBonus = 0, -- extra damage at long range (full bonus at Config range)
+
+		-- knife
+		KnifeDamageMultiplier = 1,
+		KnifeSpeedMultiplier = 1, -- extra speed with the knife out
+		KnifeHitBoost = false, -- knife hits give a short speed boost
+
+		-- slides (MovementController)
+		SlideBoostBonus = 0, -- extra speed when a slide starts
+		SlideCapBonus = 0, -- higher slide boost cap
+		SlideFrictionScale = 1, -- lower = slides last longer
+		SlideJumpLift = 0, -- jumping out of a slide goes this much higher (fraction)
+		SlideJumpSpeed = 0, -- and adds this much speed
+
+		-- actives (wave 2)
+		AirDash = false, -- press Sprint in the air to dash
+		AirDashCharges = 0, -- dashes per air time
+		Recall = false, -- rewind to where you were a few seconds ago
+		RecallCooldown = 0,
+		RecallHealCap = 0,
+		Barrier = false, -- drop a dome that blocks bullets
+		BarrierRadius = 0,
+		BarrierDuration = 0,
+		Smoke = false, -- throw a smoke cloud
+		SmokeRadius = 0,
+		SmokeDuration = 0,
+		SmokeCooldown = 0,
+		SonarTime = 0, -- the enemy is revealed through walls this long when they fire
 	}
 end
 
@@ -3576,6 +3717,515 @@ PowerUps.Definitions = {
 		Effect = function(s, n)
 			s.Decoy = true
 			s.DecoyCount = n
+		end,
+	},
+
+	-------------------------------------------------------------- BULLETS (wave 2)
+	{
+		Id = "AcidRounds",
+		Name = "Acid Rounds",
+		Description = "Your shot leaves a pool of acid where it lands that burns the enemy.",
+		Stacking = "Bigger pool that lasts longer per stack",
+		Rarity = "Rare",
+		Tags = { "Bullets", "Damage" },
+		IconColor = Color3.fromRGB(120, 210, 60),
+		MaxStacks = 3,
+		Icon = {
+			{ "Rect", 0.5, 0.74, 0.76, 0.16, 0, Round = 0.5 },
+			{ "Circle", 0.5, 0.36, 0.26 },
+			{ "Rect", 0.5, 0.5, 0.1, 0.2, 0 },
+		},
+		Effect = function(s, n)
+			local cfg = P.AcidRounds
+			s.AcidPool = true
+			s.AcidRadius = cfg.Radius + cfg.RadiusPerStack * (n - 1)
+			s.AcidDuration = cfg.Duration + cfg.DurationPerStack * (n - 1)
+		end,
+	},
+	{
+		Id = "FrostRounds",
+		Name = "Frost Rounds",
+		Description = "Hits chill the enemy: 35% slower and they lose their momentum.",
+		Stacking = "Stronger and longer slow per stack",
+		Rarity = "Rare",
+		Tags = { "Bullets", "Utility" },
+		IconColor = Color3.fromRGB(120, 200, 255),
+		MaxStacks = 3,
+		Icon = {
+			{ "Rect", 0.5, 0.5, 0.08, 0.76, 0 },
+			{ "Rect", 0.5, 0.5, 0.08, 0.76, 60 },
+			{ "Rect", 0.5, 0.5, 0.08, 0.76, -60 },
+			{ "Circle", 0.5, 0.5, 0.2, Dark = true },
+		},
+		Effect = function(s, n)
+			local cfg = P.FrostRounds
+			s.SlowAmount = math.min(cfg.Slow + cfg.SlowPerStack * (n - 1), cfg.MaxSlow)
+			s.SlowDuration = cfg.Duration + cfg.DurationPerStack * (n - 1)
+		end,
+	},
+	{
+		Id = "SerratedRounds",
+		Name = "Serrated Rounds",
+		Description = "Hits make the enemy bleed for 22 extra damage over 2.5 seconds.",
+		Stacking = "+16 bleed per stack",
+		Rarity = "Rare",
+		Tags = { "Bullets", "Damage" },
+		IconColor = Color3.fromRGB(220, 50, 70),
+		MaxStacks = 3,
+		Icon = {
+			{ "Rect", 0.5, 0.42, 0.14, 0.5, 0 },
+			{ "Circle", 0.5, 0.7, 0.24 },
+			{ "Rect", 0.36, 0.3, 0.12, 0.12, 45, A = 0.4 },
+			{ "Rect", 0.64, 0.42, 0.12, 0.12, 45, A = 0.4 },
+		},
+		Effect = function(s, n)
+			local cfg = P.SerratedRounds
+			s.BleedDamage += cfg.BleedDamage + cfg.BleedPerStack * (n - 1)
+		end,
+	},
+	{
+		Id = "ImpactRounds",
+		Name = "Impact Rounds",
+		Description = "Hits shove the enemy hard. Knock them off ledges and out of their bunny hop.",
+		Stacking = "Harder shove per stack",
+		Rarity = "Common",
+		Tags = { "Bullets" },
+		IconColor = Color3.fromRGB(240, 140, 90),
+		MaxStacks = 3,
+		Icon = {
+			{ "Circle", 0.3, 0.5, 0.26 },
+			{ "Rect", 0.62, 0.5, 0.3, 0.08, 0, A = 0.3 },
+			{ "Rect", 0.66, 0.34, 0.24, 0.06, -20, A = 0.5 },
+			{ "Rect", 0.66, 0.66, 0.24, 0.06, 20, A = 0.5 },
+		},
+		Effect = function(s, n)
+			local cfg = P.ImpactRounds
+			s.HitKnockback += cfg.Knockback + cfg.KnockbackPerStack * (n - 1)
+		end,
+	},
+	{
+		Id = "DisruptorRounds",
+		Name = "Disruptor Rounds",
+		Description = "Hits jam the enemy's abilities (Blink, Grapple, Dome...) for 2.5 seconds.",
+		Stacking = "+1.5s jam per stack",
+		Rarity = "Rare",
+		Tags = { "Bullets", "Utility" },
+		IconColor = Color3.fromRGB(90, 110, 230),
+		MaxStacks = 2,
+		Icon = {
+			{ "Ring", 0.5, 0.5, 0.7, 4 },
+			{ "Rect", 0.5, 0.5, 0.08, 0.7, 45 },
+			{ "Rect", 0.5, 0.5, 0.2, 0.2, 0, Round = 0.5 },
+		},
+		Effect = function(s, n)
+			local cfg = P.DisruptorRounds
+			s.DisruptTime = cfg.Duration + cfg.DurationPerStack * (n - 1)
+		end,
+	},
+	{
+		Id = "Railgun",
+		Name = "Railgun",
+		Description = "Bullets pass through EVERY wall, but your bolt cycles 50% slower.",
+		Stacking = "Doesn't stack. Pair it with Wallhack Pulse or Sonar",
+		Rarity = "Legendary",
+		Tags = { "Bullets", "Rifle" },
+		IconColor = Color3.fromRGB(70, 230, 220),
+		MaxStacks = 1,
+		Icon = {
+			{ "Rect", 0.5, 0.5, 0.86, 0.08, 0 },
+			{ "Rect", 0.3, 0.5, 0.08, 0.5, 0, A = 0.4 },
+			{ "Rect", 0.5, 0.5, 0.08, 0.5, 0, A = 0.4 },
+			{ "Rect", 0.7, 0.5, 0.08, 0.5, 0, A = 0.4 },
+		},
+		Effect = function(s)
+			s.GhostWalls += P.Railgun.Walls
+			s.BoltTime *= P.Railgun.BoltScale
+		end,
+	},
+	{
+		Id = "DoubleTap",
+		Name = "Double Tap",
+		Description = "Every other shot re-chambers almost instantly. Two shots, then a normal bolt.",
+		Stacking = "Doesn't stack",
+		Rarity = "Legendary",
+		Tags = { "Rifle" },
+		IconColor = Color3.fromRGB(255, 200, 60),
+		MaxStacks = 1,
+		Icon = {
+			{ "Rect", 0.38, 0.5, 0.12, 0.6, 0 },
+			{ "Rect", 0.62, 0.5, 0.12, 0.6, 0 },
+			{ "Circle", 0.38, 0.2, 0.12 },
+			{ "Circle", 0.62, 0.2, 0.12 },
+		},
+		Effect = function(s)
+			s.DoubleTap = true
+		end,
+	},
+	{
+		Id = "Deadeye",
+		Name = "Deadeye",
+		Description = "Stay scoped for 1.2s without firing to charge your next shot: +35% damage.",
+		Stacking = "+35% per stack. Glass Cannon makes it a one-shot body kill",
+		Rarity = "Epic",
+		Tags = { "Rifle", "Damage" },
+		IconColor = Color3.fromRGB(230, 70, 60),
+		MaxStacks = 2,
+		Icon = {
+			{ "Ring", 0.5, 0.5, 0.72, 3 },
+			{ "Circle", 0.5, 0.5, 0.18 },
+			{ "Rect", 0.5, 0.5, 0.86, 0.04, 0, A = 0.4 },
+			{ "Rect", 0.5, 0.5, 0.04, 0.86, 0, A = 0.4 },
+		},
+		Effect = function(s, n)
+			s.DeadeyeBonus += P.Deadeye.BonusPerStack * n
+		end,
+	},
+
+	-------------------------------------------------------------- DAMAGE (wave 2)
+	{
+		Id = "LastStand",
+		Name = "Last Stand",
+		Description = "Below 40% health: +30% damage and +15% speed.",
+		Stacking = "+30% damage per stack",
+		Rarity = "Rare",
+		Tags = { "Damage", "Defence" },
+		IconColor = Color3.fromRGB(200, 60, 40),
+		MaxStacks = 3,
+		Icon = {
+			{ "Rect", 0.5, 0.56, 0.5, 0.5, 45 },
+			{ "Rect", 0.5, 0.4, 0.1, 0.36, 0, Dark = true },
+			{ "Circle", 0.5, 0.68, 0.1, Dark = true },
+		},
+		Effect = function(s, n)
+			local cfg = P.LastStand
+			s.LastStandBonus += cfg.DamagePerStack * n
+			s.LastStandSpeed = cfg.Speed
+		end,
+	},
+	{
+		Id = "Executioner",
+		Name = "Executioner",
+		Description = "+30% damage against an enemy below half health.",
+		Stacking = "+30% per stack",
+		Rarity = "Common",
+		Tags = { "Damage" },
+		IconColor = Color3.fromRGB(150, 40, 60),
+		MaxStacks = 3,
+		Icon = {
+			{ "Rect", 0.42, 0.56, 0.08, 0.7, -30 },
+			{ "Rect", 0.62, 0.3, 0.34, 0.26, -30, Round = 0.3 },
+		},
+		Effect = function(s, n)
+			s.ExecuteBonus += P.Executioner.BonusPerStack * n
+		end,
+	},
+	{
+		Id = "LongShot",
+		Name = "Long Shot",
+		Description = "Bullets deal more damage the further they fly: up to +30% at long range.",
+		Stacking = "+30% max bonus per stack",
+		Rarity = "Common",
+		Tags = { "Damage" },
+		IconColor = Color3.fromRGB(100, 160, 230),
+		MaxStacks = 3,
+		Icon = {
+			{ "Circle", 0.16, 0.5, 0.14 },
+			{ "Rect", 0.5, 0.5, 0.5, 0.04, 0, A = 0.4 },
+			{ "Ring", 0.82, 0.5, 0.3, 3 },
+		},
+		Effect = function(s, n)
+			s.LongShotBonus += P.LongShot.BonusPerStack * n
+		end,
+	},
+
+	-------------------------------------------------------------- KNIFE
+	{
+		Id = "KeenEdge",
+		Name = "Keen Edge",
+		Description = "+35% knife damage (slash and stab).",
+		Stacking = "+35% per stack. At 2 stacks a stab kills",
+		Rarity = "Common",
+		Tags = { "Knife", "Damage" },
+		IconColor = Color3.fromRGB(190, 200, 215),
+		MaxStacks = 2,
+		Icon = {
+			{ "Rect", 0.56, 0.38, 0.14, 0.56, 35 },
+			{ "Rect", 0.36, 0.68, 0.1, 0.26, 35, Dark = true },
+			{ "Rect", 0.42, 0.6, 0.26, 0.06, -55 },
+		},
+		Effect = function(s, n)
+			s.KnifeDamageMultiplier *= 1 + P.KeenEdge.DamagePerStack * n
+		end,
+	},
+	{
+		Id = "HuntersKnife",
+		Name = "Hunter's Knife",
+		Description = "+10% speed with the knife out, and knife hits give a burst of speed.",
+		Stacking = "+10% knife speed per stack",
+		Rarity = "Rare",
+		Tags = { "Knife", "Movement" },
+		IconColor = Color3.fromRGB(160, 120, 80),
+		MaxStacks = 2,
+		Icon = {
+			{ "Rect", 0.4, 0.42, 0.12, 0.5, 35 },
+			{ "Rect", 0.26, 0.66, 0.08, 0.2, 35, Dark = true },
+			{ "Rect", 0.72, 0.4, 0.26, 0.06, 0, A = 0.4 },
+			{ "Rect", 0.72, 0.56, 0.2, 0.06, 0, A = 0.6 },
+		},
+		Effect = function(s, n)
+			s.KnifeSpeedMultiplier *= 1 + P.HuntersKnife.SpeedPerStack * n
+			s.KnifeHitBoost = true
+		end,
+	},
+
+	-------------------------------------------------------------- MOVEMENT (wave 2)
+	{
+		Id = "PowerSlide",
+		Name = "Power Slide",
+		Description = "Slides start faster, reach a higher top speed and last longer.",
+		Stacking = "Even faster, longer slides per stack",
+		Rarity = "Common",
+		Tags = { "Movement" },
+		IconColor = Color3.fromRGB(250, 170, 80),
+		MaxStacks = 3,
+		Icon = {
+			{ "Rect", 0.5, 0.78, 0.8, 0.08, 0 },
+			{ "Rect", 0.5, 0.6, 0.5, 0.14, -12, Round = 0.5 },
+			{ "Circle", 0.76, 0.48, 0.16 },
+			{ "Rect", 0.18, 0.62, 0.16, 0.05, 0, A = 0.5 },
+		},
+		Effect = function(s, n)
+			local cfg = P.PowerSlide
+			s.SlideBoostBonus += cfg.BoostPerStack * n
+			s.SlideCapBonus += cfg.CapPerStack * n
+			s.SlideFrictionScale *= cfg.FrictionScalePerStack ^ n
+		end,
+	},
+	{
+		Id = "Slingshot",
+		Name = "Slingshot",
+		Description = "Jumping out of a slide launches you 35% higher and faster.",
+		Stacking = "+35% height per stack",
+		Rarity = "Rare",
+		Tags = { "Movement" },
+		IconColor = Color3.fromRGB(140, 210, 90),
+		MaxStacks = 2,
+		Icon = {
+			{ "Rect", 0.36, 0.5, 0.08, 0.6, -20 },
+			{ "Rect", 0.64, 0.5, 0.08, 0.6, 20 },
+			{ "Rect", 0.5, 0.82, 0.08, 0.3, 0 },
+			{ "Circle", 0.5, 0.26, 0.2 },
+		},
+		Effect = function(s, n)
+			local cfg = P.Slingshot
+			s.SlideJumpLift += cfg.LiftPerStack * n
+			s.SlideJumpSpeed += cfg.SpeedPerStack * n
+		end,
+	},
+	{
+		Id = "AirDash",
+		Name = "Air Dash",
+		Description = "Press Sprint in the air to dash where you're steering. Recharges on landing.",
+		Stacking = "+1 dash per jump per stack",
+		Rarity = "Rare",
+		Tags = { "Movement" },
+		IconColor = Color3.fromRGB(80, 180, 255),
+		MaxStacks = 2,
+		Icon = {
+			{ "Rect", 0.62, 0.5, 0.2, 0.2, 45 },
+			{ "Rect", 0.38, 0.5, 0.36, 0.1, 0 },
+			{ "Rect", 0.26, 0.32, 0.24, 0.06, 0, A = 0.5 },
+			{ "Rect", 0.26, 0.68, 0.24, 0.06, 0, A = 0.5 },
+		},
+		Effect = function(s, n)
+			s.AirDash = true
+			s.AirDashCharges += P.AirDash.ChargesPerStack * n
+		end,
+	},
+	{
+		Id = "KineticArmor",
+		Name = "Kinetic Armor",
+		Description = "Take 25% less damage while you're moving fast (36+ u/s).",
+		Stacking = "+25% reduction per stack. Headshots still kill",
+		Rarity = "Rare",
+		Tags = { "Defence", "Movement" },
+		IconColor = Color3.fromRGB(70, 150, 200),
+		MaxStacks = 2,
+		Icon = {
+			{ "Rect", 0.56, 0.5, 0.4, 0.5, 0, Round = 0.3 },
+			{ "Rect", 0.22, 0.38, 0.2, 0.06, 0, A = 0.5 },
+			{ "Rect", 0.18, 0.62, 0.2, 0.06, 0, A = 0.5 },
+			{ "Rect", 0.56, 0.5, 0.06, 0.3, 0, Dark = true },
+		},
+		Effect = function(s, n)
+			s.KineticArmor = math.min(s.KineticArmor + P.KineticArmor.ReductionPerStack * n, 0.6)
+		end,
+	},
+	{
+		Id = "Recall",
+		Name = "Recall",
+		Description = "Press X to rewind to where you were 3 seconds ago, healing up to 40 of the damage you took since.",
+		Stacking = "Shorter cooldown and +20 max heal per stack",
+		Rarity = "Epic",
+		Tags = { "Movement", "Defence" },
+		IconColor = Color3.fromRGB(230, 180, 70),
+		MaxStacks = 2,
+		Icon = {
+			{ "Ring", 0.5, 0.5, 0.7, 4 },
+			{ "Rect", 0.5, 0.4, 0.08, 0.24, 0 },
+			{ "Rect", 0.42, 0.52, 0.08, 0.2, 60 },
+			{ "Rect", 0.18, 0.3, 0.2, 0.2, 45, Dark = true },
+		},
+		Effect = function(s, n)
+			local cfg = P.Recall
+			s.Recall = true
+			s.RecallCooldown = cfg.Cooldown - cfg.CooldownCutPerStack * (n - 1)
+			s.RecallHealCap = cfg.HealCap + cfg.HealCapPerStack * (n - 1)
+		end,
+	},
+
+	-------------------------------------------------------------- DEFENCE / UTILITY (wave 2)
+	{
+		Id = "BarrierDome",
+		Name = "Barrier Dome",
+		Description = "Press Z to drop a dome around you that stops ALL bullets (yours too) for 3 seconds.",
+		Stacking = "Bigger dome, +1s per stack. Ghost Round bullets pass through",
+		Rarity = "Epic",
+		Tags = { "Defence", "Utility" },
+		IconColor = Color3.fromRGB(90, 170, 255),
+		MaxStacks = 2,
+		Icon = {
+			{ "Circle", 0.5, 0.62, 0.7, A = 0.5 },
+			{ "Rect", 0.5, 0.86, 0.9, 0.24, 0, Dark = true },
+			{ "Circle", 0.5, 0.58, 0.18 },
+		},
+		Effect = function(s, n)
+			local cfg = P.BarrierDome
+			s.Barrier = true
+			s.BarrierRadius = cfg.Radius + cfg.RadiusPerStack * (n - 1)
+			s.BarrierDuration = cfg.Duration + cfg.DurationPerStack * (n - 1)
+		end,
+	},
+	{
+		Id = "SmokeGrenade",
+		Name = "Smoke Grenade",
+		Description = "Press 3 to throw a thick smoke cloud where you're looking. Bullets still go through.",
+		Stacking = "Bigger, longer cloud and shorter cooldown per stack",
+		Rarity = "Rare",
+		Tags = { "Utility" },
+		IconColor = Color3.fromRGB(150, 160, 175),
+		MaxStacks = 2,
+		Icon = {
+			{ "Circle", 0.34, 0.58, 0.36 },
+			{ "Circle", 0.62, 0.5, 0.42 },
+			{ "Circle", 0.5, 0.36, 0.3 },
+			{ "Rect", 0.5, 0.78, 0.7, 0.12, 0, Round = 0.5 },
+		},
+		Effect = function(s, n)
+			local cfg = P.SmokeGrenade
+			s.Smoke = true
+			s.SmokeRadius = cfg.Radius + cfg.RadiusPerStack * (n - 1)
+			s.SmokeDuration = cfg.Duration + cfg.DurationPerStack * (n - 1)
+			s.SmokeCooldown = cfg.Cooldown * cfg.CooldownScalePerStack ^ (n - 1)
+		end,
+	},
+	{
+		Id = "Sonar",
+		Name = "Sonar",
+		Description = "Whenever the enemy fires, they're revealed to you through walls for 1.2 seconds.",
+		Stacking = "+0.6s per stack",
+		Rarity = "Rare",
+		Tags = { "Utility" },
+		IconColor = Color3.fromRGB(60, 200, 170),
+		MaxStacks = 2,
+		Icon = {
+			{ "Circle", 0.5, 0.5, 0.16 },
+			{ "Ring", 0.5, 0.5, 0.46, 3 },
+			{ "Ring", 0.5, 0.5, 0.78, 3, A = 0.5 },
+		},
+		Effect = function(s, n)
+			local cfg = P.Sonar
+			s.SonarTime = cfg.Duration + cfg.DurationPerStack * (n - 1)
+		end,
+	},
+	{
+		Id = "Regeneration",
+		Name = "Regeneration",
+		Description = "After 3 seconds without taking damage, heal 5 HP per second.",
+		Stacking = "+5 HP/s and a shorter wait per stack",
+		Rarity = "Common",
+		Tags = { "Defence" },
+		IconColor = Color3.fromRGB(110, 220, 130),
+		MaxStacks = 3,
+		Icon = {
+			{ "Rect", 0.5, 0.5, 0.14, 0.5, 0 },
+			{ "Rect", 0.5, 0.5, 0.5, 0.14, 0 },
+			{ "Ring", 0.5, 0.5, 0.82, 3, A = 0.5 },
+		},
+		Effect = function(s, n)
+			local cfg = P.Regeneration
+			s.RegenRate += cfg.RatePerStack * n
+			s.RegenDelay = cfg.Delay * cfg.DelayScalePerStack ^ (n - 1)
+		end,
+	},
+	{
+		Id = "Overshield",
+		Name = "Overshield",
+		Description = "Start every round with a 30 point shield that soaks damage before your health.",
+		Stacking = "+30 shield per stack",
+		Rarity = "Common",
+		Tags = { "Defence" },
+		IconColor = Color3.fromRGB(80, 150, 240),
+		MaxStacks = 3,
+		Icon = {
+			{ "Rect", 0.5, 0.42, 0.56, 0.4, 0, Round = 0.2 },
+			{ "Rect", 0.5, 0.62, 0.4, 0.4, 45 },
+			{ "Rect", 0.5, 0.48, 0.08, 0.34, 0, Dark = true },
+		},
+		Effect = function(s, n)
+			local amount = P.Overshield.ShieldPerStack * n
+			s.StartShield += amount
+			s.MaxShield += amount
+		end,
+	},
+	{
+		Id = "Bloodlust",
+		Name = "Bloodlust",
+		Description = "Every bullet or knife hit gives you 12 shield (up to 36).",
+		Stacking = "+12 per hit and +36 max per stack. Great with Split Shot",
+		Rarity = "Epic",
+		Tags = { "Defence" },
+		IconColor = Color3.fromRGB(170, 30, 80),
+		MaxStacks = 2,
+		Icon = {
+			{ "Rect", 0.5, 0.44, 0.56, 0.4, 0, Round = 0.2 },
+			{ "Rect", 0.5, 0.64, 0.4, 0.4, 45 },
+			{ "Circle", 0.5, 0.52, 0.22, Dark = true },
+		},
+		Effect = function(s, n)
+			local cfg = P.Bloodlust
+			s.ShieldOnHit += cfg.ShieldPerHit * n
+			s.MaxShield += cfg.MaxPerStack * n
+		end,
+	},
+	{
+		Id = "FightOrFlight",
+		Name = "Fight or Flight",
+		Description = "Taking damage gives you +25% speed for 1.5 seconds.",
+		Stacking = "+10% speed per stack",
+		Rarity = "Common",
+		Tags = { "Movement", "Defence" },
+		IconColor = Color3.fromRGB(255, 150, 120),
+		MaxStacks = 3,
+		Icon = {
+			{ "Rect", 0.36, 0.5, 0.36, 0.36, 45, A = 0.4 },
+			{ "Rect", 0.62, 0.42, 0.1, 0.4, 30 },
+			{ "Rect", 0.56, 0.62, 0.1, 0.3, -30 },
+		},
+		Effect = function(s, n)
+			local cfg = P.FightOrFlight
+			s.HurtSpeedBoost = cfg.Multiplier + cfg.MultiplierPerStack * (n - 1)
+			s.HurtSpeedTime = cfg.Duration
 		end,
 	},
 }
@@ -5214,6 +5864,25 @@ local function sightParams(character)
 	return params
 end
 
+-- Smoke Grenade clouds don't block raycasts (bullets go through them),
+-- so the bot checks its line of sight against the puffs itself.
+local function smokeBlocks(fromPos, toPos)
+	local folder = workspace:FindFirstChild("Smoke")
+	for _, cloud in ipairs(folder and folder:GetChildren() or {}) do
+		for _, puff in ipairs(cloud:GetChildren()) do
+			if puff:IsA("BasePart") and puff.Transparency < 0.6 then
+				local a, b, p = fromPos, toPos, puff.Position
+				local ab = b - a
+				local t = math.clamp((p - a):Dot(ab) / math.max(ab:Dot(ab), 1e-6), 0, 1)
+				if (a + ab * t - p).Magnitude < puff.Size.X * 0.45 then
+					return true
+				end
+			end
+		end
+	end
+	return false
+end
+
 -- Returns the target part we can see (head first), or nil.
 local function findVisiblePart(fromPos, character, targetCharacter)
 	if targetCharacter:GetAttribute("Invisible") then
@@ -5224,7 +5893,7 @@ local function findVisiblePart(fromPos, character, targetCharacter)
 		local part = targetCharacter:FindFirstChild(name)
 		if part then
 			local result = workspace:Raycast(fromPos, part.Position - fromPos, params)
-			if not result or result.Instance:IsDescendantOf(targetCharacter) then
+			if (not result or result.Instance:IsDescendantOf(targetCharacter)) and not smokeBlocks(fromPos, part.Position) then
 				return part
 			end
 		end
@@ -5351,7 +6020,9 @@ local function think(bot, brain, dt)
 	animate(brain, humanoid, root)
 
 	local difficulty = B.Difficulties[bot.Difficulty] or B.Difficulties.Normal
-	humanoid.WalkSpeed = difficulty.WalkSpeed
+	-- Frost Rounds slow bots too
+	local slowed = os.clock() < (bot:GetAttribute("SlowedUntil") or 0)
+	humanoid.WalkSpeed = difficulty.WalkSpeed * (slowed and (bot:GetAttribute("SlowMultiplier") or 1) or 1)
 
 	if not match:IsFighting() or character:GetAttribute("Frozen") then
 		humanoid:Move(Vector3.zero)
@@ -5887,6 +6558,7 @@ end
 		Frozen     anchor the character in place
 		KillY      falling below this Y kills you
 		PowerUps   { [id] = stacks } shown as attachments on the rifle
+		Shield     starting shield (Overshield); stored in the "Shield" attribute
 ]]
 function CharacterService.Spawn(player, cframe, options)
 	options = options or {}
@@ -5926,6 +6598,7 @@ function CharacterService.Spawn(player, cframe, options)
 
 	character:PivotTo(cframe)
 	character:SetAttribute("KillY", options.KillY or -100)
+	character:SetAttribute("Shield", options.Shield or 0) -- CombatService soaks damage with it
 	CharacterService.SetFrozen(player, options.Frozen == true)
 
 	humanoid.Died:Connect(function()
@@ -6140,9 +6813,22 @@ return CharacterService
 	                x (1 + Momentum Rounds bonus, from your speed)
 	                x (1 + Pinball bonus x bounces/wall passes before the hit)
 	                x (1 + Marked bonus, if the target is marked)
+	                x Deadeye (fully charged scoped shot), Long Shot (distance)
+	                x Last Stand (you're low), Executioner (they're low)
 	  Headshots are always an instant kill.
-	  Explosions, Shrapnel and Static Charge use the same shot multiplier
-	  (Glass Cannon, Sky Sniper, Momentum) and the Marked bonus.
+	  Explosions, Shrapnel, Static Charge, Acid pools and Serrated bleed use
+	  the same shot multiplier (Glass Cannon, Sky Sniper, Momentum, Deadeye)
+	  and the Marked / Last Stand / Executioner bonuses.
+
+	TAKING DAMAGE (CombatService.Damage)
+	  Kinetic Armor (moving fast) reduces it, then the shield (the "Shield"
+	  character attribute: Overshield / Bloodlust) soaks it, then health.
+	  Second Wind saves you from a lethal hit.
+
+	WAVE 2 POWER-UPS handled here: on-hit effects (Frost slow, Serrated
+	bleed, Impact shove, Disruptor jam, Bloodlust shield), Acid pools,
+	Double Tap, Deadeye, Sonar, Regeneration, and the actives Barrier Dome,
+	Smoke Grenade, Recall and Air Dash.
 
 	"Targets" are the enemy player in a match, or the practice dummies in the
 	lobby, so every power-up works on the range too.
@@ -6155,6 +6841,7 @@ return CharacterService
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
@@ -6175,9 +6862,24 @@ local lastMelee = {} -- [player] = os.clock() of the last accepted swing
 local cooldowns = {} -- [player] = { [abilityName] = os.clock() ready time }
 local bulletTimeUntil = {} -- [player] = os.clock()
 local markedUntil = {} -- [player or dummy model] = os.clock()
+local lastShot = {} -- [player] = os.clock() of the last shot (Deadeye charge; Hair Trigger doesn't fake it)
+local scopedSince = {} -- [player] = os.clock() they scoped in (Deadeye)
+local quickShotReady = {} -- [player] = true while a Double Tap follow-up is available
+local lastHurt = {} -- [player] = os.clock() they last took damage (Regeneration)
+local history = {} -- [player] = { {T, Position, Health, Character} } the last few seconds (Recall)
+local pools = {} -- Acid Rounds pools { Id, Owner, Match, Stats, Mult, Position, Radius, Until, NextTick }
+local bleeds = {} -- [player or dummy model] = { Attacker, Match, Stats, Target, Left, Rate, NextTick }
+local barriers = {} -- { Part, Owner, Match, Until }
+local smokes = {} -- { Model, Owner, Match, Until, Fading }
+local nextPoolId = 0
+
+-- abilities Disruptor Rounds can jam (server cooldown names)
+local DISRUPTABLE = { "Decoy", "BulletTime", "Blink", "PhantomDash", "Barrier", "Recall", "Smoke", "AirDash" }
 
 local decoyFolder
 local effectsFolder
+local barrierFolder -- Barrier Dome shells (they stop bullets)
+local smokeFolder -- Smoke Grenade clouds (bullets pass through)
 
 ----------------------------------------------------------------------------
 -- Helpers
@@ -6334,12 +7036,31 @@ function CombatService.Damage(match, attacker, victim, amount, info)
 		return false
 	end
 
+	local victimStats = match:GetStats(victim)
+	local victimCharacter = victim.Character
+
+	-- KINETIC ARMOR: less damage while moving fast
+	if victimStats.KineticArmor > 0 then
+		local victimRoot = victimCharacter and victimCharacter:FindFirstChild("HumanoidRootPart")
+		if victimRoot and Util.flat(victimRoot.AssemblyLinearVelocity).Magnitude >= PU.KineticArmor.MinSpeed then
+			amount *= 1 - victimStats.KineticArmor
+		end
+	end
+
+	-- SHIELD (Overshield / Bloodlust) soaks damage before health
+	local absorbed = 0
+	local shield = victimCharacter and victimCharacter:GetAttribute("Shield") or 0
+	if shield > 0 and amount > 0 then
+		absorbed = math.min(shield, amount)
+		amount -= absorbed
+		victimCharacter:SetAttribute("Shield", shield - absorbed)
+	end
+
 	local before = humanoid.Health
 	local after = before - amount
 
 	-- SECOND WIND: survive lethal hits (one save per stack, each round)
 	if after <= 0 then
-		local victimStats = match:GetStats(victim)
 		local used = match.SecondWindUsed[victim] or 0
 		if used < victimStats.SecondWindCharges then
 			match.SecondWindUsed[victim] = used + 1
@@ -6359,9 +7080,20 @@ function CombatService.Damage(match, attacker, victim, amount, info)
 	end
 
 	after = math.max(after, 0)
-	local dealt = before - after
+	local dealt = before - after + absorbed
 	match:NoteHit(attacker, victim, info.Headshot == true)
 	humanoid.Health = after
+	if dealt > 0 then
+		lastHurt[victim] = os.clock()
+		-- FIGHT OR FLIGHT: getting hurt gives a burst of speed
+		if after > 0 and victimStats.HurtSpeedTime > 0 then
+			Remotes.Get("Buff"):FireClient(victim, {
+				Type = "SpeedBoost",
+				Multiplier = victimStats.HurtSpeedBoost,
+				Duration = victimStats.HurtSpeedTime,
+			})
+		end
+	end
 
 	if attacker and attacker.Parent then
 		-- VAMPIRE: heal for a fraction of the damage dealt
@@ -6409,8 +7141,27 @@ end
 	Damages any target (player or dummy) and handles Marked.
 	info = { Headshot, Splash }
 ]]
+local function healthFraction(target)
+	if target.Player then
+		local humanoid = CharacterService.GetAliveHumanoid(target.Player)
+		return humanoid and humanoid.Health / math.max(humanoid.MaxHealth, 1) or 0
+	end
+	return (target.Model:GetAttribute("Health") or 0) / math.max(Config.Lobby.DummyHealth or 100, 1)
+end
+
 local function damageTarget(match, attacker, stats, target, amount, info)
 	info = info or {}
+	-- LAST STAND: more damage while you're low
+	if stats.LastStandBonus > 0 and attacker then
+		local attackerHumanoid = CharacterService.GetAliveHumanoid(attacker)
+		if attackerHumanoid and attackerHumanoid.Health <= attackerHumanoid.MaxHealth * PU.LastStand.HealthFraction then
+			amount *= 1 + stats.LastStandBonus
+		end
+	end
+	-- EXECUTIONER: more damage against a target below half health
+	if stats.ExecuteBonus > 0 and healthFraction(target) <= PU.Executioner.HealthFraction then
+		amount *= 1 + stats.ExecuteBonus
+	end
 	-- MARKED: bonus damage against a target you hit recently
 	local key = markKey(target)
 	if stats.MarkBonus > 0 and (markedUntil[key] or 0) > os.clock() then
@@ -6461,7 +7212,7 @@ local function shotMultiplier(stats, shooterCharacter)
 		if stats.AirDamageBonus > 0 then
 			local params = RaycastParams.new()
 			params.FilterType = Enum.RaycastFilterType.Exclude
-			params.FilterDescendantsInstances = { shooterCharacter, effectsFolder, decoyFolder }
+			params.FilterDescendantsInstances = { shooterCharacter, effectsFolder, decoyFolder, barrierFolder }
 			local airborne = workspace:Raycast(root.Position, Vector3.new(0, -4.5, 0), params) == nil
 			if airborne then
 				mult *= 1 + stats.AirDamageBonus
@@ -6477,14 +7228,21 @@ local function shotMultiplier(stats, shooterCharacter)
 	return mult
 end
 
-local function bulletDamage(part, hops, stats, mult)
+local function bulletDamage(part, hops, stats, mult, distance)
 	local zone = Util.hitZone(part.Name)
 	if zone == "Head" then
 		return W.HeadDamage, true -- always an instant kill
 	end
 	local base = zone == "Body" and W.BodyDamage or W.LimbDamage
+	-- LONG SHOT: more damage the further the bullet flew
+	local longShot = 0
+	if stats.LongShotBonus > 0 and distance then
+		local cfg = PU.LongShot
+		longShot = stats.LongShotBonus
+			* math.clamp((distance - cfg.MinDistance) / math.max(cfg.FullDistance - cfg.MinDistance, 1), 0, 1)
+	end
 	-- PINBALL: more damage for every bounce / wall pass before the hit
-	return base * mult * (1 + stats.HopDamageBonus * (hops or 0)), false
+	return base * mult * (1 + stats.HopDamageBonus * (hops or 0)) * (1 + longShot), false
 end
 
 ----------------------------------------------------------------------------
@@ -6594,6 +7352,212 @@ local function staticCharge(match, attacker, stats, mult, targets, sim, exclude,
 end
 
 ----------------------------------------------------------------------------
+-- Wave 2: shields, on-hit effects, acid pools, bleeds
+----------------------------------------------------------------------------
+
+-- Adds shield to a player's character (capped by their MaxShield).
+local function addShield(player, stats, amount)
+	local character = player and player.Character
+	if not character or amount <= 0 or stats.MaxShield <= 0 then
+		return
+	end
+	local current = character:GetAttribute("Shield") or 0
+	character:SetAttribute("Shield", math.min(stats.MaxShield, current + amount))
+end
+
+-- True while effects owned by `owner` (pools, bleeds, domes...) should keep going.
+local function stillActive(match, owner)
+	if not owner or not owner.Parent then
+		return false
+	end
+	if match then
+		return match:IsFighting() and not match.Finished
+	end
+	return MatchService.GetMatch(owner) == nil -- still practising in the lobby
+end
+
+-- The target is still the same living body it was when the effect started.
+local function targetAlive(target)
+	if not target.Model.Parent then
+		return false
+	end
+	if target.Player then
+		local _, character = CharacterService.GetAliveHumanoid(target.Player)
+		return character == target.Model
+	end
+	return (target.Model:GetAttribute("Health") or 0) > 0
+end
+
+-- FROST ROUNDS: slows the target (the client owns its movement, bots are server-side).
+local function slowTarget(match, target, multiplier, duration)
+	local victim = target.Player
+	if victim then
+		if Util.isBot(victim) then
+			victim:SetAttribute("SlowedUntil", os.clock() + duration)
+			victim:SetAttribute("SlowMultiplier", multiplier)
+		else
+			Remotes.Get("Buff"):FireClient(victim, { Type = "Slow", Multiplier = multiplier, Duration = duration })
+		end
+	end
+	sendFx(match, { Type = "Frost", Target = target.Model, Duration = duration })
+end
+
+-- DISRUPTOR ROUNDS: jams every active ability for a moment.
+local function disrupt(victim, duration)
+	cooldowns[victim] = cooldowns[victim] or {}
+	local untilTime = os.clock() + duration * 0.9
+	for _, name in ipairs(DISRUPTABLE) do
+		cooldowns[victim][name] = math.max(cooldowns[victim][name] or 0, untilTime)
+	end
+	if not Util.isBot(victim) then
+		Remotes.Get("Buff"):FireClient(victim, { Type = "Disrupt", Duration = duration })
+	end
+end
+
+-- SERRATED ROUNDS: damage over time (adds to a bleed you already caused).
+local function startBleed(match, attacker, stats, target, amount)
+	local cfg = PU.SerratedRounds
+	local key = markKey(target)
+	local bleed = bleeds[key]
+	if bleed and bleed.Attacker == attacker and bleed.Target.Model == target.Model then
+		bleed.Left += amount
+		bleed.Rate = math.max(bleed.Rate, bleed.Left / cfg.Duration)
+	else
+		bleed = {
+			Attacker = attacker,
+			Match = match,
+			Stats = stats,
+			Target = target,
+			Left = amount,
+			Rate = amount / cfg.Duration,
+			NextTick = os.clock() + cfg.TickInterval,
+		}
+		bleeds[key] = bleed
+	end
+	sendFx(match, { Type = "Bleed", Target = target.Model, Duration = bleed.Left / bleed.Rate })
+end
+
+-- Everything a DIRECT bullet hit does besides damage (once per target per shot).
+local function onBulletHit(match, attacker, stats, mult, target, direction)
+	if stats.ShieldOnHit > 0 then
+		addShield(attacker, stats, stats.ShieldOnHit) -- BLOODLUST
+	end
+	if not targetAlive(target) then
+		return -- (that hit was the kill)
+	end
+	if stats.SlowAmount > 0 then
+		slowTarget(match, target, 1 - stats.SlowAmount, stats.SlowDuration)
+	end
+	if stats.BleedDamage > 0 then
+		startBleed(match, attacker, stats, target, stats.BleedDamage * mult)
+	end
+	if target.Player then
+		-- IMPACT ROUNDS: shove them along the bullet
+		if stats.HitKnockback > 0 then
+			local push = Util.safeUnit(Util.flat(direction), Vector3.zAxis) + Vector3.new(0, PU.ImpactRounds.Lift, 0)
+			knockback(target.Player, push.Unit * stats.HitKnockback)
+		end
+		if stats.DisruptTime > 0 then
+			disrupt(target.Player, stats.DisruptTime)
+		end
+	end
+end
+
+-- ACID ROUNDS: a damaging pool where the shot landed.
+local function spawnPool(match, owner, stats, mult, position, targets)
+	local cfg = PU.AcidRounds
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	local exclude = buildExclude(owner)
+	table.insert(exclude, barrierFolder)
+	table.insert(exclude, smokeFolder)
+	for _, target in ipairs(targets) do
+		table.insert(exclude, target.Model)
+	end
+	params.FilterDescendantsInstances = exclude
+	-- settle on the floor under the impact (a hit on a body drips to the ground)
+	local floor = workspace:Raycast(position + Vector3.new(0, 1, 0), Vector3.new(0, -16, 0), params)
+	local center = floor and floor.Position or position
+
+	-- each player keeps only a few pools: the oldest dries up
+	local mine = {}
+	for i, pool in ipairs(pools) do
+		if pool.Owner == owner then
+			table.insert(mine, i)
+		end
+	end
+	if #mine >= cfg.MaxPools then
+		local oldest = table.remove(pools, mine[1])
+		sendFx(oldest.Match, { Type = "AcidPoolEnd", Id = oldest.Id })
+	end
+
+	nextPoolId += 1
+	table.insert(pools, {
+		Id = nextPoolId,
+		Owner = owner,
+		Match = match,
+		Stats = stats,
+		Mult = mult,
+		Position = center,
+		Radius = stats.AcidRadius,
+		Until = os.clock() + stats.AcidDuration,
+		NextTick = os.clock() + cfg.TickInterval * 0.5,
+	})
+	sendFx(match, {
+		Type = "AcidPool",
+		Id = nextPoolId,
+		Position = center,
+		Radius = stats.AcidRadius,
+		Duration = stats.AcidDuration,
+	})
+end
+
+local function updatePools(now)
+	local cfg = PU.AcidRounds
+	for i = #pools, 1, -1 do
+		local pool = pools[i]
+		if now >= pool.Until or not stillActive(pool.Match, pool.Owner) then
+			table.remove(pools, i)
+			if now < pool.Until then
+				sendFx(pool.Match, { Type = "AcidPoolEnd", Id = pool.Id })
+			end
+		elseif now >= pool.NextTick then
+			pool.NextTick += cfg.TickInterval
+			for _, target in ipairs(getTargets(pool.Owner, pool.Match)) do
+				local torso = getTorso(target.Model)
+				if torso then
+					local offset = torso.Position - pool.Position
+					if Util.flat(offset).Magnitude <= pool.Radius and offset.Y > -2 and offset.Y < cfg.Height then
+						damageTarget(pool.Match, pool.Owner, pool.Stats, target, cfg.TickDamage * pool.Mult, {
+							Splash = true,
+							Position = torso.Position,
+						})
+					end
+				end
+			end
+		end
+	end
+end
+
+local function updateBleeds(now)
+	local cfg = PU.SerratedRounds
+	for key, bleed in pairs(bleeds) do
+		if bleed.Left <= 0.01 or not stillActive(bleed.Match, bleed.Attacker) or not targetAlive(bleed.Target) then
+			bleeds[key] = nil
+		elseif now >= bleed.NextTick then
+			bleed.NextTick += cfg.TickInterval
+			local damage = math.min(bleed.Left, bleed.Rate * cfg.TickInterval)
+			bleed.Left -= damage
+			local torso = getTorso(bleed.Target.Model)
+			damageTarget(bleed.Match, bleed.Attacker, bleed.Stats, bleed.Target, damage, {
+				Splash = true,
+				Position = torso and torso.Position or nil,
+			})
+		end
+	end
+end
+
+----------------------------------------------------------------------------
 -- Fire
 ----------------------------------------------------------------------------
 
@@ -6669,7 +7633,13 @@ local function onFire(player, origin, direction, claims)
 	if (bulletTimeUntil[player] or 0) > now then
 		boltTime /= PU.BulletTime.BoltSpeedScale
 	end
-	if lastFire[player] and now - lastFire[player] < boltTime * W.FireRateTolerance then
+	-- DOUBLE TAP: a follow-up shot only needs the quick bolt
+	local required = boltTime
+	if stats.DoubleTap and quickShotReady[player] then
+		required = math.min(required, PU.DoubleTap.QuickBolt)
+	end
+	local previous = lastFire[player]
+	if previous and now - previous < required * W.FireRateTolerance then
 		return
 	end
 
@@ -6685,8 +7655,32 @@ local function onFire(player, origin, direction, claims)
 		return
 	end
 	lastFire[player] = now
+
+	-- DEADEYE: scoped (and not firing) for the charge time = a charged shot
+	local deadeye = 1
+	if stats.DeadeyeBonus > 0 and scopedSince[player] then
+		local chargedFrom = math.max(scopedSince[player], lastShot[player] or 0)
+		if now - chargedFrom >= PU.Deadeye.ChargeTime * 0.85 then -- (slack for latency)
+			deadeye = 1 + stats.DeadeyeBonus
+		end
+	end
+	lastShot[player] = now
+
+	-- DOUBLE TAP: a full-bolt shot grants a quick follow-up; using it spends it
+	local animBolt = boltTime
+	if stats.DoubleTap then
+		local wasQuick = previous ~= nil and now - previous < boltTime * W.FireRateTolerance
+		if quickShotReady[player] and wasQuick then
+			quickShotReady[player] = nil
+		else
+			quickShotReady[player] = true
+			animBolt = PU.DoubleTap.QuickBolt
+			Remotes.Get("Buff"):FireClient(player, { Type = "Rechamber", Quick = true })
+		end
+	end
+
 	-- everyone's game plays the shot on your character (recoil + bolt)
-	character:SetAttribute("BoltTime", boltTime)
+	character:SetAttribute("BoltTime", animBolt)
 	character:SetAttribute("Shot", ((character:GetAttribute("Shot") or 0) + 1) % 1000)
 
 	-- 5) trace every bullet on the server
@@ -6699,11 +7693,12 @@ local function onFire(player, origin, direction, claims)
 		end
 	end
 	local exclude = buildExclude(player)
-	local mult = shotMultiplier(stats, character)
+	local mult = shotMultiplier(stats, character) * deadeye
 	local shardBudget = { Left = PU.Shrapnel.MaxShardsPerShot }
 	local shardSegments = {}
 	local zapped = {}
 	local anyHit = false
+	local hitOnce = {} -- [model] = true: on-hit effects apply once per target per shot
 
 	local fx = {}
 	for i, dir in ipairs(Ballistics.GetShotDirections(direction.Unit, stats.Bullets)) do
@@ -6751,14 +7746,25 @@ local function onFire(player, origin, direction, claims)
 
 		if hitTarget then
 			anyHit = true
-			local damage, headshot = bulletDamage(hitPart, hops, stats, mult)
+			local damage, headshot = bulletDamage(hitPart, hops, stats, mult, (hitPos - origin).Magnitude)
 			damageTarget(match, player, stats, hitTarget, damage, { Headshot = headshot, Position = hitPos })
+			if not hitOnce[hitTarget.Model] then
+				hitOnce[hitTarget.Model] = true
+				onBulletHit(match, player, stats, mult, hitTarget, dir)
+			end
 		elseif stats.StaticChargeDamage > 0 then
 			staticCharge(match, player, stats, mult, targets, sim, exclude, zapped)
 		end
 
 		if stats.Explosive then
 			explode(match, player, stats, mult, targets, hitPos or sim.EndPosition, hitTarget and hitTarget.Model)
+		end
+		-- ACID ROUNDS: one pool per trigger pull, where the first bullet landed
+		if stats.AcidPool and i == 1 then
+			local landing = hitPos or sim.EndPosition
+			if landing and (landing - origin).Magnitude < W.MaxRange - 1 then
+				spawnPool(match, player, stats, mult, landing, targets)
+			end
 		end
 		if stats.ShrapnelCount > 0 then
 			for _, seg in ipairs(shrapnel(match, player, stats, mult, targets, sim.Impacts, exclude, shardBudget)) do
@@ -6783,6 +7789,20 @@ local function onFire(player, origin, direction, claims)
 	if anyHit and stats.HairTrigger then
 		lastFire[player] = now - boltTime
 		Remotes.Get("Buff"):FireClient(player, { Type = "Rechamber" })
+	end
+
+	-- SONAR: the opponent sees where this shot came from, through walls
+	if match then
+		local opponent = match:GetOpponent(player)
+		local opponentStats = match:GetStats(opponent)
+		if opponent.Parent and opponentStats.SonarTime > 0 then
+			Remotes.Get("Effect"):FireClient(opponent, {
+				Type = "Reveal",
+				Target = character,
+				Position = head.Position,
+				Duration = opponentStats.SonarTime,
+			})
+		end
 	end
 
 	-- Let others draw this shot (the shooter already drew it locally):
@@ -6868,7 +7888,7 @@ local function spawnDecoy(player, match, direction)
 
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
-	params.FilterDescendantsInstances = { decoyFolder, effectsFolder, character }
+	params.FilterDescendantsInstances = { decoyFolder, effectsFolder, character, barrierFolder } -- (decoys run through domes)
 
 	local alive = 0
 	local connection
@@ -6911,6 +7931,153 @@ local function spawnDecoys(player, match, direction, count)
 		local dir = CFrame.fromAxisAngle(Vector3.yAxis, offset):VectorToWorldSpace(direction)
 		spawnDecoy(player, match, dir)
 	end
+end
+
+-- Shows an ability effect to everyone who should see it except its user
+-- (they already drew it themselves).
+local function sendFxToOthers(player, match, data)
+	local remote = Remotes.Get("Effect")
+	if match then
+		local opponent = match:GetOpponent(player)
+		if opponent.Parent then
+			remote:FireClient(opponent, data)
+		end
+		return
+	end
+	for _, other in ipairs(Players:GetPlayers()) do
+		if other ~= player and not MatchService.GetMatch(other) then
+			remote:FireClient(other, data)
+		end
+	end
+end
+
+-- Everyone who can fight: real players and bots.
+local function everyone()
+	local list = Players:GetPlayers()
+	for bot in pairs(CharacterService.Bots) do
+		table.insert(list, bot)
+	end
+	return list
+end
+
+-- BARRIER DOME: a shell around you that stops every bullet (both ways)
+-- for a few seconds. It's a plain queryable part, so the shared
+-- Ballistics code treats it like a wall: Ghost Round passes it, Ricochet
+-- bounces off it, explosions still splash through.
+local function spawnBarrier(player, match, position, stats)
+	for i = #barriers, 1, -1 do
+		if barriers[i].Owner == player then
+			barriers[i].Part:Destroy()
+			table.remove(barriers, i)
+		end
+	end
+	local radius = stats.BarrierRadius
+	local dome = Instance.new("Part")
+	dome.Name = "BarrierDome"
+	dome.Shape = Enum.PartType.Ball
+	dome.Size = Vector3.one * radius * 2
+	dome.CFrame = CFrame.new(position)
+	dome.Anchored = true
+	dome.CanCollide = false -- you walk through it...
+	dome.CanTouch = false
+	dome.CanQuery = true -- ...bullets don't
+	dome.CastShadow = false
+	dome.Material = Enum.Material.ForceField
+	dome.Color = match and match:ColorFor(player) or Config.Palette.Hologram
+	dome:SetAttribute("OwnerUserId", player.UserId)
+	dome.Parent = barrierFolder
+	table.insert(barriers, { Part = dome, Owner = player, Match = match, Until = os.clock() + stats.BarrierDuration })
+	sendFx(match, { Type = "Barrier", Position = position, Radius = radius, Duration = stats.BarrierDuration })
+end
+
+-- SMOKE GRENADE: a cloud of solid puffs (they hide you, and highlights,
+-- like walls do) that bullets pass straight through (CanQuery = false).
+local function spawnSmoke(owner, match, center, radius, duration)
+	local cloud = Instance.new("Model")
+	cloud.Name = "SmokeCloud"
+	local rng = Random.new()
+	local count = 12
+	for i = 1, count do
+		local angle = (i / count) * math.pi * 2 + rng:NextNumber(0, 0.6)
+		local distance = i <= 2 and rng:NextNumber(0, radius * 0.2) or radius * rng:NextNumber(0.35, 0.75)
+		local size = radius * (i <= 2 and 1.5 or rng:NextNumber(0.8, 1.2))
+		local height = size * 0.38 + rng:NextNumber(0, radius * 0.35)
+		local puff = Instance.new("Part")
+		puff.Name = "Puff"
+		puff.Shape = Enum.PartType.Ball
+		puff.Size = Vector3.one * 2
+		puff.CFrame = CFrame.new(center + Vector3.new(math.cos(angle) * distance, height, math.sin(angle) * distance))
+		puff.Anchored = true
+		puff.CanCollide = false
+		puff.CanQuery = false -- bullets fly straight through smoke
+		puff.CanTouch = false
+		puff.CastShadow = false
+		puff.Material = Enum.Material.SmoothPlastic
+		puff.Color = Color3.fromRGB(206, 210, 218):Lerp(Color3.fromRGB(240, 242, 246), rng:NextNumber())
+		puff.Parent = cloud
+		TweenService:Create(puff, TweenInfo.new(rng:NextNumber(0.5, 0.9), Enum.EasingStyle.Quint), {
+			Size = Vector3.one * size,
+		}):Play()
+	end
+	cloud:SetAttribute("OwnerUserId", owner.UserId)
+	cloud.Parent = smokeFolder
+	table.insert(smokes, { Model = cloud, Owner = owner, Match = match, Until = os.clock() + duration })
+end
+
+local function throwSmoke(player, match, character, direction, stats)
+	local head = character:FindFirstChild("Head")
+	if not head then
+		return
+	end
+	local cfg = PU.SmokeGrenade
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	local exclude = buildExclude(player)
+	table.insert(exclude, barrierFolder)
+	table.insert(exclude, smokeFolder)
+	for _, target in ipairs(getTargets(player, match)) do
+		table.insert(exclude, target.Model)
+	end
+	params.FilterDescendantsInstances = exclude
+	local from = head.Position
+	local ray = workspace:Raycast(from, direction * cfg.Range, params)
+	local landing = ray and (ray.Position + ray.Normal * 1.5) or (from + direction * cfg.Range)
+	local floor = workspace:Raycast(landing + Vector3.new(0, 1, 0), Vector3.new(0, -60, 0), params)
+	local center = floor and floor.Position or landing
+	sendFx(match, { Type = "SmokeThrow", From = from, To = center })
+	local radius, duration = stats.SmokeRadius, stats.SmokeDuration
+	task.delay(0.4, function()
+		if stillActive(match, player) then
+			spawnSmoke(player, match, center, radius, duration)
+		end
+	end)
+end
+
+-- RECALL: the client rewinds itself (it owns its character); the server
+-- checks you really were there a moment ago and heals back what you lost.
+local function recall(player, match, character, humanoid, root, data, stats)
+	local cfg = PU.Recall
+	local now = os.clock()
+	local plausible, past = false, nil
+	for _, sample in ipairs(history[player] or {}) do
+		if sample.Character == character then
+			if (sample.Position - data.To).Magnitude <= cfg.PositionTolerance then
+				plausible = true
+			end
+			if not past or math.abs(now - sample.T - cfg.Rewind) < math.abs(now - past.T - cfg.Rewind) then
+				past = sample
+			end
+		end
+	end
+	if not plausible then
+		return
+	end
+	if past and past.Health > humanoid.Health then
+		local heal = math.min(past.Health - humanoid.Health, stats.RecallHealCap)
+		humanoid.Health = math.min(humanoid.MaxHealth, humanoid.Health + heal)
+	end
+	local from = Util.isFiniteVector3(data.From) and data.From or root.Position
+	sendFxToOthers(player, match, { Type = "Recall", From = from, To = data.To, UserId = player.UserId })
 end
 
 local function onAbility(player, name, data)
@@ -6982,6 +8149,23 @@ local function onAbility(player, name, data)
 					sendFx(nil, fxData)
 				end
 			end
+		end
+	elseif name == "AirDash" and stats.AirDash and root then
+		if useCooldown(player, name, PU.AirDash.Cooldown * 0.5) then
+			sendFxToOthers(player, match, { Type = "Dash", Position = root.Position, UserId = player.UserId })
+		end
+	elseif name == "Barrier" and stats.Barrier and root then
+		if useCooldown(player, name, PU.BarrierDome.Cooldown * 0.9) then
+			spawnBarrier(player, match, root.Position, stats)
+		end
+	elseif name == "Smoke" and stats.Smoke and root then
+		local dir = data.Direction
+		if Util.isFiniteVector3(dir) and dir.Magnitude > 0.5 and useCooldown(player, name, stats.SmokeCooldown * 0.9) then
+			throwSmoke(player, match, character, dir.Unit, stats)
+		end
+	elseif name == "Recall" and stats.Recall and root then
+		if Util.isFiniteVector3(data.To) and useCooldown(player, name, stats.RecallCooldown * 0.85) then
+			recall(player, match, character, humanoid, root, data, stats)
 		end
 	elseif name == "GrappleStart" and stats.Grapple and root then
 		if Util.isFiniteVector3(data.Point) and (data.Point - root.Position).Magnitude < Config.Movement.GrappleRange + 30 then
@@ -7093,13 +8277,27 @@ local function onMelee(player, kind, targetModel, look)
 	if victimFacing and fromVictim and victimFacing:Dot(fromVictim) < -math.cos(math.rad(K.BackstabAngle)) then
 		backstab = true
 	end
-	local damage = backstab and K.BackstabDamage or (kind == "Stab" and K.StabDamage or K.SlashDamage)
 	local stats = getStats(player, match)
+	-- KEEN EDGE: sharper knife
+	local damage = backstab and K.BackstabDamage
+		or (kind == "Stab" and K.StabDamage or K.SlashDamage) * stats.KnifeDamageMultiplier
 	damageTarget(match, player, stats, target, damage, {
 		Position = torso.Position,
 		Melee = true,
 		Backstab = backstab,
 	})
+	-- BLOODLUST: knife hits give shield too
+	if stats.ShieldOnHit > 0 then
+		addShield(player, stats, stats.ShieldOnHit)
+	end
+	-- HUNTER'S KNIFE: a knife hit = a burst of speed
+	if stats.KnifeHitBoost then
+		Remotes.Get("Buff"):FireClient(player, {
+			Type = "SpeedBoost",
+			Multiplier = PU.HuntersKnife.BoostMultiplier,
+			Duration = PU.HuntersKnife.BoostTime,
+		})
+	end
 end
 
 -- Cosmetic animation events everyone should see on your character:
@@ -7115,6 +8313,8 @@ local function onAnim(player, kind, value, variant)
 		-- a state, not an event: always take the latest (it's only sent on change)
 		if typeof(value) == "boolean" then
 			character:SetAttribute("Scoped", value)
+			-- DEADEYE charges while you stay scoped
+			scopedSince[player] = value and (scopedSince[player] or os.clock()) or nil
 		end
 		return
 	end
@@ -7141,12 +8341,132 @@ local function onEquip(player, weapon)
 	end
 end
 
+-- Wave 2 per-player state (shared by Forget and PlayerRemoving).
+local function forgetWave2(player)
+	lastShot[player] = nil
+	scopedSince[player] = nil
+	quickShotReady[player] = nil
+	lastHurt[player] = nil
+	history[player] = nil
+	bleeds[player] = nil
+	for key, bleed in pairs(bleeds) do
+		if bleed.Attacker == player then
+			bleeds[key] = nil
+		end
+	end
+	for i = #barriers, 1, -1 do
+		if barriers[i].Owner == player then
+			barriers[i].Part:Destroy()
+			table.remove(barriers, i)
+		end
+	end
+	for i = #smokes, 1, -1 do
+		if smokes[i].Owner == player then
+			smokes[i].Model:Destroy()
+			table.remove(smokes, i)
+		end
+	end
+	-- (acid pools stop by themselves once their owner is gone)
+end
+
 function CombatService.Forget(player)
 	lastMelee[player] = nil
 	lastFire[player] = nil
 	cooldowns[player] = nil
 	bulletTimeUntil[player] = nil
 	markedUntil[player] = nil
+	forgetWave2(player)
+end
+
+----------------------------------------------------------------------------
+-- Wave 2 per-frame upkeep: acid pools, bleeds, domes, smoke, regeneration,
+-- and the short position/health history Recall checks against.
+----------------------------------------------------------------------------
+local nextHistory = 0
+
+local function updateBarriers(now)
+	for i = #barriers, 1, -1 do
+		local barrier = barriers[i]
+		if now >= barrier.Until or not barrier.Part.Parent or not stillActive(barrier.Match, barrier.Owner) then
+			table.remove(barriers, i)
+			local part = barrier.Part
+			if part.Parent then
+				part.CanQuery = false -- stops blocking straight away
+				TweenService:Create(part, TweenInfo.new(0.25), { Size = Vector3.one * 0.5 }):Play()
+				task.delay(0.3, function()
+					part:Destroy()
+				end)
+			end
+		end
+	end
+end
+
+local function updateSmokes(now)
+	for i = #smokes, 1, -1 do
+		local cloud = smokes[i]
+		if not cloud.Fading and (now >= cloud.Until - 1 or not stillActive(cloud.Match, cloud.Owner)) then
+			cloud.Fading = true
+			cloud.Until = math.min(cloud.Until, now + 1)
+			for _, puff in ipairs(cloud.Model:GetChildren()) do
+				if puff:IsA("BasePart") then
+					TweenService:Create(puff, TweenInfo.new(1), { Transparency = 1 }):Play()
+				end
+			end
+		end
+		if now >= cloud.Until then
+			table.remove(smokes, i)
+			cloud.Model:Destroy()
+		end
+	end
+end
+
+local function updatePlayers(now, dt)
+	local sample = now >= nextHistory
+	if sample then
+		nextHistory = now + 0.1
+	end
+	for _, player in ipairs(everyone()) do
+		local match = MatchService.GetMatch(player)
+		if match or not Util.isBot(player) then
+			local stats = getStats(player, match)
+			local humanoid, character = CharacterService.GetAliveHumanoid(player)
+
+			-- REGENERATION (live rounds, or the lobby)
+			if humanoid and stats.RegenRate > 0 and (not match or match:IsFighting()) then
+				if now - (lastHurt[player] or 0) >= stats.RegenDelay and humanoid.Health < humanoid.MaxHealth then
+					humanoid.Health = math.min(humanoid.MaxHealth, humanoid.Health + stats.RegenRate * dt)
+				end
+			end
+
+			-- RECALL history
+			if sample then
+				local list = history[player]
+				local root = character and character:FindFirstChild("HumanoidRootPart")
+				if stats.Recall and root then
+					list = list or {}
+					history[player] = list
+					table.insert(list, { T = now, Position = root.Position, Health = humanoid.Health, Character = character })
+				end
+				if list then
+					while list[1] and now - list[1].T > PU.Recall.Rewind + 1.5 do
+						table.remove(list, 1)
+					end
+					if not stats.Recall then
+						history[player] = nil
+					end
+				end
+			end
+		end
+	end
+end
+
+local function upkeep(dt)
+	local now = os.clock()
+	updatePools(now)
+	updateBleeds(now)
+	updateBarriers(now)
+	updateSmokes(now)
+	updatePlayers(now, dt)
 end
 
 -- Bots shoot through the exact same validation and damage code as players.
@@ -7171,6 +8491,21 @@ function CombatService.Init()
 	decoyFolder.Name = "Decoys"
 	decoyFolder.Parent = workspace
 
+	barrierFolder = Instance.new("Folder")
+	barrierFolder.Name = "Barriers"
+	barrierFolder.Parent = workspace
+
+	smokeFolder = Instance.new("Folder")
+	smokeFolder.Name = "Smoke"
+	smokeFolder.Parent = workspace
+
+	RunService.Heartbeat:Connect(function(dt)
+		local ok, err = pcall(upkeep, dt)
+		if not ok then
+			warn("[Combat] upkeep:", err)
+		end
+	end)
+
 	Remotes.Get("Fire").OnServerEvent:Connect(onFire)
 	Remotes.Get("Ability").OnServerEvent:Connect(onAbility)
 	Remotes.Get("Aim").OnServerEvent:Connect(onAim)
@@ -7186,6 +8521,7 @@ function CombatService.Init()
 		cooldowns[player] = nil
 		bulletTimeUntil[player] = nil
 		markedUntil[player] = nil
+		forgetWave2(player)
 		for _, d in ipairs(decoyFolder:GetChildren()) do
 			if d:GetAttribute("OwnerUserId") == player.UserId then
 				d:Destroy()
@@ -8662,12 +9998,6 @@ function LobbyBuilder.Build()
 			for f = 0, 3 do -- fluting
 				b.part(V(0.3, WALL_H - 4, 2.75), CFrame.new(base + V(0, WALL_H / 2, 0)) * CFrame.Angles(0, f * math.pi / 4, 0), C.Stone)
 			end
-			if i % 2 == 0 then -- potted plant at the base
-				local pot = polar(COL_R - 3, deg, 0)
-				b.cylinder(1.6, 2.4, pot + V(0, 0.8, 0), C.Trim)
-				b.cylinder(0.12, 2.1, pot + V(0, 1.64, 0), C.Soil)
-				bush(b, pot + V(0, 1.4, 0), 0.75)
-			end
 			-- banners between columns: the SNIPER DUEL logo, trimmed in team colours
 			-- (none in front of the four main signs: north, east, south, west)
 			if (deg + 15) % 90 ~= 0 then
@@ -8785,6 +10115,8 @@ function LobbyBuilder.Build()
 	plaque.Color = C.Metal
 	plaque.Material = Enum.Material.Metal
 	plaque.Parent = model
+	-- a mount behind it, so the flat plaque doesn't hang off the round plinth
+	b.part(V(3.7, 1.3, 0.6), CFrame.lookAt(V(0, pitY + 1.15, 4.18), V(0, pitY + 1.15, 10)), C.Trim)
 	Logo.OnPart(plaque, Enum.NormalId.Front, { Layout = "Inline", Color = P.UIText, Accent = P.AccentA, Stroke = 3 }, 60)
 
 	-- benches around the pit, facing the monument
@@ -8835,8 +10167,8 @@ function LobbyBuilder.Build()
 			lampPost(b, (frame * CFrame.new(s * 7, 0, 0)).Position)
 		end
 	end
-	for _, deg in ipairs({ 45, 135, 225, 315 }) do
-		path(b, stepTop, 46, deg, 6, C.Stone)
+	for _, deg in ipairs({ 45, 135, 225, 315 }) do -- all the way to the wall (NW ends at the portal)
+		path(b, stepTop, deg == 315 and 45.2 or R - 1, deg, 6, C.Stone)
 	end
 	-- planters + flowers between the paths
 	for k = 0, 7 do
@@ -9057,15 +10389,6 @@ function LobbyBuilder.Build()
 	end)
 	sign(model, V(16, 3.2, 0.5), CFrame.lookAt(V(-60.4, 15.4, 0), V(0, 15.4, 0)), "CRATE VAULT", "OPEN CRATES  -  SKINS  -  SHOP [M]", P.AccentB)
 
-	-- BINS ---------------------------------------------------------------------------------
-	for _, deg in ipairs({ 20, 160, 200, 340 }) do -- bins by the paths
-		local pos = polar(31, deg, 0)
-		b.decor(function()
-			b.cylinder(2.4, 1.6, pos + V(0, 1.2, 0), C.Metal)
-			b.cylinder(0.3, 1.8, pos + V(0, 2.5, 0), C.Dark)
-		end)
-	end
-
 	-- SOUTH: STAGE --------------------------------------------------------------------------
 	b.block(V(36, 3, 12), V(0, 1.5, 55), C.Stone)
 	b.ramp(V(0, 0, 44), V(0, 0, 1), 5, 3, 16, C.Stone)
@@ -9124,7 +10447,7 @@ function LobbyBuilder.Build()
 			b.ball(1.4 + (k % 2) * 0.6, pos, C.Concrete) -- rocks
 		end
 	end)
-	bench(b, facingIn(44, 40, 0))
+	bench(b, facingIn(42, 36, 0)) -- (between the pond and the diagonal path)
 
 	-- NORTH-WEST: PLAYGROUND PORTAL -----------------------------------------------------------
 	local portalDeg = 315
@@ -9857,6 +11180,7 @@ function Match:SpawnPlayers()
 				Frozen = true,
 				KillY = self.Arena.FloorY - Config.Match.VoidDepth,
 				PowerUps = self.Owned[player],
+				Shield = stats.StartShield, -- Overshield: a fresh shield every round
 			})
 			done += 1
 			-- a slow spawn (avatar download) can finish after the round started
@@ -10210,6 +11534,7 @@ local function spawnInLobby(player)
 			MaxHealth = MatchService.GetPracticeStats(player).MaxHealth,
 			PowerUps = practiceOwned[player],
 			KillY = arena.FloorY - Config.Match.VoidDepth,
+			Shield = MatchService.GetPracticeStats(player).StartShield,
 		})
 		sendLobbyState(player)
 		return
@@ -10221,6 +11546,7 @@ local function spawnInLobby(player)
 		MaxHealth = MatchService.GetPracticeStats(player).MaxHealth,
 		KillY = lobby.KillY,
 		PowerUps = practiceOwned[player],
+		Shield = MatchService.GetPracticeStats(player).StartShield,
 	})
 	sendLobbyState(player)
 end
@@ -10710,10 +12036,11 @@ function MatchService.Init()
 		practiceOwned[player] = owned
 		practiceStats[player] = nil
 		-- Thick Skin etc. apply right away
-		local humanoid = CharacterService.GetAliveHumanoid(player)
+		local humanoid, character = CharacterService.GetAliveHumanoid(player)
 		if humanoid then
 			humanoid.MaxHealth = MatchService.GetPracticeStats(player).MaxHealth
 			humanoid.Health = humanoid.MaxHealth
+			character:SetAttribute("Shield", MatchService.GetPracticeStats(player).StartShield) -- Overshield
 		end
 		CharacterService.RefreshWorldGun(player, owned)
 		sendLobbyState(player)
@@ -13848,7 +15175,10 @@ return CrateController
 		kills       the body shatters into flat shards, headshots get a red burst
 		movement    landing dust ring, jump puff, slide dust
 		powers      shrapnel, static zaps, blink trail, grapple rope, marks,
-		            wallhack pulse, Bullet Time / Phantom Step tints
+		            wallhack pulse, Bullet Time / Phantom Step tints,
+		            acid pools, frost / bleed on the target, sonar reveals,
+		            recall + air dash trails, smoke throws (and the fog you
+		            see from inside a smoke cloud), barrier domes going up
 
 	Local effects live in a folder inside the camera so they never block
 	bullets or movement raycasts.
@@ -13880,6 +15210,9 @@ local localRope = { Point = nil, Part = nil }
 local enemyRopes = {} -- [userId] = { Point, Part }
 local bulletTimeCC
 local bulletTimeOn = false
+local acidPools = {} -- [id] = the pool's parts (Acid Rounds)
+local smokeCC, smokeBlur -- the fog inside a smoke cloud
+local smokeFog = 0
 
 ----------------------------------------------------------------------------
 -- Building blocks
@@ -14391,6 +15724,121 @@ function Effects.PhantomFlash()
 	end
 end
 
+-- A short full-screen tint that fades out (Frost, Disruptor...).
+local function screenTint(color, saturation, time)
+	local cc = Instance.new("ColorCorrectionEffect")
+	cc.TintColor = color
+	cc.Saturation = saturation or 0
+	cc.Parent = workspace.CurrentCamera
+	TweenService:Create(cc, TweenInfo.new(time, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+		TintColor = Color3.new(1, 1, 1),
+		Saturation = 0,
+	}):Play()
+	Debris:AddItem(cc, time + 0.1)
+end
+
+-- A highlight on a model for a while (Frost, Sonar...). `name` replaces an
+-- older one of the same kind on the same model.
+local tags = { Frost = setmetatable({}, { __mode = "k" }), Sonar = setmetatable({}, { __mode = "k" }) }
+local function tagModel(model, name, fill, outline, depthMode, duration)
+	if typeof(model) ~= "Instance" or not model.Parent then
+		return
+	end
+	local old = tags[name][model]
+	if old then
+		old:Destroy()
+	end
+	local highlight = Instance.new("Highlight")
+	tags[name][model] = highlight
+	highlight.Name = name
+	highlight.DepthMode = depthMode
+	highlight.FillColor = fill
+	highlight.FillTransparency = 0.5
+	highlight.OutlineColor = outline
+	highlight.OutlineTransparency = 0
+	highlight.Adornee = model
+	highlight.Parent = getFolder()
+	Debris:AddItem(highlight, duration)
+end
+
+local function torsoOf(model)
+	return model and (model:FindFirstChild("UpperTorso") or model:FindFirstChild("Torso") or model:FindFirstChild("HumanoidRootPart"))
+end
+
+-- FROST ROUNDS: you've been chilled.
+function Effects.Chill(duration)
+	screenTint(Color3.fromRGB(170, 215, 255), -0.4, math.max(duration, 0.3))
+	Sfx.Play("Hurt", { Pitch = 1.6, Volume = 0.4 })
+end
+
+-- DISRUPTOR ROUNDS: your abilities are jammed.
+function Effects.Jammed(duration)
+	screenTint(Color3.fromRGB(170, 180, 255), -0.6, math.min(duration, 1))
+	if Controllers.HUD then
+		Controllers.HUD.Flash(Color3.fromRGB(90, 110, 230), "JAMMED")
+	end
+end
+
+-- AIR DASH: a burst of wind behind you.
+function Effects.Dash(position, direction)
+	if not position then
+		return
+	end
+	local back = position - (direction or Vector3.zero) * 2
+	puff(back, Color3.fromRGB(150, 210, 255), 2.2, 0.3, true)
+	emit(back, "Dust", Color3.fromRGB(220, 235, 255), 8, direction and -direction or nil)
+end
+
+-- RECALL: a golden streak back to where you were.
+function Effects.Recall(from, to)
+	if not from or not to then
+		return
+	end
+	local color = Color3.fromRGB(255, 205, 90)
+	puff(from, color, 3, 0.45, true)
+	puff(to, Color3.fromRGB(255, 240, 190), 3.5, 0.5, true)
+	tracer(from, to, color, 0.35, 0.6)
+	ring(to - Vector3.new(0, 2.5, 0), color, 6, 0.5, true)
+	emit(to, "Sparks", color, 16)
+	lightFlash(to, color, 4, 16, 0.35)
+	Sfx.PlayAt("Dash", to, { Pitch = 0.75 })
+end
+
+-- SMOKE GRENADE: inside a cloud everything turns to grey fog.
+local function updateSmokeFog(dt)
+	local camera = workspace.CurrentCamera
+	if not smokeCC or smokeCC.Parent ~= camera then
+		smokeCC = Instance.new("ColorCorrectionEffect")
+		smokeCC.Name = "SmokeFog"
+		smokeCC.Parent = camera
+		smokeBlur = Instance.new("BlurEffect")
+		smokeBlur.Name = "SmokeBlur"
+		smokeBlur.Size = 0
+		smokeBlur.Parent = camera
+	end
+	local inside = false
+	local folder = workspace:FindFirstChild("Smoke")
+	if folder then
+		local eye = camera.CFrame.Position
+		for _, puffPart in ipairs(folder:GetDescendants()) do
+			if puffPart:IsA("BasePart") and puffPart.Transparency < 0.7
+				and (puffPart.Position - eye).Magnitude < puffPart.Size.X * 0.5 then
+				inside = true
+				break
+			end
+		end
+	end
+	local goal = inside and 1 or 0
+	local step = dt * 4
+	smokeFog = math.abs(goal - smokeFog) <= step and goal or smokeFog + math.sign(goal - smokeFog) * step
+	smokeCC.Brightness = 0.35 * smokeFog
+	smokeCC.Contrast = -0.6 * smokeFog
+	smokeCC.Saturation = -0.8 * smokeFog
+	smokeBlur.Size = 22 * smokeFog
+	smokeCC.Enabled = smokeFog > 0
+	smokeBlur.Enabled = smokeFog > 0
+end
+
 ----------------------------------------------------------------------------
 -- Wallhack Pulse
 ----------------------------------------------------------------------------
@@ -14522,6 +15970,131 @@ local function onEffect(data)
 		end
 	elseif t == "Blink" then
 		Effects.Blink(data.From, data.To)
+	elseif t == "AcidPool" then
+		-- ACID ROUNDS: a bubbling green puddle
+		local p, radius = data.Position, data.Radius or 7
+		local duration = data.Duration or 3
+		local color = Color3.fromRGB(120, 230, 60)
+		local disc = fxPart(
+			Vector3.new(0.25, radius * 2, radius * 2),
+			CFrame.new(p + Vector3.new(0, 0.1, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+			color,
+			Enum.PartType.Cylinder,
+			true
+		)
+		disc.Transparency = 0.45
+		local rim = fxPart(
+			Vector3.new(0.15, radius * 2.15, radius * 2.15),
+			CFrame.new(p + Vector3.new(0, 0.05, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+			Color3.fromRGB(70, 150, 40),
+			Enum.PartType.Cylinder
+		)
+		rim.Transparency = 0.3
+		emit(p + Vector3.new(0, 0.5, 0), "Smoke", color, 6)
+		if FX.Particles then
+			local attachment = anchorAt(p + Vector3.new(0, 0.3, 0), duration + 1)
+			local bubbles = Instance.new("ParticleEmitter")
+			bubbles.Texture = FX.SparkTexture
+			bubbles.Color = ColorSequence.new(color)
+			bubbles.LightEmission = 0.6
+			bubbles.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.35), NumberSequenceKeypoint.new(1, 0) })
+			bubbles.Lifetime = NumberRange.new(0.4, 0.8)
+			bubbles.Speed = NumberRange.new(2, 5)
+			bubbles.SpreadAngle = Vector2.new(25, 25)
+			bubbles.Rate = 10 + radius * 2
+			bubbles.Shape = Enum.ParticleEmitterShape.Disc
+			bubbles.ShapeInOut = Enum.ParticleEmitterShapeInOut.Outward
+			bubbles.Orientation = Enum.ParticleOrientation.FacingCamera
+			attachment.WorldCFrame = CFrame.new(p + Vector3.new(0, 0.3, 0))
+			bubbles.Parent = attachment
+			task.delay(duration, function()
+				bubbles.Enabled = false
+			end)
+		end
+		Sfx.PlayAt("Hit", p, { Pitch = 0.6, Volume = 0.5 })
+		local parts = { disc, rim }
+		if data.Id then
+			acidPools[data.Id] = parts
+		end
+		task.delay(math.max(duration - 0.4, 0), function()
+			for _, part in ipairs(parts) do
+				if part.Parent then
+					fadeOut(part, 0.4)
+				end
+			end
+			if data.Id then
+				acidPools[data.Id] = nil
+			end
+		end)
+	elseif t == "AcidPoolEnd" then
+		for _, part in ipairs(acidPools[data.Id] or {}) do
+			if part.Parent then
+				fadeOut(part, 0.3)
+			end
+		end
+		acidPools[data.Id] = nil
+	elseif t == "Frost" then
+		-- FROST ROUNDS: the target frosts over
+		tagModel(data.Target, "Frost", Color3.fromRGB(170, 225, 255), Color3.fromRGB(230, 245, 255), Enum.HighlightDepthMode.Occluded, data.Duration or 1.5)
+		local torso = torsoOf(data.Target)
+		if torso then
+			emit(torso.Position, "Sparks", Color3.fromRGB(190, 235, 255), 18)
+			puff(torso.Position, Color3.fromRGB(200, 235, 255), 2.5, 0.35, true)
+		end
+	elseif t == "Bleed" then
+		-- SERRATED ROUNDS: drips while the bleed lasts
+		local torso = torsoOf(data.Target)
+		if torso and FX.Particles then
+			local old = torso:FindFirstChild("BleedFx")
+			if old then
+				old:Destroy()
+			end
+			local drips = Instance.new("ParticleEmitter")
+			drips.Name = "BleedFx"
+			drips.Texture = FX.SparkTexture
+			drips.Color = ColorSequence.new(Color3.fromRGB(200, 20, 40))
+			drips.LightEmission = 0.2
+			drips.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.3), NumberSequenceKeypoint.new(1, 0.05) })
+			drips.Lifetime = NumberRange.new(0.4, 0.7)
+			drips.Speed = NumberRange.new(1, 3)
+			drips.SpreadAngle = Vector2.new(60, 60)
+			drips.Acceleration = Vector3.new(0, -30, 0)
+			drips.Rate = 18
+			drips.Parent = torso
+			Debris:AddItem(drips, math.clamp(data.Duration or 2.5, 0.3, 8))
+		end
+	elseif t == "Reveal" then
+		-- SONAR: the enemy fired - see them through walls for a moment
+		tagModel(data.Target, "Sonar", Color3.fromRGB(60, 230, 190), Color3.new(1, 1, 1), Enum.HighlightDepthMode.AlwaysOnTop, data.Duration or 1.2)
+		if data.Position then
+			ring(data.Position, Color3.fromRGB(60, 230, 190), 8, 0.6, true)
+		end
+		Sfx.Play("Ability", { Pitch = 1.9, Volume = 0.45 })
+	elseif t == "Recall" then
+		Effects.Recall(data.From, data.To)
+	elseif t == "Dash" then
+		Effects.Dash(data.Position, nil)
+		Sfx.PlayAt("Dash", data.Position, { Pitch = 1.45 })
+	elseif t == "SmokeThrow" then
+		-- SMOKE GRENADE: a quick lob (the cloud itself is built by the server)
+		if data.From and data.To then
+			local mid = (data.From + data.To) / 2 + Vector3.new(0, math.min((data.To - data.From).Magnitude * 0.25, 20), 0)
+			tracer(data.From, mid, Color3.fromRGB(200, 205, 215), 0.18, 0.5)
+			tracer(mid, data.To, Color3.fromRGB(200, 205, 215), 0.18, 0.5)
+			task.delay(0.35, function()
+				emit(data.To + Vector3.new(0, 1, 0), "Smoke", Color3.fromRGB(220, 224, 232), 24)
+				Sfx.PlayAt("Explosion", data.To, { Pitch = 1.6, Volume = 0.4 })
+			end)
+		end
+	elseif t == "Barrier" then
+		-- BARRIER DOME going up
+		local p = data.Position
+		if p then
+			ring(p - Vector3.new(0, 2.5, 0), Palette.Hologram, (data.Radius or 8) * 1.2, 0.45, true)
+			emit(p, "Sparks", Palette.Hologram, 20)
+			lightFlash(p, Palette.Hologram, 3, 18, 0.4)
+			Sfx.PlayAt("Ability", p, { Pitch = 0.6, Volume = 0.8 })
+		end
 	elseif t == "GrappleEnd" then
 		local rope = enemyRopes[data.UserId]
 		if rope then
@@ -14547,6 +16120,7 @@ local function updateRopes(dt)
 		updateRope(rope, hand and hand.Position or nil)
 	end
 	updateMovementFx(dt)
+	updateSmokeFog(dt)
 end
 
 -- Legendary skins: their glowing trims pulse between two colours (parts
@@ -15002,6 +16576,11 @@ return FirstPersonView
 	rebindable.
 
 	Usage:  if Keybinds.Matches("Jump", input) then ... end
+
+	Gamepad note: a few power-up actives share a button with a LOBBY-only
+	action (Barrier = LB like Playground, Recall / Smoke = D-pad right / left
+	like Find match / Power-Up Lab). In a match those lobby actions do
+	nothing, so there's no clash where it matters.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -15041,6 +16620,11 @@ Keybinds.Actions = {
 	{ Id = "Grapple", Name = "Grapple (power-up)", Keyboard = "E", Gamepad = "ButtonY" },
 	{ Id = "Blink", Name = "Blink (power-up)", Keyboard = "R", Gamepad = "ButtonX" },
 	{ Id = "Decoy", Name = "Decoy (power-up)", Keyboard = "Q", Gamepad = "DPadUp" },
+	{ Id = "Barrier", Name = "Barrier Dome (power-up)", Keyboard = "Z", Gamepad = "ButtonL1" },
+	{ Id = "Recall", Name = "Recall (power-up)", Keyboard = "X", Gamepad = "DPadRight" },
+	{ Id = "Smoke", Name = "Smoke Grenade (power-up)", Keyboard = "Three", Gamepad = "DPadLeft" },
+	-- (Air Dash has no key of its own: it's Sprint while in the air. On a
+	-- touch screen the DASH button presses the virtual "AirDash" action.)
 	{ Id = "Inspect", Name = "Inspect weapon", Keyboard = "V", Gamepad = "DPadDown" },
 	{ Id = "Primary", Name = "Sniper", Keyboard = "One", Gamepad = "ButtonR1" },
 	{ Id = "Knife", Name = "Knife", Keyboard = "Two", Gamepad = "ButtonR1" },
@@ -15778,7 +17362,6 @@ local equippedAt = 0
 local busyUntil = 0 -- no new swing before this
 local pending = {} -- scheduled hit checks { At, Kind, Done }
 local trailUntil = 0
-local lastTip
 
 ----------------------------------------------------------------------------
 -- Helpers
@@ -15947,34 +17530,86 @@ local function resolve(hitCheck)
 end
 
 ----------------------------------------------------------------------------
--- Slash trail: thin glowing streaks along the tip's path
+-- Slash trail: a thin glowing streak along the tip's path. The tip moves a
+-- long way each frame mid-swing, so the streak follows a Catmull-Rom curve
+-- through the last few tip positions (several short pieces per frame, one
+-- frame behind) instead of one straight chord per frame: a smooth arc, not
+-- a zig-zag.
 ----------------------------------------------------------------------------
+local TRAIL_COLOR = Color3.fromRGB(235, 240, 255)
+local TRAIL_WIDTH = 0.03
+local TRAIL_LIFE = 0.14
 local trailFolder
+local history = {} -- the last 4 tip positions, oldest first
+
+local function catmull(p0, p1, p2, p3, t)
+	local t2, t3 = t * t, t * t * t
+	return 0.5 * ((2 * p1) + (p2 - p0) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 + (3 * p1 - p0 - 3 * p2 + p3) * t3)
+end
+
+local function piece(a, c, born)
+	local length = (c - a).Magnitude
+	if length < 1e-3 then
+		return
+	end
+	local part = Instance.new("Part")
+	part.Anchored = true
+	part.CanCollide = false
+	part.CanQuery = false
+	part.CanTouch = false
+	part.CastShadow = false
+	part.Shape = Enum.PartType.Cylinder
+	part.Material = Enum.Material.Neon
+	part.Color = TRAIL_COLOR
+	part.Transparency = 0.4
+	-- (a cylinder runs along X; a little longer than the gap so pieces overlap)
+	part.Size = Vector3.new(length + TRAIL_WIDTH, TRAIL_WIDTH, TRAIL_WIDTH)
+	part.CFrame = CFrame.lookAt((a + c) / 2, c) * CFrame.Angles(0, math.pi / 2, 0)
+	part.Parent = trailFolder
+	task.spawn(function()
+		while part.Parent do
+			local f = (os.clock() - born) / TRAIL_LIFE
+			if f >= 1 then
+				break
+			end
+			local w = TRAIL_WIDTH * (1 - f * 0.8)
+			part.Size = Vector3.new(part.Size.X, w, w)
+			part.Transparency = 0.4 + f * 0.6
+			task.wait()
+		end
+		part:Destroy()
+	end)
+end
+
 local function drawTrail()
 	local tip = Controllers.Viewmodel.GetKnifeTip()
-	if os.clock() < trailUntil and lastTip and (tip - lastTip).Magnitude > 0.02 and Config.Effects.NeonEffects then
-		local part = Instance.new("Part")
-		part.Anchored = true
-		part.CanCollide = false
-		part.CanQuery = false
-		part.CanTouch = false
-		part.CastShadow = false
-		part.Material = Enum.Material.Neon
-		part.Color = Color3.fromRGB(235, 240, 255)
-		part.Transparency = 0.45
-		part.Size = Vector3.new(0.025, 0.025, (tip - lastTip).Magnitude)
-		part.CFrame = CFrame.lookAt((tip + lastTip) / 2, tip)
-		part.Parent = trailFolder
-		task.spawn(function()
-			for i = 1, 6 do
-				task.wait(0.02)
-				part.Transparency = 0.45 + i * 0.09
-				part.Size = Vector3.new(0.025 * (1 - i / 7), 0.025 * (1 - i / 7), part.Size.Z)
-			end
-			part:Destroy()
-		end)
+	if not (os.clock() < trailUntil and Config.Effects.NeonEffects) then
+		table.clear(history)
+		return
 	end
-	lastTip = tip
+	local last = history[#history]
+	if last and (tip - last).Magnitude < 0.01 then
+		return
+	end
+	table.insert(history, tip)
+	if #history > 4 then
+		table.remove(history, 1)
+	end
+	local n = #history
+	if n < 3 then
+		return
+	end
+	-- draw the piece before the newest point: p1 -> p2 (p0 and p3 bend it)
+	local p1, p2, p3 = history[n - 2], history[n - 1], history[n]
+	local p0 = history[n - 3] or (2 * p1 - p2)
+	local steps = math.clamp(math.ceil((p2 - p1).Magnitude / 0.06), 1, 10)
+	local now = os.clock()
+	local prev = p1
+	for k = 1, steps do
+		local point = catmull(p0, p1, p2, p3, k / steps)
+		piece(prev, point, now)
+		prev = point
+	end
 end
 
 ----------------------------------------------------------------------------
@@ -16058,7 +17693,7 @@ function KnifeController.Start()
 		if ClientState.Weapon == "Knife" then
 			drawTrail()
 		else
-			lastTip = nil
+			table.clear(history)
 		end
 	end)
 end
@@ -16275,6 +17910,10 @@ end
 		E              Grapple Hook (power-up)
 		R              Blink (power-up)
 		Q              Decoy (power-up)
+		Z              Barrier Dome (power-up)
+		X              Recall (power-up): rewind a few seconds
+		3              Smoke Grenade (power-up)
+		Shift in air   Air Dash (power-up)
 
 	HOW IT WORKS
 	The ground and air physics copy the Source engine (Half-Life, CS, TF2):
@@ -16351,6 +17990,15 @@ local speedBoost = { Until = 0, Multiplier = 1 }
 local bulletTime = { Until = 0, ReadyAt = 0, UsedThisAir = false }
 local decoyReadyAt = 0
 local blinkReadyAt = 0
+local slow = { Until = 0, Multiplier = 1 } -- Frost Rounds (from the enemy)
+local disruptedUntil = 0 -- Disruptor Rounds (from the enemy)
+local airDash = { Left = 0, ReadyAt = 0 }
+local barrierReadyAt = 0
+local recallReadyAt = 0
+local smokeReadyAt = 0
+local recallTrail = {} -- { {T, Position, Velocity, Momentum} } oldest first (Recall)
+local lastTrailSample = 0
+local forceJumpVelocity = 0
 
 local fovKick = 0
 
@@ -16418,11 +18066,28 @@ local function applyFriction(v, friction, dt)
 	return v * (newSpeed / speed)
 end
 
--- Second Wind boost x Adrenaline power-up
+-- FROST ROUNDS: an enemy hit slows you for a moment
+local function slowMultiplier()
+	return now() < slow.Until and slow.Multiplier or 1
+end
+
+-- LAST STAND power-up: faster while you're low on health
+local function lastStandMultiplier()
+	local s = stats()
+	if s.LastStandSpeed > 0 and humanoid and humanoid.Health > 0
+		and humanoid.Health <= humanoid.MaxHealth * PU.LastStand.HealthFraction then
+		return 1 + s.LastStandSpeed
+	end
+	return 1
+end
+
+-- Second Wind / Fight or Flight boost x Adrenaline x knife (Hunter's Knife)
+-- x Last Stand x Frost slow
 local function speedMultiplier()
+	local s = stats()
 	local boost = now() < speedBoost.Until and speedBoost.Multiplier or 1
-	local knife = ClientState.Weapon == "Knife" and Config.Knife.MoveSpeedMultiplier or 1
-	return boost * stats().MoveSpeedMultiplier * knife
+	local knife = ClientState.Weapon == "Knife" and Config.Knife.MoveSpeedMultiplier * s.KnifeSpeedMultiplier or 1
+	return boost * s.MoveSpeedMultiplier * knife * lastStandMultiplier() * slowMultiplier()
 end
 
 -- Spring Legs power-up
@@ -16563,7 +18228,20 @@ function Movement.GetCooldowns()
 		Blink = math.max(0, blinkReadyAt - now()),
 		Decoy = math.max(0, decoyReadyAt - now()),
 		BulletTime = math.max(0, bulletTime.ReadyAt - now()),
+		Barrier = math.max(0, barrierReadyAt - now()),
+		Recall = math.max(0, recallReadyAt - now()),
+		Smoke = math.max(0, smokeReadyAt - now()),
+		AirDash = math.max(0, airDash.ReadyAt - now()),
 	}
+end
+
+-- Air dashes left before you land (Air Dash power-up).
+function Movement.GetAirDashesLeft()
+	return airDash.Left
+end
+
+function Movement.IsSlowed()
+	return now() < slow.Until
 end
 
 function Movement.IsGrounded()
@@ -16599,7 +18277,7 @@ end
 ----------------------------------------------------------------------------
 -- PHANTOM STEP power-up: slides and wall jumps turn you invisible briefly.
 local function phantomStep()
-	if stats().PhantomDash and now() - lastPhantomTime > 0.6 then
+	if stats().PhantomDash and now() - lastPhantomTime > 0.6 and now() >= disruptedUntil then
 		lastPhantomTime = now()
 		Remotes.Get("Ability"):FireServer("PhantomDash", {})
 		Controllers.Effects.PhantomFlash()
@@ -16616,9 +18294,12 @@ local function startSlide()
 	end
 	lastSlideTime = now()
 	mode = "Slide"
-	-- boost, but never above the cap (so slide spam can't snowball)
-	if speed < M.SlideBoostCap then
-		speed = math.min(speed + M.SlideBoost, M.SlideBoostCap)
+	-- boost, but never above the cap (so slide spam can't snowball).
+	-- POWER SLIDE raises both.
+	local s = stats()
+	local cap = M.SlideBoostCap + s.SlideCapBonus
+	if speed < cap then
+		speed = math.min(speed + M.SlideBoost + s.SlideBoostBonus, cap)
 	end
 	momentum = momentum.Unit * speed
 	Sfx.Play("Dash", { Pitch = 0.7, Volume = 0.6 })
@@ -16633,6 +18314,7 @@ local function onLanded()
 	lowestVelocityY = 0
 	mode = "Ground"
 	airJumpsLeft = stats().AirJumps
+	airDash.Left = stats().AirDashCharges
 	bulletTime.UsedThisAir = false
 	if fallSpeed > 30 then
 		Sfx.Play("Land", { Volume = math.clamp(fallSpeed / 80, 0.3, 1.2) })
@@ -16652,11 +18334,15 @@ end
 -- Jump off the ground (or out of a slide). Called from the step so it can
 -- happen on the exact landing frame (bunny hop).
 local function groundJump()
-	if mode == "Slide" and momentum.Magnitude < M.SlideBoostCap then
-		momentum += Util.safeUnit(momentum) * M.SlideJumpBoost
+	local s = stats()
+	local fromSlide = mode == "Slide"
+	-- SLINGSHOT: slide jumps go higher and carry more speed
+	if fromSlide and momentum.Magnitude < M.SlideBoostCap + s.SlideCapBonus + s.SlideJumpSpeed then
+		momentum += Util.safeUnit(momentum) * (M.SlideJumpBoost + s.SlideJumpSpeed)
 	end
 	humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
-	setVerticalVelocity(jumpPower())
+	forceJumpVelocity = jumpPower() * (fromSlide and 1 + s.SlideJumpLift or 1)
+	setVerticalVelocity(forceJumpVelocity)
 	-- the Humanoid can briefly hold us down (e.g. right after landing or
 	-- mid-slide); re-apply the jump velocity for a few frames so jumps never fail
 	forceJumpUntil = now() + 0.08
@@ -16745,6 +18431,116 @@ local function startDecoy()
 	local dir = wish.Magnitude > 0.1 and wish.Unit or cameraFlatLook()
 	Remotes.Get("Ability"):FireServer("Decoy", { Direction = dir })
 	Sfx.Play("Ability", { Pitch = 1.3 })
+end
+
+-- AIR DASH power-up: Sprint in the air bursts you toward your keys.
+local function tryAirDash()
+	local s = stats()
+	if not s.AirDash or airDash.Left <= 0 or now() < airDash.ReadyAt then
+		return
+	end
+	airDash.Left -= 1
+	airDash.ReadyAt = now() + PU.AirDash.Cooldown
+	local wish = wishDirection()
+	local dir = wish.Magnitude > 0.1 and wish.Unit or cameraFlatLook()
+	momentum = dir * math.max(momentum.Magnitude, PU.AirDash.Speed * speedMultiplier())
+	pendingLift = math.max(pendingLift or 0, PU.AirDash.Lift)
+	Controllers.Camera.AddFovPunch(8)
+	Controllers.Effects.Dash(root.Position, dir)
+	Remotes.Get("Ability"):FireServer("AirDash", {})
+	Sfx.Play("Dash", { Pitch = 1.45 })
+end
+
+-- BARRIER DOME power-up: the server builds the dome (it blocks bullets).
+local function startBarrier()
+	local s = stats()
+	if not s.Barrier or now() < barrierReadyAt then
+		return
+	end
+	barrierReadyAt = now() + PU.BarrierDome.Cooldown
+	Remotes.Get("Ability"):FireServer("Barrier", {})
+	Sfx.Play("Ability", { Pitch = 0.7 })
+end
+
+-- SMOKE GRENADE power-up: thrown where you look; the server makes the cloud.
+local function throwSmoke()
+	local s = stats()
+	if not s.Smoke or now() < smokeReadyAt then
+		return
+	end
+	smokeReadyAt = now() + s.SmokeCooldown
+	Remotes.Get("Ability"):FireServer("Smoke", { Direction = workspace.CurrentCamera.CFrame.LookVector })
+	Sfx.Play("Ability", { Pitch = 1.15 })
+end
+
+-- RECALL power-up: rewind to where you were (with the speed you had then).
+local function recordTrail()
+	if now() - lastTrailSample < 0.05 then
+		return
+	end
+	lastTrailSample = now()
+	table.insert(recallTrail, {
+		T = now(),
+		Position = root.Position,
+		Velocity = root.AssemblyLinearVelocity,
+		Momentum = momentum,
+	})
+	while recallTrail[1] and now() - recallTrail[1].T > PU.Recall.Rewind + 0.5 do
+		table.remove(recallTrail, 1)
+	end
+end
+
+local function startRecall()
+	local s = stats()
+	if not s.Recall or now() < recallReadyAt then
+		return
+	end
+	-- the oldest point that's still inside the rewind window
+	local target
+	for _, sample in ipairs(recallTrail) do
+		if now() - sample.T <= PU.Recall.Rewind then
+			target = sample
+			break
+		end
+	end
+	if not target or now() - target.T < 0.5 then
+		return -- nothing to rewind to yet (you only just spawned)
+	end
+	recallReadyAt = now() + s.RecallCooldown
+	if grapple.Point then
+		endGrapple(false)
+	end
+	local from = root.Position
+	root.CFrame = CFrame.new(target.Position) * root.CFrame.Rotation
+	root.AssemblyLinearVelocity = target.Velocity
+	momentum = target.Momentum
+	lastDrive = momentum
+	pendingImpulse = Vector3.zero
+	pendingLift = nil
+	mode = "Air"
+	peakY = target.Position.Y
+	recallTrail = {}
+	Controllers.Camera.AddFovPunch(C.BlinkFOVKick)
+	Controllers.Effects.Recall(from, target.Position)
+	Remotes.Get("Ability"):FireServer("Recall", { From = from, To = target.Position })
+	Sfx.Play("Dash", { Pitch = 0.75 })
+end
+
+-- DISRUPTOR ROUNDS (the enemy's): every ability goes on cooldown for a moment.
+function Movement.Disrupt(duration)
+	local untilTime = now() + duration
+	if grapple.Point then
+		endGrapple(false)
+	end
+	grapple.ReadyAt = math.max(grapple.ReadyAt, untilTime)
+	blinkReadyAt = math.max(blinkReadyAt, untilTime)
+	decoyReadyAt = math.max(decoyReadyAt, untilTime)
+	bulletTime.ReadyAt = math.max(bulletTime.ReadyAt, untilTime)
+	barrierReadyAt = math.max(barrierReadyAt, untilTime)
+	recallReadyAt = math.max(recallReadyAt, untilTime)
+	smokeReadyAt = math.max(smokeReadyAt, untilTime)
+	airDash.ReadyAt = math.max(airDash.ReadyAt, untilTime)
+	disruptedUntil = math.max(disruptedUntil, untilTime)
 end
 
 local function wallJump()
@@ -16894,7 +18690,7 @@ local function updateWallRun(dt, wish)
 end
 
 local function updateSlide(dt, wish)
-	momentum = applyFriction(momentum, M.SlideFriction, dt)
+	momentum = applyFriction(momentum, M.SlideFriction * stats().SlideFrictionScale, dt) -- (Power Slide)
 	momentum = steer(momentum, wish, M.SlideSteer * dt)
 	if momentum.Magnitude < M.SlideEndSpeed or (M.SlideHold and not slideHeld) then
 		mode = "Ground"
@@ -16996,6 +18792,7 @@ local function step(dt)
 		return
 	end
 	linearVelocity.Enabled = true
+	recordTrail()
 
 	local velocity = root.AssemblyLinearVelocity
 	local horizontal = Util.flat(velocity)
@@ -17029,8 +18826,8 @@ local function step(dt)
 	local justLaunched = now() - math.max(lastGroundJumpTime, lastLiftTime) < 0.12
 	local grounded = Movement.IsGrounded() and not justLaunched
 	local wish = wishDirection()
-	if now() < forceJumpUntil and root.AssemblyLinearVelocity.Y < jumpPower() * 0.75 then
-		setVerticalVelocity(jumpPower())
+	if now() < forceJumpUntil and root.AssemblyLinearVelocity.Y < forceJumpVelocity * 0.75 then
+		setVerticalVelocity(forceJumpVelocity)
 	end
 	if not grounded then
 		peakY = math.max(peakY, root.Position.Y) -- for Shockwave Landing
@@ -17073,8 +18870,8 @@ local function step(dt)
 		updateCeiling(dt, wish)
 	end
 
-	-- hard speed limit
-	local maxSpeed = M.MaxSpeed * stats().MoveSpeedMultiplier
+	-- hard speed limit (Frost Rounds lower it while you're chilled)
+	local maxSpeed = M.MaxSpeed * stats().MoveSpeedMultiplier * slowMultiplier()
 	if momentum.Magnitude > maxSpeed then
 		momentum = momentum.Unit * maxSpeed
 	end
@@ -17152,9 +18949,13 @@ local function onCharacterAdded(newCharacter)
 	momentum = Vector3.zero
 	lastDrive = Vector3.zero
 	airJumpsLeft = stats().AirJumps
+	airDash.Left = stats().AirDashCharges
 	grapple.Point = nil
 	speedBoost.Until = 0
 	bulletTime.Until = 0
+	slow.Until = 0
+	disruptedUntil = 0
+	recallTrail = {}
 	peakY = root.Position.Y
 	lowestVelocityY = 0
 
@@ -17185,6 +18986,9 @@ local function onInputBegan(input, processed)
 		onJumpPressed()
 	elseif Keybinds.Matches("Sprint", input) then
 		sprintHeld = true
+		if mode == "Air" and canMove() then
+			tryAirDash() -- (Air Dash power-up)
+		end
 	elseif Keybinds.Matches("Slide", input) then
 		slideHeld = true
 		if canMove() then
@@ -17211,6 +19015,22 @@ local function onInputBegan(input, processed)
 	elseif Keybinds.Matches("Decoy", input) then
 		if canMove() and ClientState.CanShoot() then
 			startDecoy()
+		end
+	elseif Keybinds.Matches("Barrier", input) then
+		if canMove() and ClientState.CanShoot() then
+			startBarrier()
+		end
+	elseif Keybinds.Matches("Recall", input) then
+		if canMove() and ClientState.CanShoot() then
+			startRecall()
+		end
+	elseif Keybinds.Matches("Smoke", input) then
+		if canMove() and ClientState.CanShoot() then
+			throwSmoke()
+		end
+	elseif Keybinds.Matches("AirDash", input) then -- (the mobile DASH button)
+		if mode == "Air" and canMove() then
+			tryAirDash()
 		end
 	end
 end
@@ -17250,9 +19070,27 @@ function Movement.Start()
 	end)
 
 	Remotes.Get("Buff").OnClientEvent:Connect(function(buff)
+		if typeof(buff) ~= "table" then
+			return
+		end
 		if buff.Type == "SpeedBoost" then
-			speedBoost.Until = now() + buff.Duration
-			speedBoost.Multiplier = buff.Multiplier
+			-- a weaker boost never cuts a stronger one short
+			if now() >= speedBoost.Until or buff.Multiplier >= speedBoost.Multiplier then
+				speedBoost.Until = now() + buff.Duration
+				speedBoost.Multiplier = buff.Multiplier
+			end
+		elseif buff.Type == "Slow" and typeof(buff.Multiplier) == "number" and typeof(buff.Duration) == "number" then
+			-- FROST ROUNDS: slower for a moment, and the chill bleeds your momentum
+			local multiplier = math.clamp(buff.Multiplier, 0.2, 1)
+			if now() >= slow.Until or multiplier <= slow.Multiplier then
+				slow.Multiplier = multiplier
+			end
+			slow.Until = math.max(slow.Until, now() + buff.Duration)
+			momentum *= multiplier
+			Controllers.Effects.Chill(buff.Duration)
+		elseif buff.Type == "Disrupt" and typeof(buff.Duration) == "number" then
+			Movement.Disrupt(buff.Duration)
+			Controllers.Effects.Jammed(buff.Duration)
 		end
 	end)
 
@@ -17749,21 +19587,23 @@ end
 local KS = KN.WorldScale
 
 -- A knife pose from where the handle is and where the blade points. The
--- roll round the blade is worked out so the spine faces your elbow:
--- the fist closes on the handle with the forearm running back from it to the
--- elbow (a real hammer grip), so the arm and the knife always move as one
+-- roll round the blade is worked out so the spine faces back toward you:
+-- the fist closes on the handle knuckles up with the forearm running back
+-- from it (a real hammer grip), so the arm and the knife always move as one
 -- and the handle never cuts through the wrist. `twist` (degrees) rolls it
 -- a little more when a move wants the flat or the edge shown.
-local KNIFE_SHOULDER = V(0.95, -1.3, 0.35)
 local function kaim(pos, forward, twist)
 	local f = forward.Unit
-	-- toward the elbow: mostly down, a bit toward the shoulder. (Aiming straight
-	-- at the shoulder flipped the hand over whenever the blade tilted, because
-	-- the shoulder sits almost directly behind the blade.)
-	local toElbow = (KNIFE_SHOULDER - pos).Unit * 0.5 + V(0.2, -0.8, 0)
-	local spine = toElbow - f * toElbow:Dot(f)
+	-- The spine faces back toward you (and a bit up and right), the edge
+	-- away from you: a normal hammer grip, knuckles up, with the forearm
+	-- leaving the fist on the spine side. One fixed reference for every pose,
+	-- and the blade never points back at you, so the roll can't flip between
+	-- keys. (Aiming at the shoulder or the elbow flipped the hand over: both
+	-- sit almost directly behind the blade.)
+	local ref = V(0.25, 0.35, 1)
+	local spine = ref - f * ref:Dot(f)
 	if spine.Magnitude < 1e-3 then
-		spine = V(0, -1, 0) + f * f.Y -- (pointing straight at the shoulder: spine down)
+		spine = V(0, 1, 0) - f * f.Y
 	end
 	local cf = aim(pos, f, -spine)
 	if twist then
@@ -17774,7 +19614,7 @@ end
 local KNIFE_IDLE = kaim(V(0.5, -0.88, -1.05), V(-0.35, 0.5, -0.8))
 local KNIFE_SPRINT = kaim(V(0.6, -1.15, -0.8), V(-0.2, -0.1, -1))
 -- the fist closes round the handle, thumb by the guard; the forearm leaves
--- the fist on the spine side (kaim points the spine at the shoulder), tipped
+-- the fist on the spine side (kaim turns the spine back toward you), tipped
 -- a touch toward the pommel like a real wrist
 local HAND_ON_KNIFE = CFrame.new(KnifeModel.Grip.Position * KS) * CFrame.Angles(rad(8), 0, 0)
 
@@ -18098,6 +19938,10 @@ return WeaponAnim
 	  2. sends the shot + what it saw itself hit ("claims") to the server,
 	  3. plays recoil, the bolt animation and sound.
 	The SERVER decides the real damage (see CombatService).
+
+	Power-ups read here: Split Shot, Rocket Jump, Quickdraw (bolt / scope
+	times), Hair Trigger and Double Tap (the server's "Rechamber" buff),
+	Deadeye (GetDeadeyeCharge, shown on the scope by the HUD).
 ]]
 
 local Players = game:GetService("Players")
@@ -18124,6 +19968,8 @@ local Controllers
 local scopeHeld = false
 local scopeAlpha = 0
 local boltReadyAt = 0
+local lastShotAt = 0
+local scopedSince = nil -- when the scope passed half way in (Deadeye; matches what the server is told)
 
 ----------------------------------------------------------------------------
 -- Public API
@@ -18134,6 +19980,17 @@ end
 
 function Weapon.IsScoped()
 	return scopeAlpha > 0.9
+end
+
+-- DEADEYE power-up: 0..1 charge of the next shot (1 = charged). Mirrors the
+-- server, which charges from when you scoped in or last fired.
+function Weapon.GetDeadeyeCharge()
+	local since = scopedSince
+	if ClientState.Stats.DeadeyeBonus <= 0 or since == nil then
+		return 0
+	end
+	local from = math.max(since, lastShotAt)
+	return math.clamp((os.clock() - from) / Config.PowerUps.Deadeye.ChargeTime, 0, 1)
 end
 
 -- 0 = ready, 1 = just fired
@@ -18257,6 +20114,7 @@ local function fire()
 		boltTime /= Config.PowerUps.BulletTime.BoltSpeedScale
 	end
 	boltReadyAt = os.clock() + boltTime
+	lastShotAt = os.clock()
 
 	Sfx.Play("Fire", { Pitch = 0.95 + math.random() * 0.1 })
 	Controllers.Viewmodel.PlayFire(scoped)
@@ -18309,6 +20167,11 @@ local function update(dt)
 	local target = scopeHeld and 1 or 0
 	local scopeTime = ClientState.Stats.ScopeInTime
 	scopeAlpha = Util.approach(scopeAlpha, target, dt / math.max(scopeTime, 0.01))
+	if scopeAlpha > 0.5 then
+		scopedSince = scopedSince or os.clock()
+	else
+		scopedSince = nil
+	end
 end
 
 function Weapon.Init(controllers)
@@ -18319,8 +20182,15 @@ function Weapon.Start()
 	-- HAIR TRIGGER power-up: the server tells us a hit re-chambered the rifle
 	Remotes.Get("Buff").OnClientEvent:Connect(function(buff)
 		if typeof(buff) == "table" and buff.Type == "Rechamber" then
-			boltReadyAt = math.min(boltReadyAt, os.clock() + 0.1)
-			Controllers.Viewmodel.PlayBolt(0.18)
+			if buff.Quick then
+				-- DOUBLE TAP: the follow-up is ready a moment after the last shot
+				local quick = Config.PowerUps.DoubleTap.QuickBolt
+				boltReadyAt = math.min(boltReadyAt, math.max(os.clock() + 0.03, lastShotAt + quick))
+				Controllers.Viewmodel.PlayBolt(quick)
+			else
+				boltReadyAt = math.min(boltReadyAt, os.clock() + 0.1)
+				Controllers.Viewmodel.PlayBolt(0.18)
+			end
 		end
 	end)
 
@@ -19250,7 +21120,8 @@ return DuelUI
 		scope overlay (black outside a circle, thin reticle)
 		scoreboard (names, round wins, round timer) with each player's
 		    collected power-up icons underneath
-		health bar, ability hints with cooldowns
+		health bar (+ shield from Overshield / Bloodlust), ability hints with cooldowns
+		Deadeye charge bar under the scope reticle
 		big centre banner (countdown, GO, round won/lost)
 		damage vignette + direction indicator
 ]]
@@ -19281,6 +21152,8 @@ local hitmarker
 local scope
 local scoreboard, nameLabels, winLabels, timerLabel, roundLabel, iconRows
 local healthBar, healthFill, healthText
+local shieldFill, shieldText
+local deadeyeBar, deadeyeFill
 local abilityList
 local banner, bannerTitle, bannerSub
 local vignette, indicator
@@ -19439,6 +21312,25 @@ local function buildScope()
 		Parent = lens,
 	})
 	Theme.corner(dot, UDim.new(0.5, 0))
+
+	-- DEADEYE: charge bar below the centre (gold when the shot is charged)
+	deadeyeBar = Theme.new("Frame", {
+		Name = "DeadeyeCharge",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0.5, 40),
+		Size = UDim2.fromOffset(120, 5),
+		BackgroundColor3 = Color3.fromRGB(30, 34, 44),
+		BackgroundTransparency = 0.3,
+		Visible = false,
+		Parent = scope,
+	})
+	Theme.corner(deadeyeBar, 3)
+	deadeyeFill = Theme.new("Frame", {
+		Size = UDim2.fromScale(0, 1),
+		BackgroundColor3 = Palette.UIText,
+		Parent = deadeyeBar,
+	})
+	Theme.corner(deadeyeFill, 3)
 end
 
 local function buildScoreboard()
@@ -19557,6 +21449,29 @@ local function buildHealth()
 		Parent = track,
 	})
 	Theme.corner(healthFill, 4)
+	-- SHIELD (Overshield / Bloodlust): a blue strip over the health bar
+	shieldFill = Theme.new("Frame", {
+		Name = "Shield",
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, 0, 0, -3),
+		Size = UDim2.fromScale(0, 0.6),
+		BackgroundColor3 = Color3.fromRGB(90, 170, 255),
+		Visible = false,
+		Parent = track,
+	})
+	Theme.corner(shieldFill, 3)
+	shieldText = Theme.label({
+		Name = "ShieldText",
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.new(1, -60, 0, -2),
+		Size = UDim2.fromOffset(60, 12),
+		TextXAlignment = Enum.TextXAlignment.Right,
+		TextSize = 11,
+		TextColor3 = Color3.fromRGB(120, 190, 255),
+		FontFace = Theme.Font(Enum.FontWeight.Heavy),
+		Visible = false,
+		Parent = panel,
+	})
 	healthText = Theme.label({
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.fromScale(1, 0.5),
@@ -19573,7 +21488,7 @@ local function buildAbilities()
 		Name = "Abilities",
 		AnchorPoint = Vector2.new(1, 1),
 		Position = UDim2.new(1, -24, 1, -24),
-		Size = UDim2.fromOffset(220, 140),
+		Size = UDim2.fromOffset(220, 300), -- room for every active power-up
 		BackgroundTransparency = 1,
 		Parent = gui,
 	}, {
@@ -20008,6 +21923,18 @@ local function rebuildAbilities()
 	if stats.BulletTime then
 		table.insert(entries, { Key = key("Scope"), Name = "Bullet Time (air)", Cooldown = "BulletTime" })
 	end
+	if stats.Barrier then
+		table.insert(entries, { Key = key("Barrier"), Name = "Barrier Dome", Cooldown = "Barrier" })
+	end
+	if stats.Recall then
+		table.insert(entries, { Key = key("Recall"), Name = "Recall", Cooldown = "Recall" })
+	end
+	if stats.Smoke then
+		table.insert(entries, { Key = key("Smoke"), Name = "Smoke Grenade", Cooldown = "Smoke" })
+	end
+	if stats.AirDash then
+		table.insert(entries, { Key = key("Sprint"), Name = "Air Dash (in air)", Cooldown = "AirDash" })
+	end
 	for i, e in ipairs(entries) do
 		local row = Theme.panel({
 			Name = e.Name,
@@ -20142,6 +22069,22 @@ local function update()
 		healthFill.Size = UDim2.fromScale(fraction, 1)
 		healthFill.BackgroundColor3 = fraction < 0.35 and Palette.UIDanger or Palette.UIText
 		healthText.Text = tostring(math.ceil(humanoid.Health))
+		-- shield strip (Overshield / Bloodlust)
+		local shield = character:GetAttribute("Shield") or 0
+		shieldFill.Visible = shield > 0
+		shieldText.Visible = shield > 0
+		if shield > 0 then
+			shieldFill.Size = UDim2.fromScale(math.clamp(shield / math.max(humanoid.MaxHealth, 1), 0, 1), 0.6)
+			shieldText.Text = "+" .. tostring(math.ceil(shield)) .. " SHIELD"
+		end
+	end
+
+	-- DEADEYE charge (only while scoped)
+	local charge = Controllers.Weapon.GetDeadeyeCharge and Controllers.Weapon.GetDeadeyeCharge() or 0
+	deadeyeBar.Visible = scope.Visible and ClientState.Stats.DeadeyeBonus > 0
+	if deadeyeBar.Visible then
+		deadeyeFill.Size = UDim2.fromScale(charge, 1)
+		deadeyeFill.BackgroundColor3 = charge >= 1 and Color3.fromRGB(255, 200, 60) or Palette.UIText
 	end
 
 	-- timers
@@ -20173,10 +22116,16 @@ local function update()
 		if fill then
 			local name = fill:GetAttribute("Cooldown")
 			local stats = ClientState.Stats
+			local PU = Config.PowerUps
 			local total = name == "Grapple" and stats.GrappleCooldown
 				or name == "Blink" and math.max(stats.BlinkCooldown, 0.1)
-				or name == "Decoy" and Config.PowerUps.Decoy.Cooldown
-				or Config.PowerUps.BulletTime.Cooldown
+				or name == "Decoy" and PU.Decoy.Cooldown
+				or name == "Barrier" and PU.BarrierDome.Cooldown
+				or name == "Recall" and math.max(stats.RecallCooldown, 0.1)
+				or name == "Smoke" and math.max(stats.SmokeCooldown, 0.1)
+				or name == "AirDash" and PU.AirDash.Cooldown
+				or PU.BulletTime.Cooldown
+			-- (a jam from Disruptor Rounds can be longer than the cooldown: the bar just stays full)
 			fill.Size = UDim2.fromScale(math.clamp((cooldowns[name] or 0) / total, 0, 1), 1)
 		end
 	end
@@ -20209,67 +22158,1732 @@ return HUD
           </Item>
           <Item class="ModuleScript" referent="65">
             <Properties>
+              <string name="Name">IconArt</string>
+              <string name="Source"><![CDATA[--[[
+	IconArt.lua  (Client.ui.IconArt)
+	Hand-made art for every power-up icon, drawn by Icons.lua out of plain
+	GuiObjects (no image assets).
+
+	IconArt[powerUpId] = a list of shapes. Coordinates and sizes are in icon
+	units: 0-100 across the whole tile (50, 50 is the centre).
+
+	SHAPES
+		{ "Rect",   x, y, w, h, rotationDeg }   centre x/y, rotated about its centre
+		{ "Circle", x, y, diameter }
+		{ "Ring",   x, y, outerDiameter, thickness }
+		{ "Clip",   x, y, w, h, Kids = { shapes } }   only shows the part of
+		            its Kids inside the box (kids use the same icon units)
+		{ "Glow",   x, y, diameter }            soft translucent light (C = colour)
+		"BREAK"     starts a new layer: everything after it gets its own
+		            shadow + outline drawn on top of what came before
+	Optional keys on a shape
+		C = colour      Color3, or a token: "W" white, "A" tile colour,
+		                "L" light tile colour, "M" mid-dark tile colour,
+		                "D" dark outline ink, "K" near-black
+		G = { c1, c2, rot }  gradient (top -> bottom by default)
+		T = 0.5         transparency
+		R = 0.5         Rect corner rounding, 0-0.5 of the short side (default 0.12)
+		Flat = true     no automatic top-lit shading
+		O = false       no outline (and no shadow) for this shape
+		NoShadow = true no drop shadow
+		S = { colour, thickness, transparency }   UIStroke, big icons only
+		Big = true      only drawn on icons >= 36px (fine detail)
+		Small = true    only drawn on icons < 36px (simplified stand-ins)
+	Options on the whole entry
+		Tile = Color3     override the tile colour (default def.IconColor)
+		Ink = Color3      override the outline colour
+		Outline = 3.2     outline thickness (0 = none)
+		Shadow = 3.4      drop shadow offset (0 = none)
+
+	ADDING ART FOR A NEW POWER-UP
+	Add `IconArt.MyId = art(...)` at the bottom using the helpers below
+	(bar, poly, bullet, twinkle, chevron, ...). Power-ups without an entry
+	still get the nicer tile, drawing the old `Icon` list from PowerUps.lua.
+]]
+
+local IconArt = {}
+
+----------------------------------------------------------------------------
+-- palette
+----------------------------------------------------------------------------
+local function rgb(r, g, b)
+	return Color3.fromRGB(r, g, b)
+end
+
+local GOLD = rgb(255, 206, 84)
+local GOLD_DARK = rgb(214, 140, 40)
+local LEAD = rgb(236, 240, 248)
+local STEEL = rgb(186, 198, 214)
+local STEEL_DARK = rgb(112, 124, 142)
+local RED = rgb(240, 56, 72)
+local RED_DARK = rgb(160, 20, 44)
+local FIRE = rgb(255, 140, 40)
+local YELLOW = rgb(255, 236, 90)
+local CYAN = rgb(130, 240, 255)
+local SKY = rgb(150, 220, 255)
+local PINK = rgb(255, 120, 200)
+local PURPLE = rgb(190, 150, 255)
+local GREEN = rgb(110, 230, 120)
+local WALL = rgb(70, 76, 96)
+local WALL_LIGHT = rgb(110, 118, 140)
+
+----------------------------------------------------------------------------
+-- helpers (all return shape lists or single shapes)
+----------------------------------------------------------------------------
+local function with(shape, props)
+	for k, v in pairs(props or {}) do
+		shape[k] = v
+	end
+	return shape
+end
+
+-- Concatenates shapes and lists of shapes into one list.
+local function join(...)
+	local out = {}
+	for _, item in ipairs({ ... }) do
+		if type(item) == "string" or (type(item) == "table" and type(item[1]) == "string" and item[1] ~= "BREAK") then
+			table.insert(out, item)
+		elseif type(item) == "table" then
+			for _, s in ipairs(item) do
+				table.insert(out, s)
+			end
+		end
+	end
+	return out
+end
+
+-- Builds an art entry: art({ options }, shapes...)
+local function art(options, ...)
+	local list = join(...)
+	for k, v in pairs(options or {}) do
+		list[k] = v
+	end
+	return list
+end
+
+-- A round-capped line from (x1, y1) to (x2, y2).
+local function bar(x1, y1, x2, y2, th, props)
+	local dx, dy = x2 - x1, y2 - y1
+	local len = math.sqrt(dx * dx + dy * dy)
+	return with({ "Rect", (x1 + x2) / 2, (y1 + y2) / 2, len + th, th, math.deg(math.atan2(dy, dx)), R = 0.5 }, props)
+end
+
+-- A round-capped polyline through { {x, y}, ... }.
+local function poly(points, th, props)
+	local out = {}
+	for i = 1, #points - 1 do
+		local a, b = points[i], points[i + 1]
+		table.insert(out, bar(a[1], a[2], b[1], b[2], th, props and table.clone(props)))
+	end
+	return out
+end
+
+-- Points along a circular arc (degrees, 0 = right, clockwise on screen).
+local function arcPoints(cx, cy, r, fromDeg, toDeg, steps)
+	local pts = {}
+	for i = 0, steps do
+		local a = math.rad(fromDeg + (toDeg - fromDeg) * i / steps)
+		table.insert(pts, { cx + math.cos(a) * r, cy + math.sin(a) * r })
+	end
+	return pts
+end
+
+-- Point at distance `d` from (x, y) in direction `deg`.
+local function along(x, y, deg, d)
+	local a = math.rad(deg)
+	return x + math.cos(a) * d, y + math.sin(a) * d
+end
+
+-- Two-bar arrow head with its tip at (x, y), pointing in direction `deg`.
+local function arrowHead(x, y, deg, len, th, props)
+	local ax, ay = along(x, y, deg + 140, len)
+	local bx, by = along(x, y, deg - 140, len)
+	return {
+		bar(x, y, ax, ay, th, props and table.clone(props)),
+		bar(x, y, bx, by, th, props and table.clone(props)),
+	}
+end
+
+-- A rifle bullet: back of the casing at (x, y), pointing `deg`.
+local function bullet(x, y, deg, len, th, props)
+	props = props or {}
+	local nx, ny = along(x, y, deg, len * 0.72)
+	local cx, cy = along(x, y, deg, len * 0.31)
+	local rx, ry = along(x, y, deg, len * 0.05)
+	local out = {
+		with({ "Rect", nx, ny, len * 0.56, th * 0.9, deg, R = 0.5, C = props.Nose or LEAD, T = props.T }),
+		with({ "Rect", cx, cy, len * 0.62, th, deg, R = 0.14, C = props.Casing or GOLD, T = props.T }),
+	}
+	if not props.T then
+		table.insert(out, { "Rect", rx, ry, len * 0.06, th * 1.05, deg, R = 0.3, C = props.Rim or GOLD_DARK, Big = true, O = false })
+	end
+	return out
+end
+
+-- Four-point twinkle.
+local function twinkle(x, y, s, props)
+	return {
+		with({ "Rect", x, y, s * 0.12, s, 0, R = 0.5, C = "W", O = false }, props and table.clone(props)),
+		with({ "Rect", x, y, s * 0.75, s * 0.12, 0, R = 0.5, C = "W", O = false }, props and table.clone(props)),
+		with({ "Rect", x, y, s * 0.4, s * 0.4, 45, R = 0.1, C = "W", O = false }, props and table.clone(props)),
+	}
+end
+
+-- A "^" chevron with its tip at (x, y), pointing `deg` (-90 = up).
+local function chevron(x, y, deg, len, th, props)
+	return arrowHead(x, y, deg, len, th, props)
+end
+
+-- Moves and scales shapes: (x, y) -> (x * s + dx, y * s + dy).
+local function xf(list, dx, dy, s)
+	local out = {}
+	for _, shape in ipairs(list) do
+		if type(shape) ~= "table" then
+			table.insert(out, shape)
+			continue
+		end
+		local c = table.clone(shape)
+		c[2] = c[2] * s + dx
+		c[3] = c[3] * s + dy
+		if c[1] == "Rect" or c[1] == "Clip" then
+			c[4] = c[4] * s
+			c[5] = c[5] * s
+		elseif c[1] == "Ring" then
+			c[4] = c[4] * s
+			c[5] = c[5] * s
+		else
+			c[4] = c[4] * s
+		end
+		if c.Kids then
+			c.Kids = xf(c.Kids, dx, dy, s)
+		end
+		table.insert(out, c)
+	end
+	return out
+end
+
+-- Sets props on every shape in a list (returns a copy).
+local function paint(list, props)
+	local out = {}
+	for _, shape in ipairs(list) do
+		if type(shape) == "table" then
+			local c = table.clone(shape)
+			for k, v in pairs(props) do
+				c[k] = v
+			end
+			table.insert(out, c)
+		else
+			table.insert(out, shape)
+		end
+	end
+	return out
+end
+
+-- Running pictogram in a 100x100 box (facing right).
+local function runner(color)
+	local th = 11
+	local p = { C = color or "W" }
+	return join(
+		poly({ { 56, 36 }, { 40, 46 }, { 30, 40 } }, 9, p), -- back arm
+		poly({ { 46, 60 }, { 34, 72 }, { 18, 72 } }, th, p), -- back leg
+		bar(57, 34, 46, 60, 14, p), -- torso
+		poly({ { 46, 60 }, { 62, 70 }, { 58, 88 } }, th, p), -- front leg
+		poly({ { 56, 36 }, { 70, 44 }, { 80, 36 } }, 9, p), -- front arm
+		{ "Circle", 66, 18, 17, C = p.C } -- head
+	)
+end
+
+-- Standing pictogram (head + shoulders + body) in a 100x100 box.
+local function figure(color, props)
+	local p = with({ C = color or "W" }, props)
+	return {
+		with({ "Rect", 50, 70, 40, 46, 0, R = 0.45 }, table.clone(p)),
+		with({ "Circle", 50, 30, 26 }, table.clone(p)),
+	}
+end
+
+-- Heart centred at (x, y), width ~ s.
+local function heart(x, y, s, props)
+	local r = s * 0.3
+	return {
+		with({ "Circle", x - r * 0.78, y - r * 0.35, r * 2 }, props and table.clone(props)),
+		with({ "Circle", x + r * 0.78, y - r * 0.35, r * 2 }, props and table.clone(props)),
+		with({ "Rect", x, y + r * 0.42, r * 2.05, r * 2.05, 45, R = 0.1 }, props and table.clone(props)),
+	}
+end
+
+-- A teardrop pointing up, centred on its round part.
+local function drop(x, y, d, props)
+	return {
+		with({ "Rect", x, y - d * 0.2, d * 0.7, d * 0.7, 45, R = 0.12 }, props and table.clone(props)),
+		with({ "Circle", x, y, d }, props and table.clone(props)),
+	}
+end
+
+-- Brick wall slab.
+local function wall(x, y, w, h, props)
+	props = props or {}
+	local out = {
+		with({ "Rect", x, y, w, h, 0, R = 0.12, C = props.C or WALL_LIGHT, T = props.T }, {}),
+	}
+	local rows = props.Rows or 4
+	for i = 1, rows - 1 do
+		local ly = y - h / 2 + h * i / rows
+		table.insert(out, { "Rect", x, ly, w - 2, 1.8, 0, R = 0.5, C = WALL, O = false, NoShadow = true, Big = true, Flat = true, T = props.T })
+		local off = (i % 2 == 0) and -w * 0.18 or w * 0.18
+		table.insert(out, {
+			"Rect",
+			x + off,
+			ly - h / rows / 2,
+			1.8,
+			h / rows - 2,
+			0,
+			R = 0.5,
+			C = WALL,
+			O = false,
+			NoShadow = true,
+			Big = true,
+			Flat = true,
+			T = props.T,
+		})
+	end
+	return out
+end
+
+-- Crosshair reticle.
+local function crosshair(x, y, d, th, props)
+	local p = props or {}
+	local r = d / 2
+	local gap = d * 0.16
+	return join(
+		with({ "Ring", x, y, d, th }, table.clone(p)),
+		bar(x, y - r - th * 0.6, x, y - gap, th, table.clone(p)),
+		bar(x, y + gap, x, y + r + th * 0.6, th, table.clone(p)),
+		bar(x - r - th * 0.6, y, x - gap, y, th, table.clone(p)),
+		bar(x + gap, y, x + r + th * 0.6, y, th, table.clone(p))
+	)
+end
+
+
+-- Rotates shapes about (cx, cy) by `deg` (clockwise). Clip boxes can't
+-- rotate, so don't pass lists containing "Clip" here.
+local function spin(list, cx, cy, deg)
+	local a = math.rad(deg)
+	local cs, sn = math.cos(a), math.sin(a)
+	local out = {}
+	for _, shape in ipairs(list) do
+		if type(shape) ~= "table" then
+			table.insert(out, shape)
+			continue
+		end
+		local c = table.clone(shape)
+		local dx, dy = c[2] - cx, c[3] - cy
+		c[2] = cx + dx * cs - dy * sn
+		c[3] = cy + dx * sn + dy * cs
+		if c[1] == "Rect" then
+			c[6] = (c[6] or 0) + deg
+		end
+		table.insert(out, c)
+	end
+	return out
+end
+
+-- Impact burst: `n` short rays around (x, y).
+local function burst(x, y, inner, outer, n, th, props, startDeg)
+	local out = {}
+	for i = 0, n - 1 do
+		local deg = (startDeg or 0) + i * 360 / n
+		local ax, ay = along(x, y, deg, inner)
+		local bx, by = along(x, y, deg, outer)
+		table.insert(out, bar(ax, ay, bx, by, th, props and table.clone(props)))
+	end
+	return out
+end
+
+-- Eight-point star (two overlapping squares).
+local function star8(x, y, s, props, rot)
+	rot = rot or 0
+	return {
+		with({ "Rect", x, y, s, s, rot, R = 0.08 }, props and table.clone(props)),
+		with({ "Rect", x, y, s, s, rot + 45, R = 0.08 }, props and table.clone(props)),
+	}
+end
+
+----------------------------------------------------------------------------
+-- more shared pieces
+----------------------------------------------------------------------------
+local WOOD = rgb(176, 112, 64)
+local GRIP = rgb(58, 52, 60)
+local ACID = rgb(200, 255, 70)
+local ICE = rgb(220, 246, 255)
+
+-- Upright combat knife in a 100x100 box (tip at the top).
+local function knife(props)
+	props = props or {}
+	return {
+		{ "Rect", 50, 14, 11.3, 11.3, 45, R = 0.05, C = props.Blade or STEEL },
+		{ "Rect", 50, 34, 16, 40, 0, R = 0.12, C = props.Blade or STEEL },
+		{ "Rect", 46, 32, 3, 32, 0, R = 0.5, C = "W", O = false, NoShadow = true, Flat = true, Big = true },
+		{ "Rect", 50, 57, 32, 8, 0, R = 0.4, C = rgb(80, 86, 104) },
+		{ "Rect", 50, 73, 13, 26, 0, R = 0.3, C = props.Grip or GRIP },
+		{ "Circle", 50, 88, 13, C = rgb(80, 86, 104) },
+	}
+end
+
+-- Heater shield in a 100x100 box.
+local function shieldShape(props)
+	return {
+		with({ "Rect", 50, 34, 56, 36, 0, R = 0.18 }, props and table.clone(props)),
+		with({ "Rect", 50, 54, 39.6, 39.6, 45, R = 0.1 }, props and table.clone(props)),
+	}
+end
+
+-- Sliding pictogram (feet first, leaning back) in a 100x100 box.
+local function slider(color)
+	local p = { C = color or "W" }
+	return join(
+		poly({ { 40, 52 }, { 26, 62 }, { 22, 74 } }, 9, p), -- back arm (hand on floor)
+		bar(42, 50, 60, 68, 14, p), -- torso
+		poly({ { 60, 68 }, { 76, 64 }, { 90, 72 } }, 11, p), -- top leg
+		poly({ { 60, 68 }, { 72, 76 }, { 88, 80 } }, 11, p), -- bottom leg
+		poly({ { 44, 50 }, { 58, 46 }, { 66, 38 } }, 9, p), -- front arm
+		{ "Circle", 34, 40, 17, C = p.C } -- head
+	)
+end
+
+-- Circular arrow (3/4 ring, gap in the top-right, or top-left if `ccw`).
+-- The two clip boxes overlap a little so no seam shows.
+local function cycleArrow(x, y, d, th, color, ccw)
+	color = color or "W"
+	local ring = { "Ring", x, y, d, th, C = color }
+	local r = d / 2
+	local m = ccw and -1 or 1
+	local mid = r - th / 2 -- centre line radius
+	return join(
+		{ "Clip", x - m * (r / 2 - 1), y, r + 4, d + 4, Kids = { ring } },
+		{ "Clip", x + m * (r / 2 + 1), y + r / 2, r + 4, r + 4, Kids = { ring } },
+		arrowHead(x + m * (th * 1.6), y - mid, ccw and 180 or 0, th * 1.7, th * 0.9, { C = color })
+	)
+end
+
+----------------------------------------------------------------------------
+-- BULLETS
+----------------------------------------------------------------------------
+
+-- Ghost Round: a bullet phasing through a brick wall.
+IconArt.GhostRound = art(
+	{},
+	wall(54, 50, 20, 74, { Rows = 5 }),
+	"BREAK",
+	bullet(4, 52, 0, 46, 18, { T = 0.5, Casing = PURPLE, Nose = PURPLE }),
+	bar(8, 34, 30, 34, 4, { T = 0.45, O = false }),
+	bar(4, 70, 26, 70, 4, { T = 0.45, O = false }),
+	"BREAK",
+	bullet(50, 52, 0, 42, 18)
+)
+
+-- Ricochet: a bullet trail bouncing off the floor.
+IconArt.Ricochet = art(
+	{},
+	{ "Rect", 50, 84, 78, 9, 0, R = 0.5, C = WALL_LIGHT },
+	"BREAK",
+	poly({ { 14, 20 }, { 42, 74 } }, 9, { C = "W" }),
+	poly({ { 42, 74 }, { 76, 28 } }, 9, { C = "W" }),
+	arrowHead(80, 23, -54, 18, 9),
+	"BREAK",
+	burst(42, 76, 10, 20, 5, 5, { C = YELLOW }, 180),
+	{ "Circle", 42, 76, 11, C = YELLOW }
+)
+
+-- Split Shot: three bullets fanning out of one muzzle flash.
+IconArt.SplitShot = art(
+	{},
+	star8(16, 52, 22, { C = YELLOW }, 0),
+	"BREAK",
+	bullet(32, 40, -36, 40, 14),
+	bullet(32, 64, 36, 40, 14),
+	"BREAK",
+	bullet(34, 52, 0, 48, 16)
+)
+
+-- Homing Rounds: a bullet curving into a target.
+local homingTrail = {}
+for i, pt in ipairs(arcPoints(60, 90, 44, 186, 240, 5)) do
+	table.insert(homingTrail, { "Circle", pt[1], pt[2], 5 + i * 1.3, T = 0.55 - i * 0.07, O = false })
+end
+IconArt.HomingRounds = art(
+	{},
+	crosshair(64, 36, 36, 6, { C = "W" }),
+	{ "Circle", 64, 36, 10, C = RED },
+	"BREAK",
+	homingTrail,
+	bullet(34, 60, -40, 36, 14)
+)
+
+-- Explosive Rounds: a cartoon blast.
+IconArt.ExplosiveRounds = art(
+	{},
+	star8(50, 50, 62, { C = FIRE }, 10),
+	"BREAK",
+	star8(50, 50, 40, { C = YELLOW }, 32),
+	{ "Circle", 50, 50, 22, C = "W", O = false },
+	{ "Circle", 18, 22, 8, C = FIRE },
+	{ "Circle", 84, 78, 7, C = FIRE },
+	{ "Circle", 82, 24, 5, C = YELLOW, Big = true }
+)
+
+-- Shrapnel: an impact on a wall spraying jagged shards.
+IconArt.Shrapnel = art(
+	{},
+	wall(14, 50, 16, 84, { Rows = 5 }),
+	"BREAK",
+	bar(30, 44, 58, 26, 4, { C = "W", T = 0.4, O = false }),
+	bar(30, 54, 66, 58, 4, { C = "W", T = 0.4, O = false }),
+	bar(28, 62, 50, 82, 4, { C = "W", T = 0.4, O = false }),
+	star8(26, 52, 20, { C = YELLOW }, 15),
+	"BREAK",
+	{ "Rect", 66, 24, 18, 14, 28, R = 0.08, C = STEEL },
+	{ "Rect", 78, 58, 20, 15, -18, R = 0.08, C = STEEL },
+	{ "Rect", 56, 84, 13, 11, 52, R = 0.08, C = STEEL }
+)
+
+-- Static Charge: a lightning bolt crackling off a passing bullet.
+IconArt.StaticCharge = art(
+	{},
+	poly({ { 62, 14 }, { 38, 52 }, { 62, 50 }, { 38, 86 } }, 13, { C = YELLOW }),
+	"BREAK",
+	bar(18, 34, 28, 40, 5, { C = "W", Big = true }),
+	bar(74, 64, 84, 70, 5, { C = "W", Big = true }),
+	bar(74, 36, 86, 32, 5, { C = "W" }),
+	bar(16, 66, 26, 62, 5, { C = "W" })
+)
+
+-- Pinball: a shiny ball bouncing, damage going up.
+IconArt.Pinball = art(
+	{},
+	poly({ { 10, 28 }, { 28, 66 }, { 44, 40 } }, 6, { C = "W", T = 0.35 }),
+	"BREAK",
+	{ "Circle", 56, 62, 40, G = { rgb(250, 252, 255), STEEL_DARK } },
+	{ "Circle", 50, 54, 12, C = "W", O = false, Flat = true, T = 0.1 },
+	"BREAK",
+	bar(78, 14, 78, 38, 9, { C = YELLOW }),
+	bar(66, 26, 90, 26, 9, { C = YELLOW })
+)
+
+-- Momentum Rounds: a bullet with speed streaks.
+IconArt.MomentumRounds = art(
+	{},
+	bar(8, 34, 30, 34, 7, { C = "W", T = 0.2 }),
+	bar(4, 52, 28, 52, 7, { C = "W", T = 0.2 }),
+	bar(10, 70, 32, 70, 7, { C = "W", T = 0.2 }),
+	"BREAK",
+	bullet(34, 52, 0, 56, 22)
+)
+
+----------------------------------------------------------------------------
+-- DAMAGE
+----------------------------------------------------------------------------
+
+-- Sky Sniper: a crosshair above the clouds.
+IconArt.SkySniper = art(
+	{},
+	crosshair(50, 38, 44, 7, { C = "W" }),
+	{ "Circle", 50, 38, 10, C = RED },
+	"BREAK",
+	{ "Circle", 32, 74, 26 },
+	{ "Circle", 52, 66, 32 },
+	{ "Circle", 72, 74, 24 },
+	{ "Rect", 52, 80, 64, 16, 0, R = 0.5 }
+)
+
+-- Glass Cannon: a cracked glass cannon.
+IconArt.GlassCannon = art(
+	{ Tile = rgb(120, 180, 235) },
+	bar(28, 64, 72, 30, 24, { R = 0.25, G = { rgb(220, 245, 255), rgb(110, 190, 240) }, T = 0.05 }),
+	bar(74, 28, 80, 24, 30, { R = 0.25, G = { rgb(220, 245, 255), rgb(110, 190, 240) } }),
+	{ "Circle", 24, 68, 18, G = { rgb(220, 245, 255), rgb(110, 190, 240) } },
+	"BREAK",
+	{ "Circle", 40, 72, 30, C = STEEL },
+	{ "Circle", 40, 72, 10, C = STEEL_DARK, O = false },
+	"BREAK",
+	poly({ { 44, 42 }, { 52, 48 }, { 48, 54 }, { 56, 58 } }, 3, { C = "D", O = false, NoShadow = true, Big = true }),
+	bar(34, 54, 62, 32, 4, { C = "W", T = 0.2, O = false, NoShadow = true })
+)
+
+-- Marked: an enemy silhouette in a red target lock.
+IconArt.Marked = art(
+	{},
+	{ "Glow", 50, 54, 76, C = RED, T = 0.8 },
+	xf(figure("W"), 14, 22, 0.72),
+	"BREAK",
+	crosshair(50, 44, 40, 6, { C = RED }),
+	{ "Rect", 50, 10, 9, 9, 45, R = 0.1, C = RED }
+)
+
+-- Hair Trigger: a "re-chamber" arrow charged with lightning.
+IconArt.HairTrigger = art(
+	{},
+	cycleArrow(50, 54, 62, 10, "W"),
+	"BREAK",
+	poly({ { 56, 34 }, { 44, 56 }, { 58, 54 }, { 46, 76 } }, 8, { C = YELLOW }),
+	"BREAK",
+	twinkle(82, 50, 14, { C = "W", Big = true })
+)
+
+-- Vampire: fangs and a drop of blood.
+IconArt.Vampire = art(
+	{},
+	{ "Rect", 50, 40, 80, 34, 0, R = 0.5, C = RED },
+	{ "Rect", 50, 42, 62, 16, 0, R = 0.5, C = "K", O = false },
+	{ "Rect", 50, 36, 56, 6, 0, R = 0.3, C = "W", O = false, Flat = true },
+	"BREAK",
+	{ "Rect", 33, 46, 12, 20, 0, R = 0.25 },
+	{ "Rect", 33, 56, 8.5, 8.5, 45, R = 0.05 },
+	{ "Rect", 67, 46, 12, 20, 0, R = 0.25 },
+	{ "Rect", 67, 56, 8.5, 8.5, 45, R = 0.05 },
+	"BREAK",
+	drop(67, 80, 14, { C = RED })
+)
+
+----------------------------------------------------------------------------
+-- MOVEMENT
+----------------------------------------------------------------------------
+
+-- Double Jump: two chevrons climbing off the ground.
+IconArt.DoubleJump = art(
+	{},
+	{ "Rect", 50, 86, 56, 7, 0, R = 0.5, C = "W", T = 0.3 },
+	"BREAK",
+	chevron(50, 48, -90, 30, 12, { C = "W", T = 0.35 }),
+	"BREAK",
+	chevron(50, 22, -90, 30, 12, { C = "W" })
+)
+
+-- Wall Runner: a runner sprinting along a wall.
+IconArt.WallRunner = art(
+	{},
+	wall(13, 50, 16, 90, { Rows = 6 }),
+	"BREAK",
+	spin(xf(runner("W"), 24, 14, 0.72), 58, 50, -30),
+	bar(40, 90, 56, 90, 5, { C = "W", T = 0.4, O = false, Big = true })
+)
+
+-- Adrenaline: a syringe.
+IconArt.Adrenaline = art(
+	{},
+	bar(40, 60, 80, 20, 3.5, { C = STEEL }),
+	"BREAK",
+	bar(26, 74, 58, 42, 20, { R = 0.2 }),
+	bar(32, 68, 52, 48, 12, { R = 0.3, C = RED, O = false }),
+	bar(22, 62, 36, 76, 6, { C = STEEL_DARK }),
+	bar(26, 74, 12, 88, 6, { C = STEEL_DARK }),
+	bar(6, 82, 18, 94, 7, { C = STEEL_DARK }),
+	"BREAK",
+	bar(70, 66, 84, 66, 5, { C = "W", T = 0.3, O = false }),
+	bar(76, 76, 88, 76, 5, { C = "W", T = 0.3, O = false })
+)
+
+-- Featherweight: a drifting feather.
+IconArt.Featherweight = art(
+	{},
+	{ "Rect", 54, 44, 32, 70, 38, R = 0.5 },
+	"BREAK",
+	bar(26, 86, 70, 16, 4, { C = "M", O = false }),
+	bar(54, 42, 68, 42, 2.5, { C = "M", O = false, NoShadow = true, Big = true }),
+	bar(46, 54, 62, 58, 2.5, { C = "M", O = false, NoShadow = true, Big = true }),
+	bar(52, 44, 40, 34, 2.5, { C = "M", O = false, NoShadow = true, Big = true }),
+	bar(44, 56, 34, 50, 2.5, { C = "M", O = false, NoShadow = true, Big = true }),
+	bar(34, 72, 24, 70, 4, { C = "W" }),
+	bar(36, 76, 30, 82, 4, { C = "W" }),
+	"BREAK",
+	bar(18, 30, 18, 44, 4, { C = "W", T = 0.4, O = false }),
+	bar(84, 54, 84, 70, 4, { C = "W", T = 0.4, O = false })
+)
+
+-- Spring Legs: a coil spring with an up arrow.
+IconArt.SpringLegs = art(
+	{},
+	{ "Rect", 50, 72, 40, 6, 16, R = 0.5, C = STEEL_DARK },
+	{ "Rect", 50, 60, 40, 6, 16, R = 0.5, C = STEEL_DARK },
+	{ "Rect", 50, 48, 40, 6, 16, R = 0.5, C = STEEL_DARK },
+	"BREAK",
+	{ "Rect", 50, 88, 50, 8, 0, R = 0.4, C = rgb(80, 86, 104) },
+	{ "Rect", 50, 78, 40, 7, -16, R = 0.5 },
+	{ "Rect", 50, 66, 40, 7, -16, R = 0.5 },
+	{ "Rect", 50, 54, 40, 7, -16, R = 0.5 },
+	{ "Rect", 50, 42, 40, 7, -16, R = 0.5 },
+	{ "Rect", 50, 34, 50, 8, 0, R = 0.4, C = rgb(80, 86, 104) },
+	"BREAK",
+	chevron(50, 8, -90, 18, 9, { C = YELLOW })
+)
+
+-- Blink: a faded runner teleporting into a solid one.
+IconArt.Blink = art(
+	{},
+	paint(xf(runner(), 0, 22, 0.56), { T = 0.6, O = false, C = "L" }),
+	bar(36, 56, 44, 56, 5, { C = "W", T = 0.3, O = false }),
+	bar(50, 56, 58, 56, 5, { C = "W", T = 0.3, O = false }),
+	"BREAK",
+	xf(runner(), 42, 22, 0.56),
+	"BREAK",
+	twinkle(40, 24, 18, { C = "W" }),
+	twinkle(88, 66, 12, { C = "W", Big = true })
+)
+
+-- Grapple Hook: a three-prong hook with its rope.
+local hook = join(
+	bar(50, 22, 50, 70, 8),
+	poly({ { 50, 24 }, { 36, 30 }, { 30, 44 } }, 8),
+	poly({ { 50, 24 }, { 64, 30 }, { 70, 44 } }, 8),
+	bar(50, 22, 50, 10, 8),
+	{ "Ring", 50, 76, 16, 5 }
+)
+IconArt.GrappleHook = art(
+	{},
+	poly({ { 36, 64 }, { 28, 72 }, { 22, 70 }, { 12, 82 } }, 5, { C = rgb(220, 190, 140) }),
+	"BREAK",
+	spin(paint(hook, { C = STEEL }), 50, 50, 42)
+)
+
+-- Rocket Jump: a rocket taking off.
+IconArt.RocketJump = art(
+	{},
+	{ "Circle", 50, 80, 18, C = FIRE },
+	{ "Rect", 50, 88, 13, 13, 45, R = 0.1, C = FIRE },
+	{ "Circle", 50, 78, 9, C = YELLOW, O = false },
+	"BREAK",
+	{ "Rect", 36, 62, 12, 22, -28, R = 0.3, C = RED },
+	{ "Rect", 64, 62, 12, 22, 28, R = 0.3, C = RED },
+	{ "Rect", 50, 42, 26, 52, 0, R = 0.5 },
+	{ "Rect", 50, 62, 26, 14, 0, R = 0.2 },
+	{ "Clip", 50, 23, 30, 12, Kids = { { "Rect", 50, 42, 26, 52, 0, R = 0.5, C = RED, O = false } } },
+	{ "Circle", 50, 42, 12, C = CYAN, S = { "D", 1.5 } }
+)
+
+-- Phantom Step: a ghost leaving fading afterimages.
+local function ghost(x, props)
+	return paint({
+		{ "Circle", x, 40, 42 },
+		{ "Rect", x, 58, 42, 34, 0, R = 0.1 },
+		{ "Circle", x - 14, 76, 14 },
+		{ "Circle", x, 76, 14 },
+		{ "Circle", x + 14, 76, 14 },
+	}, props)
+end
+IconArt.PhantomDash = art(
+	{},
+	ghost(30, { T = 0.75, O = false }),
+	ghost(44, { T = 0.5, O = false }),
+	"BREAK",
+	ghost(60, {}),
+	{ "Rect", 53, 42, 7, 12, 0, R = 0.5, C = "K", O = false },
+	{ "Rect", 67, 42, 7, 12, 0, R = 0.5, C = "K", O = false }
+)
+
+-- Magnetic Boots: a horseshoe magnet pulling up toward the ceiling.
+IconArt.MagneticBoots = art(
+	{},
+	{ "Rect", 50, 9, 76, 6, 0, R = 0.5, C = "W", T = 0.35, O = false },
+	bar(34, 22, 34, 16, 4, { C = "W", T = 0.3, O = false }),
+	bar(66, 22, 66, 16, 4, { C = "W", T = 0.3, O = false }),
+	"BREAK",
+	{ "Clip", 50, 74, 60, 30, Kids = { { "Ring", 50, 58, 50, 16 } } },
+	{ "Rect", 33, 50, 16, 28, 0, R = 0.05 },
+	{ "Rect", 67, 50, 16, 28, 0, R = 0.05 },
+	{ "Rect", 33, 32, 16, 12, 0, R = 0.15, C = STEEL },
+	{ "Rect", 67, 32, 16, 12, 0, R = 0.15, C = STEEL }
+)
+
+-- Shockwave Landing: a slam with waves rippling out.
+IconArt.ShockwaveLanding = art(
+	{},
+	{ "Clip", 50, 60, 96, 36, Kids = {
+		{ "Ring", 50, 80, 86, 5, C = "W", T = 0.45 },
+		{ "Ring", 50, 80, 58, 6, C = "W" },
+	} },
+	{ "Rect", 50, 84, 84, 8, 0, R = 0.5, C = "W" },
+	"BREAK",
+	bar(50, 10, 50, 50, 11, { C = YELLOW }),
+	arrowHead(50, 60, 90, 20, 11, { C = YELLOW })
+)
+
+-- Bullet Time: a stopwatch whose hand is a bullet.
+IconArt.BulletTime = art(
+	{},
+	{ "Rect", 50, 14, 16, 9, 0, R = 0.3, C = STEEL },
+	{ "Rect", 50, 20, 7, 8, 0, R = 0.1, C = STEEL },
+	{ "Rect", 76, 26, 8, 10, 45, R = 0.3, C = STEEL },
+	{ "Circle", 50, 56, 64, C = "W" },
+	"BREAK",
+	{ "Circle", 50, 56, 48, C = rgb(255, 246, 220), O = false, Flat = true },
+	bar(50, 36, 50, 38, 3, { C = STEEL_DARK, O = false, NoShadow = true }),
+	bar(50, 74, 50, 76, 3, { C = STEEL_DARK, O = false, NoShadow = true }),
+	bar(30, 56, 32, 56, 3, { C = STEEL_DARK, O = false, NoShadow = true }),
+	bar(68, 56, 70, 56, 3, { C = STEEL_DARK, O = false, NoShadow = true }),
+	"BREAK",
+	bullet(46, 60, -50, 30, 9),
+	{ "Circle", 50, 56, 7, C = "K", O = false }
+)
+
+-- Quickdraw: a rifle scope with fast-forward chevrons.
+IconArt.Quickdraw = art(
+	{},
+	{ "Rect", 50, 40, 52, 13, 0, R = 0.3, C = rgb(70, 76, 92) },
+	{ "Rect", 80, 40, 14, 24, 0, R = 0.25, C = rgb(70, 76, 92) },
+	{ "Rect", 20, 40, 12, 19, 0, R = 0.25, C = rgb(70, 76, 92) },
+	{ "Rect", 50, 30, 10, 10, 0, R = 0.2, C = rgb(90, 96, 114) },
+	{ "Rect", 87, 40, 3, 18, 0, R = 0.5, C = CYAN, O = false },
+	"BREAK",
+	chevron(48, 72, 0, 18, 9, { C = "W" }),
+	chevron(66, 72, 0, 18, 9, { C = "W" })
+)
+
+----------------------------------------------------------------------------
+-- SURVIVAL / UTILITY
+----------------------------------------------------------------------------
+
+-- Thick Skin: a sturdy shield with a health cross.
+IconArt.ThickSkin = art(
+	{},
+	{ "Rect", 50, 34, 56, 36, 0, R = 0.18 },
+	{ "Rect", 50, 54, 39.6, 39.6, 45, R = 0.1 },
+	"BREAK",
+	{ "Rect", 50, 46, 10, 30, 0, R = 0.2, C = GREEN, O = false },
+	{ "Rect", 50, 46, 30, 10, 0, R = 0.2, C = GREEN, O = false }
+)
+
+-- Second Wind: a winged heart (an extra life).
+local wingL = {
+	{ "Rect", 24, 38, 30, 10, 18, R = 0.5 },
+	{ "Rect", 22, 48, 28, 10, 4, R = 0.5 },
+	{ "Rect", 26, 58, 22, 10, -10, R = 0.5 },
+}
+local wingR = {}
+for _, w in ipairs(wingL) do
+	local c = table.clone(w)
+	c[2] = 100 - c[2]
+	c[6] = -c[6]
+	table.insert(wingR, c)
+end
+IconArt.SecondWind = art(
+	{},
+	wingL,
+	wingR,
+	"BREAK",
+	heart(50, 52, 46, { C = RED }),
+	{ "Circle", 40, 42, 8, C = "W", O = false, T = 0.25, Flat = true }
+)
+
+-- Wallhack Pulse: an eye seeing through a wall.
+IconArt.WallhackPulse = art(
+	{},
+	wall(50, 50, 78, 62, { Rows = 4, T = 0.35 }),
+	{ "Ring", 50, 50, 90, 3, C = "W", T = 0.5, O = false, Big = true },
+	"BREAK",
+	{ "Rect", 50, 50, 66, 34, 0, R = 0.5 },
+	{ "Circle", 50, 50, 26, C = CYAN, S = { "D", 1.5 } },
+	{ "Circle", 50, 50, 11, C = "K", O = false },
+	{ "Circle", 46, 46, 5, C = "W", O = false, Flat = true }
+)
+
+-- Decoy: you and your hologram.
+local holo = paint(xf(figure(), 34, 18, 0.66), { C = "W", T = 0.45, O = false })
+IconArt.Decoy = art(
+	{},
+	holo,
+	{ "Rect", 67, 50, 32, 3, 0, R = 0.5, C = "A", O = false, NoShadow = true, Flat = true, Big = true },
+	{ "Rect", 67, 62, 32, 3, 0, R = 0.5, C = "A", O = false, NoShadow = true, Flat = true, Big = true },
+	{ "Rect", 67, 74, 32, 3, 0, R = 0.5, C = "A", O = false, NoShadow = true, Flat = true, Big = true },
+	{ "Rect", 67, 88, 36, 5, 0, R = 0.5, C = "W", T = 0.2, O = false },
+	"BREAK",
+	xf(figure("W"), 0, 22, 0.62)
+)
+
+----------------------------------------------------------------------------
+-- NEW BULLET MODS
+----------------------------------------------------------------------------
+
+-- Acid Rounds: a dripping bullet over a bubbling puddle.
+IconArt.AcidRounds = art(
+	{},
+	{ "Rect", 50, 80, 76, 16, 0, R = 0.5, C = ACID },
+	{ "Circle", 34, 72, 10, C = ACID },
+	{ "Circle", 62, 70, 14, C = ACID },
+	"BREAK",
+	{ "Circle", 62, 70, 5, C = "W", O = false, T = 0.2, Flat = true },
+	{ "Circle", 30, 80, 4, C = "W", O = false, T = 0.3, Flat = true, Big = true },
+	bullet(16, 30, 18, 48, 15, { Casing = GOLD }),
+	"BREAK",
+	drop(66, 52, 9, { C = ACID })
+)
+
+-- Frost Rounds: a snowflake.
+local flake = {}
+for i = 0, 2 do
+	local deg = i * 60 + 90
+	local ax, ay = along(50, 50, deg, 34)
+	local bx, by = along(50, 50, deg + 180, 34)
+	table.insert(flake, bar(ax, ay, bx, by, 8, { C = ICE }))
+	for _, sgn in ipairs({ 1, -1 }) do
+		local tipx, tipy = along(50, 50, deg + (sgn > 0 and 0 or 180), 22)
+		for _, side in ipairs({ 45, -45 }) do
+			local ex, ey = along(tipx, tipy, deg + (sgn > 0 and 0 or 180) + 180 + side, -12)
+			table.insert(flake, bar(tipx, tipy, ex, ey, 6, { C = ICE }))
+		end
+	end
+end
+IconArt.FrostRounds = art({}, flake, "BREAK", { "Rect", 50, 50, 12, 12, 45, R = 0.15, C = SKY })
+
+-- Serrated Rounds: a saw-toothed blade drawing blood.
+local saw = { { "Rect", 50, 40, 70, 16, 0, R = 0.25, C = STEEL } }
+for i = 0, 5 do
+	table.insert(saw, { "Rect", 22 + i * 11.2, 48, 10, 10, 45, R = 0.05, C = STEEL })
+end
+IconArt.SerratedRounds = art(
+	{},
+	spin(saw, 50, 44, -20),
+	{ "Rect", 30, 40, 40, 3, -20, R = 0.5, C = "W", O = false, NoShadow = true, Flat = true, Big = true },
+	"BREAK",
+	drop(40, 76, 14, { C = RED_DARK }),
+	drop(64, 82, 10, { C = RED_DARK })
+)
+
+-- Impact Rounds: a hit that shoves hard.
+IconArt.ImpactRounds = art(
+	{},
+	bar(50, 26, 70, 26, 6, { C = "W", T = 0.3, O = false }),
+	bar(50, 74, 70, 74, 6, { C = "W", T = 0.3, O = false }),
+	"BREAK",
+	bar(36, 50, 74, 50, 15, { C = "W" }),
+	arrowHead(84, 50, 0, 24, 14, { C = "W" }),
+	"BREAK",
+	star8(28, 50, 32, { C = YELLOW }, 12),
+	{ "Circle", 28, 50, 12, C = "W", O = false }
+)
+
+-- Disruptor Rounds: an ability crossed out.
+IconArt.DisruptorRounds = art(
+	{},
+	poly({ { 56, 26 }, { 42, 52 }, { 58, 50 }, { 44, 76 } }, 9, { C = YELLOW }),
+	"BREAK",
+	{ "Ring", 50, 51, 68, 10, C = RED },
+	bar(28, 29, 72, 73, 10, { C = RED, R = 0.3 })
+)
+
+-- Railgun: a beam punching through a row of walls.
+IconArt.Railgun = art(
+	{},
+	wall(26, 50, 10, 70, { Rows = 4 }),
+	wall(50, 50, 10, 70, { Rows = 4 }),
+	wall(74, 50, 10, 70, { Rows = 4 }),
+	"BREAK",
+	{ "Glow", 50, 50, 70, C = CYAN, T = 0.8 },
+	{ "Rect", 50, 50, 92, 14, 0, R = 0.5, C = CYAN },
+	{ "Rect", 50, 50, 88, 5, 0, R = 0.5, C = "W", O = false, Flat = true }
+)
+
+-- Double Tap: two bullets side by side.
+IconArt.DoubleTap = art(
+	{},
+	bullet(38, 86, -90, 66, 18),
+	"BREAK",
+	bullet(64, 86, -90, 66, 18),
+	"BREAK",
+	twinkle(84, 62, 14, { Big = true })
+)
+
+-- Deadeye: an eye in a scope, with a charge arc filling up.
+IconArt.Deadeye = art(
+	{},
+	crosshair(50, 52, 64, 6, { C = "W" }),
+	{ "Clip", 34, 52, 34, 72, Kids = { { "Ring", 50, 52, 82, 6, C = YELLOW } } },
+	"BREAK",
+	{ "Rect", 50, 52, 40, 22, 0, R = 0.5 },
+	{ "Circle", 50, 52, 16, C = RED },
+	{ "Circle", 50, 52, 6, C = "K", O = false }
+)
+
+----------------------------------------------------------------------------
+-- NEW DAMAGE / KNIFE
+----------------------------------------------------------------------------
+
+-- Last Stand: a fire burning over a nearly empty health bar.
+IconArt.LastStand = art(
+	{},
+	{ "Rect", 50, 82, 70, 14, 0, R = 0.4, C = rgb(50, 40, 50) },
+	{ "Rect", 24, 82, 14, 8, 0, R = 0.3, C = RED, O = false },
+	"BREAK",
+	drop(50, 50, 40, { C = FIRE }),
+	"BREAK",
+	drop(50, 56, 22, { C = YELLOW, O = false })
+)
+
+-- Executioner: a heavy axe.
+IconArt.Executioner = art(
+	{},
+	spin({
+		{ "Rect", 40, 54, 10, 76, 0, R = 0.4, C = WOOD },
+		"BREAK",
+		{ "Rect", 60, 22, 32, 14, -20, R = 0.15, C = STEEL },
+		{ "Rect", 60, 40, 32, 14, 20, R = 0.15, C = STEEL },
+		{ "Rect", 52, 31, 20, 18, 0, R = 0.1, C = STEEL },
+		{ "Circle", 64, 31, 40, C = STEEL },
+		{ "Rect", 80, 31, 3, 32, 0, R = 0.5, C = "W", O = false, NoShadow = true, Flat = true, Big = true },
+		{ "Rect", 40, 31, 14, 18, 0, R = 0.2, C = STEEL_DARK },
+	}, 50, 50, -24)
+)
+
+-- Long Shot: a bullet at the end of a long measured trail.
+local dashes = {}
+for i = 0, 3 do
+	table.insert(dashes, bar(10 + i * 12, 44, 15 + i * 12, 44, 5, { C = "W", T = 0.5 - i * 0.1, O = false }))
+end
+IconArt.LongShot = art(
+	{},
+	dashes,
+	"BREAK",
+	bullet(56, 44, 0, 34, 15),
+	"BREAK",
+	{ "Rect", 50, 74, 78, 6, 0, R = 0.5, C = "W" },
+	{ "Rect", 12, 74, 6, 18, 0, R = 0.5, C = "W" },
+	{ "Rect", 88, 74, 6, 18, 0, R = 0.5, C = "W" }
+)
+
+-- Keen Edge: a gleaming knife.
+IconArt.KeenEdge = art(
+	{ Tile = rgb(150, 162, 182) },
+	spin(knife({ Blade = rgb(240, 246, 255) }), 50, 50, 40),
+	"BREAK",
+	twinkle(36, 30, 22),
+	twinkle(76, 70, 12, { Big = true })
+)
+
+-- Hunter's Knife: a knife on the run.
+IconArt.HuntersKnife = art(
+	{},
+	bar(8, 34, 26, 34, 6, { C = "W", T = 0.3, O = false }),
+	bar(6, 52, 24, 52, 6, { C = "W", T = 0.3, O = false }),
+	bar(10, 70, 26, 70, 6, { C = "W", T = 0.3, O = false }),
+	"BREAK",
+	spin(knife(), 56, 50, 60)
+)
+
+----------------------------------------------------------------------------
+-- NEW MOVEMENT
+----------------------------------------------------------------------------
+
+-- Power Slide: sliding feet-first with dust.
+IconArt.PowerSlide = art(
+	{},
+	{ "Rect", 54, 88, 84, 6, 0, R = 0.5, C = "W", T = 0.3, O = false },
+	{ "Circle", 14, 80, 12, C = "W", T = 0.45, O = false },
+	{ "Circle", 24, 82, 9, C = "W", T = 0.45, O = false },
+	"BREAK",
+	xf(slider(), 4, 2, 0.94)
+)
+
+-- Slingshot: a launched figure leaving a slingshot.
+IconArt.Slingshot = art(
+	{},
+	bar(50, 62, 50, 90, 10, { C = WOOD }),
+	poly({ { 50, 64 }, { 34, 54 }, { 30, 36 } }, 10, { C = WOOD }),
+	poly({ { 50, 64 }, { 66, 54 }, { 70, 36 } }, 10, { C = WOOD }),
+	"BREAK",
+	poly({ { 30, 38 }, { 50, 52 }, { 70, 38 } }, 4, { C = rgb(60, 50, 50), O = false }),
+	"BREAK",
+	{ "Circle", 50, 18, 18, C = "W" },
+	bar(50, 30, 50, 40, 4, { C = "W", T = 0.4, O = false })
+)
+
+-- Air Dash: a runner bursting forward mid-air.
+IconArt.AirDash = art(
+	{},
+	{ "Circle", 18, 56, 18, C = "W", T = 0.5, O = false },
+	{ "Circle", 10, 46, 12, C = "W", T = 0.6, O = false },
+	bar(16, 32, 34, 32, 5, { C = "W", T = 0.3, O = false }),
+	bar(10, 74, 30, 74, 5, { C = "W", T = 0.3, O = false }),
+	"BREAK",
+	spin(xf(runner(), 22, 6, 0.8), 60, 50, 20)
+)
+
+-- Kinetic Armor: a shield in motion.
+IconArt.KineticArmor = art(
+	{},
+	bar(8, 30, 26, 30, 6, { C = "W", T = 0.3, O = false }),
+	bar(4, 48, 24, 48, 6, { C = "W", T = 0.3, O = false }),
+	bar(8, 66, 26, 66, 6, { C = "W", T = 0.3, O = false }),
+	"BREAK",
+	xf(shieldShape({ G = { rgb(230, 240, 255), STEEL } }), 14, 4, 0.86),
+	"BREAK",
+	chevron(66, 46, 0, 14, 7, { C = "A" }),
+	chevron(54, 46, 0, 14, 7, { C = "A" })
+)
+
+----------------------------------------------------------------------------
+-- NEW ABILITIES
+----------------------------------------------------------------------------
+
+-- Recall: a rewind arrow around a clock.
+IconArt.Recall = art(
+	{},
+	cycleArrow(50, 54, 64, 10, "W", true),
+	"BREAK",
+	bar(50, 54, 50, 38, 6, { C = "W" }),
+	bar(50, 54, 62, 60, 6, { C = "W" }),
+	{ "Circle", 50, 54, 9, C = "K", O = false }
+)
+
+-- Barrier Dome: a bubble shield stopping a bullet.
+IconArt.BarrierDome = art(
+	{},
+	{ "Rect", 50, 84, 84, 7, 0, R = 0.5, C = "W", T = 0.2 },
+	"BREAK",
+	{ "Clip", 50, 52, 80, 62, Kids = {
+		{ "Circle", 50, 84, 72, C = CYAN, T = 0.55, O = false },
+		{ "Ring", 50, 84, 72, 6, C = "W" },
+		{ "Ring", 50, 84, 50, 3, C = "W", T = 0.5, O = false, Big = true },
+	} },
+	"BREAK",
+	bullet(74, 18, 110, 26, 10),
+	burst(64, 48, 6, 14, 3, 4, { C = YELLOW }, -160)
+)
+
+-- Smoke Grenade: a grenade with a billowing cloud.
+IconArt.SmokeGrenade = art(
+	{},
+	{ "Circle", 66, 34, 30, C = "W", T = 0.25 },
+	{ "Circle", 80, 50, 22, C = "W", T = 0.25 },
+	{ "Circle", 52, 22, 20, C = "W", T = 0.35 },
+	"BREAK",
+	{ "Rect", 40, 64, 34, 40, 0, R = 0.45, C = rgb(96, 110, 90) },
+	{ "Rect", 40, 64, 34, 4, 0, R = 0.5, C = rgb(66, 76, 62), O = false, NoShadow = true, Big = true },
+	{ "Rect", 40, 42, 16, 9, 0, R = 0.2, C = STEEL_DARK },
+	bar(48, 40, 58, 50, 5, { C = STEEL_DARK }),
+	{ "Ring", 30, 40, 11, 3, C = STEEL }
+)
+
+-- Sonar: a radar screen with a blip.
+IconArt.Sonar = art(
+	{},
+	{ "Circle", 50, 50, 72, C = rgb(20, 60, 56) },
+	"BREAK",
+	{ "Ring", 50, 50, 50, 2.5, C = GREEN, T = 0.3, O = false },
+	{ "Ring", 50, 50, 26, 2.5, C = GREEN, T = 0.3, O = false, Big = true },
+	bar(50, 50, 72, 30, 4, { C = GREEN, O = false }),
+	{ "Circle", 50, 50, 6, C = GREEN, O = false },
+	{ "Glow", 64, 62, 20, C = RED, T = 0.6 },
+	{ "Circle", 64, 62, 9, C = RED, O = false },
+	"BREAK",
+	{ "Ring", 50, 50, 72, 6, C = "W" }
+)
+
+----------------------------------------------------------------------------
+-- NEW SURVIVAL
+----------------------------------------------------------------------------
+
+-- Regeneration: a heart with healing pluses rising.
+IconArt.Regeneration = art(
+	{},
+	heart(46, 56, 58, { C = "W" }),
+	"BREAK",
+	{ "Rect", 46, 54, 7, 22, 0, R = 0.2, C = GREEN, O = false },
+	{ "Rect", 46, 54, 22, 7, 0, R = 0.2, C = GREEN, O = false },
+	"BREAK",
+	{ "Rect", 80, 30, 4, 14, 0, R = 0.4, C = "W" },
+	{ "Rect", 80, 30, 14, 4, 0, R = 0.4, C = "W" },
+	{ "Rect", 82, 56, 3, 10, 0, R = 0.4, C = "W", Big = true },
+	{ "Rect", 82, 56, 10, 3, 0, R = 0.4, C = "W", Big = true }
+)
+
+-- Overshield: a shield inside a glowing bubble.
+IconArt.Overshield = art(
+	{},
+	{ "Circle", 50, 50, 80, C = CYAN, T = 0.65, O = false },
+	{ "Ring", 50, 50, 80, 4, C = "W", T = 0.15 },
+	"BREAK",
+	xf(shieldShape({ G = { rgb(250, 252, 255), rgb(200, 220, 245) } }), 20, 18, 0.6),
+	"BREAK",
+	{ "Rect", 34, 30, 6, 6, 45, R = 0.1, C = "W", O = false, Big = true }
+)
+
+-- Bloodlust: a blood drop on a shield.
+IconArt.Bloodlust = art(
+	{},
+	shieldShape({ C = "W" }),
+	"BREAK",
+	drop(50, 52, 26, { C = RED, O = false })
+)
+
+-- Fight or Flight: hit, then run.
+IconArt.FightOrFlight = art(
+	{},
+	star8(26, 42, 30, { C = YELLOW }, 15),
+	"BREAK",
+	xf(runner(), 22, 8, 0.82)
+)
+
+return IconArt
+]]></string>
+            </Properties>
+          </Item>
+          <Item class="ModuleScript" referent="66">
+            <Properties>
               <string name="Name">Icons</string>
               <string name="Source"><![CDATA[--[[
 	Icons.lua  (Client.ui.Icons)
-	Draws a power-up's flat icon from the simple shape list in PowerUps.lua.
-	No images needed: every icon is a few rounded frames on a coloured tile.
+	Draws a power-up icon entirely out of GuiObjects (no image assets):
+
+	  * a polished tile: colour gradient, centre glow, top sheen, a rarity
+	    ring (Config.Rarity colour) and, on big icons, a little rarity gem
+	  * the hand-made art for the power-up from IconArt.lua
+	    (falls back to the old `Icon` shape list in PowerUps.lua)
+
+	Art is drawn "sticker style" in layers. Every layer is drawn three times:
+	a soft drop shadow, a dark outline (each shape grown a little), then the
+	real fills on top. So overlapping shapes merge into one outlined
+	silhouette. See the top of IconArt.lua for the shape format.
+
+	Icons.Create(def, size) -> Frame (size x size, not parented)
+	Below DETAIL_SIZE pixels fine detail (strokes, `Big` shapes, the gem) is
+	dropped so the icon stays readable at 24px.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
-local Theme = require(script.Parent.Theme)
+local IconArt = require(script.Parent.IconArt)
 
 local Icons = {}
 
+local WHITE = Color3.new(1, 1, 1)
+local INK = Config.Palette.UIBackground
+local DETAIL_SIZE = 36 -- icons smaller than this drop fine detail
+
+local DEFAULT_OUTLINE = 3.2 -- art outline thickness (icon units, 100 = full icon)
+local DEFAULT_SHADOW = 3.4 -- drop shadow offset (icon units)
+local SHADOW_TRANSPARENCY = 0.55
+
+----------------------------------------------------------------------------
+-- small helpers
+----------------------------------------------------------------------------
+local function new(className, props)
+	local inst = Instance.new(className)
+	if inst:IsA("GuiObject") then
+		inst.BorderSizePixel = 0
+	end
+	for key, value in pairs(props) do
+		if key ~= "Parent" then
+			inst[key] = value
+		end
+	end
+	inst.Parent = props.Parent
+	return inst
+end
+
+local function corner(parent, radius)
+	return new("UICorner", {
+		CornerRadius = typeof(radius) == "UDim" and radius or UDim.new(0, radius),
+		Parent = parent,
+	})
+end
+
+local function colorSeq(points)
+	local keys = {}
+	for i, p in ipairs(points) do
+		keys[i] = ColorSequenceKeypoint.new(p[1], p[2])
+	end
+	return ColorSequence.new(keys)
+end
+
+local function numberSeq(points)
+	local keys = {}
+	for i, p in ipairs(points) do
+		keys[i] = NumberSequenceKeypoint.new(p[1], p[2])
+	end
+	return NumberSequence.new(keys)
+end
+
+local function gradient(parent, colors, rotation, transparency)
+	return new("UIGradient", {
+		Color = colors and colorSeq(colors) or ColorSequence.new(WHITE),
+		Transparency = transparency and numberSeq(transparency) or NumberSequence.new(0),
+		Rotation = rotation or 90,
+		Parent = parent,
+	})
+end
+
+local function lighten(c, a)
+	return c:Lerp(WHITE, a)
+end
+
+local function darken(c, a)
+	return c:Lerp(INK, a)
+end
+
+----------------------------------------------------------------------------
+-- art renderer
+----------------------------------------------------------------------------
+
+-- Colour tokens usable in IconArt: W white, A tile colour, L light tile
+-- colour, M mid-dark tile colour, D dark ink (tinted), K near-black.
+local function resolveColor(token, ctx)
+	if typeof(token) == "Color3" then
+		return token
+	elseif token == nil or token == "W" then
+		return WHITE
+	elseif token == "A" then
+		return ctx.base
+	elseif token == "L" then
+		return lighten(ctx.base, 0.55)
+	elseif token == "M" then
+		return darken(ctx.base, 0.4)
+	elseif token == "D" then
+		return ctx.ink
+	elseif token == "K" then
+		return INK
+	end
+	return WHITE
+end
+
+local function shapeVisible(shape, ctx)
+	if shape.Big and not ctx.big then
+		return false
+	end
+	if shape.Small and ctx.big then
+		return false
+	end
+	return true
+end
+
+local buildShape -- forward
+
+-- Builds one shape for one pass ("shadow" | "outline" | "fill").
+-- ox, oy: top-left of the parent frame in icon units.
+buildShape = function(parent, shape, ctx, pass, ox, oy)
+	if not shapeVisible(shape, ctx) then
+		return
+	end
+	local kind = shape[1]
+	local u = ctx.u
+	local alpha = shape.T or 0
+
+	-- which passes draw this shape
+	if pass == "shadow" and (shape.NoShadow or alpha > 0.3 or kind == "Glow") then
+		return
+	end
+	if pass == "outline" and (shape.O == false or kind == "Glow") then
+		return
+	end
+	if kind == "Glow" and pass ~= "fill" then
+		return
+	end
+
+	local grow = 0
+	if pass ~= "fill" then
+		grow = (shape.O == false) and 0 or ctx.outline
+	end
+
+	local x, y = shape[2], shape[3]
+
+	if kind == "Glow" then
+		-- three stacked translucent discs: a cheap radial glow
+		local d = shape[4]
+		local color = resolveColor(shape.C, ctx)
+		for _, k in ipairs({ 1, 0.72, 0.46 }) do
+			local disc = new("Frame", {
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.fromOffset((x - ox) * u, (y - oy) * u),
+				Size = UDim2.fromOffset(d * k * u, d * k * u),
+				BackgroundColor3 = color,
+				BackgroundTransparency = shape.T or 0.82,
+				Parent = parent,
+			})
+			corner(disc, UDim.new(0.5, 0))
+		end
+		return
+	end
+
+	if kind == "Clip" then
+		local w, h = shape[4], shape[5]
+		local left, top = x - w / 2 - grow, y - h / 2 - grow
+		local clip = new("Frame", {
+			Position = UDim2.fromOffset((left - ox) * u, (top - oy) * u),
+			Size = UDim2.fromOffset((w + 2 * grow) * u, (h + 2 * grow) * u),
+			BackgroundTransparency = 1,
+			ClipsDescendants = true,
+			Parent = parent,
+		})
+		for _, kid in ipairs(shape.Kids or {}) do
+			buildShape(clip, kid, ctx, pass, left, top)
+		end
+		return
+	end
+
+	local w, h, rot
+	if kind == "Circle" or kind == "Ring" then
+		w, h, rot = shape[4], shape[4], 0
+	else -- Rect
+		w, h, rot = shape[4], shape[5], shape[6] or 0
+	end
+
+	local frame = new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromOffset((x - ox) * u, (y - oy) * u),
+		Rotation = rot,
+		BackgroundColor3 = WHITE,
+		Parent = parent,
+	})
+
+	-- colour + transparency for this pass
+	local color
+	if pass == "shadow" then
+		color = INK
+		alpha = 1 - (1 - alpha) * (1 - SHADOW_TRANSPARENCY)
+	elseif pass == "outline" then
+		color = ctx.ink
+	else
+		color = resolveColor(shape.C, ctx)
+	end
+
+	if kind == "Ring" then
+		local th = shape[5] or 6
+		local strokePx = math.max(1, (th + 2 * grow) * u)
+		local outer = (w + 2 * grow) * u
+		local inner = math.max(0, outer - 2 * strokePx)
+		frame.Size = UDim2.fromOffset(inner, inner)
+		frame.BackgroundTransparency = 1
+		corner(frame, UDim.new(0.5, 0))
+		local stroke = new("UIStroke", {
+			Color = (pass == "fill" and shape.G) and WHITE or color,
+			Thickness = strokePx,
+			Transparency = alpha,
+			ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+			LineJoinMode = Enum.LineJoinMode.Round,
+			Parent = frame,
+		})
+		if pass == "fill" and shape.G then
+			local g = shape.G
+			gradient(stroke, { { 0, resolveColor(g[1], ctx) }, { 1, resolveColor(g[2], ctx) } }, g[3] or 90)
+		end
+		return
+	end
+
+	frame.Size = UDim2.fromOffset((w + 2 * grow) * u, (h + 2 * grow) * u)
+	frame.BackgroundTransparency = alpha
+	if kind == "Circle" then
+		corner(frame, UDim.new(0.5, 0))
+	else
+		local round = shape.R or 0.12
+		corner(frame, math.min(w, h) * round * u + grow * u)
+	end
+
+	if pass ~= "fill" then
+		frame.BackgroundColor3 = color
+		return
+	end
+
+	-- fill: shaded with a gradient that stays lit from the top even when the
+	-- shape is rotated
+	local lightRot = 90 - rot
+	if shape.G then
+		local g = shape.G
+		gradient(frame, {
+			{ 0, resolveColor(g[1], ctx) },
+			{ 1, resolveColor(g[2], ctx) },
+		}, (g[3] or 90) - rot)
+	elseif shape.Flat then
+		frame.BackgroundColor3 = color
+	else
+		gradient(frame, { { 0, lighten(color, 0.22) }, { 1, darken(color, 0.14) } }, lightRot)
+	end
+
+	if shape.S and ctx.big then
+		local s = shape.S
+		new("UIStroke", {
+			Color = resolveColor(s[1], ctx),
+			Thickness = math.max(1, (s[2] or 1.5) * u),
+			Transparency = s[3] or 0,
+			ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+			Parent = frame,
+		})
+	end
+end
+
+-- Splits an art list into layers at "BREAK" markers.
+local function splitLayers(art)
+	local layers, current = {}, {}
+	for _, shape in ipairs(art) do
+		if shape == "BREAK" then
+			if #current > 0 then
+				table.insert(layers, current)
+			end
+			current = {}
+		elseif type(shape) == "table" then
+			table.insert(current, shape)
+		end
+	end
+	if #current > 0 then
+		table.insert(layers, current)
+	end
+	return layers
+end
+
+local function drawArt(holder, art, ctx)
+	local shadowOffset = (art.Shadow or DEFAULT_SHADOW) * ctx.u
+	if shadowOffset > 0 then
+		shadowOffset = math.max(1, shadowOffset)
+	end
+	for _, layer in ipairs(splitLayers(art)) do
+		if shadowOffset > 0 then
+			local shadow = new("Frame", {
+				Name = "Shadow",
+				Position = UDim2.fromOffset(0, shadowOffset),
+				Size = UDim2.fromScale(1, 1),
+				BackgroundTransparency = 1,
+				Parent = holder,
+			})
+			for _, shape in ipairs(layer) do
+				buildShape(shadow, shape, ctx, "shadow", 0, 0)
+			end
+		end
+		if ctx.outline > 0 then
+			local outline = new("Frame", {
+				Name = "Outline",
+				Size = UDim2.fromScale(1, 1),
+				BackgroundTransparency = 1,
+				Parent = holder,
+			})
+			for _, shape in ipairs(layer) do
+				buildShape(outline, shape, ctx, "outline", 0, 0)
+			end
+		end
+		local fill = new("Frame", {
+			Name = "Fill",
+			Size = UDim2.fromScale(1, 1),
+			BackgroundTransparency = 1,
+			Parent = holder,
+		})
+		for _, shape in ipairs(layer) do
+			buildShape(fill, shape, ctx, "fill", 0, 0)
+		end
+	end
+end
+
+-- Converts the old PowerUps.lua `Icon` list (0-1 coordinates, white/dark)
+-- into IconArt shapes so un-drawn power-ups still look at home.
+local function legacyArt(def)
+	local art = {}
+	for _, s in ipairs(def.Icon or {}) do
+		local kind = s[1]
+		local c = s.Dark and "D" or "W"
+		if kind == "Circle" then
+			table.insert(art, { "Circle", s[2] * 100, s[3] * 100, s[4] * 100, C = c, T = s.A })
+		elseif kind == "Ring" then
+			table.insert(art, { "Ring", s[2] * 100, s[3] * 100, s[4] * 100, (s[5] or 3) * 100 / 64, C = c, T = s.A })
+		else
+			table.insert(art, {
+				"Rect",
+				s[2] * 100,
+				s[3] * 100,
+				s[4] * 100,
+				s[5] * 100,
+				s[6] or 0,
+				R = s.Round or 0.15,
+				C = c,
+				T = s.A,
+			})
+		end
+	end
+	return art
+end
+
+----------------------------------------------------------------------------
+-- the tile
+----------------------------------------------------------------------------
 --[[
 	def   power-up definition (PowerUps.Get(id))
 	size  pixel size of the square icon
 	Returns a Frame (not parented).
+	Each (power-up, size) is built once; later calls return a clone.
 ]]
-function Icons.Create(def, size)
-	local tile = Theme.new("Frame", {
+local cache = {}
+
+local function build(def, size)
+	local art = IconArt[def.Id]
+	local base = (art and art.Tile) or def.IconColor or Color3.fromRGB(120, 130, 150)
+	local rarity = Config.Rarity and Config.Rarity[def.Rarity]
+	local rarityColor = rarity and rarity.Color or lighten(base, 0.5)
+	local big = size >= DETAIL_SIZE
+	local radius = math.floor(size * 0.22 + 0.5)
+
+	local ctx = {
+		u = size / 100,
+		big = big,
+		base = base,
+		ink = (art and art.Ink) or base:Lerp(INK, 0.78),
+		outline = 0,
+	}
+
+	-- root stays transparent so callers can add their own UIStroke to it
+	local tile = new("Frame", {
 		Name = "Icon_" .. def.Id,
 		Size = UDim2.fromOffset(size, size),
-		BackgroundColor3 = def.IconColor,
+		BackgroundTransparency = 1,
 	})
-	Theme.corner(tile, math.floor(size * 0.22))
+	corner(tile, radius)
 
-	local scale = size / 64
-	for _, shape in ipairs(def.Icon or {}) do
-		local kind, x, y = shape[1], shape[2], shape[3]
-		local color = shape.Dark and def.IconColor:Lerp(Config.Palette.UIBackground, 0.75) or Color3.new(1, 1, 1)
-		local frame = Theme.new("Frame", {
+	-- body: vertical gradient, lighter at the top
+	local body = new("Frame", {
+		Name = "Body",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = WHITE,
+		Parent = tile,
+	})
+	corner(body, radius)
+	gradient(body, {
+		{ 0, lighten(base, 0.2) },
+		{ 0.55, base },
+		{ 1, darken(base, 0.42) },
+	}, 90)
+
+	-- soft light behind the art
+	for _, k in ipairs({ 0.84, 0.6 }) do
+		local disc = new("Frame", {
+			Name = "Glow",
 			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(x, y),
-			BackgroundColor3 = color,
-			BackgroundTransparency = shape.A or 0,
+			Position = UDim2.fromScale(0.5, 0.48),
+			Size = UDim2.fromScale(k, k),
+			BackgroundColor3 = WHITE,
+			BackgroundTransparency = 0.86,
 			Parent = tile,
 		})
-		if kind == "Circle" then
-			frame.Size = UDim2.fromScale(shape[4], shape[4])
-			Theme.corner(frame, UDim.new(0.5, 0))
-		elseif kind == "Ring" then
-			frame.Size = UDim2.fromScale(shape[4], shape[4])
-			frame.BackgroundTransparency = 1
-			Theme.corner(frame, UDim.new(0.5, 0))
-			Theme.stroke(frame, color, math.max(1, (shape[5] or 3) * scale), shape.A or 0)
-		else -- "Rect"
-			frame.Size = UDim2.fromScale(shape[4], shape[5])
-			frame.Rotation = shape[6] or 0
-			Theme.corner(frame, UDim.new(shape.Round or 0.15, 0))
-		end
+		corner(disc, UDim.new(0.5, 0))
 	end
+
+	-- glossy sheen over the top half
+	local inset = math.max(1, math.floor(size * 0.04))
+	local sheen = new("Frame", {
+		Name = "Sheen",
+		Position = UDim2.fromOffset(inset, inset),
+		Size = UDim2.new(1, -2 * inset, 0.46, 0),
+		BackgroundColor3 = WHITE,
+		Parent = tile,
+	})
+	corner(sheen, math.max(1, radius - inset))
+	gradient(sheen, nil, 90, { { 0, 0.62 }, { 1, 1 } })
+
+	-- the art
+	local holder = new("Frame", {
+		Name = "Art",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		Parent = tile,
+	})
+	local shapes = art or legacyArt(def)
+	ctx.outline = (shapes.Outline or DEFAULT_OUTLINE)
+	drawArt(holder, shapes, ctx)
+
+	-- rarity ring (drawn inside the tile edge, gradient for a metallic feel)
+	local ringPx = big and math.max(2, math.floor(size * 0.04 + 0.5)) or 1
+	local ring = new("Frame", {
+		Name = "RarityRing",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.new(1, -2 * ringPx, 1, -2 * ringPx),
+		BackgroundTransparency = 1,
+		Parent = tile,
+	})
+	corner(ring, math.max(1, radius - ringPx))
+	local ringStroke = new("UIStroke", {
+		Color = WHITE,
+		Thickness = ringPx,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		Parent = ring,
+	})
+	gradient(ringStroke, {
+		{ 0, lighten(rarityColor, 0.55) },
+		{ 0.5, rarityColor },
+		{ 1, darken(rarityColor, 0.3) },
+	}, 60)
+
+	if big then
+		-- thin inner bevel highlight
+		local bevel = new("Frame", {
+			Name = "Bevel",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.new(1, -2 * ringPx - 2, 1, -2 * ringPx - 2),
+			BackgroundTransparency = 1,
+			Parent = tile,
+		})
+		corner(bevel, math.max(1, radius - ringPx - 1))
+		local bevelStroke = new("UIStroke", {
+			Color = WHITE,
+			Thickness = 1,
+			ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+			Parent = bevel,
+		})
+		gradient(bevelStroke, nil, 90, { { 0, 0.45 }, { 0.5, 0.9 }, { 1, 1 } })
+
+		-- rarity gem in the top-right corner
+		local gemSize = math.max(6, math.floor(size * 0.13))
+		local gemPos = UDim2.new(1, -math.floor(size * 0.15), 0, math.floor(size * 0.15))
+		local gemOutline = new("Frame", {
+			Name = "GemOutline",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = gemPos,
+			Size = UDim2.fromOffset(gemSize + 4, gemSize + 4),
+			Rotation = 45,
+			BackgroundColor3 = INK,
+			Parent = tile,
+		})
+		corner(gemOutline, 3)
+		local gem = new("Frame", {
+			Name = "Gem",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = gemPos,
+			Size = UDim2.fromOffset(gemSize, gemSize),
+			Rotation = 45,
+			BackgroundColor3 = WHITE,
+			Parent = tile,
+		})
+		corner(gem, 2)
+		gradient(gem, {
+			{ 0, lighten(rarityColor, 0.6) },
+			{ 0.5, rarityColor },
+			{ 1, darken(rarityColor, 0.35) },
+		}, 90 - 45 + 0)
+		local glint = new("Frame", {
+			Name = "Glint",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = gemPos + UDim2.fromOffset(-gemSize * 0.18, -gemSize * 0.18),
+			Size = UDim2.fromOffset(math.max(2, gemSize * 0.28), math.max(2, gemSize * 0.28)),
+			BackgroundColor3 = WHITE,
+			BackgroundTransparency = 0.1,
+			Parent = tile,
+		})
+		corner(glint, UDim.new(0.5, 0))
+	end
+
 	return tile
+end
+
+function Icons.Create(def, size)
+	local key = def.Id .. "@" .. size
+	local template = cache[key]
+	if not template then
+		template = build(def, size)
+		cache[key] = template
+	end
+	return template:Clone()
 end
 
 return Icons
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="66">
+          <Item class="ModuleScript" referent="67">
             <Properties>
               <string name="Name">LobbyUI</string>
               <string name="Source"><![CDATA[--[[
@@ -21582,7 +25196,7 @@ return LobbyUI
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="67">
+          <Item class="ModuleScript" referent="68">
             <Properties>
               <string name="Name">Locker</string>
               <string name="Source"><![CDATA[--[[
@@ -22226,7 +25840,7 @@ return Locker
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="68">
+          <Item class="ModuleScript" referent="69">
             <Properties>
               <string name="Name">MobileControls</string>
               <string name="Source"><![CDATA[--[[
@@ -22240,7 +25854,8 @@ return Locker
 	  right side   drag anywhere to look (sensitivity in Settings > Touch),
 	               FIRE (you can keep dragging on it to aim), SCOPE, JUMP
 	               (hold to bunny hop), SLIDE, SPRINT (toggle) and your
-	               ability buttons (Grapple / Blink / Decoy, when you have them)
+	               ability buttons (Grapple / Blink / Decoy / Dome / Recall /
+	               Smoke / Dash, when you have them)
 	  top left     one MENU button under the lobby wordmark. In the lobby it
 	               opens a small list: SKINS (Locker), SHOP, DUEL, LAB and
 	               SETTINGS; in a match it opens Settings directly. Nothing
@@ -22429,6 +26044,10 @@ local function refresh()
 	buttons.Grapple.Visible = stats.Grapple == true
 	buttons.Blink.Visible = stats.Blink == true
 	buttons.Decoy.Visible = stats.Decoy == true
+	buttons.Barrier.Visible = stats.Barrier == true
+	buttons.Recall.Visible = stats.Recall == true
+	buttons.Smoke.Visible = stats.Smoke == true
+	buttons.Dash.Visible = stats.AirDash == true
 	if inMatch and menuOpen then
 		setMenuOpen(false) -- the list is lobby-only (MENU opens Settings in a match)
 	end
@@ -22496,6 +26115,11 @@ function MobileControls.Start(playerGui)
 	roundButton("Grapple", "HOOK", 58, br(80, 310), Palette.UIPanel, tap("Grapple"))
 	roundButton("Blink", "BLINK", 58, br(150, 300), Palette.UIPanel, tap("Blink"))
 	roundButton("Decoy", "DECOY", 58, br(220, 300), Palette.UIPanel, tap("Decoy"))
+	-- wave 2 actives: a second row above the first
+	roundButton("Barrier", "DOME", 58, br(80, 380), Palette.UIPanel, tap("Barrier"))
+	roundButton("Recall", "RECALL", 58, br(150, 370), Palette.UIPanel, tap("Recall"))
+	roundButton("Smoke", "SMOKE", 58, br(220, 370), Palette.UIPanel, tap("Smoke"))
+	roundButton("Dash", "DASH", 58, br(290, 300), Palette.UIPanel, tap("AirDash")) -- Air Dash (works in the air)
 	-- switch rifle <-> knife (with the knife out, FIRE slashes and SCOPE stabs)
 	roundButton("Knife", "KNIFE", 58, br(305, 165), Palette.UIPanel, function()
 		if Controllers and Controllers.Knife then
@@ -22620,7 +26244,7 @@ return MobileControls
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="69">
+          <Item class="ModuleScript" referent="70">
             <Properties>
               <string name="Name">PickScreen</string>
               <string name="Source"><![CDATA[--[[
@@ -22825,6 +26449,25 @@ local function makeCard(index, def, ownedStacks)
 	})
 	Theme.corner(disc, UDim.new(0.5, 0))
 	Theme.stroke(disc, color, 1.5, 0.55)
+	-- soft inner halo + a drop shadow so the icon floats on the disc
+	local halo = Theme.new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(96, 96),
+		BackgroundColor3 = color:Lerp(Color3.new(1, 1, 1), 0.35),
+		BackgroundTransparency = 0.8,
+		Parent = disc,
+	})
+	Theme.corner(halo, UDim.new(0.5, 0))
+	local iconShadow = Theme.new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(0.5, 0, 0.5, 5),
+		Size = UDim2.fromOffset(76, 76),
+		BackgroundColor3 = Palette.UIBackground,
+		BackgroundTransparency = 0.45,
+		Parent = disc,
+	})
+	Theme.corner(iconShadow, 17)
 	local icon = Icons.Create(def, 74)
 	icon.AnchorPoint = Vector2.new(0.5, 0.5)
 	icon.Position = UDim2.fromScale(0.5, 0.5)
@@ -23397,7 +27040,7 @@ return PickScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="70">
+          <Item class="ModuleScript" referent="71">
             <Properties>
               <string name="Name">PowerUpLab</string>
               <string name="Source"><![CDATA[--[[
@@ -23698,7 +27341,7 @@ return PowerUpLab
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="71">
+          <Item class="ModuleScript" referent="72">
             <Properties>
               <string name="Name">SettingsMenu</string>
               <string name="Source"><![CDATA[--[[
@@ -24227,7 +27870,7 @@ return SettingsMenu
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="72">
+          <Item class="ModuleScript" referent="73">
             <Properties>
               <string name="Name">Shop</string>
               <string name="Source"><![CDATA[--[[
@@ -24917,7 +28560,7 @@ return Shop
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="73">
+          <Item class="ModuleScript" referent="74">
             <Properties>
               <string name="Name">Theme</string>
               <string name="Source"><![CDATA[--[[
@@ -25401,7 +29044,7 @@ return Theme
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="74">
+          <Item class="ModuleScript" referent="75">
             <Properties>
               <string name="Name">Toast</string>
               <string name="Source"><![CDATA[--[[
@@ -25544,7 +29187,7 @@ return Toast
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="75">
+          <Item class="ModuleScript" referent="76">
             <Properties>
               <string name="Name">VictoryScreen</string>
               <string name="Source"><![CDATA[--[[
@@ -25762,7 +29405,7 @@ return VictoryScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="76">
+          <Item class="ModuleScript" referent="77">
             <Properties>
               <string name="Name">Welcome</string>
               <string name="Source"><![CDATA[--[[

@@ -36,12 +36,7 @@ src/server/                -> ServerScriptService.Server
   CrateService.lua            crate keys, server-side rolls, owned + equipped skins (DataStore)
   RankService.lua             ranked rating (Elo, DataStore) + the lobby leaderboard wall
   MapBuilder.lua              builds the lobby and the arena from parts
-  ArenaPolygon.lua            compact Rivals-style arena, tall walls + ramps
-  ArenaCanyon / Pillars / Bridges / Ziggurat / Quarry.lua   big simple movement maps (in the rotation)
-  ArenaNuketown.lua           optional Nuketown cul-de-sac (Config.Match.Map = "Nuketown")
-  ArenaCrossfire.lua          optional compact Rivals-style duel map
-  ArenaSimple.lua             optional open ramps arena (Config.Match.Map = "Simple")
-  ArenaDowntown.lua           optional detailed city map (Config.Match.Map = "Downtown")
+  ArenaMesa / Glacier / Monolith / Temple / Neon / Islands.lua   the six huge maps in the rotation
   DummyService.lua            practice dummies on the lobby shooting range
   CharacterService.lua        spawning, flat character style, freeze, invisibility, void
   MatchService.lua            lobby, queue, matchmaking, arena slots
@@ -340,11 +335,10 @@ Files: `PowerUps`, `PickScreen`, `Icons`, plus power-up code in Movement/Weapon/
       (Second Wind and Vampire need a real opponent: use a 2-player Studio test.)
 
 ### Stage 5: map, rifle and visuals
-Files: `ArenaCrossfire` (the map), `GunModel` (rifle + power-up mods), `ViewmodelController`, `MapBuilder`
+Files: `ArenaMesa`... (the maps), `GunModel` (rifle + power-up mods), `ViewmodelController`, `MapBuilder`
 
-- [ ] Crossfire: spawn inside your spawn building, climb the stairs to its
-      roof, take the middle (plaza), the north market hall (inside or on the
-      roof) or the south container yard (see `dist/arena-preview.png`).
+- [ ] Each map: spawn behind your cover wall, climb the big ramps, and check
+      every map in the rotation (`Config.Match.Maps`).
 - [ ] With the imported rifle (see Quick start): the PGM 338 is in your
       hands, the scope lines up when you aim, and your hands sit on the grip
       and under the handguard.
@@ -785,82 +779,24 @@ Every match picks a random map from `Config.Match.Maps`, never the same
 twice in a row. The map's name shows on the "ROUND 1" banner. Set
 `Maps = false` to always play `Config.Match.Map`.
 
-Five big, simple maps are built for movement: wide floors, large walls,
-long ramps and wall-run walls.
+Six huge maps, each 560-620 long and 380-440 wide. The walls and ramps are
+built at roughly twice your height, so you feel tiny. Every map is mirrored,
+so both spawns are fair, with a cover wall in front of each spawn.
+
+![Maps](dist/maps-preview.png)
 
 | Map | Layout |
 |---|---|
-| **Canyon** | two long raised ridges along the sides, a wide trench between them, a bridge across the middle |
-| **Pillars** | a grid of giant pillars: walkable platforms with ramps and bridges, tall towers in the middle row |
-| **Bridges** | two raised plateaus (the spawns) joined by three wide bridges over a low pit |
-| **Ziggurat** | a stepped pyramid in the middle with ramps on every tier, open corners with L-walls and a ledge |
-| **Quarry** | L-shaped blocks with walkable roofs, a tall centre wall that blocks spawn-to-spawn, overlooks |
+| **Mesa** | a sandstone canyon: two 36-high cliffs along the sides, a 50-high upper level, a stone arch over a giant rock pillar in the middle |
+| **Glacier** | an ice fortress: a split 32-high keep with a gate and bridge in the middle, a 70-high ice tower, raised corner forts, tilted ice boulders |
+| **Monolith** | concrete megastructure: four 44-high towers paired by bridges across the map, ramps up every tower, a 100-high slab in the centre |
+| **Temple** | jungle: a 3-tier stepped pyramid with a shrine on top, smaller pyramids on each side, giant trees (leaves stop bullets, you can walk through them) |
+| **Neon** | a city at night: a raised plaza with a billboard, 96-high skyscrapers, rooftops with sloped bridges down to the plaza, neon trims |
+| **Islands** | floating islands joined by plank bridges, a rock spire on the centre island; fall off and you just lose height (ramps back up from the floor) |
 
-The older maps stay in the rotation: Polygon, Crossfire and Nuketown.
-
-## The map: Polygon
-
-![Polygon](dist/polygon-preview.png)
-
-The default map (`Config.Match.Map = "Polygon"`) is a compact 1v1 arena in the
-Roblox Rivals style: an octagon of 40-stud walls with lots to fight around.
-Flat colours, angled low-poly shapes, no textures. It's mirrored both ways, so
-both spawns are fair.
-- **Spawn decks** at each end, raised with a ramp down and a tall shield wall
-  in front so nobody gets shot spawn-to-spawn.
-- **Central tower** with ramps up from the north and south and cover on top.
-- **Tall inner walls** that split the lanes (too high to see or jump over).
-- **Side catwalks** along both long walls, ramps at each end and a low edge to
-  jump off.
-- **Lots of cover**: hexagonal pillars, crate stacks, low walls, raised corner
-  blocks to jump onto, and small kicker ramps.
-
-It's in `src/server/ArenaPolygon.lua`. The other maps are still there:
-`"Nuketown"`, `"Crossfire"`, `"Simple"`, `"Downtown"` and `"Classic"`.
-
-## The map: Nuketown
-
-![Nuketown](dist/nuketown-preview.png)
-
-An optional map (`Config.Match.Map = "Nuketown"`): the classic 1960s
-test-site cul-de-sac, rebuilt 1:1 in layout with flat colours (no textures).
-It's point-symmetric (the green side is the yellow side turned around), so
-both spawns are fair:
-- **Two houses** facing each other across the street, the yellow one and the
-  green one. You can go inside: front door, back door, a door to the garage,
-  windows downstairs, stairs up to two bedrooms whose windows look over the
-  street, and furniture. Pitched roofs with chimneys and TV antennas.
-- **Garages** with the roller door open onto the driveway.
-- **Side alleys** between each house and its fence, leading to the
-  **backyards** where you spawn: patio, picnic table, swing set and a shed.
-- **The street**: the school bus on one side, the moving truck on the other,
-  a car by each driveway, concrete barriers in the middle, picket fences,
-  front lawns, mailboxes and hydrants.
-- **Map ends**: rocks, the test-site fence, mannequins and the "NUKETOWN"
-  sign.
-
-It's in `src/server/ArenaNuketown.lua`.
-
-## The map: Crossfire
-
-![Crossfire](dist/arena-preview.png)
-
-`Config.Match.Map = "Crossfire"` is a compact duel map in
-the style of Rivals: small enough that you find each other fast, mirrored so
-both sides are identical, with three routes between the spawns:
-- **Spawn buildings** on each end (tinted with your team colour) with a
-  walkable roof, with stairs on both sides, to hold your end from above.
-- **Middle**: a raised plaza with a big centrepiece that blocks the
-  spawn-to-spawn line, walls on top, tall pillars and tall walls around it.
-- **North**: a covered market hall. Fight up close inside (two doorways and
-  an open end), or take the ramp up to its roof.
-- **South**: a container yard. A ramp gets you onto a container for height,
-  with crates and a tall wall for cover.
-
-The other maps are still there: `"Simple"` (the open ramps arena),
-`"Downtown"` (the detailed city) and `"Classic"`. Each map is one file in
-`src/server/` (`ArenaCrossfire.lua`...), with its playground dummy spots
-at the bottom.
+Each map is one file in `src/server/` (`ArenaMesa.lua`...), with its
+playground dummy spots at the bottom. A name in `Maps` with no matching
+`Arena<Name>` file is skipped.
 
 ## The rifle and power-up mods
 
@@ -919,31 +855,6 @@ Your power-ups also change how the rifle moves in first person:
 | Inspect (V) | any power-up | turns the rifle both ways to show off the attachments |
 
 They're in `ViewmodelController` under "Power-up animation styles".
-
-## The Downtown map (optional)
-
-Set `Config.Match.Map = "Downtown"` for the detailed city instead.
-
-![Downtown](dist/downtown-preview.png)
-
-![Street level](dist/downtown-street.png)
-
-A mirrored city block (both halves identical):
-- **Avenue**: the main long lane between the spawns, broken up by a bus, cars,
-  barriers and the plaza fountain.
-- **North**: brick apartments with shops on the ground floor (24 high) and
-  an office tower (48), joined by a catwalk between their steel fire escapes
-  (switchback stairs with real steps, landings and railings). City Hall sits
-  in the middle with a columned porch, a pediment, a 26-high roof and a clock
-  tower.
-- **Detail**: windows with frames and sills between pilasters, cornices and
-  ledges, rooftop bulkheads, AC units and water towers, detailed cars, a taxi
-  and a bus (wheels with rims, lights, mirrors), layered trees, traffic
-  lights, lamps with banners, hydrants, benches and bins.
-- **South**: a park with hedges and billboards (wall-runnable), the elevated
-  train track (a long high lane with a train in the middle), a market, a shop,
-  a warehouse, climbable shipping containers and a parking lot.
-- Switch back to the original arena with `Config.Match.Map = "Classic"`.
 
 ## Bunny hopping
 

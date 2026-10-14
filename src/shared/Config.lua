@@ -64,7 +64,7 @@ Config.Palette = {
 	UIHeadshot = Color3.fromRGB(255, 70, 80),
 }
 
--- City map colours (Downtown arena). Still flat, single-colour parts.
+-- City colours (shared palette). Still flat, single-colour parts.
 Config.MapPalette = {
 	Asphalt = Color3.fromRGB(70, 74, 84),
 	RoadLine = Color3.fromRGB(250, 214, 92),
@@ -496,14 +496,14 @@ Config.Match = {
 	PickTime = 15, -- seconds the loser has to pick a card
 	PickRevealTime = 1.6, -- how long the chosen card is shown before the next round
 	VictoryTime = 7, -- victory screen length before returning to lobby
-	MaxRoundTime = 150, -- if nobody dies, higher health % wins the round (tie = replay)
+	MaxRoundTime = 180, -- if nobody dies, higher health % wins the round (tie = replay)
 	CardsPerPick = 5,
 	-- a random map each match (never the same twice in a row); false = always use Map
 	-- Duel wagers: how many keys each player can put up when challenging
 	-- someone (the winner takes both stakes; leaving the match forfeits yours)
 	WagerOptions = { 0, 5, 10, 25, 50 },
-	Maps = { "Polygon", "Crossfire", "Nuketown", "Canyon", "Pillars", "Bridges", "Ziggurat", "Quarry" },
-	Map = "Polygon", -- "Polygon" (compact Rivals-style arena, lots of cover), "Nuketown" (the classic cul-de-sac), "Crossfire" (compact Rivals-style), "Simple" (open ramps arena), "Downtown" (detailed city) or "Classic"
+	Maps = { "Mesa", "Glacier", "Monolith", "Temple", "Neon", "Islands" },
+	Map = "Mesa", -- used when Maps = false: "Mesa", "Glacier", "Monolith", "Temple", "Neon" or "Islands"
 	MaxArenas = 4, -- how many matches can run at the same time in one server
 	ArenaSpacing = 2000, -- distance between arena copies
 	VoidDepth = 80, -- falling this far below the arena floor kills you

@@ -335,7 +335,7 @@ end
 Config.Match = {
 	RoundsToWin = 5, -- first to 5 round wins (best of 9)
 	CountdownTime = 3, -- "3, 2, 1, GO"
-	RoundEndTime = 6, -- pause after a kill before the pick screen (the loser watches the kill cam + victory pose)
+	RoundEndTime = 6.5, -- pause after a kill before the pick screen (the loser watches the kill cam + victory pose)
 	PickTime = 15, -- seconds the loser has to pick a card
 	PickRevealTime = 1.6, -- how long the chosen card is shown before the next round
 	VictoryTime = 7, -- victory screen length before returning to lobby

@@ -560,6 +560,7 @@ function HUD.Hitmarker(headshot, killed)
 		if angle then
 			tick.BackgroundColor3 = color
 			tick.BackgroundTransparency = 0
+			tick.UIStroke.Transparency = 0.5
 			tick.Size = UDim2.fromOffset(length * 1.4, thick)
 			tick.Position = UDim2.new(0.5, math.cos(angle) * (radius + 9), 0.5, math.sin(angle) * (radius + 9))
 			Theme.tween(tick, 0.07, {
@@ -578,8 +579,14 @@ function HUD.Hitmarker(headshot, killed)
 		for _, tick in ipairs(hitmarker:GetChildren()) do
 			if tick:GetAttribute("Angle") then
 				Theme.tween(tick, 0.25, { BackgroundTransparency = 1 })
+				Theme.tween(tick.UIStroke, 0.25, { Transparency = 1 })
 			end
 		end
+		task.delay(0.3, function()
+			if token == hitToken then
+				hitmarker.Visible = false
+			end
+		end)
 	end)
 	if killed then
 		-- the wide X flying out
@@ -594,6 +601,7 @@ function HUD.Hitmarker(headshot, killed)
 					Position = UDim2.new(0.5, math.cos(angle) * 34, 0.5, math.sin(angle) * 34),
 					BackgroundTransparency = 1,
 				}, Enum.EasingStyle.Quint)
+				Theme.tween(ghost.UIStroke, 0.35, { Transparency = 1 })
 				task.delay(0.4, ghost.Destroy, ghost)
 			end
 		end

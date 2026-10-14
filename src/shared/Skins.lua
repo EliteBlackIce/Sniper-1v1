@@ -193,6 +193,12 @@ function Skins.Apply(model, skin)
 		end
 	end
 	local biggest
+	for _, part in ipairs(model:GetDescendants()) do
+		-- the parts-built rifle (no imported mesh): its glow lines take the skin's glow
+		if skin.Glow and skin.Weapon ~= "Knife" and part:IsA("BasePart") and part:GetAttribute("Paint") == "GunGlow" then
+			glow(part, skin)
+		end
+	end
 	for _, part in ipairs(parts) do
 		local key = part:GetAttribute("Paint")
 		if skin.Weapon == "Knife" and key == "Handle" and skin.Glow and not hasEdge then

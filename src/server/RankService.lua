@@ -108,8 +108,9 @@ local function load(player)
 	publish(player)
 end
 
--- A player who already left (e.g. forfeited a match): change their saved rating.
-local function adjustOffline(userId, delta)
+-- A player who already left (forfeited, or quit on the victory screen):
+-- change their saved rating.
+local function adjustOffline(userId, delta, won)
 	if not store then
 		return
 	end
@@ -119,7 +120,12 @@ local function adjustOffline(userId, delta)
 			store:UpdateAsync("u" .. userId, function(old)
 				old = typeof(old) == "table" and old or { Rating = RK.StartRating, Wins = 0, Losses = 0, Peak = RK.StartRating }
 				old.Rating = math.max(0, math.floor((old.Rating or RK.StartRating) + delta))
-				old.Losses = (old.Losses or 0) + 1
+				if won then
+					old.Wins = (old.Wins or 0) + 1
+					old.Peak = math.max(old.Peak or 0, old.Rating)
+				else
+					old.Losses = (old.Losses or 0) + 1
+				end
 				rating = old.Rating
 				return old
 			end)
@@ -165,6 +171,17 @@ local function onMatchFinished(match)
 	if not winner then
 		return -- cancelled
 	end
+	if not match.MatchWinner then
+		-- a forfeit only counts once a round has been played (no free rating
+		-- from an alt that joins and leaves)
+		local rounds = 0
+		for _, wins in pairs(match.Wins or {}) do
+			rounds += wins
+		end
+		if rounds < 1 then
+			return
+		end
+	end
 	local loser = winner == a and b or a
 	local wr, wPlayed = ratingOf(winner)
 	local lr, lPlayed = ratingOf(loser)
@@ -189,10 +206,12 @@ local function onMatchFinished(match)
 			if after ~= before then
 				text = (after.Min > before.Min and "RANKED UP!  " or "RANKED DOWN  ") .. text
 			end
-			notify(player, text)
-			task.spawn(save, player)
-		elseif not won then
-			adjustOffline(player.UserId, delta) -- they left the match
+			if not loadFailed[player] then
+				notify(player, text)
+				task.spawn(save, player)
+			end
+		elseif not d then
+			adjustOffline(player.UserId, delta, won) -- they already left
 		end
 	end
 end
@@ -231,7 +250,7 @@ local function topPlayers()
 	end
 	-- online players are always current (the ordered store lags a little)
 	for player, d in pairs(data) do
-		if player.Parent then
+		if player.Parent and not loadFailed[player] then
 			local index = seen[player.UserId]
 			if index then
 				list[index].Rating = d.Rating

@@ -151,6 +151,22 @@ local function load(player)
 	sendInventory(player)
 end
 
+-- One save a few seconds from now (several changes in a row = one write,
+-- well inside the DataStore's limits).
+local saveScheduled = {} -- [player] = true
+local function scheduleSave(player)
+	if saveScheduled[player] then
+		return
+	end
+	saveScheduled[player] = true
+	task.delay(8, function()
+		saveScheduled[player] = nil
+		if player.Parent then
+			save(player)
+		end
+	end)
+end
+
 ----------------------------------------------------------------------------
 -- Opening
 ----------------------------------------------------------------------------
@@ -250,12 +266,7 @@ function CrateService.Open(player)
 		Free = isFree(),
 		Skins = d.Skins,
 	})
-	-- save a little later (opening several in a row = one save)
-	task.delay(8, function()
-		if player.Parent then
-			save(player)
-		end
-	end)
+	scheduleSave(player) -- (opening several in a row = one save)
 end
 
 ----------------------------------------------------------------------------
@@ -283,11 +294,7 @@ function CrateService.Equip(player, weapon, id)
 		CharacterService.RefreshSkins(player) -- (in a match: from the next round)
 	end
 	sendInventory(player)
-	task.delay(8, function()
-		if player.Parent then
-			save(player)
-		end
-	end)
+	scheduleSave(player)
 end
 
 ----------------------------------------------------------------------------
@@ -314,16 +321,43 @@ function CrateService.Init(matchService, characterService)
 	MatchService = matchService
 	CharacterService = characterService
 
-	local lastEquip = {}
+	-- equips are applied at most every EQUIP_GAP seconds (each one rebuilds
+	-- the weapons); requests in between wait and the latest one wins
+	local EQUIP_GAP = 0.6
+	local lastEquip, pendingEquip = {}, {}
+	local function applyPending(player)
+		local pending = pendingEquip[player]
+		pendingEquip[player] = nil
+		lastEquip[player] = os.clock()
+		for weapon, choice in pairs(pending or {}) do
+			CrateService.Equip(player, weapon, choice.Id)
+		end
+	end
 	Remotes.Get("SkinEquip").OnServerEvent:Connect(function(player, weapon, id)
-		if lastEquip[player] and os.clock() - lastEquip[player] < 0.25 then
+		if weapon ~= "Rifle" and weapon ~= "Knife" then
 			return
 		end
-		lastEquip[player] = os.clock()
-		CrateService.Equip(player, weapon, id)
+		local waiting = pendingEquip[player] ~= nil
+		pendingEquip[player] = pendingEquip[player] or {}
+		pendingEquip[player][weapon] = { Id = id }
+		if waiting then
+			return -- (already scheduled)
+		end
+		local since = os.clock() - (lastEquip[player] or 0)
+		if since >= EQUIP_GAP then
+			applyPending(player)
+		else
+			task.delay(EQUIP_GAP - since, function()
+				if player.Parent then
+					applyPending(player)
+				end
+			end)
+		end
 	end)
 	Players.PlayerRemoving:Connect(function(player)
 		lastEquip[player] = nil
+		pendingEquip[player] = nil
+		saveScheduled[player] = nil
 	end)
 
 	Remotes.Get("CrateOpen").OnServerEvent:Connect(function(player)

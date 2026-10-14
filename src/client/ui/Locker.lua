@@ -40,6 +40,7 @@ local weapon = "Rifle" -- the open tab
 local selected -- skin id (nil = default) shown in the preview
 local owned = ClientState.OwnedSkins -- { [id] = count }
 local equipped = {} -- { Rifle = id, Knife = id } (your RifleSkin / KnifeSkin attributes)
+local waiting -- { Weapon, Id }: an equip sent to the server, not confirmed yet
 local tiles = {} -- [skin id or "Default"] = { Frame, Stroke, Tag }
 local preview -- { Model, Built, IsKnife, Scale }
 local spin = 0
@@ -114,7 +115,11 @@ local function refreshDetails()
 	rarityLabel.TextColor3 = rarity and rarity.Color or Palette.UISubText
 	local count = skin and owned[skin.Id] or 0
 	local isEquipped = equipped[weapon] == selected
-	if isEquipped then
+	local isWaiting = waiting ~= nil and waiting.Weapon == weapon and waiting.Id == selected
+	if isWaiting and not isEquipped then
+		statusLabel.Text = "EQUIPPING..."
+		statusLabel.TextColor3 = Palette.UISubText
+	elseif isEquipped then
 		statusLabel.Text = "EQUIPPED"
 		statusLabel.TextColor3 = Palette.UIAccent
 	elseif skin and count <= 0 then
@@ -435,11 +440,22 @@ function Locker.Start(playerGui)
 		if equipped[weapon] == selected or (skin and (owned[skin.Id] or 0) <= 0) then
 			return
 		end
+		if waiting and waiting.Weapon == weapon and waiting.Id == selected then
+			return
+		end
 		Sfx.Play("CardPick", { Pitch = 1.2 })
 		Theme.pop(equipButton, 0.06)
-		equipped[weapon] = selected -- (shown now; the server confirms)
+		-- shown as EQUIPPING until the server confirms (our RifleSkin / KnifeSkin attribute changes)
+		local request = { Weapon = weapon, Id = selected }
+		waiting = request
 		Remotes.Get("SkinEquip"):FireServer(weapon, selected)
 		refreshTiles()
+		task.delay(3, function()
+			if waiting == request then
+				waiting = nil -- (refused or lost: show what we really have on)
+				refreshTiles()
+			end
+		end)
 	end)
 
 	-- right: every skin for this weapon
@@ -484,6 +500,9 @@ function Locker.Start(playerGui)
 		equipped[name] = player:GetAttribute(name .. "Skin")
 		player:GetAttributeChangedSignal(name .. "Skin"):Connect(function()
 			equipped[name] = player:GetAttribute(name .. "Skin")
+			if waiting and waiting.Weapon == name and waiting.Id == equipped[name] then
+				waiting = nil
+			end
 			if isOpen then
 				refreshTiles()
 			end

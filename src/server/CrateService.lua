@@ -36,6 +36,8 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Util = require(ReplicatedStorage.Shared.Util)
 local Skins = require(ReplicatedStorage.Shared.Skins)
+local Cosmetics = require(ReplicatedStorage.Shared.Cosmetics)
+local PolicyService = game:GetService("PolicyService")
 
 local CrateService = {}
 
@@ -61,7 +63,7 @@ local pools = {} -- [crateType][rarity] = { skins }
 for typeName, crateType in pairs(CR.Types) do
 	pools[typeName] = {}
 	for _, skin in ipairs(CR.Skins) do
-		if (crateType.Odds[skin.Rarity] or 0) > 0 and (crateType.EliteSkins or not skin.Elite) then
+		if (crateType.Odds[skin.Rarity] or 0) > 0 and (crateType.EliteSkins or not skin.Elite) and not skin.Pass then
 			pools[typeName][skin.Rarity] = pools[typeName][skin.Rarity] or {}
 			table.insert(pools[typeName][skin.Rarity], skin)
 		end
@@ -79,7 +81,16 @@ end
 local function sendInventory(player)
 	local d = data[player]
 	if d then
-		Remotes.Get("Crates"):FireClient(player, { Type = "Inventory", Keys = d.Keys, Credits = d.Credits, Skins = d.Skins, Equipped = d.Equipped })
+		Remotes.Get("Crates"):FireClient(player, {
+			Type = "Inventory",
+			Keys = d.Keys,
+			Credits = d.Credits,
+			Skins = d.Skins,
+			Cosmetics = d.Cosmetics,
+			Equipped = d.Equipped,
+			Pass = d.Pass,
+			Featured = CrateService.FeaturedToday(),
+		})
 	end
 end
 
@@ -125,6 +136,8 @@ local function save(player)
 			Credits = d.Credits,
 			PaidKeys = d.PaidKeys,
 			Skins = d.Skins,
+			Cosmetics = d.Cosmetics,
+			Pass = d.Pass,
 			Opened = d.Opened,
 			Equipped = d.Equipped,
 			Receipts = d.Receipts,
@@ -161,13 +174,33 @@ local function load(player)
 	if not player.Parent then
 		return
 	end
-	local d = { Keys = CR.StartingKeys, PaidKeys = 0, Credits = 0, Skins = {}, Opened = 0, Equipped = {}, Receipts = {} }
+	local d = {
+		Keys = CR.StartingKeys,
+		PaidKeys = 0,
+		Credits = 0,
+		Skins = {},
+		Cosmetics = {}, -- [id] = true
+		Opened = 0,
+		Equipped = {},
+		Receipts = {},
+		Pass = nil, -- battle pass progress (PassService)
+	}
 	if typeof(saved) == "table" then
 		if typeof(saved.Keys) == "number" then
 			d.Keys = math.max(0, math.floor(saved.Keys))
 		end
 		if typeof(saved.Credits) == "number" then
 			d.Credits = math.max(0, math.floor(saved.Credits))
+		end
+		if typeof(saved.Cosmetics) == "table" then
+			for id, owned in pairs(saved.Cosmetics) do
+				if typeof(id) == "string" and owned == true and Cosmetics.Get(id) then
+					d.Cosmetics[id] = true
+				end
+			end
+		end
+		if typeof(saved.Pass) == "table" then
+			d.Pass = saved.Pass
 		end
 		if typeof(saved.PaidKeys) == "number" then
 			d.PaidKeys = math.clamp(math.floor(saved.PaidKeys), 0, d.Keys)
@@ -199,8 +232,27 @@ local function load(player)
 			end
 		end
 	end
+	if typeof(saved) == "table" and typeof(saved.Equipped) == "table" then
+		for _, kind in ipairs(Cosmetics.Kinds) do
+			local item = Cosmetics.Get(saved.Equipped[kind])
+			if item and item.Kind == kind and (item.Default or d.Cosmetics[item.Id]) then
+				d.Equipped[kind] = item.Id
+			end
+		end
+	end
 	data[player] = d
 	loaded[player] = true
+	for _, kind in ipairs(Cosmetics.Kinds) do
+		player:SetAttribute(kind, d.Equipped[kind])
+	end
+	-- some countries don't allow buying paid random items (crates with keys
+	-- bought for Robux): the SHOP hides the key pack for these players
+	task.spawn(function()
+		local ok, policy = pcall(PolicyService.GetPolicyInfoForPlayerAsync, PolicyService, player)
+		if ok and policy and policy.ArePaidRandomItemsRestricted then
+			player:SetAttribute("PaidRandomBlocked", true)
+		end
+	end)
 	player:SetAttribute("Keys", d.Keys)
 	player:SetAttribute("Credits", d.Credits)
 	player:SetAttribute("WagerKeys", d.Keys - d.PaidKeys)
@@ -330,27 +382,140 @@ end
 ----------------------------------------------------------------------------
 -- Equipping
 ----------------------------------------------------------------------------
--- weapon: "Rifle" / "Knife"; id: an owned skin for it, or nil for the default look
-function CrateService.Equip(player, weapon, id)
+-- kind: "Rifle" / "Knife" (a skin) or a cosmetic kind ("Tracer", "KillFx",
+-- "Pose", "Title"); id: one they own, or nil for the default
+function CrateService.Equip(player, kind, id)
 	local d = data[player]
-	if not d or (weapon ~= "Rifle" and weapon ~= "Knife") then
+	if not d then
+		return
+	end
+	local isSkin = kind == "Rifle" or kind == "Knife"
+	if not isSkin and not table.find(Cosmetics.Kinds, kind) then
 		return
 	end
 	if id ~= nil then
-		local skin = typeof(id) == "string" and Skins.Get(id)
-		if not skin or skin.Weapon ~= weapon or (d.Skins[id] or 0) <= 0 then
-			return
+		if isSkin then
+			local skin = typeof(id) == "string" and Skins.Get(id)
+			if not skin or skin.Weapon ~= kind or (d.Skins[id] or 0) <= 0 then
+				return
+			end
+		else
+			local item = Cosmetics.Get(id)
+			if not item or item.Kind ~= kind or not (item.Default or d.Cosmetics[id]) then
+				return
+			end
+			if item.Default then
+				id = nil
+			end
 		end
 	end
-	if d.Equipped[weapon] == id then
+	if d.Equipped[kind] == id then
 		return
 	end
-	d.Equipped[weapon] = id
+	d.Equipped[kind] = id
 	dirty[player] = true
-	player:SetAttribute(weapon .. "Skin", id)
-	if not MatchService.GetMatch(player) then
-		CharacterService.RefreshSkins(player) -- (in a match: from the next round)
+	if isSkin then
+		player:SetAttribute(kind .. "Skin", id)
+		if not MatchService.GetMatch(player) then
+			CharacterService.RefreshSkins(player) -- (in a match: from the next round)
+		end
+	else
+		player:SetAttribute(kind, id)
+		if kind == "Title" then
+			CharacterService.RefreshTag(player)
+		end
 	end
+	sendInventory(player)
+	scheduleSave(player)
+end
+
+----------------------------------------------------------------------------
+-- Rewards (battle pass, ranked titles) and the profile for PassService
+----------------------------------------------------------------------------
+-- reward = { Keys = n } | { Credits = n } | { Skin = id } | { Cosmetic = id }
+-- Returns a short text for the toast, or nil if it couldn't be given.
+function CrateService.Grant(player, reward)
+	local d = data[player]
+	if not d or not loaded[player] or typeof(reward) ~= "table" then
+		return nil
+	end
+	local text
+	if reward.Keys then
+		setKeys(player, d.Keys + reward.Keys)
+		player:SetAttribute("WagerKeys", d.Keys - (d.PaidKeys or 0))
+		text = ("+%d KEYS"):format(reward.Keys)
+	elseif reward.Credits then
+		setCredits(player, d.Credits + reward.Credits)
+		text = ("+%d CREDITS"):format(reward.Credits)
+	elseif reward.Skin and Skins.Get(reward.Skin) then
+		d.Skins[reward.Skin] = (d.Skins[reward.Skin] or 0) + 1
+		local skin = Skins.Get(reward.Skin)
+		text = string.upper(skin.Name) .. " " .. string.upper(skin.Weapon) .. " SKIN"
+	elseif reward.Cosmetic and Cosmetics.Get(reward.Cosmetic) then
+		d.Cosmetics[reward.Cosmetic] = true
+		local item = Cosmetics.Get(reward.Cosmetic)
+		text = string.upper(item.Name) .. " " .. string.upper(item.Kind == "KillFx" and "kill effect" or item.Kind)
+	else
+		return nil
+	end
+	dirty[player] = true
+	sendInventory(player)
+	scheduleSave(player)
+	return text
+end
+
+-- The saved profile table (PassService keeps .Pass in it), or nil until loaded.
+function CrateService.GetProfile(player)
+	return loaded[player] and not loadFailed[player] and data[player] or nil
+end
+
+function CrateService.Changed(player)
+	if data[player] then
+		dirty[player] = true
+		sendInventory(player)
+		scheduleSave(player)
+	end
+end
+
+----------------------------------------------------------------------------
+-- Featured skins: a new set to buy with Credits every day (UTC)
+----------------------------------------------------------------------------
+function CrateService.FeaturedToday()
+	local day = math.floor(os.time() / 86400)
+	local candidates = {}
+	for _, skin in ipairs(CR.Skins) do
+		if skin.Rarity ~= "Secret" and not skin.Pass and Config.Featured.Prices[skin.Rarity] then
+			table.insert(candidates, skin.Id)
+		end
+	end
+	local rng2 = Random.new(day * 7919 + 13)
+	local picks = {}
+	for _ = 1, math.min(Config.Featured.Count, #candidates) do
+		local index = rng2:NextInteger(1, #candidates)
+		table.insert(picks, table.remove(candidates, index))
+	end
+	return picks
+end
+
+function CrateService.BuyFeatured(player, id)
+	local d = data[player]
+	local skin = typeof(id) == "string" and Skins.Get(id)
+	if not d or not loaded[player] or not skin or not table.find(CrateService.FeaturedToday(), id) then
+		return
+	end
+	if (d.Skins[id] or 0) > 0 then
+		notify(player, "You already own that skin")
+		return
+	end
+	local price = Config.Featured.Prices[skin.Rarity]
+	if d.Credits < price then
+		notify(player, ("You need %d credits"):format(price))
+		return
+	end
+	setCredits(player, d.Credits - price)
+	d.Skins[id] = 1
+	dirty[player] = true
+	notify(player, ("UNLOCKED  -  %s %s SKIN"):format(string.upper(skin.Name), string.upper(skin.Weapon)))
 	sendInventory(player)
 	scheduleSave(player)
 end
@@ -411,6 +576,7 @@ local function checkVip(player)
 	local ok, owns = pcall(MarketplaceService.UserOwnsGamePassAsync, MarketplaceService, player.UserId, pass.Id)
 	if ok and owns then
 		player:SetAttribute("VIP", true)
+		CharacterService.RefreshTag(player)
 	end
 end
 
@@ -489,7 +655,7 @@ function CrateService.Init(matchService, characterService)
 		end
 	end
 	Remotes.Get("SkinEquip").OnServerEvent:Connect(function(player, weapon, id)
-		if weapon ~= "Rifle" and weapon ~= "Knife" then
+		if weapon ~= "Rifle" and weapon ~= "Knife" and not table.find(Cosmetics.Kinds, weapon) then
 			return
 		end
 		local waiting = pendingEquip[player] ~= nil
@@ -518,6 +684,16 @@ function CrateService.Init(matchService, characterService)
 	Remotes.Get("CrateOpen").OnServerEvent:Connect(function(player, typeName)
 		CrateService.Open(player, typeName)
 	end)
+	local lastBuy = {}
+	Remotes.Get("ShopBuy").OnServerEvent:Connect(function(player, kind, id)
+		if lastBuy[player] and os.clock() - lastBuy[player] < 0.5 then
+			return
+		end
+		lastBuy[player] = os.clock()
+		if kind == "Featured" then
+			CrateService.BuyFeatured(player, id)
+		end
+	end)
 
 	local lobby = MatchService.GetLobby()
 	local prompt = lobby and lobby.CrateAltar and lobby.CrateAltar:FindFirstChildOfClass("ProximityPrompt")
@@ -533,6 +709,7 @@ function CrateService.Init(matchService, characterService)
 	MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passId, bought)
 		if bought and passId == Config.Shop.Passes.VIP.Id then
 			player:SetAttribute("VIP", true)
+			CharacterService.RefreshTag(player)
 			notify(player, "VIP UNLOCKED  -  2x keys from every match")
 		end
 	end)

@@ -279,6 +279,7 @@ function CombatService.Damage(match, attacker, victim, amount, info)
 				Position = root.Position,
 				Color = match:ColorFor(victim),
 				Headshot = info.Headshot == true,
+				KillFx = attacker and not Util.isBot(attacker) and attacker:GetAttribute("KillFx") or nil, -- (their kill effect cosmetic)
 			})
 		end
 	end
@@ -319,7 +320,13 @@ local function damageTarget(match, attacker, stats, target, amount, info)
 			Backstab = info.Backstab == true,
 		})
 		if killed and torso then
-			sendFx(nil, { Type = "Kill", Position = torso.Position, Color = Config.Palette.PlayerB, Headshot = info.Headshot == true })
+			sendFx(nil, {
+				Type = "Kill",
+				Position = torso.Position,
+				Color = Config.Palette.PlayerB,
+				Headshot = info.Headshot == true,
+				KillFx = attacker and not Util.isBot(attacker) and attacker:GetAttribute("KillFx") or nil,
+			})
 		end
 	end
 

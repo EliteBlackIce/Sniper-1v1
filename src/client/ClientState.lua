@@ -26,6 +26,8 @@ ClientState.Settings = table.clone(Config.SettingsDefaults)
 ClientState.MenuOpen = false -- true while a menu needs the mouse (settings / pick / victory)
 ClientState.Weapon = "Sniper" -- what's in your hands: "Sniper" or "Knife" (KnifeController)
 ClientState.OwnedSkins = {} -- { [skinId] = count } (from the server's "Crates" messages)
+ClientState.OwnedCosmetics = {} -- { [cosmeticId] = true }
+ClientState.Featured = {} -- today's featured skin ids (SHOP)
 
 ClientState.Changed = Signal.new() -- (newSnapshot, oldSnapshot)
 ClientState.SettingsChanged = Signal.new() -- (settings)

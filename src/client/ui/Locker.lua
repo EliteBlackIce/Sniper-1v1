@@ -21,6 +21,7 @@ local Remotes = require(Shared.Remotes)
 local GunModel = require(Shared.GunModel)
 local KnifeModel = require(Shared.KnifeModel)
 local Skins = require(Shared.Skins)
+local Cosmetics = require(Shared.Cosmetics)
 local ClientState = require(script.Parent.Parent.ClientState)
 local Sfx = require(script.Parent.Parent.Sfx)
 local Keybinds = require(script.Parent.Parent.Keybinds)
@@ -39,7 +40,40 @@ local isOpen = false
 local weapon = "Rifle" -- the open tab
 local selected -- skin id (nil = default) shown in the preview
 local owned = ClientState.OwnedSkins -- { [id] = count }
-local equipped = {} -- { Rifle = id, Knife = id } (your RifleSkin / KnifeSkin attributes)
+local equipped = {} -- { Rifle = id, Knife = id, Tracer = id, ... } (your attributes)
+local cosmeticPreview, cosmeticBar, cosmeticText -- the preview for tracers / effects / poses / titles
+
+-- the tabs: two weapons, then the cosmetic kinds (Cosmetics.Kinds)
+local TABS = { "Rifle", "Knife", "Tracer", "KillFx", "Pose", "Title" }
+local TAB_NAMES = { Rifle = "RIFLE", Knife = "KNIFE", Tracer = "TRACER", KillFx = "KILL FX", Pose = "POSE", Title = "TITLE" }
+local ATTRIBUTE = { Rifle = "RifleSkin", Knife = "KnifeSkin", Tracer = "Tracer", KillFx = "KillFx", Pose = "Pose", Title = "Title" }
+local DESCRIBE = {
+	Tracer = "The colour of your bullet trails. Everyone sees it.",
+	KillFx = "What happens to the body when you get a kill.",
+	Pose = "Your pose when the kill cam cuts to you after a win.",
+	Title = "Shown under your name, over your head.",
+}
+
+local function isSkinTab()
+	return weapon == "Rifle" or weapon == "Knife"
+end
+
+local function itemOf(id)
+	if isSkinTab() then
+		return Skins.Get(id)
+	end
+	return Cosmetics.Get(id)
+end
+
+local function owns(item)
+	if not item then
+		return true -- (the default)
+	end
+	if isSkinTab() then
+		return (owned[item.Id] or 0) > 0
+	end
+	return item.Default == true or ClientState.OwnedCosmetics[item.Id] == true
+end
 local waiting -- { Weapon, Id }: an equip sent to the server, not confirmed yet
 local tiles = {} -- [skin id or "Default"] = { Frame, Stroke, Tag }
 local preview -- { Model, Built, IsKnife, Scale }
@@ -58,6 +92,17 @@ local function buildPreview()
 	if preview then
 		preview.Model:Destroy()
 		preview = nil
+	end
+	viewport.Visible = isSkinTab()
+	cosmeticPreview.Visible = not isSkinTab()
+	if not isSkinTab() then
+		local item = itemOf(selected) or Cosmetics.Default(weapon)
+		cosmeticText.Text = weapon == "Title" and (item and item.Text ~= "" and item.Text or "(NO TITLE)") or string.upper(item and item.Name or "")
+		cosmeticText.TextColor3 = item and item.Color or Palette.UIText
+		cosmeticBar.Visible = weapon == "Tracer" or weapon == "KillFx"
+		cosmeticBar.BackgroundColor3 = item and item.Color or Palette.Tracer
+		cosmeticPreview.Description.Text = DESCRIBE[weapon] or ""
+		return
 	end
 	local model = Instance.new("Model")
 	local isKnife = weapon == "Knife"
@@ -94,7 +139,14 @@ end
 -- Tiles + details
 ----------------------------------------------------------------------------
 local function skinsForTab()
-	local list = Skins.ForWeapon(weapon)
+	local list = isSkinTab() and Skins.ForWeapon(weapon) or {}
+	if not isSkinTab() then
+		for _, item in ipairs(Cosmetics.ForKind(weapon)) do
+			if not item.Default then
+				table.insert(list, item)
+			end
+		end
+	end
 	table.sort(list, function(a, b)
 		local ta, tb = tierOf[a.Rarity] or 0, tierOf[b.Rarity] or 0
 		if ta ~= tb then
@@ -106,12 +158,13 @@ local function skinsForTab()
 end
 
 local function refreshDetails()
-	local skin = Skins.Get(selected)
+	local skin = itemOf(selected)
 	local rarity = skin and rarityOf[skin.Rarity]
-	nameLabel.Text = skin and string.upper(skin.Name) or "STANDARD ISSUE"
+	local default = not isSkinTab() and Cosmetics.Default(weapon)
+	nameLabel.Text = skin and string.upper(skin.Name) or (default and string.upper(default.Name) or "STANDARD ISSUE")
 	rarityLabel.Text = rarity and rarity.Name or "DEFAULT"
 	rarityLabel.TextColor3 = rarity and rarity.Color or Palette.UISubText
-	local count = skin and owned[skin.Id] or 0
+	local count = skin and (owns(skin) and math.max(owned[skin.Id] or 0, 1) or 0) or 0
 	local isEquipped = equipped[weapon] == selected
 	local isWaiting = waiting ~= nil and waiting.Weapon == weapon and waiting.Id == selected
 	if isWaiting and not isEquipped then
@@ -121,7 +174,13 @@ local function refreshDetails()
 		statusLabel.Text = "EQUIPPED"
 		statusLabel.TextColor3 = Palette.UIAccent
 	elseif skin and count <= 0 then
-		statusLabel.Text = skin.Elite and "LOCKED  -  ONLY IN THE ELITE CRATE (SHOP)" or "LOCKED  -  OPEN CRATES (SHOP OR CRATE VAULT)"
+		if not isSkinTab() then
+			statusLabel.Text = skin.RankMin and ("LOCKED  -  REACH %d RATING IN RANKED"):format(skin.RankMin) or "LOCKED  -  FROM THE BATTLE PASS"
+		elseif skin.Pass then
+			statusLabel.Text = "LOCKED  -  FROM THE BATTLE PASS"
+		else
+			statusLabel.Text = skin.Elite and "LOCKED  -  ONLY IN THE ELITE CRATE" or "LOCKED  -  OPEN CRATES (SHOP OR CRATE VAULT)"
+		end
 		statusLabel.TextColor3 = Palette.UISubText
 	else
 		statusLabel.Text = skin and (count > 1 and ("OWNED  x%d"):format(count) or "OWNED") or "ALWAYS AVAILABLE"
@@ -137,8 +196,8 @@ end
 local function refreshTiles()
 	for id, tile in pairs(tiles) do
 		local skinId = id ~= "Default" and id or nil
-		local skin = Skins.Get(skinId)
-		local have = not skin or (owned[skinId] or 0) > 0
+		local skin = itemOf(skinId)
+		local have = owns(skin)
 		local isEquipped = equipped[weapon] == skinId
 		local isSelected = selected == skinId
 		tile.Frame.BackgroundColor3 = isSelected and Palette.UIPanelLight or Palette.UIPanel
@@ -186,10 +245,16 @@ local function makeTile(skin, order)
 	})
 	-- colour swatches
 	local swatches = {}
-	local colors = skin and { skin.Body, skin.Weapon == "Knife" and (skin.Blade or skin.Metal) or skin.Metal, skin.Accent }
-		or { Color3.fromRGB(190, 164, 120), Color3.fromRGB(58, 60, 60), Color3.fromRGB(84, 86, 90) }
-	if weapon == "Knife" and not skin then
-		colors = { Color3.fromRGB(34, 36, 40), Color3.fromRGB(176, 182, 190), Color3.fromRGB(70, 74, 82) }
+	local colors
+	if not isSkinTab() then
+		local item = skin or Cosmetics.Default(weapon)
+		colors = { item and item.Color or Palette.UISubText }
+	else
+		colors = skin and { skin.Body, skin.Weapon == "Knife" and (skin.Blade or skin.Metal) or skin.Metal, skin.Accent }
+			or { Color3.fromRGB(190, 164, 120), Color3.fromRGB(58, 60, 60), Color3.fromRGB(84, 86, 90) }
+		if weapon == "Knife" and not skin then
+			colors = { Color3.fromRGB(34, 36, 40), Color3.fromRGB(176, 182, 190), Color3.fromRGB(70, 74, 82) }
+		end
 	end
 	for i, c in ipairs(colors) do
 		local swatch = Theme.new("Frame", {
@@ -206,7 +271,7 @@ local function makeTile(skin, order)
 		Theme.label({
 			Position = UDim2.fromOffset(70, 8),
 			Size = UDim2.new(1, -78, 0, 16),
-			Text = (skin.Elite and "ELITE  " or "") .. (skin.Pulse and "GLOW + FX" or "GLOW"),
+			Text = (skin.Pass and "PASS  " or "") .. (skin.Elite and "ELITE  " or "") .. (skin.Pulse and "GLOW + FX" or "GLOW"),
 			TextSize = 10,
 			TextXAlignment = Enum.TextXAlignment.Right,
 			TextColor3 = color,
@@ -216,7 +281,7 @@ local function makeTile(skin, order)
 	local name = Theme.label({
 		Position = UDim2.fromOffset(18, 28),
 		Size = UDim2.new(1, -26, 0, 20),
-		Text = skin and skin.Name or "Default",
+		Text = skin and skin.Name or (not isSkinTab() and Cosmetics.Default(weapon) and Cosmetics.Default(weapon).Name or "Default"),
 		TextSize = 15,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextTruncate = Enum.TextTruncate.AtEnd,
@@ -349,7 +414,7 @@ function Locker.Start(playerGui)
 	Theme.label({
 		Position = UDim2.fromOffset(0, 36),
 		Size = UDim2.new(0.6, 0, 0, 20),
-		Text = "Pick a skin for each weapon. Everyone sees it.  L: close",
+		Text = "Skins, tracers, kill effects, poses and titles. Everyone sees them.  L: close",
 		TextSize = 14,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextColor3 = Palette.UISubText,
@@ -359,13 +424,13 @@ function Locker.Start(playerGui)
 
 	-- tabs
 	tabs = {}
-	for i, name in ipairs({ "Rifle", "Knife" }) do
+	for i, name in ipairs(TABS) do
 		local button = Theme.button({
 			AnchorPoint = Vector2.new(1, 0),
-			Position = UDim2.new(1, -(2 - i) * 128, 0, 4),
-			Size = UDim2.fromOffset(120, 36),
-			Text = string.upper(name),
-			TextSize = 16,
+			Position = UDim2.new(1, -(#TABS - i) * 88, 0, 4),
+			Size = UDim2.fromOffset(84, 34),
+			Text = TAB_NAMES[name],
+			TextSize = 13,
 			Parent = panel,
 		})
 		button.Activated:Connect(function()
@@ -402,6 +467,40 @@ function Locker.Start(playerGui)
 	previewCam.Parent = viewport
 	viewport.CurrentCamera = previewCam
 
+	-- (tracers / kill effects / poses / titles: a colour bar + the name)
+	cosmeticPreview = Theme.new("Frame", {
+		Size = UDim2.new(1, 0, 1, -128),
+		BackgroundTransparency = 1,
+		Visible = false,
+		Parent = left,
+	})
+	cosmeticBar = Theme.new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.38),
+		Size = UDim2.new(0.8, 0, 0, 10),
+		Parent = cosmeticPreview,
+	})
+	Theme.corner(cosmeticBar, 5)
+	cosmeticText = Theme.label({
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.55),
+		Size = UDim2.new(0.9, 0, 0, 44),
+		TextSize = 34,
+		FontFace = Theme.Font(Enum.FontWeight.Heavy),
+		Parent = cosmeticPreview,
+	})
+	Theme.label({
+		Name = "Description",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.fromScale(0.5, 0.7),
+		Size = UDim2.new(0.85, 0, 0, 40),
+		TextSize = 13,
+		TextWrapped = true,
+		TextColor3 = Palette.UISubText,
+		FontFace = Theme.Font(Enum.FontWeight.Medium),
+		Parent = cosmeticPreview,
+	})
+
 	nameLabel = Theme.label({
 		Position = UDim2.new(0, 16, 1, -124),
 		Size = UDim2.new(1, -32, 0, 30),
@@ -434,8 +533,8 @@ function Locker.Start(playerGui)
 		Parent = left,
 	})
 	equipButton.Activated:Connect(function()
-		local skin = Skins.Get(selected)
-		if equipped[weapon] == selected or (skin and (owned[skin.Id] or 0) <= 0) then
+		local skin = itemOf(selected)
+		if equipped[weapon] == selected or not owns(skin) then
 			return
 		end
 		if waiting and waiting.Weapon == weapon and waiting.Id == selected then
@@ -494,10 +593,10 @@ function Locker.Start(playerGui)
 			refreshTiles()
 		end
 	end)
-	for _, name in ipairs({ "Rifle", "Knife" }) do
-		equipped[name] = player:GetAttribute(name .. "Skin")
-		player:GetAttributeChangedSignal(name .. "Skin"):Connect(function()
-			equipped[name] = player:GetAttribute(name .. "Skin")
+	for _, name in ipairs(TABS) do
+		equipped[name] = player:GetAttribute(ATTRIBUTE[name])
+		player:GetAttributeChangedSignal(ATTRIBUTE[name]):Connect(function()
+			equipped[name] = player:GetAttribute(ATTRIBUTE[name])
 			if waiting and waiting.Weapon == name and waiting.Id == equipped[name] then
 				waiting = nil
 			end

@@ -38,7 +38,9 @@ Remotes.Names = {
 	"DuelInvite", -- S->C  someone challenged you / wants a rematch
 	"CrateOpen", -- C->S  open a crate at the lobby altar
 	"Crates", -- S->C  crate results + your keys / skins
-	"SkinEquip", -- C->S  equip a skin: weapon ("Rifle" / "Knife"), skin id (nil = default)
+	"SkinEquip", -- C->S  equip: kind ("Rifle" / "Knife" / "Tracer" / "KillFx" / "Pose" / "Title"), id (nil = default)
+	"ShopBuy", -- C->S  buy with credits: ("Featured", skinId)
+	"Pass", -- S->C  battle pass progress + rewards (PassService)
 	"Equip", -- C->S  switch weapon: "Sniper" / "Knife"
 	"Melee", -- C->S  knife swing: kind ("Slash" / "Stab"), what it hit, look direction
 	"Anim", -- C->S  cosmetic animation events others should see ("Inspect", "Scope")

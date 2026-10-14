@@ -5,6 +5,7 @@
 		CRATES    the Standard crate (Keys, earned by playing) and the Elite
 		          crate (Credits: better odds, Elite-only skins, Secrets).
 		          OPEN plays the opening at the crate vault.
+		FEATURED  three skins a day to buy outright with Credits
 		CREDITS   Credit packs (and a Key pack) for Robux
 		VIP       the VIP pass (2x keys)
 	Purchases are Roblox prompts; the server grants them (CrateService).
@@ -166,7 +167,97 @@ local function buildCrates(page)
 		end
 	end
 	crateCard(page, "Elite", 0.5, GOLD,
-		"Better odds and the only crate with Elite-only skins (" .. table.concat(elite, ", ") .. "...) and the SECRETS.")
+		"Rare and up only, and the only crate with Elite-only skins (" .. table.concat(elite, ", ") .. "...) and the SECRETS.")
+end
+
+-- FEATURED: today's skins to buy outright with Credits
+local featuredPage
+local function buildFeatured()
+	local page = featuredPage
+	for _, child in ipairs(page:GetChildren()) do
+		child:Destroy()
+	end
+	local Skins = require(Shared.Skins)
+	local ids = ClientState.Featured or {}
+	local count = math.max(#ids, 1)
+	for i, id in ipairs(ids) do
+		local skin = Skins.Get(id)
+		if skin then
+			local rarity = rarityById[skin.Rarity]
+			local frame = card(page, {
+				Position = UDim2.new((i - 1) / count, 6, 0, 0),
+				Size = UDim2.new(1 / count, -12, 1, 0),
+				Color = rarity and rarity.Color,
+			})
+			Theme.label({
+				Size = UDim2.new(1, 0, 0, 18),
+				Text = (rarity and rarity.Name or "") .. "  -  " .. string.upper(skin.Weapon),
+				TextSize = 13,
+				TextColor3 = rarity and rarity.Color or Palette.UIText,
+				Parent = frame,
+			})
+			Theme.label({
+				Position = UDim2.fromOffset(0, 26),
+				Size = UDim2.new(1, 0, 0, 34),
+				Text = string.upper(skin.Name),
+				TextSize = 26,
+				TextScaled = false,
+				FontFace = Theme.Font(Enum.FontWeight.Heavy),
+				Parent = frame,
+			})
+			for k, color in ipairs({ skin.Body, skin.Blade or skin.Metal, skin.Accent }) do
+				local swatch = Theme.new("Frame", {
+					AnchorPoint = Vector2.new(0.5, 0),
+					Position = UDim2.new(0.5, (k - 2) * 46, 0, 84),
+					Size = UDim2.fromOffset(38, 38),
+					BackgroundColor3 = color,
+					Parent = frame,
+				})
+				Theme.corner(swatch, 19)
+			end
+			Theme.label({
+				Position = UDim2.fromOffset(0, 140),
+				Size = UDim2.new(1, 0, 0, 20),
+				Text = (skin.Finish and string.upper(skin.Finish) .. " FINISH" or "") .. (skin.Glow and "  +  GLOW" or ""),
+				TextSize = 13,
+				TextColor3 = Palette.UISubText,
+				Parent = frame,
+			})
+			local price = Config.Featured.Prices[skin.Rarity] or 0
+			local have = (ClientState.OwnedSkins[id] or 0) > 0
+			local button = Theme.button({
+				AnchorPoint = Vector2.new(0, 1),
+				Position = UDim2.fromScale(0, 1),
+				Size = UDim2.new(1, 0, 0, 44),
+				Text = have and "OWNED" or ("BUY  -  %d CREDITS"):format(price),
+				TextSize = 16,
+				BackgroundColor3 = have and Palette.UIPanel or GOLD,
+				AutoButtonColor = not have,
+				Parent = frame,
+			})
+			button.Activated:Connect(function()
+				if have then
+					return
+				end
+				if (player:GetAttribute("Credits") or 0) < price then
+					Sfx.Play("CardHover", { Pitch = 0.6 })
+					Shop.Show("Credits")
+					return
+				end
+				Sfx.Play("CardPick", { Pitch = 1.2 })
+				Remotes.Get("ShopBuy"):FireServer("Featured", id)
+			end)
+		end
+	end
+	Theme.label({
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, 0, 1, 28),
+		Size = UDim2.new(1, 0, 0, 20),
+		Text = "New featured skins every day.",
+		TextSize = 13,
+		TextColor3 = Palette.UISubText,
+		Parent = page,
+	})
 end
 
 local function buyButton(parent, text, price, onBuy)
@@ -188,8 +279,12 @@ local function buildCredits(page)
 	for _, pack in ipairs(SHOP.CreditPacks) do
 		table.insert(packs, { Pack = pack, Amount = pack.Credits, Unit = "CREDITS" })
 	end
-	for _, pack in ipairs(SHOP.KeyPacks) do
-		table.insert(packs, { Pack = pack, Amount = pack.Keys, Unit = "KEYS" })
+	-- (in countries where paid random items aren't allowed, keys can't be
+	-- bought: crates are then earn-only)
+	if not player:GetAttribute("PaidRandomBlocked") then
+		for _, pack in ipairs(SHOP.KeyPacks) do
+			table.insert(packs, { Pack = pack, Amount = pack.Keys, Unit = "KEYS" })
+		end
 	end
 	local count = #packs
 	for i, entry in ipairs(packs) do
@@ -388,7 +483,7 @@ function Shop.Start(playerGui)
 		Parent = panel,
 	})
 	tabs = {}
-	local names = { "Crates", "Credits", "VIP" }
+	local names = { "Crates", "Featured", "Credits", "VIP" }
 	for i, name in ipairs(names) do
 		local button = Theme.button({
 			AnchorPoint = Vector2.new(1, 0),
@@ -415,7 +510,16 @@ function Shop.Start(playerGui)
 		})
 	end
 	buildCrates(pages.Crates)
+	featuredPage = pages.Featured
+	buildFeatured()
+	ClientState.SkinsChanged:Connect(buildFeatured) -- (owned / today's list changed)
 	buildCredits(pages.Credits)
+	player:GetAttributeChangedSignal("PaidRandomBlocked"):Connect(function()
+		for _, child in ipairs(pages.Credits:GetChildren()) do
+			child:Destroy()
+		end
+		buildCredits(pages.Credits)
+	end)
 	buildVip(pages.VIP)
 
 	Theme.label({

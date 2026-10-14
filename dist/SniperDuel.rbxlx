@@ -467,10 +467,11 @@ Config.Crates = {
 	FreeInStudio = true, -- opening is free when testing in Studio
 	Cooldown = 1.5, -- seconds between opens (stops spam; the animation is longer)
 	-- The two crates (open them at the crate vault's altar or from the SHOP):
-	--   Standard  paid with Keys you earn by playing
-	--   Elite     paid with Credits (bought with Robux in the SHOP). Better
-	--             odds, and the only place the Elite-only skins and the
-	--             Secrets drop.
+	--   Standard  10 Keys
+	--   Elite     250 Keys. Better odds, and the only place the Elite-only
+	--             skins and the Secrets drop.
+	-- (Keys are earned by playing, or bought in the SHOP. Credits buy the
+	-- SHOP's featured skins outright.)
 	-- Odds are percentages per rarity.
 	Types = {
 		Standard = {
@@ -482,8 +483,8 @@ Config.Crates = {
 		},
 		Elite = {
 			Name = "ELITE CRATE",
-			Currency = "Credits",
-			Cost = 100,
+			Currency = "Keys",
+			Cost = 250,
 			Odds = { Rare = 70, Epic = 22, Legendary = 7.2, Secret = 0.8 },
 			EliteSkins = true,
 		},
@@ -512,6 +513,7 @@ Config.Crates = {
 	--   Pulse     a second colour the glow pulses to (Legendary)
 	--   Sparkle   true: glittering particles (Legendary)
 	--   Elite     true: only drops from the Elite crate
+	--   Pass      true: only from the battle pass (never in crates)
 	--   Aura      true: a flickering aura of particles round the weapon
 	--   Template  Secret skins: the name of a model in Workspace.SecretWeapons
 	--             (moved to ReplicatedStorage at start) to use instead of
@@ -580,6 +582,13 @@ Config.Crates = {
 		{ Id = "SecretVoidReaper", Name = "Void Reaper", Weapon = "Rifle", Rarity = "Secret", Body = Color3.fromRGB(8, 6, 14), Stock = Color3.fromRGB(40, 10, 70), Metal = Color3.fromRGB(4, 4, 8), Accent = Color3.fromRGB(170, 60, 255), Pulse = Color3.fromRGB(60, 0, 140), Finish = "Hologram", StockFinish = "Hologram", Template = "VoidReaper", Glow = true, Sparkle = true, Elite = true, Aura = true },
 		{ Id = "SecretCelestial", Name = "Celestial", Weapon = "Rifle", Rarity = "Secret", Body = Color3.fromRGB(250, 248, 240), Stock = Color3.fromRGB(255, 220, 120), Metal = Color3.fromRGB(230, 200, 120), Accent = Color3.fromRGB(255, 250, 220), Pulse = Color3.fromRGB(140, 200, 255), Finish = "Pearl", StockFinish = "Gold", MetalFinish = "Gold", Template = "Celestial", Glow = true, Sparkle = true, Elite = true, Aura = true },
 
+		-- battle pass (never in crates)
+		{ Id = "PassStriker", Name = "Striker", Weapon = "Rifle", Rarity = "Rare", Body = Color3.fromRGB(230, 60, 40), Stock = Color3.fromRGB(30, 30, 34), Metal = Color3.fromRGB(24, 24, 28), Accent = Color3.fromRGB(255, 220, 90), Finish = "Gloss", Pass = true },
+		{ Id = "PassNightOps", Name = "Night Ops", Weapon = "Rifle", Rarity = "Epic", Body = Color3.fromRGB(30, 34, 30), Metal = Color3.fromRGB(16, 18, 16), Accent = Color3.fromRGB(90, 255, 120), Finish = "Tread", Glow = true, Pass = true },
+		{ Id = "PassRedline", Name = "Redline", Weapon = "Rifle", Rarity = "Epic", Body = Color3.fromRGB(20, 20, 22), Stock = Color3.fromRGB(220, 20, 30), Metal = Color3.fromRGB(12, 12, 14), Accent = Color3.fromRGB(255, 40, 50), Finish = "Chrome", Glow = true, Pass = true },
+		{ Id = "PassEclipse", Name = "Eclipse", Weapon = "Rifle", Rarity = "Legendary", Body = Color3.fromRGB(14, 10, 24), Metal = Color3.fromRGB(8, 6, 14), Accent = Color3.fromRGB(255, 150, 40), Pulse = Color3.fromRGB(255, 60, 120), Finish = "Pearl", Glow = true, Sparkle = true, Pass = true },
+		{ Id = "PassSovereign", Name = "Sovereign", Weapon = "Rifle", Rarity = "Legendary", Body = Color3.fromRGB(250, 250, 255), Stock = Color3.fromRGB(240, 200, 90), Metal = Color3.fromRGB(230, 190, 80), Accent = Color3.fromRGB(255, 230, 140), Pulse = Color3.fromRGB(255, 250, 220), Finish = "Pearl", StockFinish = "Gold", MetalFinish = "Gold", Glow = true, Sparkle = true, Aura = true, Pass = true },
+
 		-- KNIFE
 		{ Id = "KnifeStonewash", Name = "Stonewash", Weapon = "Knife", Rarity = "Common", Blade = Color3.fromRGB(150, 154, 160), Body = Color3.fromRGB(58, 60, 64), Metal = Color3.fromRGB(90, 92, 96), Accent = Color3.fromRGB(200, 200, 200) },
 		{ Id = "KnifeDesert", Name = "Desert", Weapon = "Knife", Rarity = "Common", Blade = Color3.fromRGB(170, 166, 156), Body = Color3.fromRGB(176, 150, 106), Metal = Color3.fromRGB(96, 84, 64), Accent = Color3.fromRGB(230, 214, 176) },
@@ -625,6 +634,12 @@ Config.Crates = {
 		{ Id = "SecretKarambit", Name = "Shadow Karambit", Weapon = "Knife", Rarity = "Secret", Blade = Color3.fromRGB(20, 16, 30), Body = Color3.fromRGB(8, 6, 12), Metal = Color3.fromRGB(120, 40, 200), Accent = Color3.fromRGB(170, 60, 255), Pulse = Color3.fromRGB(60, 0, 140), Finish = "Hologram", Template = "ShadowKarambit", Glow = true, Sparkle = true, Elite = true, Aura = true },
 		{ Id = "SecretBloodfang", Name = "Bloodfang", Weapon = "Knife", Rarity = "Secret", Blade = Color3.fromRGB(120, 10, 16), Body = Color3.fromRGB(20, 8, 8), Metal = Color3.fromRGB(60, 10, 12), Accent = Color3.fromRGB(255, 30, 40), Pulse = Color3.fromRGB(120, 0, 10), Finish = "Chrome", Template = "Bloodfang", Glow = true, Sparkle = true, Elite = true, Aura = true },
 		{ Id = "SecretStarforged", Name = "Starforged", Weapon = "Knife", Rarity = "Secret", Blade = Color3.fromRGB(250, 248, 240), Body = Color3.fromRGB(255, 220, 120), Metal = Color3.fromRGB(230, 200, 120), Accent = Color3.fromRGB(255, 250, 220), Pulse = Color3.fromRGB(140, 200, 255), Finish = "Pearl", MetalFinish = "Gold", HandleFinish = "Gold", Template = "Starforged", Glow = true, Sparkle = true, Elite = true, Aura = true },
+		-- battle pass (never in crates)
+		{ Id = "KnifePassStriker", Name = "Striker", Weapon = "Knife", Rarity = "Rare", Blade = Color3.fromRGB(230, 60, 40), Body = Color3.fromRGB(30, 30, 34), Metal = Color3.fromRGB(255, 220, 90), Accent = Color3.fromRGB(255, 220, 90), Finish = "Gloss", Pass = true },
+		{ Id = "KnifePassNightOps", Name = "Night Ops", Weapon = "Knife", Rarity = "Epic", Blade = Color3.fromRGB(30, 34, 30), Body = Color3.fromRGB(16, 18, 16), Metal = Color3.fromRGB(60, 70, 60), Accent = Color3.fromRGB(90, 255, 120), Finish = "Tread", Glow = true, Pass = true },
+		{ Id = "KnifePassRedline", Name = "Redline", Weapon = "Knife", Rarity = "Epic", Blade = Color3.fromRGB(20, 20, 22), Body = Color3.fromRGB(220, 20, 30), Metal = Color3.fromRGB(80, 80, 90), Accent = Color3.fromRGB(255, 40, 50), Finish = "Chrome", Glow = true, Pass = true },
+		{ Id = "KnifePassEclipse", Name = "Eclipse", Weapon = "Knife", Rarity = "Legendary", Blade = Color3.fromRGB(14, 10, 24), Body = Color3.fromRGB(8, 6, 14), Metal = Color3.fromRGB(255, 150, 40), Accent = Color3.fromRGB(255, 150, 40), Pulse = Color3.fromRGB(255, 60, 120), Finish = "Pearl", Glow = true, Sparkle = true, Pass = true },
+		{ Id = "KnifePassSovereign", Name = "Sovereign", Weapon = "Knife", Rarity = "Legendary", Blade = Color3.fromRGB(250, 250, 255), Body = Color3.fromRGB(240, 200, 90), Metal = Color3.fromRGB(230, 190, 80), Accent = Color3.fromRGB(255, 230, 140), Pulse = Color3.fromRGB(255, 250, 220), Finish = "Pearl", MetalFinish = "Gold", HandleFinish = "Gold", Glow = true, Sparkle = true, Aura = true, Pass = true },
 	},
 }
 
@@ -634,7 +649,7 @@ Config.Crates = {
 -- their ids here. Id 0 = not set up yet (the shop shows it, but can't sell).
 ----------------------------------------------------------------------------
 Config.Shop = {
-	-- Credit packs (Developer Products): Credits open Elite crates
+	-- Credit packs (Developer Products): Credits buy the featured skins
 	CreditPacks = {
 		{ Id = 0, Credits = 100, Robux = 79, Name = "HANDFUL" },
 		{ Id = 0, Credits = 550, Robux = 399, Name = "STACK", Tag = "+10%" },
@@ -651,7 +666,110 @@ Config.Shop = {
 	-- Game Passes
 	Passes = {
 		VIP = { Id = 0, Robux = 299, Name = "VIP", Perks = "2x keys from every match and a gold VIP tag over your head" },
+		BattlePass = { Id = 0, Robux = 499, Name = "PREMIUM PASS", Perks = "The Premium track of this season's battle pass: 8 exclusive skins, tracers, kill effects, poses, titles, credits and keys" },
 	},
+}
+
+----------------------------------------------------------------------------
+-- COSMETICS beyond skins: tracer colours, kill effects, victory poses and
+-- titles. Equip them in the LOCKER. Each has an Id; "Default" ones are free.
+-- They come from the battle pass, the SHOP's featured items or ranked.
+----------------------------------------------------------------------------
+Config.Cosmetics = {
+	-- the colour of your bullet trails (everyone sees them)
+	Tracers = {
+		{ Id = "TracerDefault", Name = "Standard", Color = Color3.fromRGB(255, 244, 214), Default = true },
+		{ Id = "TracerGold", Name = "Gold", Color = Color3.fromRGB(255, 200, 60), Rarity = "Rare" },
+		{ Id = "TracerCyan", Name = "Cyan", Color = Color3.fromRGB(60, 230, 255), Rarity = "Rare" },
+		{ Id = "TracerLime", Name = "Lime", Color = Color3.fromRGB(150, 255, 60), Rarity = "Rare" },
+		{ Id = "TracerPink", Name = "Hot Pink", Color = Color3.fromRGB(255, 70, 190), Rarity = "Epic" },
+		{ Id = "TracerViolet", Name = "Violet", Color = Color3.fromRGB(170, 90, 255), Rarity = "Epic" },
+		{ Id = "TracerCrimson", Name = "Crimson", Color = Color3.fromRGB(255, 30, 50), Rarity = "Legendary" },
+		{ Id = "TracerVoid", Name = "Void", Color = Color3.fromRGB(40, 0, 80), Rarity = "Legendary" },
+	},
+	-- what happens to the body on a kill you make (everyone in the match sees it)
+	KillEffects = {
+		{ Id = "FxShatter", Name = "Shatter", Style = "Shatter", Default = true },
+		{ Id = "FxConfetti", Name = "Confetti", Style = "Confetti", Rarity = "Rare" },
+		{ Id = "FxVaporize", Name = "Vaporize", Style = "Vaporize", Color = Color3.fromRGB(80, 230, 255), Rarity = "Epic" },
+		{ Id = "FxFlames", Name = "Inferno", Style = "Flames", Color = Color3.fromRGB(255, 120, 30), Rarity = "Epic" },
+		{ Id = "FxLightning", Name = "Thunderstrike", Style = "Lightning", Color = Color3.fromRGB(150, 200, 255), Rarity = "Legendary" },
+		{ Id = "FxVoid", Name = "Black Hole", Style = "Void", Color = Color3.fromRGB(120, 40, 220), Rarity = "Legendary" },
+	},
+	-- the winner's pose at the end of the kill cam
+	Poses = {
+		{ Id = "PoseFistPump", Name = "Fist Pump", Style = "FistPump", Default = true },
+		{ Id = "PoseSalute", Name = "Salute", Style = "Salute", Rarity = "Rare" },
+		{ Id = "PosePoint", Name = "You're Next", Style = "Point", Rarity = "Epic" },
+		{ Id = "PoseWave", Name = "Bye Bye", Style = "Wave", Rarity = "Epic" },
+	},
+	-- a title under your name (over your head and on the leaderboard)
+	Titles = {
+		{ Id = "TitleNone", Name = "None", Text = "", Default = true },
+		{ Id = "TitleRookie", Name = "Rookie", Text = "ROOKIE", Color = Color3.fromRGB(190, 198, 210), Rarity = "Common" },
+		{ Id = "TitleSharpshooter", Name = "Sharpshooter", Text = "SHARPSHOOTER", Color = Color3.fromRGB(60, 146, 255), Rarity = "Rare" },
+		{ Id = "TitleKnifeMaster", Name = "Knife Master", Text = "KNIFE MASTER", Color = Color3.fromRGB(176, 84, 255), Rarity = "Epic" },
+		{ Id = "TitleSniperGod", Name = "Sniper God", Text = "SNIPER GOD", Color = Color3.fromRGB(255, 192, 46), Rarity = "Legendary" },
+		{ Id = "TitleSeason1", Name = "Season 1 Veteran", Text = "S1 VETERAN", Color = Color3.fromRGB(255, 80, 110), Rarity = "Legendary" },
+		-- earned in ranked (granted automatically when you reach the tier)
+		{ Id = "TitleDiamond", Name = "Diamond", Text = "DIAMOND", Color = Color3.fromRGB(110, 170, 255), Rarity = "Epic", RankMin = 1500 },
+		{ Id = "TitleChampion", Name = "Champion", Text = "CHAMPION", Color = Color3.fromRGB(255, 80, 110), Rarity = "Legendary", RankMin = 1700 },
+	},
+}
+
+----------------------------------------------------------------------------
+-- BATTLE PASS: play matches to earn XP and climb the tiers. Every tier has a
+-- free reward; the Premium track (a Game Pass, Config.Shop.Passes.BattlePass)
+-- adds a second, better one. Rewards are given straight away when you reach
+-- a tier (buying Premium later gives you every Premium reward you've passed).
+-- Reward = { Keys = n } | { Credits = n } | { Skin = id } | { Cosmetic = id }
+----------------------------------------------------------------------------
+Config.BattlePass = {
+	Season = 1,
+	Name = "SEASON 1: FIRST BLOOD",
+	XPPerTier = 1000,
+	XPWin = 300, -- XP for winning a match
+	XPLoss = 120, -- XP for finishing a match you lost
+	XPPerRound = 40, -- plus this for every round you won
+	Tiers = {
+		{ Free = { Keys = 5 }, Premium = { Credits = 30 } },
+		{ Free = { Cosmetic = "TitleRookie" }, Premium = { Skin = "PassStriker" } },
+		{ Free = { Keys = 5 }, Premium = { Cosmetic = "TracerGold" } },
+		{ Free = { Credits = 10 }, Premium = { Keys = 15 } },
+		{ Free = { Keys = 10 }, Premium = { Skin = "KnifePassStriker" } },
+		{ Free = { Cosmetic = "TracerCyan" }, Premium = { Credits = 50 } },
+		{ Free = { Keys = 5 }, Premium = { Cosmetic = "FxConfetti" } },
+		{ Free = { Credits = 10 }, Premium = { Skin = "PassNightOps" } },
+		{ Free = { Keys = 10 }, Premium = { Cosmetic = "PoseSalute" } },
+		{ Free = { Cosmetic = "TitleSharpshooter" }, Premium = { Keys = 25 } },
+		{ Free = { Keys = 5 }, Premium = { Cosmetic = "TracerPink" } },
+		{ Free = { Credits = 15 }, Premium = { Skin = "KnifePassNightOps" } },
+		{ Free = { Keys = 10 }, Premium = { Cosmetic = "FxVaporize" } },
+		{ Free = { Cosmetic = "TracerLime" }, Premium = { Credits = 80 } },
+		{ Free = { Keys = 10 }, Premium = { Skin = "PassRedline" } },
+		{ Free = { Credits = 20 }, Premium = { Cosmetic = "PosePoint" } },
+		{ Free = { Keys = 10 }, Premium = { Cosmetic = "TracerViolet" } },
+		{ Free = { Keys = 15 }, Premium = { Skin = "KnifePassRedline" } },
+		{ Free = { Credits = 20 }, Premium = { Cosmetic = "FxFlames" } },
+		{ Free = { Cosmetic = "TitleKnifeMaster" }, Premium = { Credits = 120 } },
+		{ Free = { Keys = 15 }, Premium = { Cosmetic = "PoseWave" } },
+		{ Free = { Credits = 25 }, Premium = { Skin = "PassEclipse" } },
+		{ Free = { Keys = 15 }, Premium = { Cosmetic = "TracerCrimson" } },
+		{ Free = { Credits = 30 }, Premium = { Cosmetic = "FxLightning" } },
+		{ Free = { Keys = 20 }, Premium = { Skin = "KnifePassEclipse" } },
+		{ Free = { Credits = 30 }, Premium = { Cosmetic = "TracerVoid" } },
+		{ Free = { Keys = 20 }, Premium = { Cosmetic = "FxVoid" } },
+		{ Free = { Credits = 40 }, Premium = { Cosmetic = "TitleSniperGod" } },
+		{ Free = { Keys = 25 }, Premium = { Skin = "PassSovereign" } },
+		{ Free = { Cosmetic = "TitleSeason1" }, Premium = { Skin = "KnifePassSovereign" } },
+	},
+}
+
+-- FEATURED: three skins you can buy outright with Credits, a new set every
+-- day (UTC). Price by rarity. (Secret and battle pass skins never show up.)
+Config.Featured = {
+	Count = 3,
+	Prices = { Common = 40, Uncommon = 80, Rare = 160, Epic = 320, Legendary = 700 },
 }
 
 ----------------------------------------------------------------------------
@@ -1170,6 +1288,75 @@ return Config
       </Item>
       <Item class="ModuleScript" referent="5">
         <Properties>
+          <string name="Name">Cosmetics</string>
+          <string name="Source"><![CDATA[--[[
+	Cosmetics.lua  (ReplicatedStorage.Shared.Cosmetics)
+
+	Looks up the cosmetics in Config.Cosmetics (tracers, kill effects,
+	victory poses, titles). Every item gets a Kind:
+		"Tracer" | "KillFx" | "Pose" | "Title"
+	Players wear them through attributes of the same name (the item's Id),
+	set by the server (CrateService) when they equip one in the Locker.
+
+		Cosmetics.Get(id)           -> item or nil
+		Cosmetics.ForKind(kind)     -> list (the free default first)
+		Cosmetics.Worn(player, kind) -> the item they have on (or the default)
+		Cosmetics.TracerColor(player) -> Color3
+]]
+
+local Config = require(script.Parent.Config)
+
+local Cosmetics = {}
+
+Cosmetics.Kinds = { "Tracer", "KillFx", "Pose", "Title" }
+local LISTS = { Tracer = "Tracers", KillFx = "KillEffects", Pose = "Poses", Title = "Titles" }
+
+local byId, byKind, defaults = {}, {}, {}
+for kind, listName in pairs(LISTS) do
+	byKind[kind] = {}
+	for _, item in ipairs(Config.Cosmetics[listName]) do
+		item.Kind = kind
+		byId[item.Id] = item
+		table.insert(byKind[kind], item)
+		if item.Default then
+			defaults[kind] = item
+		end
+	end
+end
+
+function Cosmetics.Get(id)
+	return id and byId[id] or nil
+end
+
+function Cosmetics.ForKind(kind)
+	return byKind[kind] or {}
+end
+
+function Cosmetics.Default(kind)
+	return defaults[kind]
+end
+
+-- The item a player (or a player-like table) has on, or the free default.
+function Cosmetics.Worn(player, kind)
+	local id = player and typeof(player) == "Instance" and player:GetAttribute(kind)
+	local item = Cosmetics.Get(id)
+	if item and item.Kind == kind then
+		return item
+	end
+	return defaults[kind]
+end
+
+function Cosmetics.TracerColor(player)
+	local item = Cosmetics.Worn(player, "Tracer")
+	return item and item.Color or Config.Palette.Tracer
+end
+
+return Cosmetics
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="6">
+        <Properties>
           <string name="Name">CrateModel</string>
           <string name="Source"><![CDATA[--[[
 	CrateModel.lua  (ReplicatedStorage.Shared.CrateModel)
@@ -1352,7 +1539,7 @@ return CrateModel
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="6">
+      <Item class="ModuleScript" referent="7">
         <Properties>
           <string name="Name">GunModel</string>
           <string name="Source"><![CDATA[--[[
@@ -2256,7 +2443,7 @@ return GunModel
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="7">
+      <Item class="ModuleScript" referent="8">
         <Properties>
           <string name="Name">KnifeModel</string>
           <string name="Source"><![CDATA[--[[
@@ -2512,7 +2699,7 @@ return KnifeModel
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="8">
+      <Item class="ModuleScript" referent="9">
         <Properties>
           <string name="Name">Logo</string>
           <string name="Source"><![CDATA[--[[
@@ -2694,7 +2881,7 @@ return Logo
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="9">
+      <Item class="ModuleScript" referent="10">
         <Properties>
           <string name="Name">PowerUps</string>
           <string name="Source"><![CDATA[--[[
@@ -3508,7 +3695,7 @@ return PowerUps
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="10">
+      <Item class="ModuleScript" referent="11">
         <Properties>
           <string name="Name">Remotes</string>
           <string name="Source"><![CDATA[--[[
@@ -3551,7 +3738,9 @@ Remotes.Names = {
 	"DuelInvite", -- S->C  someone challenged you / wants a rematch
 	"CrateOpen", -- C->S  open a crate at the lobby altar
 	"Crates", -- S->C  crate results + your keys / skins
-	"SkinEquip", -- C->S  equip a skin: weapon ("Rifle" / "Knife"), skin id (nil = default)
+	"SkinEquip", -- C->S  equip: kind ("Rifle" / "Knife" / "Tracer" / "KillFx" / "Pose" / "Title"), id (nil = default)
+	"ShopBuy", -- C->S  buy with credits: ("Featured", skinId)
+	"Pass", -- S->C  battle pass progress + rewards (PassService)
 	"Equip", -- C->S  switch weapon: "Sniper" / "Knife"
 	"Melee", -- C->S  knife swing: kind ("Slash" / "Stab"), what it hit, look direction
 	"Anim", -- C->S  cosmetic animation events others should see ("Inspect", "Scope")
@@ -3628,7 +3817,7 @@ return Remotes
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="11">
+      <Item class="ModuleScript" referent="12">
         <Properties>
           <string name="Name">Signal</string>
           <string name="Source"><![CDATA[--[[
@@ -3666,7 +3855,7 @@ return Signal
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="12">
+      <Item class="ModuleScript" referent="13">
         <Properties>
           <string name="Name">Skins</string>
           <string name="Source"><![CDATA[--[[
@@ -3954,7 +4143,7 @@ return Skins
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="13">
+      <Item class="ModuleScript" referent="14">
         <Properties>
           <string name="Name">Util</string>
           <string name="Source"><![CDATA[--[[
@@ -4062,15 +4251,15 @@ return Util
       </Item>
     </Item>
   </Item>
-  <Item class="ServerScriptService" referent="14">
+  <Item class="ServerScriptService" referent="15">
     <Properties>
       <string name="Name">ServerScriptService</string>
     </Properties>
-    <Item class="Folder" referent="15">
+    <Item class="Folder" referent="16">
       <Properties>
         <string name="Name">Server</string>
       </Properties>
-      <Item class="ModuleScript" referent="16">
+      <Item class="ModuleScript" referent="17">
         <Properties>
           <string name="Name">ArenaBridges</string>
           <string name="Source"><![CDATA[--[[
@@ -4197,7 +4386,7 @@ return ArenaBridges
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="17">
+      <Item class="ModuleScript" referent="18">
         <Properties>
           <string name="Name">ArenaCanyon</string>
           <string name="Source"><![CDATA[--[[
@@ -4319,7 +4508,7 @@ return ArenaCanyon
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="18">
+      <Item class="ModuleScript" referent="19">
         <Properties>
           <string name="Name">ArenaCrossfire</string>
           <string name="Source"><![CDATA[--[[
@@ -4481,7 +4670,7 @@ return ArenaCrossfire
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="19">
+      <Item class="ModuleScript" referent="20">
         <Properties>
           <string name="Name">ArenaDowntown</string>
           <string name="Source"><![CDATA[--[[
@@ -5661,7 +5850,7 @@ return ArenaDowntown
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="20">
+      <Item class="ModuleScript" referent="21">
         <Properties>
           <string name="Name">ArenaNuketown</string>
           <string name="Source"><![CDATA[--[[
@@ -6111,7 +6300,7 @@ return ArenaNuketown
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="21">
+      <Item class="ModuleScript" referent="22">
         <Properties>
           <string name="Name">ArenaPillars</string>
           <string name="Source"><![CDATA[--[[
@@ -6250,7 +6439,7 @@ return ArenaPillars
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="22">
+      <Item class="ModuleScript" referent="23">
         <Properties>
           <string name="Name">ArenaPolygon</string>
           <string name="Source"><![CDATA[--[[
@@ -6418,7 +6607,7 @@ return ArenaPolygon
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="23">
+      <Item class="ModuleScript" referent="24">
         <Properties>
           <string name="Name">ArenaQuarry</string>
           <string name="Source"><![CDATA[--[[
@@ -6548,7 +6737,7 @@ return ArenaQuarry
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="24">
+      <Item class="ModuleScript" referent="25">
         <Properties>
           <string name="Name">ArenaSimple</string>
           <string name="Source"><![CDATA[--[[
@@ -6647,7 +6836,7 @@ return ArenaSimple
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="25">
+      <Item class="ModuleScript" referent="26">
         <Properties>
           <string name="Name">ArenaZiggurat</string>
           <string name="Source"><![CDATA[--[[
@@ -6779,7 +6968,7 @@ return ArenaZiggurat
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="26">
+      <Item class="ModuleScript" referent="27">
         <Properties>
           <string name="Name">BotService</string>
           <string name="Source"><![CDATA[--[[
@@ -7242,7 +7431,7 @@ return BotService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="27">
+      <Item class="ModuleScript" referent="28">
         <Properties>
           <string name="Name">CharacterService</string>
           <string name="Source"><![CDATA[--[[
@@ -7266,6 +7455,7 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local GunModel = require(ReplicatedStorage.Shared.GunModel)
 local KnifeModel = require(ReplicatedStorage.Shared.KnifeModel)
 local Skins = require(ReplicatedStorage.Shared.Skins)
+local Cosmetics = require(ReplicatedStorage.Shared.Cosmetics)
 local Util = require(ReplicatedStorage.Shared.Util)
 
 local Palette = Config.Palette
@@ -7625,30 +7815,7 @@ function CharacterService.Spawn(player, cframe, options)
 		))
 	end
 	CharacterService.Style(character, options.Color or Palette.LobbyPlayer, player)
-	if not Util.isBot(player) and player:GetAttribute("VIP") then
-		-- the VIP pass: a gold tag over your head
-		local head = character:FindFirstChild("Head")
-		if head then
-			local tag = Instance.new("BillboardGui")
-			tag.Name = "VipTag"
-			tag.Size = UDim2.fromOffset(60, 24)
-			tag.StudsOffset = Vector3.new(0, 2.2, 0)
-			tag.MaxDistance = 80
-			tag.Adornee = head
-			local label = Instance.new("TextLabel")
-			label.Size = UDim2.fromScale(1, 1)
-			label.BackgroundColor3 = Color3.fromRGB(255, 196, 60)
-			label.Text = "VIP"
-			label.TextScaled = true
-			label.FontFace = Font.new(Config.UI.FontFamily, Enum.FontWeight.Heavy)
-			label.TextColor3 = Color3.fromRGB(30, 24, 10)
-			label.Parent = tag
-			local corner = Instance.new("UICorner")
-			corner.CornerRadius = UDim.new(0.3, 0)
-			corner.Parent = label
-			tag.Parent = head
-		end
-	end
+	CharacterService.RefreshTag(player)
 	character:SetAttribute("Weapon", "Sniper") -- every life starts with the rifle out
 	addHitboxes(character)
 	addWorldGun(character, options.PowerUps)
@@ -7699,6 +7866,65 @@ function CharacterService.RefreshWorldGun(player, powerUps)
 	if humanoid and humanoid.Health > 0 then
 		addWorldGun(character, powerUps)
 	end
+end
+
+-- The tag over a player's head: their title (Locker) and a gold VIP badge.
+function CharacterService.RefreshTag(player)
+	if Util.isBot(player) then
+		return
+	end
+	local character = player.Character
+	local head = character and character:FindFirstChild("Head")
+	if not head then
+		return
+	end
+	local old = head:FindFirstChild("PlayerTag")
+	if old then
+		old:Destroy()
+	end
+	local title = Cosmetics.Worn(player, "Title")
+	local vip = player:GetAttribute("VIP") == true
+	if (not title or title.Text == "") and not vip then
+		return
+	end
+	local tag = Instance.new("BillboardGui")
+	tag.Name = "PlayerTag"
+	tag.Size = UDim2.fromOffset(220, 26)
+	tag.StudsOffset = Vector3.new(0, 2.4, 0)
+	tag.MaxDistance = 80
+	tag.Adornee = head
+	local row = Instance.new("Frame")
+	row.BackgroundTransparency = 1
+	row.Size = UDim2.fromScale(1, 1)
+	row.Parent = tag
+	local layout = Instance.new("UIListLayout")
+	layout.FillDirection = Enum.FillDirection.Horizontal
+	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	layout.VerticalAlignment = Enum.VerticalAlignment.Center
+	layout.Padding = UDim.new(0, 6)
+	layout.Parent = row
+	local function chip(text, background, color)
+		local label = Instance.new("TextLabel")
+		label.AutomaticSize = Enum.AutomaticSize.X
+		label.Size = UDim2.fromOffset(0, 22)
+		label.BackgroundColor3 = background
+		label.BackgroundTransparency = 0.15
+		label.Text = " " .. text .. " "
+		label.TextSize = 15
+		label.FontFace = Font.new(Config.UI.FontFamily, Enum.FontWeight.Heavy)
+		label.TextColor3 = color
+		label.Parent = row
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0.3, 0)
+		corner.Parent = label
+	end
+	if vip then
+		chip("VIP", Color3.fromRGB(255, 196, 60), Color3.fromRGB(30, 24, 10))
+	end
+	if title and title.Text ~= "" then
+		chip(title.Text, Color3.fromRGB(18, 20, 26), title.Color or Color3.new(1, 1, 1))
+	end
+	tag.Parent = head
 end
 
 -- Rebuilds both weapons in a player's hands in their equipped skins.
@@ -7784,7 +8010,7 @@ return CharacterService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="28">
+      <Item class="ModuleScript" referent="29">
         <Properties>
           <string name="Name">CombatService</string>
           <string name="Source"><![CDATA[--[[
@@ -8068,6 +8294,7 @@ function CombatService.Damage(match, attacker, victim, amount, info)
 				Position = root.Position,
 				Color = match:ColorFor(victim),
 				Headshot = info.Headshot == true,
+				KillFx = attacker and not Util.isBot(attacker) and attacker:GetAttribute("KillFx") or nil, -- (their kill effect cosmetic)
 			})
 		end
 	end
@@ -8108,7 +8335,13 @@ local function damageTarget(match, attacker, stats, target, amount, info)
 			Backstab = info.Backstab == true,
 		})
 		if killed and torso then
-			sendFx(nil, { Type = "Kill", Position = torso.Position, Color = Config.Palette.PlayerB, Headshot = info.Headshot == true })
+			sendFx(nil, {
+				Type = "Kill",
+				Position = torso.Position,
+				Color = Config.Palette.PlayerB,
+				Headshot = info.Headshot == true,
+				KillFx = attacker and not Util.isBot(attacker) and attacker:GetAttribute("KillFx") or nil,
+			})
 		end
 	end
 
@@ -8868,7 +9101,7 @@ return CombatService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="29">
+      <Item class="ModuleScript" referent="30">
         <Properties>
           <string name="Name">CrateService</string>
           <string name="Source"><![CDATA[--[[
@@ -8909,6 +9142,8 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Util = require(ReplicatedStorage.Shared.Util)
 local Skins = require(ReplicatedStorage.Shared.Skins)
+local Cosmetics = require(ReplicatedStorage.Shared.Cosmetics)
+local PolicyService = game:GetService("PolicyService")
 
 local CrateService = {}
 
@@ -8934,7 +9169,7 @@ local pools = {} -- [crateType][rarity] = { skins }
 for typeName, crateType in pairs(CR.Types) do
 	pools[typeName] = {}
 	for _, skin in ipairs(CR.Skins) do
-		if (crateType.Odds[skin.Rarity] or 0) > 0 and (crateType.EliteSkins or not skin.Elite) then
+		if (crateType.Odds[skin.Rarity] or 0) > 0 and (crateType.EliteSkins or not skin.Elite) and not skin.Pass then
 			pools[typeName][skin.Rarity] = pools[typeName][skin.Rarity] or {}
 			table.insert(pools[typeName][skin.Rarity], skin)
 		end
@@ -8952,7 +9187,16 @@ end
 local function sendInventory(player)
 	local d = data[player]
 	if d then
-		Remotes.Get("Crates"):FireClient(player, { Type = "Inventory", Keys = d.Keys, Credits = d.Credits, Skins = d.Skins, Equipped = d.Equipped })
+		Remotes.Get("Crates"):FireClient(player, {
+			Type = "Inventory",
+			Keys = d.Keys,
+			Credits = d.Credits,
+			Skins = d.Skins,
+			Cosmetics = d.Cosmetics,
+			Equipped = d.Equipped,
+			Pass = d.Pass,
+			Featured = CrateService.FeaturedToday(),
+		})
 	end
 end
 
@@ -8998,6 +9242,8 @@ local function save(player)
 			Credits = d.Credits,
 			PaidKeys = d.PaidKeys,
 			Skins = d.Skins,
+			Cosmetics = d.Cosmetics,
+			Pass = d.Pass,
 			Opened = d.Opened,
 			Equipped = d.Equipped,
 			Receipts = d.Receipts,
@@ -9034,13 +9280,33 @@ local function load(player)
 	if not player.Parent then
 		return
 	end
-	local d = { Keys = CR.StartingKeys, PaidKeys = 0, Credits = 0, Skins = {}, Opened = 0, Equipped = {}, Receipts = {} }
+	local d = {
+		Keys = CR.StartingKeys,
+		PaidKeys = 0,
+		Credits = 0,
+		Skins = {},
+		Cosmetics = {}, -- [id] = true
+		Opened = 0,
+		Equipped = {},
+		Receipts = {},
+		Pass = nil, -- battle pass progress (PassService)
+	}
 	if typeof(saved) == "table" then
 		if typeof(saved.Keys) == "number" then
 			d.Keys = math.max(0, math.floor(saved.Keys))
 		end
 		if typeof(saved.Credits) == "number" then
 			d.Credits = math.max(0, math.floor(saved.Credits))
+		end
+		if typeof(saved.Cosmetics) == "table" then
+			for id, owned in pairs(saved.Cosmetics) do
+				if typeof(id) == "string" and owned == true and Cosmetics.Get(id) then
+					d.Cosmetics[id] = true
+				end
+			end
+		end
+		if typeof(saved.Pass) == "table" then
+			d.Pass = saved.Pass
 		end
 		if typeof(saved.PaidKeys) == "number" then
 			d.PaidKeys = math.clamp(math.floor(saved.PaidKeys), 0, d.Keys)
@@ -9072,8 +9338,27 @@ local function load(player)
 			end
 		end
 	end
+	if typeof(saved) == "table" and typeof(saved.Equipped) == "table" then
+		for _, kind in ipairs(Cosmetics.Kinds) do
+			local item = Cosmetics.Get(saved.Equipped[kind])
+			if item and item.Kind == kind and (item.Default or d.Cosmetics[item.Id]) then
+				d.Equipped[kind] = item.Id
+			end
+		end
+	end
 	data[player] = d
 	loaded[player] = true
+	for _, kind in ipairs(Cosmetics.Kinds) do
+		player:SetAttribute(kind, d.Equipped[kind])
+	end
+	-- some countries don't allow buying paid random items (crates with keys
+	-- bought for Robux): the SHOP hides the key pack for these players
+	task.spawn(function()
+		local ok, policy = pcall(PolicyService.GetPolicyInfoForPlayerAsync, PolicyService, player)
+		if ok and policy and policy.ArePaidRandomItemsRestricted then
+			player:SetAttribute("PaidRandomBlocked", true)
+		end
+	end)
 	player:SetAttribute("Keys", d.Keys)
 	player:SetAttribute("Credits", d.Credits)
 	player:SetAttribute("WagerKeys", d.Keys - d.PaidKeys)
@@ -9203,27 +9488,140 @@ end
 ----------------------------------------------------------------------------
 -- Equipping
 ----------------------------------------------------------------------------
--- weapon: "Rifle" / "Knife"; id: an owned skin for it, or nil for the default look
-function CrateService.Equip(player, weapon, id)
+-- kind: "Rifle" / "Knife" (a skin) or a cosmetic kind ("Tracer", "KillFx",
+-- "Pose", "Title"); id: one they own, or nil for the default
+function CrateService.Equip(player, kind, id)
 	local d = data[player]
-	if not d or (weapon ~= "Rifle" and weapon ~= "Knife") then
+	if not d then
+		return
+	end
+	local isSkin = kind == "Rifle" or kind == "Knife"
+	if not isSkin and not table.find(Cosmetics.Kinds, kind) then
 		return
 	end
 	if id ~= nil then
-		local skin = typeof(id) == "string" and Skins.Get(id)
-		if not skin or skin.Weapon ~= weapon or (d.Skins[id] or 0) <= 0 then
-			return
+		if isSkin then
+			local skin = typeof(id) == "string" and Skins.Get(id)
+			if not skin or skin.Weapon ~= kind or (d.Skins[id] or 0) <= 0 then
+				return
+			end
+		else
+			local item = Cosmetics.Get(id)
+			if not item or item.Kind ~= kind or not (item.Default or d.Cosmetics[id]) then
+				return
+			end
+			if item.Default then
+				id = nil
+			end
 		end
 	end
-	if d.Equipped[weapon] == id then
+	if d.Equipped[kind] == id then
 		return
 	end
-	d.Equipped[weapon] = id
+	d.Equipped[kind] = id
 	dirty[player] = true
-	player:SetAttribute(weapon .. "Skin", id)
-	if not MatchService.GetMatch(player) then
-		CharacterService.RefreshSkins(player) -- (in a match: from the next round)
+	if isSkin then
+		player:SetAttribute(kind .. "Skin", id)
+		if not MatchService.GetMatch(player) then
+			CharacterService.RefreshSkins(player) -- (in a match: from the next round)
+		end
+	else
+		player:SetAttribute(kind, id)
+		if kind == "Title" then
+			CharacterService.RefreshTag(player)
+		end
 	end
+	sendInventory(player)
+	scheduleSave(player)
+end
+
+----------------------------------------------------------------------------
+-- Rewards (battle pass, ranked titles) and the profile for PassService
+----------------------------------------------------------------------------
+-- reward = { Keys = n } | { Credits = n } | { Skin = id } | { Cosmetic = id }
+-- Returns a short text for the toast, or nil if it couldn't be given.
+function CrateService.Grant(player, reward)
+	local d = data[player]
+	if not d or not loaded[player] or typeof(reward) ~= "table" then
+		return nil
+	end
+	local text
+	if reward.Keys then
+		setKeys(player, d.Keys + reward.Keys)
+		player:SetAttribute("WagerKeys", d.Keys - (d.PaidKeys or 0))
+		text = ("+%d KEYS"):format(reward.Keys)
+	elseif reward.Credits then
+		setCredits(player, d.Credits + reward.Credits)
+		text = ("+%d CREDITS"):format(reward.Credits)
+	elseif reward.Skin and Skins.Get(reward.Skin) then
+		d.Skins[reward.Skin] = (d.Skins[reward.Skin] or 0) + 1
+		local skin = Skins.Get(reward.Skin)
+		text = string.upper(skin.Name) .. " " .. string.upper(skin.Weapon) .. " SKIN"
+	elseif reward.Cosmetic and Cosmetics.Get(reward.Cosmetic) then
+		d.Cosmetics[reward.Cosmetic] = true
+		local item = Cosmetics.Get(reward.Cosmetic)
+		text = string.upper(item.Name) .. " " .. string.upper(item.Kind == "KillFx" and "kill effect" or item.Kind)
+	else
+		return nil
+	end
+	dirty[player] = true
+	sendInventory(player)
+	scheduleSave(player)
+	return text
+end
+
+-- The saved profile table (PassService keeps .Pass in it), or nil until loaded.
+function CrateService.GetProfile(player)
+	return loaded[player] and not loadFailed[player] and data[player] or nil
+end
+
+function CrateService.Changed(player)
+	if data[player] then
+		dirty[player] = true
+		sendInventory(player)
+		scheduleSave(player)
+	end
+end
+
+----------------------------------------------------------------------------
+-- Featured skins: a new set to buy with Credits every day (UTC)
+----------------------------------------------------------------------------
+function CrateService.FeaturedToday()
+	local day = math.floor(os.time() / 86400)
+	local candidates = {}
+	for _, skin in ipairs(CR.Skins) do
+		if skin.Rarity ~= "Secret" and not skin.Pass and Config.Featured.Prices[skin.Rarity] then
+			table.insert(candidates, skin.Id)
+		end
+	end
+	local rng2 = Random.new(day * 7919 + 13)
+	local picks = {}
+	for _ = 1, math.min(Config.Featured.Count, #candidates) do
+		local index = rng2:NextInteger(1, #candidates)
+		table.insert(picks, table.remove(candidates, index))
+	end
+	return picks
+end
+
+function CrateService.BuyFeatured(player, id)
+	local d = data[player]
+	local skin = typeof(id) == "string" and Skins.Get(id)
+	if not d or not loaded[player] or not skin or not table.find(CrateService.FeaturedToday(), id) then
+		return
+	end
+	if (d.Skins[id] or 0) > 0 then
+		notify(player, "You already own that skin")
+		return
+	end
+	local price = Config.Featured.Prices[skin.Rarity]
+	if d.Credits < price then
+		notify(player, ("You need %d credits"):format(price))
+		return
+	end
+	setCredits(player, d.Credits - price)
+	d.Skins[id] = 1
+	dirty[player] = true
+	notify(player, ("UNLOCKED  -  %s %s SKIN"):format(string.upper(skin.Name), string.upper(skin.Weapon)))
 	sendInventory(player)
 	scheduleSave(player)
 end
@@ -9284,6 +9682,7 @@ local function checkVip(player)
 	local ok, owns = pcall(MarketplaceService.UserOwnsGamePassAsync, MarketplaceService, player.UserId, pass.Id)
 	if ok and owns then
 		player:SetAttribute("VIP", true)
+		CharacterService.RefreshTag(player)
 	end
 end
 
@@ -9362,7 +9761,7 @@ function CrateService.Init(matchService, characterService)
 		end
 	end
 	Remotes.Get("SkinEquip").OnServerEvent:Connect(function(player, weapon, id)
-		if weapon ~= "Rifle" and weapon ~= "Knife" then
+		if weapon ~= "Rifle" and weapon ~= "Knife" and not table.find(Cosmetics.Kinds, weapon) then
 			return
 		end
 		local waiting = pendingEquip[player] ~= nil
@@ -9391,6 +9790,16 @@ function CrateService.Init(matchService, characterService)
 	Remotes.Get("CrateOpen").OnServerEvent:Connect(function(player, typeName)
 		CrateService.Open(player, typeName)
 	end)
+	local lastBuy = {}
+	Remotes.Get("ShopBuy").OnServerEvent:Connect(function(player, kind, id)
+		if lastBuy[player] and os.clock() - lastBuy[player] < 0.5 then
+			return
+		end
+		lastBuy[player] = os.clock()
+		if kind == "Featured" then
+			CrateService.BuyFeatured(player, id)
+		end
+	end)
 
 	local lobby = MatchService.GetLobby()
 	local prompt = lobby and lobby.CrateAltar and lobby.CrateAltar:FindFirstChildOfClass("ProximityPrompt")
@@ -9406,6 +9815,7 @@ function CrateService.Init(matchService, characterService)
 	MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passId, bought)
 		if bought and passId == Config.Shop.Passes.VIP.Id then
 			player:SetAttribute("VIP", true)
+			CharacterService.RefreshTag(player)
 			notify(player, "VIP UNLOCKED  -  2x keys from every match")
 		end
 	end)
@@ -9446,7 +9856,7 @@ return CrateService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="30">
+      <Item class="ModuleScript" referent="31">
         <Properties>
           <string name="Name">DummyService</string>
           <string name="Source"><![CDATA[--[[
@@ -9654,7 +10064,7 @@ return DummyService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="31">
+      <Item class="ModuleScript" referent="32">
         <Properties>
           <string name="Name">LightingSetup</string>
           <string name="Source"><![CDATA[--[[
@@ -9734,7 +10144,7 @@ return LightingSetup
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="32">
+      <Item class="ModuleScript" referent="33">
         <Properties>
           <string name="Name">LobbyBuilder</string>
           <string name="Source"><![CDATA[--[[
@@ -10723,7 +11133,7 @@ return LobbyBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="Script" referent="33">
+      <Item class="Script" referent="34">
         <Properties>
           <string name="Name">Main</string>
           <token name="RunContext">0</token>
@@ -10743,6 +11153,7 @@ return LobbyBuilder
 		BotService        computer opponent for admin "/bot" matches
 		CrateService      crate keys, opening (server-side rolls), owned + equipped skins (DataStore)
 		RankService       ranked rating (Elo, DataStore) + the lobby leaderboard wall
+		PassService       the battle pass (XP, tiers, free + premium rewards), ranked titles
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -10778,6 +11189,7 @@ local CombatService = require(script.Parent.CombatService)
 local BotService = require(script.Parent.BotService)
 local CrateService = require(script.Parent.CrateService)
 local RankService = require(script.Parent.RankService)
+local PassService = require(script.Parent.PassService)
 
 LightingSetup.Apply()
 CharacterService.Init()
@@ -10787,12 +11199,13 @@ BotService.Init(CombatService)
 MatchService.Init()
 CrateService.Init(MatchService, CharacterService)
 RankService.Init(MatchService)
+PassService.Init(MatchService, CrateService)
 
 print("[Sniper Duel] server ready")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="34">
+      <Item class="ModuleScript" referent="35">
         <Properties>
           <string name="Name">MapBuilder</string>
           <string name="Source"><![CDATA[--[[
@@ -11177,7 +11590,7 @@ return MapBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="35">
+      <Item class="ModuleScript" referent="36">
         <Properties>
           <string name="Name">Match</string>
           <string name="Source"><![CDATA[--[[
@@ -11557,7 +11970,7 @@ return Match
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="36">
+      <Item class="ModuleScript" referent="37">
         <Properties>
           <string name="Name">MatchService</string>
           <string name="Source"><![CDATA[--[[
@@ -12216,7 +12629,200 @@ return MatchService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="37">
+      <Item class="ModuleScript" referent="38">
+        <Properties>
+          <string name="Name">PassService</string>
+          <string name="Source"><![CDATA[--[[
+	PassService.lua  (ServerScriptService.Server.PassService)
+
+	The battle pass (Config.BattlePass):
+	  * Finishing a player-vs-player or bot match gives XP (more for a win,
+	    plus some per round won). Every XPPerTier XP is a tier.
+	  * Reaching a tier gives its Free reward straight away, and its Premium
+	    reward too if you own the Premium pass (Game Pass
+	    Config.Shop.Passes.BattlePass). Buying Premium later hands out every
+	    Premium reward you've already passed.
+	  * Progress lives in the player's save (CrateService profile, .Pass) and
+	    resets when Config.BattlePass.Season changes.
+	  * Ranked titles: reaching a rating with a title (Config.Cosmetics.Titles
+	    RankMin) unlocks it.
+	The client hears about progress on the "Pass" remote (ui/BattlePass).
+]]
+
+local Players = game:GetService("Players")
+local MarketplaceService = game:GetService("MarketplaceService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage.Shared.Config)
+local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local Util = require(ReplicatedStorage.Shared.Util)
+
+local BP = Config.BattlePass
+local PassService = {}
+
+local CrateService
+local premium = {} -- [player] = true if they own the Premium pass
+
+local function notify(player, text)
+	Remotes.Get("Notify"):FireClient(player, text)
+end
+
+-- This season's progress in the player's profile (created / reset as needed).
+local function progressOf(player)
+	local profile = CrateService.GetProfile(player)
+	if not profile then
+		return nil
+	end
+	local pass = profile.Pass
+	if typeof(pass) ~= "table" or pass.Season ~= BP.Season then
+		pass = { Season = BP.Season, XP = 0, Free = 0, Premium = 0 }
+		profile.Pass = pass
+	end
+	pass.XP = tonumber(pass.XP) or 0
+	pass.Free = tonumber(pass.Free) or 0
+	pass.Premium = tonumber(pass.Premium) or 0
+	return pass
+end
+
+local function send(player)
+	local pass = progressOf(player)
+	if pass then
+		Remotes.Get("Pass"):FireClient(player, {
+			Season = pass.Season,
+			XP = pass.XP,
+			Free = pass.Free,
+			Premium = pass.Premium,
+			HasPremium = premium[player] == true,
+		})
+	end
+end
+
+-- Hands out every reward up to the current tier that hasn't been given yet.
+local function grantRewards(player)
+	local pass = progressOf(player)
+	if not pass then
+		return
+	end
+	local tier = math.min(math.floor(pass.XP / BP.XPPerTier), #BP.Tiers)
+	local given = {}
+	while pass.Free < tier do
+		pass.Free += 1
+		local text = CrateService.Grant(player, BP.Tiers[pass.Free].Free)
+		if text then
+			table.insert(given, text)
+		end
+	end
+	if premium[player] then
+		while pass.Premium < tier do
+			pass.Premium += 1
+			local text = CrateService.Grant(player, BP.Tiers[pass.Premium].Premium)
+			if text then
+				table.insert(given, text)
+			end
+		end
+	end
+	if #given > 0 then
+		notify(player, ("TIER %d!  %s"):format(tier, table.concat(given, "  -  ")))
+	end
+	CrateService.Changed(player)
+	send(player)
+end
+
+function PassService.AddXP(player, amount)
+	local pass = progressOf(player)
+	if not pass or amount <= 0 then
+		return
+	end
+	pass.XP = math.min(pass.XP + amount, #BP.Tiers * BP.XPPerTier)
+	notify(player, ("+%d BATTLE PASS XP"):format(amount))
+	grantRewards(player)
+end
+
+local function onMatchFinished(match)
+	if match.Aborted and not match.ForfeitWinner then
+		return -- cancelled
+	end
+	local winner = match.MatchWinner or match.ForfeitWinner
+	for _, player in ipairs(match.Players) do
+		if not Util.isBot(player) and player.Parent then
+			local won = player == winner
+			local rounds = match.Wins and match.Wins[player] or 0
+			PassService.AddXP(player, (won and BP.XPWin or BP.XPLoss) + rounds * BP.XPPerRound)
+		end
+	end
+end
+
+local function checkPremium(player)
+	local passInfo = Config.Shop.Passes.BattlePass
+	if passInfo.Id ~= 0 then
+		local ok, owns = pcall(MarketplaceService.UserOwnsGamePassAsync, MarketplaceService, player.UserId, passInfo.Id)
+		premium[player] = ok and owns or nil
+	end
+	-- wait for the save to load, then catch up on rewards
+	for _ = 1, 30 do
+		if not player.Parent or CrateService.GetProfile(player) then
+			break
+		end
+		task.wait(1)
+	end
+	if player.Parent and CrateService.GetProfile(player) then
+		grantRewards(player)
+		PassService.CheckRankTitles(player)
+	end
+end
+
+-- Unlocks the ranked titles (Config.Cosmetics.Titles with RankMin) a player's rating has reached.
+function PassService.CheckRankTitles(player)
+	local rating = tonumber(player:GetAttribute("Rating"))
+	local profile = CrateService.GetProfile(player)
+	if not rating or not profile then
+		return
+	end
+	for _, title in ipairs(Config.Cosmetics.Titles) do
+		if title.RankMin and rating >= title.RankMin and not profile.Cosmetics[title.Id] then
+			local text = CrateService.Grant(player, { Cosmetic = title.Id })
+			if text then
+				notify(player, "TITLE UNLOCKED  -  " .. text)
+			end
+		end
+	end
+end
+
+function PassService.Init(matchService, crateService)
+	CrateService = crateService
+	matchService.MatchFinished:Connect(onMatchFinished)
+	MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passId, bought)
+		if bought and passId == Config.Shop.Passes.BattlePass.Id then
+			premium[player] = true
+			notify(player, "PREMIUM PASS UNLOCKED")
+			grantRewards(player)
+		end
+	end)
+	Remotes.Get("Pass").OnServerEvent:Connect(function(player)
+		send(player) -- (the client asks when it opens the pass screen)
+	end)
+	Players.PlayerAdded:Connect(function(player)
+		task.spawn(checkPremium, player)
+		player:GetAttributeChangedSignal("Rating"):Connect(function()
+			PassService.CheckRankTitles(player)
+		end)
+	end)
+	for _, player in ipairs(Players:GetPlayers()) do
+		task.spawn(checkPremium, player)
+		player:GetAttributeChangedSignal("Rating"):Connect(function()
+			PassService.CheckRankTitles(player)
+		end)
+	end
+	Players.PlayerRemoving:Connect(function(player)
+		premium[player] = nil
+	end)
+end
+
+return PassService
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="39">
         <Properties>
           <string name="Name">RankService</string>
           <string name="Source"><![CDATA[--[[
@@ -12611,7 +13217,7 @@ return RankService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="38">
+      <Item class="ModuleScript" referent="40">
         <Properties>
           <string name="Name">SettingsService</string>
           <string name="Source"><![CDATA[--[[
@@ -12732,13 +13338,13 @@ return SettingsService
       </Item>
     </Item>
   </Item>
-  <Item class="SoundService" referent="39">
+  <Item class="SoundService" referent="41">
     <Properties>
       <string name="Name">SoundService</string>
       <bool name="RespectFilteringEnabled">true</bool>
     </Properties>
   </Item>
-  <Item class="StarterPlayer" referent="40">
+  <Item class="StarterPlayer" referent="42">
     <Properties>
       <string name="Name">StarterPlayer</string>
       <float name="CameraMaxZoomDistance">18</float>
@@ -12747,11 +13353,11 @@ return SettingsService
       <token name="GameSettingsAvatar">1</token>
       <bool name="LoadCharacterAppearance">true</bool>
     </Properties>
-    <Item class="StarterCharacterScripts" referent="41">
+    <Item class="StarterCharacterScripts" referent="43">
       <Properties>
         <string name="Name">StarterCharacterScripts</string>
       </Properties>
-      <Item class="Script" referent="42">
+      <Item class="Script" referent="44">
         <Properties>
           <string name="Name">Health</string>
           <token name="RunContext">0</token>
@@ -12766,15 +13372,15 @@ return SettingsService
         </Properties>
       </Item>
     </Item>
-    <Item class="StarterPlayerScripts" referent="43">
+    <Item class="StarterPlayerScripts" referent="45">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="Folder" referent="44">
+      <Item class="Folder" referent="46">
         <Properties>
           <string name="Name">Client</string>
         </Properties>
-        <Item class="ModuleScript" referent="45">
+        <Item class="ModuleScript" referent="47">
           <Properties>
             <string name="Name">AimAssist</string>
             <string name="Source"><![CDATA[--[[
@@ -12955,7 +13561,7 @@ return AimAssist
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="46">
+        <Item class="ModuleScript" referent="48">
           <Properties>
             <string name="Name">BodyAnimator</string>
             <string name="Source"><![CDATA[--[[
@@ -13402,11 +14008,12 @@ end
 function BodyAnimator.PlayKill() end
 
 -- The victory pose on a tracked model (the kill cam's copy of the winner).
-function BodyAnimator.PlayVictory(model)
+-- style: the winner's pose (Config.Cosmetics.Poses Style), nil = fist pump
+function BodyAnimator.PlayVictory(model, style)
 	local entry = getEntry(model)
 	if entry then
 		entry.State.Weapon = model:GetAttribute("Weapon") == "Knife" and "Knife" or "Sniper"
-		WeaponAnim.Victory(entry.State, now())
+		WeaponAnim.Victory(entry.State, now(), style)
 	end
 end
 
@@ -13578,7 +14185,7 @@ return BodyAnimator
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="47">
+        <Item class="ModuleScript" referent="49">
           <Properties>
             <string name="Name">BodyRig</string>
             <string name="Source"><![CDATA[--[[
@@ -13955,7 +14562,7 @@ return BodyRig
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="48">
+        <Item class="ModuleScript" referent="50">
           <Properties>
             <string name="Name">CameraController</string>
             <string name="Source"><![CDATA[--[[
@@ -14281,7 +14888,7 @@ return CameraController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="49">
+        <Item class="ModuleScript" referent="51">
           <Properties>
             <string name="Name">ClientState</string>
             <string name="Source"><![CDATA[--[[
@@ -14312,6 +14919,8 @@ ClientState.Settings = table.clone(Config.SettingsDefaults)
 ClientState.MenuOpen = false -- true while a menu needs the mouse (settings / pick / victory)
 ClientState.Weapon = "Sniper" -- what's in your hands: "Sniper" or "Knife" (KnifeController)
 ClientState.OwnedSkins = {} -- { [skinId] = count } (from the server's "Crates" messages)
+ClientState.OwnedCosmetics = {} -- { [cosmeticId] = true }
+ClientState.Featured = {} -- today's featured skin ids (SHOP)
 
 ClientState.Changed = Signal.new() -- (newSnapshot, oldSnapshot)
 ClientState.SettingsChanged = Signal.new() -- (settings)
@@ -14481,7 +15090,7 @@ return ClientState
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="50">
+        <Item class="ModuleScript" referent="52">
           <Properties>
             <string name="Name">CrateController</string>
             <string name="Source"><![CDATA[--[[
@@ -15202,6 +15811,12 @@ local function onResult(result)
 	end
 	if typeof(result.Skins) == "table" then
 		ClientState.OwnedSkins = result.Skins -- (the Locker reads these)
+		if typeof(result.Cosmetics) == "table" then
+			ClientState.OwnedCosmetics = result.Cosmetics
+		end
+		if typeof(result.Featured) == "table" then
+			ClientState.Featured = result.Featured -- (the SHOP reads these)
+		end
 		ClientState.SkinsChanged:Fire()
 	end
 	if result.Type == "Denied" then
@@ -15272,7 +15887,7 @@ return CrateController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="51">
+        <Item class="ModuleScript" referent="53">
           <Properties>
             <string name="Name">EffectsController</string>
             <string name="Source"><![CDATA[--[[
@@ -15304,6 +15919,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
+local Cosmetics = require(Shared.Cosmetics)
 local Remotes = require(Shared.Remotes)
 local ClientState = require(script.Parent.ClientState)
 local Sfx = require(script.Parent.Sfx)
@@ -15398,6 +16014,16 @@ local function emit(position, kind, color, count, direction)
 		e.SpreadAngle = direction and Vector2.new(55, 55) or Vector2.new(180, 180)
 		e.Acceleration = Vector3.new(0, -60, 0)
 		e.Drag = 3
+	elseif kind == "Fire" then
+		e.Texture = "rbxasset://textures/particles/fire_main.dds"
+		e.LightEmission = 1
+		e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1.6), NumberSequenceKeypoint.new(1, 0.2) })
+		e.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.2), NumberSequenceKeypoint.new(1, 1) })
+		e.Speed = NumberRange.new(4, 12)
+		e.Lifetime = NumberRange.new(0.4, 0.9)
+		e.SpreadAngle = Vector2.new(60, 60)
+		e.Acceleration = Vector3.new(0, 14, 0)
+		e.Drag = 1.5
 	else -- Smoke / Dust
 		e.Texture = FX.SmokeTexture
 		e.LightEmission = 0
@@ -15490,7 +16116,7 @@ end
 	segments  list of { From, To, Kind }   (from Ballistics)
 	passes    points where the bullet went through a wall (Ghost Round)
 	startPos  where the tracer visually starts (gun muzzle)
-	options   { Explosive = bool, HitPlayer = bool }
+	options   { Explosive = bool, HitPlayer = bool, Tracer = Color3 (the shooter's tracer cosmetic) }
 ]]
 function Effects.DrawShot(segments, passes, endPosition, endNormal, startPos, options)
 	options = options or {}
@@ -15501,7 +16127,7 @@ function Effects.DrawShot(segments, passes, endPosition, endNormal, startPos, op
 			from = startPos
 		end
 		table.insert(headPoints, from)
-		local color = Palette.Tracer
+		local color = options.Tracer or Palette.Tracer
 		local thickness = 0.1
 		if seg.Kind == "Bounce" then
 			color = Palette.TracerBounce
@@ -15519,7 +16145,7 @@ function Effects.DrawShot(segments, passes, endPosition, endNormal, startPos, op
 	end
 	if #segments > 0 then
 		table.insert(headPoints, segments[#segments].To)
-		bulletHead(headPoints, options.Explosive and Palette.TracerExplosive or Palette.Tracer)
+		bulletHead(headPoints, options.Explosive and Palette.TracerExplosive or options.Tracer or Palette.Tracer)
 	end
 	for _, p in ipairs(passes or {}) do
 		puff(p, Palette.Hologram, 1.4, 0.4, true)
@@ -15569,6 +16195,7 @@ local function onEnemyShot(userId, bullets, explosive)
 		Effects.DrawShot(bullet.Segments, bullet.Passes, bullet.EndPosition, bullet.EndNormal, muzzle, {
 			Explosive = explosive,
 			HitPlayer = bullet.HitPlayer,
+			Tracer = Cosmetics.TracerColor(shooter),
 		})
 	end
 	if muzzleAttachment then
@@ -15613,6 +16240,87 @@ local function shatter(position, color, headshot)
 	end
 	if headshot then
 		ring(position + Vector3.new(0, 1.5, 0), Palette.UIHeadshot, 7, 0.45, true)
+	end
+end
+
+-- The killer's kill effect (Config.Cosmetics.KillEffects): data.KillFx is
+-- its id; the default is the shatter.
+local CONFETTI = {
+	Color3.fromRGB(255, 80, 90),
+	Color3.fromRGB(255, 200, 60),
+	Color3.fromRGB(80, 220, 120),
+	Color3.fromRGB(70, 160, 255),
+	Color3.fromRGB(200, 100, 255),
+}
+local function killEffect(data)
+	local item = Cosmetics.Get(data.KillFx)
+	local style = item and item.Style or "Shatter"
+	local position = data.Position
+	local color = item and item.Color or data.Color or Palette.PlayerB
+	if style == "Shatter" or not FX.KillShatter then
+		shatter(position, data.Color or Palette.PlayerB, data.Headshot)
+		return
+	end
+	if data.Headshot then
+		ring(position + Vector3.new(0, 1.5, 0), Palette.UIHeadshot, 7, 0.45, true)
+	end
+	if style == "Confetti" then
+		puff(position, Color3.new(1, 1, 1), 2.5, 0.3, true)
+		for _, c in ipairs(CONFETTI) do
+			emit(position + Vector3.new(0, 1, 0), "Sparks", c, 14)
+		end
+		Sfx.PlayAt("CardFlip", position, { Pitch = 1.4, Volume = 1.2 })
+	elseif style == "Vaporize" then
+		puff(position, color, 4.5, 0.5, true)
+		puff(position + Vector3.new(0, 2, 0), Color3.new(1, 1, 1), 2.5, 0.35, true)
+		emit(position, "Sparks", color, 30)
+		emit(position + Vector3.new(0, 2, 0), "Sparks", color, 20)
+		lightFlash(position, color, 6, 20, 0.35)
+	elseif style == "Flames" then
+		emit(position, "Fire", color, 30)
+		emit(position, "Sparks", Color3.fromRGB(255, 200, 80), 26)
+		puff(position, color, 3.5, 0.45, true)
+		lightFlash(position, color, 6, 22, 0.5)
+		Sfx.PlayAt("Explosion", position, { Pitch = 1.3, Volume = 0.8 })
+	elseif style == "Lightning" then
+		local sky = position + Vector3.new(math.random(-4, 4), 60, math.random(-4, 4))
+		local last = sky
+		for i = 1, 6 do
+			local nextPoint = sky:Lerp(position, i / 6) + Vector3.new(math.random() - 0.5, 0, math.random() - 0.5) * (i < 6 and 6 or 0)
+			tracer(last, nextPoint, color, 0.5, 0.35)
+			last = nextPoint
+		end
+		ring(position - Vector3.new(0, 2.5, 0), color, 14, 0.5, true)
+		lightFlash(position, color, 10, 40, 0.3)
+		emit(position, "Sparks", color, 30)
+		Sfx.PlayAt("Explosion", position, { Pitch = 0.7, Volume = 1.2 })
+	elseif style == "Void" then
+		-- a dark sphere that swallows the body, then collapses
+		local sphere = Instance.new("Part")
+		sphere.Shape = Enum.PartType.Ball
+		sphere.Size = Vector3.new(0.5, 0.5, 0.5)
+		sphere.CFrame = CFrame.new(position)
+		sphere.Anchored = true
+		sphere.CanCollide = false
+		sphere.CanQuery = false
+		sphere.CanTouch = false
+		sphere.CastShadow = false
+		sphere.Color = Color3.fromRGB(8, 4, 16)
+		sphere.Material = Enum.Material.SmoothPlastic
+		sphere.Parent = workspace:FindFirstChild("Effects") or getFolder()
+		TweenService:Create(sphere, TweenInfo.new(0.25, Enum.EasingStyle.Back), { Size = Vector3.new(7, 7, 7) }):Play()
+		task.delay(0.45, function()
+			TweenService:Create(sphere, TweenInfo.new(0.35, Enum.EasingStyle.Quint, Enum.EasingDirection.In), { Size = Vector3.new(0.1, 0.1, 0.1) }):Play()
+			task.delay(0.36, function()
+				sphere:Destroy()
+				ring(position, color, 12, 0.4, true)
+				emit(position, "Sparks", color, 24)
+			end)
+		end)
+		ring(position, color, 9, 0.4, true)
+		lightFlash(position, color, 5, 18, 0.6)
+	else
+		shatter(position, data.Color or Palette.PlayerB, data.Headshot)
 	end
 end
 
@@ -15815,7 +16523,7 @@ local function onEffect(data)
 		puff(data.Position, Palette.Hologram, 3, 0.4, true)
 		emit(data.Position, "Sparks", Palette.Hologram, 16)
 	elseif t == "Kill" then
-		shatter(data.Position, data.Color or Palette.PlayerB, data.Headshot)
+		killEffect(data)
 	elseif t == "SecondWind" then
 		if data.Position then
 			puff(data.Position, Color3.fromRGB(90, 230, 140), 4, 0.6, true)
@@ -15927,7 +16635,7 @@ return Effects
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="52">
+        <Item class="ModuleScript" referent="54">
           <Properties>
             <string name="Name">FirstPersonView</string>
             <string name="Source"><![CDATA[--[[
@@ -16333,7 +17041,7 @@ return FirstPersonView
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="53">
+        <Item class="ModuleScript" referent="55">
           <Properties>
             <string name="Name">Keybinds</string>
             <string name="Source"><![CDATA[--[[
@@ -16395,6 +17103,7 @@ Keybinds.Actions = {
 	{ Id = "PowerUpLab", Name = "Power-Up Lab", Keyboard = "B", Gamepad = "DPadLeft" },
 	{ Id = "Locker", Name = "Locker (skins)", Keyboard = "L", Gamepad = "None" },
 	{ Id = "Shop", Name = "Shop (crates, credits, VIP)", Keyboard = "M", Gamepad = "None" },
+	{ Id = "BattlePass", Name = "Battle pass", Keyboard = "J", Gamepad = "None" },
 	{ Id = "FindMatch", Name = "Find match", Keyboard = "F", Gamepad = "DPadRight" },
 	{ Id = "Playground", Name = "Playground", Keyboard = "G", Gamepad = "ButtonL1" },
 	{ Id = "BotMatch", Name = "Play vs bot (admin)", Keyboard = "N", Gamepad = "None" }, -- (RB is the knife)
@@ -16474,7 +17183,7 @@ return Keybinds
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="54">
+        <Item class="ModuleScript" referent="56">
           <Properties>
             <string name="Name">KillCamController</string>
             <string name="Source"><![CDATA[--[[
@@ -16511,6 +17220,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Remotes = require(Shared.Remotes)
 local PowerUps = require(Shared.PowerUps)
+local Cosmetics = require(Shared.Cosmetics)
 local ClientState = require(script.Parent.ClientState)
 local Theme = require(script.Parent.ui.Theme)
 
@@ -16871,7 +17581,8 @@ local function play(deathTime, killerName)
 			end
 		end
 		killerCopy:SetAttribute("AimPitch", 0)
-		Controllers.Viewmodel.PlayVictory(killerCopy)
+		local pose = Cosmetics.Worn(ClientState.GetOpponentPlayer(), "Pose") -- (their pose cosmetic)
+		Controllers.Viewmodel.PlayVictory(killerCopy, pose and pose.Style)
 		vignette.BackgroundTransparency = 0.8
 		killerLabel.Text = string.upper(killerName or "YOUR OPPONENT") .. " TAKES THE ROUND"
 	end
@@ -16940,6 +17651,7 @@ local function play(deathTime, killerName)
 					Controllers.Effects.DrawShot(bullet.Segments, bullet.Passes, bullet.EndPosition, bullet.EndNormal, muzzle, {
 						Explosive = shot.Explosive,
 						HitPlayer = bullet.HitPlayer,
+						Tracer = Cosmetics.TracerColor(ClientState.GetOpponentPlayer()),
 					})
 				end
 			end
@@ -17079,7 +17791,7 @@ return KillCam
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="55">
+        <Item class="ModuleScript" referent="57">
           <Properties>
             <string name="Name">KnifeController</string>
             <string name="Source"><![CDATA[--[[
@@ -17412,7 +18124,7 @@ return KnifeController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="56">
+        <Item class="ModuleScript" referent="58">
           <Properties>
             <string name="Name">LightingController</string>
             <string name="Source"><![CDATA[--[[
@@ -17524,7 +18236,7 @@ return LightingController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="LocalScript" referent="57">
+        <Item class="LocalScript" referent="59">
           <Properties>
             <string name="Name">Main</string>
             <string name="Source"><![CDATA[--[[
@@ -17600,7 +18312,7 @@ end
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="58">
+        <Item class="ModuleScript" referent="60">
           <Properties>
             <string name="Name">MovementController</string>
             <string name="Source"><![CDATA[--[[
@@ -18608,7 +19320,7 @@ return Movement
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="59">
+        <Item class="ModuleScript" referent="61">
           <Properties>
             <string name="Name">Sfx</string>
             <string name="Source"><![CDATA[--[[
@@ -18665,7 +19377,7 @@ return Sfx
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="60">
+        <Item class="ModuleScript" referent="62">
           <Properties>
             <string name="Name">Spring</string>
             <string name="Source"><![CDATA[--[[
@@ -18711,7 +19423,7 @@ return Spring
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="61">
+        <Item class="ModuleScript" referent="63">
           <Properties>
             <string name="Name">UIController</string>
             <string name="Source"><![CDATA[--[[
@@ -18726,7 +19438,8 @@ return Spring
 		SettingsMenu  sliders + keybinds for mouse and controller (P)
 		PowerUpLab    try power-ups solo in the lobby (B)
 		Locker        pick your rifle and knife skins (L)
-		Shop          crates, credit packs, VIP (M)
+		Shop          crates, featured skins, credit packs, VIP (M)
+		BattlePass    the season's battle pass (J)
 		Toast         short server messages (admin commands)
 		DuelUI        challenge a player, duel / rematch invites
 		MobileControls on-screen buttons + look pad for touch screens
@@ -18745,6 +19458,7 @@ local SettingsMenu = require(ui.SettingsMenu)
 local PowerUpLab = require(ui.PowerUpLab)
 local Locker = require(ui.Locker)
 local Shop = require(ui.Shop)
+local BattlePass = require(ui.BattlePass)
 local Toast = require(ui.Toast)
 local DuelUI = require(ui.DuelUI)
 local MobileControls = require(ui.MobileControls)
@@ -18760,6 +19474,7 @@ function UIController.Init(controllers)
 	controllers.Duel = DuelUI
 	controllers.Locker = Locker
 	controllers.Shop = Shop
+	controllers.BattlePass = BattlePass
 	MobileControls.Init(controllers)
 	HUD.Init(controllers)
 	LobbyUI.Init(controllers)
@@ -18795,6 +19510,7 @@ function UIController.Start()
 	PowerUpLab.Start(playerGui)
 	Locker.Start(playerGui)
 	Shop.Start(playerGui)
+	BattlePass.Start(playerGui)
 	Toast.Start(playerGui)
 	DuelUI.Start(playerGui)
 	MobileControls.Start(playerGui)
@@ -18811,7 +19527,7 @@ return UIController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="62">
+        <Item class="ModuleScript" referent="64">
           <Properties>
             <string name="Name">WeaponAnim</string>
             <string name="Source"><![CDATA[--[[
@@ -19274,6 +19990,9 @@ end
 local VICTORY_RIFLE = kaim(V(1.0, -0.95, 0.05), V(0.22, 1, 0.3))
 local VICTORY_KNIFE = kaim(V(1.15, -0.55, -0.55), V(0.35, 1, -0.2))
 local FIST_UP = CFrame.new(-1.2, 2.1, 0.15) * CFrame.Angles(0, 0, math.pi) * CFrame.Angles(0, rad(90), 0)
+local SALUTE = CFrame.new(-0.3, 0.6, -0.45) * CFrame.Angles(0, 0, rad(150))
+local POINT = CFrame.new(-0.55, 0.15, -2.4) * CFrame.Angles(rad(90), 0, 0)
+local WAVE = CFrame.new(-1.15, 0.9, -0.3) * CFrame.Angles(0, 0, math.pi) * CFrame.Angles(0, rad(90), 0)
 
 local function victory(anim, state, t)
 	local v = t - state.VictoryStart
@@ -19281,14 +20000,32 @@ local function victory(anim, state, t)
 		return anim
 	end
 	local w = easeOutBack(seg(v, 0, 0.45))
-	local pump = easeOutBack(seg(v, 0.25, 0.6)) - 0.12 * math.sin(seg(v, 0.6, 1.4) * math.pi * 2)
+	local raise = easeOutBack(seg(v, 0.25, 0.6))
 	local knifeOut = state.Weapon == "Knife"
 	local weapon = anim.Weapon:Lerp(knifeOut and VICTORY_KNIFE or VICTORY_RIFLE, w)
+	local style = state.VictoryStyle or "FistPump"
+	local left, body
+	if style == "Salute" then
+		left = anim.Left:Lerp(SALUTE, raise)
+		body = { Yaw = 6 * w, Lean = -4 * w, NeckPitch = -2 * w }
+	elseif style == "Point" then
+		-- straight at the camera: "you're next"
+		left = anim.Left:Lerp(POINT * CFrame.new(0, 0, -0.06 * math.sin(seg(v, 0.6, 1.2) * math.pi)), raise)
+		body = { Yaw = -10 * w, Lean = 6 * w, NeckPitch = 4 * w, NeckYaw = 6 * w }
+	elseif style == "Wave" then
+		local sway = math.sin(math.max(v - 0.5, 0) * 9) * 0.28
+		left = anim.Left:Lerp(WAVE * CFrame.new(sway, 0, 0) * CFrame.Angles(0, 0, -sway * 0.8), raise)
+		body = { Yaw = 8 * w, Lean = -3 * w, NeckPitch = -4 * w, NeckYaw = -10 * w }
+	else
+		local pump = raise - 0.12 * math.sin(seg(v, 0.6, 1.4) * math.pi * 2)
+		left = anim.Left:Lerp(FIST_UP, pump)
+		body = { Yaw = 12 * w, Lean = -7 * w, NeckPitch = -10 * w, NeckYaw = -8 * w }
+	end
 	return {
 		Weapon = weapon,
 		Right = weapon * (knifeOut and HAND_ON_KNIFE or RIGHT_ON_GRIP),
-		Left = anim.Left:Lerp(FIST_UP, pump),
-		Body = { Yaw = 12 * w, Lean = -7 * w, NeckPitch = -10 * w, NeckYaw = -8 * w },
+		Left = left,
+		Body = body,
 		Bolt = CFrame.new(),
 	}
 end
@@ -19374,8 +20111,10 @@ function WeaponAnim.Inspect(state, t, variant)
 end
 
 -- The victory pose (holds until the state is reset).
-function WeaponAnim.Victory(state, t)
+-- style: "FistPump" (default) | "Salute" | "Point" | "Wave" (Config.Cosmetics.Poses)
+function WeaponAnim.Victory(state, t, style)
 	state.VictoryStart = t
+	state.VictoryStyle = style
 	state.Action = nil
 	state.BoltLength = 0
 end
@@ -19398,7 +20137,7 @@ return WeaponAnim
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="63">
+        <Item class="ModuleScript" referent="65">
           <Properties>
             <string name="Name">WeaponController</string>
             <string name="Source"><![CDATA[--[[
@@ -19426,6 +20165,7 @@ local Config = require(Shared.Config)
 local Remotes = require(Shared.Remotes)
 local Ballistics = require(Shared.Ballistics)
 local Util = require(Shared.Util)
+local Cosmetics = require(Shared.Cosmetics)
 local ClientState = require(script.Parent.ClientState)
 local Sfx = require(script.Parent.Sfx)
 local Keybinds = require(script.Parent.Keybinds)
@@ -19547,6 +20287,7 @@ local function fire()
 		Controllers.Effects.DrawShot(sim.Segments, sim.Passes, sim.EndPosition, sim.EndNormal, muzzle, {
 			Explosive = stats.Explosive,
 			HitPlayer = hitEnemy,
+			Tracer = Cosmetics.TracerColor(player),
 		})
 
 		-- ROCKET JUMP: shooting near your own feet launches you
@@ -19649,11 +20390,351 @@ return Weapon
 ]]></string>
           </Properties>
         </Item>
-        <Item class="Folder" referent="64">
+        <Item class="Folder" referent="66">
           <Properties>
             <string name="Name">ui</string>
           </Properties>
-          <Item class="ModuleScript" referent="65">
+          <Item class="ModuleScript" referent="67">
+            <Properties>
+              <string name="Name">BattlePass</string>
+              <string name="Source"><![CDATA[--[[
+	BattlePass.lua  (Client.ui.BattlePass)
+
+	The battle pass screen (lobby, key J or the BATTLE PASS button): the
+	season, your tier and XP, and a row of every tier with its Free reward
+	on top and its Premium reward below. Reached tiers light up; Premium
+	rewards are locked until you get the Premium pass (Game Pass,
+	Config.Shop.Passes.BattlePass). Rewards are handed out by the server
+	(PassService) the moment you reach a tier.
+]]
+
+local Players = game:GetService("Players")
+local MarketplaceService = game:GetService("MarketplaceService")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Config = require(Shared.Config)
+local Remotes = require(Shared.Remotes)
+local Skins = require(Shared.Skins)
+local Cosmetics = require(Shared.Cosmetics)
+local ClientState = require(script.Parent.Parent.ClientState)
+local Sfx = require(script.Parent.Parent.Sfx)
+local Keybinds = require(script.Parent.Parent.Keybinds)
+local Theme = require(script.Parent.Theme)
+
+local Palette = Config.Palette
+local BP = Config.BattlePass
+local player = Players.LocalPlayer
+
+local BattlePass = {}
+
+local W, H = 980, 560
+local GOLD = Color3.fromRGB(255, 196, 60)
+local gui, panel, unlocker, track, tierLabel, xpFill, xpLabel, premiumButton
+local columns = {} -- [tier] = { Free = frame, Premium = frame, Number = label }
+local isOpen = false
+local progress = { XP = 0, Free = 0, Premium = 0, HasPremium = false }
+
+local rarityColor = {}
+for _, rarity in ipairs(Config.Crates.Rarities) do
+	rarityColor[rarity.Id] = rarity.Color
+end
+
+-- Text + colour for a reward.
+local function describe(reward)
+	if reward.Keys then
+		return tostring(reward.Keys), "KEYS", Palette.UIAccent
+	elseif reward.Credits then
+		return tostring(reward.Credits), "CREDITS", GOLD
+	elseif reward.Skin then
+		local skin = Skins.Get(reward.Skin)
+		if skin then
+			return string.upper(skin.Name), string.upper(skin.Weapon) .. " SKIN", rarityColor[skin.Rarity] or Palette.UIText
+		end
+	elseif reward.Cosmetic then
+		local item = Cosmetics.Get(reward.Cosmetic)
+		if item then
+			local kind = ({ Tracer = "TRACER", KillFx = "KILL EFFECT", Pose = "POSE", Title = "TITLE" })[item.Kind]
+			return string.upper(item.Name), kind, item.Color or rarityColor[item.Rarity] or Palette.UIText
+		end
+	end
+	return "?", "", Palette.UIText
+end
+
+local function rewardCard(parent, reward, y, premium)
+	local big, small, color = describe(reward)
+	local frame = Theme.new("Frame", {
+		Position = UDim2.fromOffset(0, y),
+		Size = UDim2.new(1, 0, 0, 150),
+		BackgroundColor3 = Palette.UIPanelLight,
+		Parent = parent,
+	})
+	Theme.corner(frame, 10)
+	local stroke = Theme.stroke(frame, premium and GOLD or Palette.UIText, 1, 0.7)
+	Theme.label({
+		Position = UDim2.fromOffset(6, 40),
+		Size = UDim2.new(1, -12, 0, 40),
+		Text = big,
+		TextScaled = true,
+		TextColor3 = color,
+		FontFace = Theme.Font(Enum.FontWeight.Heavy),
+		Parent = frame,
+	})
+	Theme.label({
+		Position = UDim2.fromOffset(4, 86),
+		Size = UDim2.new(1, -8, 0, 16),
+		Text = small,
+		TextSize = 11,
+		TextWrapped = true,
+		TextColor3 = Palette.UISubText,
+		Parent = frame,
+	})
+	local status = Theme.label({
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, 0, 1, -6),
+		Size = UDim2.new(1, 0, 0, 16),
+		Text = "",
+		TextSize = 11,
+		Parent = frame,
+	})
+	return { Frame = frame, Stroke = stroke, Status = status }
+end
+
+local function refresh()
+	local tier = math.floor(progress.XP / BP.XPPerTier)
+	local into = progress.XP - tier * BP.XPPerTier
+	local maxed = tier >= #BP.Tiers
+	tierLabel.Text = ("TIER %d / %d"):format(math.min(tier, #BP.Tiers), #BP.Tiers)
+	xpFill.Size = UDim2.fromScale(maxed and 1 or into / BP.XPPerTier, 1)
+	xpLabel.Text = maxed and "MAXED OUT" or ("%d / %d XP  -  win a match: +%d, lose: +%d"):format(into, BP.XPPerTier, BP.XPWin, BP.XPLoss)
+	premiumButton.Text = progress.HasPremium and "PREMIUM OWNED" or ("GET PREMIUM  -  R$ %d"):format(Config.Shop.Passes.BattlePass.Robux)
+	premiumButton.AutoButtonColor = not progress.HasPremium
+	for i, column in pairs(columns) do
+		local reached = i <= tier
+		column.Number.TextColor3 = reached and Palette.UIAccent or Palette.UISubText
+		column.Free.Stroke.Transparency = reached and 0 or 0.7
+		column.Free.Status.Text = reached and "CLAIMED" or ""
+		column.Free.Status.TextColor3 = Palette.UIAccent
+		column.Premium.Stroke.Transparency = (reached and progress.HasPremium) and 0 or 0.7
+		column.Premium.Status.Text = not progress.HasPremium and "PREMIUM" or (reached and "CLAIMED" or "")
+		column.Premium.Status.TextColor3 = progress.HasPremium and GOLD or Palette.UISubText
+		column.Premium.Frame.BackgroundTransparency = progress.HasPremium and 0 or 0.45
+	end
+end
+
+function BattlePass.Open()
+	if isOpen or ClientState.InMatch() or ClientState.MenuOpen then
+		return
+	end
+	isOpen = true
+	gui.Enabled = true
+	unlocker.Visible = true
+	ClientState.SetMenu("BattlePass", true)
+	Remotes.Get("Pass"):FireServer() -- (fresh progress)
+	refresh()
+	-- scroll to your tier
+	local tier = math.floor(progress.XP / BP.XPPerTier)
+	track.CanvasPosition = Vector2.new(math.max(0, (tier - 2) * 128), 0)
+	panel.Size = UDim2.fromOffset(W - 40, H - 40)
+	Theme.tween(panel, 0.2, { Size = UDim2.fromOffset(W, H) }, Enum.EasingStyle.Back)
+	Sfx.Play("CardPick", { Pitch = 1.05, Volume = 0.6 })
+end
+
+function BattlePass.Close()
+	if not isOpen then
+		return
+	end
+	isOpen = false
+	gui.Enabled = false
+	unlocker.Visible = false
+	ClientState.SetMenu("BattlePass", false)
+end
+
+function BattlePass.Toggle()
+	if isOpen then
+		BattlePass.Close()
+	else
+		BattlePass.Open()
+	end
+end
+
+function BattlePass.Init() end
+
+function BattlePass.Start(playerGui)
+	gui = Theme.screen("BattlePass", 9, playerGui)
+	gui.Enabled = false
+	Theme.new("Frame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Palette.UIBackground,
+		BackgroundTransparency = 0.35,
+		Parent = gui,
+	})
+	unlocker = Theme.mouseUnlocker(gui)
+	panel = Theme.panel({
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(W, H),
+		BackgroundTransparency = 0,
+		Parent = gui,
+	})
+	Theme.padding(panel, 20)
+	local scale = Theme.new("UIScale", { Parent = panel })
+	local function fit()
+		local view = workspace.CurrentCamera.ViewportSize
+		scale.Scale = math.min(1, (view.X - 40) / W, (view.Y - 40) / H)
+	end
+	fit()
+	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(fit)
+
+	Theme.label({
+		Size = UDim2.new(0.6, 0, 0, 34),
+		Text = BP.Name,
+		TextSize = 28,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		FontFace = Theme.Font(Enum.FontWeight.Heavy),
+		Parent = panel,
+	})
+	tierLabel = Theme.label({
+		Position = UDim2.fromOffset(0, 38),
+		Size = UDim2.new(0.3, 0, 0, 22),
+		TextSize = 18,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextColor3 = Palette.UIAccent,
+		Parent = panel,
+	})
+	local bar = Theme.new("Frame", {
+		Position = UDim2.new(0.22, 0, 0, 44),
+		Size = UDim2.new(0.42, 0, 0, 10),
+		BackgroundColor3 = Palette.UIPanelLight,
+		Parent = panel,
+	})
+	Theme.corner(bar, 5)
+	xpFill = Theme.new("Frame", { Size = UDim2.fromScale(0, 1), BackgroundColor3 = Palette.UIAccent, Parent = bar })
+	Theme.corner(xpFill, 5)
+	xpLabel = Theme.label({
+		Position = UDim2.new(0.22, 0, 0, 58),
+		Size = UDim2.new(0.5, 0, 0, 16),
+		TextSize = 12,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextColor3 = Palette.UISubText,
+		Parent = panel,
+	})
+	premiumButton = Theme.button({
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.fromScale(1, 0),
+		Size = UDim2.fromOffset(270, 46),
+		TextSize = 17,
+		BackgroundColor3 = GOLD,
+		Parent = panel,
+	})
+	premiumButton.Activated:Connect(function()
+		local pass = Config.Shop.Passes.BattlePass
+		if progress.HasPremium then
+			return
+		end
+		if pass.Id == 0 then
+			premiumButton.Text = "NOT SET UP (Config.Shop)"
+			return
+		end
+		MarketplaceService:PromptGamePassPurchase(player, pass.Id)
+	end)
+
+	-- labels for the two tracks
+	for i, name in ipairs({ "FREE", "PREMIUM" }) do
+		Theme.label({
+			Position = UDim2.fromOffset(0, 112 + (i - 1) * 160 + 60),
+			Size = UDim2.fromOffset(70, 30),
+			Text = name,
+			TextSize = 14,
+			TextColor3 = i == 2 and GOLD or Palette.UIText,
+			Parent = panel,
+		})
+	end
+	track = Theme.new("ScrollingFrame", {
+		Position = UDim2.fromOffset(76, 86),
+		Size = UDim2.new(1, -76, 1, -146),
+		BackgroundTransparency = 1,
+		ScrollBarThickness = 6,
+		ScrollBarImageColor3 = Palette.UISubText,
+		ScrollingDirection = Enum.ScrollingDirection.X,
+		AutomaticCanvasSize = Enum.AutomaticSize.X,
+		CanvasSize = UDim2.new(),
+		Parent = panel,
+	}, {
+		Theme.new("UIListLayout", {
+			FillDirection = Enum.FillDirection.Horizontal,
+			Padding = UDim.new(0, 8),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+		}),
+	})
+	for i, tier in ipairs(BP.Tiers) do
+		local column = Theme.new("Frame", {
+			Size = UDim2.new(0, 120, 1, -10),
+			BackgroundTransparency = 1,
+			LayoutOrder = i,
+			Parent = track,
+		})
+		local number = Theme.label({
+			Size = UDim2.new(1, 0, 0, 22),
+			Text = tostring(i),
+			TextSize = 18,
+			FontFace = Theme.Font(Enum.FontWeight.Heavy),
+			Parent = column,
+		})
+		columns[i] = {
+			Number = number,
+			Free = rewardCard(column, tier.Free, 26, false),
+			Premium = rewardCard(column, tier.Premium, 186, true),
+		}
+	end
+
+	local done = Theme.button({
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.fromScale(1, 1),
+		Size = UDim2.fromOffset(160, 42),
+		Text = "DONE",
+		TextSize = 18,
+		Parent = panel,
+	})
+	done.Activated:Connect(BattlePass.Close)
+
+	Remotes.Get("Pass").OnClientEvent:Connect(function(data)
+		if typeof(data) == "table" then
+			progress.XP = tonumber(data.XP) or 0
+			progress.Free = tonumber(data.Free) or 0
+			progress.Premium = tonumber(data.Premium) or 0
+			progress.HasPremium = data.HasPremium == true
+			refresh()
+		end
+	end)
+	refresh()
+
+	ClientState.Changed:Connect(function(snapshot)
+		if snapshot.InMatch then
+			BattlePass.Close()
+		end
+	end)
+	local function onActionInput(input, processed)
+		if processed and UserInputService:GetFocusedTextBox() then
+			return
+		end
+		if require(script.Parent.SettingsMenu).IsOpen() then
+			return
+		end
+		if Keybinds.Matches("BattlePass", input) then
+			BattlePass.Toggle()
+		end
+	end
+	UserInputService.InputBegan:Connect(onActionInput)
+	Keybinds.VirtualBegan:Connect(onActionInput)
+end
+
+return BattlePass
+]]></string>
+            </Properties>
+          </Item>
+          <Item class="ModuleScript" referent="68">
             <Properties>
               <string name="Name">CrateReveal</string>
               <string name="Source"><![CDATA[--[[
@@ -20157,7 +21238,7 @@ return CrateReveal
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="66">
+          <Item class="ModuleScript" referent="69">
             <Properties>
               <string name="Name">DuelUI</string>
               <string name="Source"><![CDATA[--[[
@@ -20552,7 +21633,7 @@ return DuelUI
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="67">
+          <Item class="ModuleScript" referent="70">
             <Properties>
               <string name="Name">HUD</string>
               <string name="Source"><![CDATA[--[[
@@ -21506,7 +22587,7 @@ return HUD
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="68">
+          <Item class="ModuleScript" referent="71">
             <Properties>
               <string name="Name">Icons</string>
               <string name="Source"><![CDATA[--[[
@@ -21568,7 +22649,7 @@ return Icons
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="69">
+          <Item class="ModuleScript" referent="72">
             <Properties>
               <string name="Name">LobbyUI</string>
               <string name="Source"><![CDATA[--[[
@@ -21636,6 +22717,7 @@ local SECONDARY = {
 	{ Id = "PowerUpLab", Text = "POWER-UP LAB", Hint = "TRY BUILDS" },
 	{ Id = "Locker", Text = "LOCKER", Hint = "SKINS" },
 	{ Id = "Shop", Text = "SHOP", Hint = "CRATES + CREDITS" },
+	{ Id = "BattlePass", Text = "BATTLE PASS", Hint = "SEASON 1" },
 	{ Id = "DuelFriend", Text = "DUEL A PLAYER", Hint = "INVITE" },
 	{ Id = "Settings", Text = "SETTINGS", Hint = "" },
 	{ Id = "BotMatch", Text = "PLAY VS BOT", Hint = "ADMIN" },
@@ -22698,6 +23780,12 @@ function LobbyUI.Start(playerGui)
 		Keybinds.Press("PowerUpLab", true)
 		Keybinds.Press("PowerUpLab", false)
 	end)
+	entries.BattlePass.Button.Activated:Connect(function()
+		Theme.pop(entries.BattlePass.Button, 0.06)
+		if Controllers and Controllers.BattlePass then
+			Controllers.BattlePass.Toggle()
+		end
+	end)
 	entries.Shop.Button.Activated:Connect(function()
 		Theme.pop(entries.Shop.Button, 0.06)
 		if Controllers and Controllers.Shop then
@@ -22817,7 +23905,7 @@ return LobbyUI
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="70">
+          <Item class="ModuleScript" referent="73">
             <Properties>
               <string name="Name">Locker</string>
               <string name="Source"><![CDATA[--[[
@@ -22843,6 +23931,7 @@ local Remotes = require(Shared.Remotes)
 local GunModel = require(Shared.GunModel)
 local KnifeModel = require(Shared.KnifeModel)
 local Skins = require(Shared.Skins)
+local Cosmetics = require(Shared.Cosmetics)
 local ClientState = require(script.Parent.Parent.ClientState)
 local Sfx = require(script.Parent.Parent.Sfx)
 local Keybinds = require(script.Parent.Parent.Keybinds)
@@ -22861,7 +23950,40 @@ local isOpen = false
 local weapon = "Rifle" -- the open tab
 local selected -- skin id (nil = default) shown in the preview
 local owned = ClientState.OwnedSkins -- { [id] = count }
-local equipped = {} -- { Rifle = id, Knife = id } (your RifleSkin / KnifeSkin attributes)
+local equipped = {} -- { Rifle = id, Knife = id, Tracer = id, ... } (your attributes)
+local cosmeticPreview, cosmeticBar, cosmeticText -- the preview for tracers / effects / poses / titles
+
+-- the tabs: two weapons, then the cosmetic kinds (Cosmetics.Kinds)
+local TABS = { "Rifle", "Knife", "Tracer", "KillFx", "Pose", "Title" }
+local TAB_NAMES = { Rifle = "RIFLE", Knife = "KNIFE", Tracer = "TRACER", KillFx = "KILL FX", Pose = "POSE", Title = "TITLE" }
+local ATTRIBUTE = { Rifle = "RifleSkin", Knife = "KnifeSkin", Tracer = "Tracer", KillFx = "KillFx", Pose = "Pose", Title = "Title" }
+local DESCRIBE = {
+	Tracer = "The colour of your bullet trails. Everyone sees it.",
+	KillFx = "What happens to the body when you get a kill.",
+	Pose = "Your pose when the kill cam cuts to you after a win.",
+	Title = "Shown under your name, over your head.",
+}
+
+local function isSkinTab()
+	return weapon == "Rifle" or weapon == "Knife"
+end
+
+local function itemOf(id)
+	if isSkinTab() then
+		return Skins.Get(id)
+	end
+	return Cosmetics.Get(id)
+end
+
+local function owns(item)
+	if not item then
+		return true -- (the default)
+	end
+	if isSkinTab() then
+		return (owned[item.Id] or 0) > 0
+	end
+	return item.Default == true or ClientState.OwnedCosmetics[item.Id] == true
+end
 local waiting -- { Weapon, Id }: an equip sent to the server, not confirmed yet
 local tiles = {} -- [skin id or "Default"] = { Frame, Stroke, Tag }
 local preview -- { Model, Built, IsKnife, Scale }
@@ -22880,6 +24002,17 @@ local function buildPreview()
 	if preview then
 		preview.Model:Destroy()
 		preview = nil
+	end
+	viewport.Visible = isSkinTab()
+	cosmeticPreview.Visible = not isSkinTab()
+	if not isSkinTab() then
+		local item = itemOf(selected) or Cosmetics.Default(weapon)
+		cosmeticText.Text = weapon == "Title" and (item and item.Text ~= "" and item.Text or "(NO TITLE)") or string.upper(item and item.Name or "")
+		cosmeticText.TextColor3 = item and item.Color or Palette.UIText
+		cosmeticBar.Visible = weapon == "Tracer" or weapon == "KillFx"
+		cosmeticBar.BackgroundColor3 = item and item.Color or Palette.Tracer
+		cosmeticPreview.Description.Text = DESCRIBE[weapon] or ""
+		return
 	end
 	local model = Instance.new("Model")
 	local isKnife = weapon == "Knife"
@@ -22916,7 +24049,14 @@ end
 -- Tiles + details
 ----------------------------------------------------------------------------
 local function skinsForTab()
-	local list = Skins.ForWeapon(weapon)
+	local list = isSkinTab() and Skins.ForWeapon(weapon) or {}
+	if not isSkinTab() then
+		for _, item in ipairs(Cosmetics.ForKind(weapon)) do
+			if not item.Default then
+				table.insert(list, item)
+			end
+		end
+	end
 	table.sort(list, function(a, b)
 		local ta, tb = tierOf[a.Rarity] or 0, tierOf[b.Rarity] or 0
 		if ta ~= tb then
@@ -22928,12 +24068,13 @@ local function skinsForTab()
 end
 
 local function refreshDetails()
-	local skin = Skins.Get(selected)
+	local skin = itemOf(selected)
 	local rarity = skin and rarityOf[skin.Rarity]
-	nameLabel.Text = skin and string.upper(skin.Name) or "STANDARD ISSUE"
+	local default = not isSkinTab() and Cosmetics.Default(weapon)
+	nameLabel.Text = skin and string.upper(skin.Name) or (default and string.upper(default.Name) or "STANDARD ISSUE")
 	rarityLabel.Text = rarity and rarity.Name or "DEFAULT"
 	rarityLabel.TextColor3 = rarity and rarity.Color or Palette.UISubText
-	local count = skin and owned[skin.Id] or 0
+	local count = skin and (owns(skin) and math.max(owned[skin.Id] or 0, 1) or 0) or 0
 	local isEquipped = equipped[weapon] == selected
 	local isWaiting = waiting ~= nil and waiting.Weapon == weapon and waiting.Id == selected
 	if isWaiting and not isEquipped then
@@ -22943,7 +24084,13 @@ local function refreshDetails()
 		statusLabel.Text = "EQUIPPED"
 		statusLabel.TextColor3 = Palette.UIAccent
 	elseif skin and count <= 0 then
-		statusLabel.Text = skin.Elite and "LOCKED  -  ONLY IN THE ELITE CRATE (SHOP)" or "LOCKED  -  OPEN CRATES (SHOP OR CRATE VAULT)"
+		if not isSkinTab() then
+			statusLabel.Text = skin.RankMin and ("LOCKED  -  REACH %d RATING IN RANKED"):format(skin.RankMin) or "LOCKED  -  FROM THE BATTLE PASS"
+		elseif skin.Pass then
+			statusLabel.Text = "LOCKED  -  FROM THE BATTLE PASS"
+		else
+			statusLabel.Text = skin.Elite and "LOCKED  -  ONLY IN THE ELITE CRATE" or "LOCKED  -  OPEN CRATES (SHOP OR CRATE VAULT)"
+		end
 		statusLabel.TextColor3 = Palette.UISubText
 	else
 		statusLabel.Text = skin and (count > 1 and ("OWNED  x%d"):format(count) or "OWNED") or "ALWAYS AVAILABLE"
@@ -22959,8 +24106,8 @@ end
 local function refreshTiles()
 	for id, tile in pairs(tiles) do
 		local skinId = id ~= "Default" and id or nil
-		local skin = Skins.Get(skinId)
-		local have = not skin or (owned[skinId] or 0) > 0
+		local skin = itemOf(skinId)
+		local have = owns(skin)
 		local isEquipped = equipped[weapon] == skinId
 		local isSelected = selected == skinId
 		tile.Frame.BackgroundColor3 = isSelected and Palette.UIPanelLight or Palette.UIPanel
@@ -23008,10 +24155,16 @@ local function makeTile(skin, order)
 	})
 	-- colour swatches
 	local swatches = {}
-	local colors = skin and { skin.Body, skin.Weapon == "Knife" and (skin.Blade or skin.Metal) or skin.Metal, skin.Accent }
-		or { Color3.fromRGB(190, 164, 120), Color3.fromRGB(58, 60, 60), Color3.fromRGB(84, 86, 90) }
-	if weapon == "Knife" and not skin then
-		colors = { Color3.fromRGB(34, 36, 40), Color3.fromRGB(176, 182, 190), Color3.fromRGB(70, 74, 82) }
+	local colors
+	if not isSkinTab() then
+		local item = skin or Cosmetics.Default(weapon)
+		colors = { item and item.Color or Palette.UISubText }
+	else
+		colors = skin and { skin.Body, skin.Weapon == "Knife" and (skin.Blade or skin.Metal) or skin.Metal, skin.Accent }
+			or { Color3.fromRGB(190, 164, 120), Color3.fromRGB(58, 60, 60), Color3.fromRGB(84, 86, 90) }
+		if weapon == "Knife" and not skin then
+			colors = { Color3.fromRGB(34, 36, 40), Color3.fromRGB(176, 182, 190), Color3.fromRGB(70, 74, 82) }
+		end
 	end
 	for i, c in ipairs(colors) do
 		local swatch = Theme.new("Frame", {
@@ -23028,7 +24181,7 @@ local function makeTile(skin, order)
 		Theme.label({
 			Position = UDim2.fromOffset(70, 8),
 			Size = UDim2.new(1, -78, 0, 16),
-			Text = (skin.Elite and "ELITE  " or "") .. (skin.Pulse and "GLOW + FX" or "GLOW"),
+			Text = (skin.Pass and "PASS  " or "") .. (skin.Elite and "ELITE  " or "") .. (skin.Pulse and "GLOW + FX" or "GLOW"),
 			TextSize = 10,
 			TextXAlignment = Enum.TextXAlignment.Right,
 			TextColor3 = color,
@@ -23038,7 +24191,7 @@ local function makeTile(skin, order)
 	local name = Theme.label({
 		Position = UDim2.fromOffset(18, 28),
 		Size = UDim2.new(1, -26, 0, 20),
-		Text = skin and skin.Name or "Default",
+		Text = skin and skin.Name or (not isSkinTab() and Cosmetics.Default(weapon) and Cosmetics.Default(weapon).Name or "Default"),
 		TextSize = 15,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextTruncate = Enum.TextTruncate.AtEnd,
@@ -23171,7 +24324,7 @@ function Locker.Start(playerGui)
 	Theme.label({
 		Position = UDim2.fromOffset(0, 36),
 		Size = UDim2.new(0.6, 0, 0, 20),
-		Text = "Pick a skin for each weapon. Everyone sees it.  L: close",
+		Text = "Skins, tracers, kill effects, poses and titles. Everyone sees them.  L: close",
 		TextSize = 14,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextColor3 = Palette.UISubText,
@@ -23181,13 +24334,13 @@ function Locker.Start(playerGui)
 
 	-- tabs
 	tabs = {}
-	for i, name in ipairs({ "Rifle", "Knife" }) do
+	for i, name in ipairs(TABS) do
 		local button = Theme.button({
 			AnchorPoint = Vector2.new(1, 0),
-			Position = UDim2.new(1, -(2 - i) * 128, 0, 4),
-			Size = UDim2.fromOffset(120, 36),
-			Text = string.upper(name),
-			TextSize = 16,
+			Position = UDim2.new(1, -(#TABS - i) * 88, 0, 4),
+			Size = UDim2.fromOffset(84, 34),
+			Text = TAB_NAMES[name],
+			TextSize = 13,
 			Parent = panel,
 		})
 		button.Activated:Connect(function()
@@ -23224,6 +24377,40 @@ function Locker.Start(playerGui)
 	previewCam.Parent = viewport
 	viewport.CurrentCamera = previewCam
 
+	-- (tracers / kill effects / poses / titles: a colour bar + the name)
+	cosmeticPreview = Theme.new("Frame", {
+		Size = UDim2.new(1, 0, 1, -128),
+		BackgroundTransparency = 1,
+		Visible = false,
+		Parent = left,
+	})
+	cosmeticBar = Theme.new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.38),
+		Size = UDim2.new(0.8, 0, 0, 10),
+		Parent = cosmeticPreview,
+	})
+	Theme.corner(cosmeticBar, 5)
+	cosmeticText = Theme.label({
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.55),
+		Size = UDim2.new(0.9, 0, 0, 44),
+		TextSize = 34,
+		FontFace = Theme.Font(Enum.FontWeight.Heavy),
+		Parent = cosmeticPreview,
+	})
+	Theme.label({
+		Name = "Description",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.fromScale(0.5, 0.7),
+		Size = UDim2.new(0.85, 0, 0, 40),
+		TextSize = 13,
+		TextWrapped = true,
+		TextColor3 = Palette.UISubText,
+		FontFace = Theme.Font(Enum.FontWeight.Medium),
+		Parent = cosmeticPreview,
+	})
+
 	nameLabel = Theme.label({
 		Position = UDim2.new(0, 16, 1, -124),
 		Size = UDim2.new(1, -32, 0, 30),
@@ -23256,8 +24443,8 @@ function Locker.Start(playerGui)
 		Parent = left,
 	})
 	equipButton.Activated:Connect(function()
-		local skin = Skins.Get(selected)
-		if equipped[weapon] == selected or (skin and (owned[skin.Id] or 0) <= 0) then
+		local skin = itemOf(selected)
+		if equipped[weapon] == selected or not owns(skin) then
 			return
 		end
 		if waiting and waiting.Weapon == weapon and waiting.Id == selected then
@@ -23316,10 +24503,10 @@ function Locker.Start(playerGui)
 			refreshTiles()
 		end
 	end)
-	for _, name in ipairs({ "Rifle", "Knife" }) do
-		equipped[name] = player:GetAttribute(name .. "Skin")
-		player:GetAttributeChangedSignal(name .. "Skin"):Connect(function()
-			equipped[name] = player:GetAttribute(name .. "Skin")
+	for _, name in ipairs(TABS) do
+		equipped[name] = player:GetAttribute(ATTRIBUTE[name])
+		player:GetAttributeChangedSignal(ATTRIBUTE[name]):Connect(function()
+			equipped[name] = player:GetAttribute(ATTRIBUTE[name])
 			if waiting and waiting.Weapon == name and waiting.Id == equipped[name] then
 				waiting = nil
 			end
@@ -23364,7 +24551,7 @@ return Locker
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="71">
+          <Item class="ModuleScript" referent="74">
             <Properties>
               <string name="Name">MobileControls</string>
               <string name="Source"><![CDATA[--[[
@@ -23503,6 +24690,7 @@ local function refresh()
 	buttons.Lab.Visible = not inMatch
 	buttons.Skins.Visible = not inMatch
 	buttons.Shop.Visible = not inMatch
+	buttons.Pass.Visible = not inMatch
 	buttons.Duel.Visible = not inMatch
 	buttons.Sprint.BackgroundColor3 = sprintOn and Palette.UIAccent or Palette.UIPanel
 end
@@ -23577,6 +24765,11 @@ function MobileControls.Start(playerGui)
 
 	pill("Lab", "LAB", UDim2.new(0, 60, 0, 120), tap("PowerUpLab"))
 	pill("Duel", "DUEL", UDim2.new(0, 150, 0, 120), tap("DuelFriend"))
+	pill("Pass", "PASS", UDim2.new(0, 420, 0, 120), function()
+		if Controllers and Controllers.BattlePass then
+			Controllers.BattlePass.Toggle()
+		end
+	end)
 	pill("Shop", "SHOP", UDim2.new(0, 330, 0, 120), function()
 		if Controllers and Controllers.Shop then
 			Controllers.Shop.Toggle()
@@ -23611,7 +24804,7 @@ return MobileControls
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="72">
+          <Item class="ModuleScript" referent="75">
             <Properties>
               <string name="Name">PickScreen</string>
               <string name="Source"><![CDATA[--[[
@@ -24388,7 +25581,7 @@ return PickScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="73">
+          <Item class="ModuleScript" referent="76">
             <Properties>
               <string name="Name">PowerUpLab</string>
               <string name="Source"><![CDATA[--[[
@@ -24689,7 +25882,7 @@ return PowerUpLab
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="74">
+          <Item class="ModuleScript" referent="77">
             <Properties>
               <string name="Name">SettingsMenu</string>
               <string name="Source"><![CDATA[--[[
@@ -25218,7 +26411,7 @@ return SettingsMenu
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="75">
+          <Item class="ModuleScript" referent="78">
             <Properties>
               <string name="Name">Shop</string>
               <string name="Source"><![CDATA[--[[
@@ -25228,6 +26421,7 @@ return SettingsMenu
 		CRATES    the Standard crate (Keys, earned by playing) and the Elite
 		          crate (Credits: better odds, Elite-only skins, Secrets).
 		          OPEN plays the opening at the crate vault.
+		FEATURED  three skins a day to buy outright with Credits
 		CREDITS   Credit packs (and a Key pack) for Robux
 		VIP       the VIP pass (2x keys)
 	Purchases are Roblox prompts; the server grants them (CrateService).
@@ -25389,7 +26583,97 @@ local function buildCrates(page)
 		end
 	end
 	crateCard(page, "Elite", 0.5, GOLD,
-		"Better odds and the only crate with Elite-only skins (" .. table.concat(elite, ", ") .. "...) and the SECRETS.")
+		"Rare and up only, and the only crate with Elite-only skins (" .. table.concat(elite, ", ") .. "...) and the SECRETS.")
+end
+
+-- FEATURED: today's skins to buy outright with Credits
+local featuredPage
+local function buildFeatured()
+	local page = featuredPage
+	for _, child in ipairs(page:GetChildren()) do
+		child:Destroy()
+	end
+	local Skins = require(Shared.Skins)
+	local ids = ClientState.Featured or {}
+	local count = math.max(#ids, 1)
+	for i, id in ipairs(ids) do
+		local skin = Skins.Get(id)
+		if skin then
+			local rarity = rarityById[skin.Rarity]
+			local frame = card(page, {
+				Position = UDim2.new((i - 1) / count, 6, 0, 0),
+				Size = UDim2.new(1 / count, -12, 1, 0),
+				Color = rarity and rarity.Color,
+			})
+			Theme.label({
+				Size = UDim2.new(1, 0, 0, 18),
+				Text = (rarity and rarity.Name or "") .. "  -  " .. string.upper(skin.Weapon),
+				TextSize = 13,
+				TextColor3 = rarity and rarity.Color or Palette.UIText,
+				Parent = frame,
+			})
+			Theme.label({
+				Position = UDim2.fromOffset(0, 26),
+				Size = UDim2.new(1, 0, 0, 34),
+				Text = string.upper(skin.Name),
+				TextSize = 26,
+				TextScaled = false,
+				FontFace = Theme.Font(Enum.FontWeight.Heavy),
+				Parent = frame,
+			})
+			for k, color in ipairs({ skin.Body, skin.Blade or skin.Metal, skin.Accent }) do
+				local swatch = Theme.new("Frame", {
+					AnchorPoint = Vector2.new(0.5, 0),
+					Position = UDim2.new(0.5, (k - 2) * 46, 0, 84),
+					Size = UDim2.fromOffset(38, 38),
+					BackgroundColor3 = color,
+					Parent = frame,
+				})
+				Theme.corner(swatch, 19)
+			end
+			Theme.label({
+				Position = UDim2.fromOffset(0, 140),
+				Size = UDim2.new(1, 0, 0, 20),
+				Text = (skin.Finish and string.upper(skin.Finish) .. " FINISH" or "") .. (skin.Glow and "  +  GLOW" or ""),
+				TextSize = 13,
+				TextColor3 = Palette.UISubText,
+				Parent = frame,
+			})
+			local price = Config.Featured.Prices[skin.Rarity] or 0
+			local have = (ClientState.OwnedSkins[id] or 0) > 0
+			local button = Theme.button({
+				AnchorPoint = Vector2.new(0, 1),
+				Position = UDim2.fromScale(0, 1),
+				Size = UDim2.new(1, 0, 0, 44),
+				Text = have and "OWNED" or ("BUY  -  %d CREDITS"):format(price),
+				TextSize = 16,
+				BackgroundColor3 = have and Palette.UIPanel or GOLD,
+				AutoButtonColor = not have,
+				Parent = frame,
+			})
+			button.Activated:Connect(function()
+				if have then
+					return
+				end
+				if (player:GetAttribute("Credits") or 0) < price then
+					Sfx.Play("CardHover", { Pitch = 0.6 })
+					Shop.Show("Credits")
+					return
+				end
+				Sfx.Play("CardPick", { Pitch = 1.2 })
+				Remotes.Get("ShopBuy"):FireServer("Featured", id)
+			end)
+		end
+	end
+	Theme.label({
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, 0, 1, 28),
+		Size = UDim2.new(1, 0, 0, 20),
+		Text = "New featured skins every day.",
+		TextSize = 13,
+		TextColor3 = Palette.UISubText,
+		Parent = page,
+	})
 end
 
 local function buyButton(parent, text, price, onBuy)
@@ -25411,8 +26695,12 @@ local function buildCredits(page)
 	for _, pack in ipairs(SHOP.CreditPacks) do
 		table.insert(packs, { Pack = pack, Amount = pack.Credits, Unit = "CREDITS" })
 	end
-	for _, pack in ipairs(SHOP.KeyPacks) do
-		table.insert(packs, { Pack = pack, Amount = pack.Keys, Unit = "KEYS" })
+	-- (in countries where paid random items aren't allowed, keys can't be
+	-- bought: crates are then earn-only)
+	if not player:GetAttribute("PaidRandomBlocked") then
+		for _, pack in ipairs(SHOP.KeyPacks) do
+			table.insert(packs, { Pack = pack, Amount = pack.Keys, Unit = "KEYS" })
+		end
 	end
 	local count = #packs
 	for i, entry in ipairs(packs) do
@@ -25611,7 +26899,7 @@ function Shop.Start(playerGui)
 		Parent = panel,
 	})
 	tabs = {}
-	local names = { "Crates", "Credits", "VIP" }
+	local names = { "Crates", "Featured", "Credits", "VIP" }
 	for i, name in ipairs(names) do
 		local button = Theme.button({
 			AnchorPoint = Vector2.new(1, 0),
@@ -25638,7 +26926,16 @@ function Shop.Start(playerGui)
 		})
 	end
 	buildCrates(pages.Crates)
+	featuredPage = pages.Featured
+	buildFeatured()
+	ClientState.SkinsChanged:Connect(buildFeatured) -- (owned / today's list changed)
 	buildCredits(pages.Credits)
+	player:GetAttributeChangedSignal("PaidRandomBlocked"):Connect(function()
+		for _, child in ipairs(pages.Credits:GetChildren()) do
+			child:Destroy()
+		end
+		buildCredits(pages.Credits)
+	end)
 	buildVip(pages.VIP)
 
 	Theme.label({
@@ -25696,7 +26993,7 @@ return Shop
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="76">
+          <Item class="ModuleScript" referent="79">
             <Properties>
               <string name="Name">Theme</string>
               <string name="Source"><![CDATA[--[[
@@ -26006,7 +27303,7 @@ return Theme
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="77">
+          <Item class="ModuleScript" referent="80">
             <Properties>
               <string name="Name">Toast</string>
               <string name="Source"><![CDATA[--[[
@@ -26093,7 +27390,7 @@ return Toast
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="78">
+          <Item class="ModuleScript" referent="81">
             <Properties>
               <string name="Name">VictoryScreen</string>
               <string name="Source"><![CDATA[--[[

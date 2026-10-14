@@ -716,6 +716,12 @@ local function onResult(result)
 	end
 	if typeof(result.Skins) == "table" then
 		ClientState.OwnedSkins = result.Skins -- (the Locker reads these)
+		if typeof(result.Cosmetics) == "table" then
+			ClientState.OwnedCosmetics = result.Cosmetics
+		end
+		if typeof(result.Featured) == "table" then
+			ClientState.Featured = result.Featured -- (the SHOP reads these)
+		end
 		ClientState.SkinsChanged:Fire()
 	end
 	if result.Type == "Denied" then

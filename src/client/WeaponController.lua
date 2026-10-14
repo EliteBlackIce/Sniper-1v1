@@ -23,6 +23,7 @@ local Config = require(Shared.Config)
 local Remotes = require(Shared.Remotes)
 local Ballistics = require(Shared.Ballistics)
 local Util = require(Shared.Util)
+local Cosmetics = require(Shared.Cosmetics)
 local ClientState = require(script.Parent.ClientState)
 local Sfx = require(script.Parent.Sfx)
 local Keybinds = require(script.Parent.Keybinds)
@@ -144,6 +145,7 @@ local function fire()
 		Controllers.Effects.DrawShot(sim.Segments, sim.Passes, sim.EndPosition, sim.EndNormal, muzzle, {
 			Explosive = stats.Explosive,
 			HitPlayer = hitEnemy,
+			Tracer = Cosmetics.TracerColor(player),
 		})
 
 		-- ROCKET JUMP: shooting near your own feet launches you

@@ -32,6 +32,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Remotes = require(Shared.Remotes)
 local PowerUps = require(Shared.PowerUps)
+local Cosmetics = require(Shared.Cosmetics)
 local ClientState = require(script.Parent.ClientState)
 local Theme = require(script.Parent.ui.Theme)
 
@@ -392,7 +393,8 @@ local function play(deathTime, killerName)
 			end
 		end
 		killerCopy:SetAttribute("AimPitch", 0)
-		Controllers.Viewmodel.PlayVictory(killerCopy)
+		local pose = Cosmetics.Worn(ClientState.GetOpponentPlayer(), "Pose") -- (their pose cosmetic)
+		Controllers.Viewmodel.PlayVictory(killerCopy, pose and pose.Style)
 		vignette.BackgroundTransparency = 0.8
 		killerLabel.Text = string.upper(killerName or "YOUR OPPONENT") .. " TAKES THE ROUND"
 	end
@@ -461,6 +463,7 @@ local function play(deathTime, killerName)
 					Controllers.Effects.DrawShot(bullet.Segments, bullet.Passes, bullet.EndPosition, bullet.EndNormal, muzzle, {
 						Explosive = shot.Explosive,
 						HitPlayer = bullet.HitPlayer,
+						Tracer = Cosmetics.TracerColor(ClientState.GetOpponentPlayer()),
 					})
 				end
 			end

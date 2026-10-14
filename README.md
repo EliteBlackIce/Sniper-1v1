@@ -28,12 +28,14 @@ src/shared/                -> ReplicatedStorage.Shared   (server + client)
   CrateModel.lua              the loot crate model (hinged lid, rarity glow)
   KnifeModel.lua              the combat knife (imported mesh or built from parts)
   Skins.lua                   paints the rifle / knife in a skin (colours, finish, glow, sparkles)
+  Cosmetics.lua               tracers, kill effects, poses, titles (lookups)
 
 src/server/                -> ServerScriptService.Server
   Main.server.lua             entry point, starts every service
   LightingSetup.lua           Future lighting + post effects (arena profile)
   CrateService.lua            crate keys, server-side rolls, owned + equipped skins (DataStore)
   RankService.lua             ranked rating (Elo, DataStore) + the lobby leaderboard wall
+  PassService.lua             battle pass XP + tier rewards, ranked titles
   MapBuilder.lua              builds the lobby and the arena from parts
   ArenaPolygon.lua            compact Rivals-style arena, tall walls + ramps
   ArenaCanyon / Pillars / Bridges / Ziggurat / Quarry.lua   big simple movement maps (in the rotation)
@@ -79,7 +81,8 @@ src/client/                -> StarterPlayerScripts.Client
     Toast.lua                 short messages from the server (admin commands)
     PowerUpLab.lua            try any power-up solo in the lobby (B)
     Locker.lua                pick your rifle and knife skins (L)
-    Shop.lua                  crates, credit packs (Robux), VIP pass (M)
+    Shop.lua                  crates, featured skins, credit packs (Robux), VIP pass (M)
+    BattlePass.lua            the season's battle pass: tiers, free + premium rewards (J)
 
 assets/SniperRifle.glb        PGM 338 rifle, ready for Studio's 3D Importer (CC-BY-4.0, see Quick start)
 
@@ -245,7 +248,8 @@ Every key below can be rebound in **Settings (P) > Keyboard** or
 | Right mouse (knife) | Stab with a short lunge |
 | B | **Power-Up Lab** (lobby / playground): try any power-up solo |
 | L | **Locker** (lobby): equip rifle and knife skins |
-| M | **Shop** (lobby): open crates, buy credits, VIP |
+| M | **Shop** (lobby): open crates, featured skins, credits, VIP |
+| J | **Battle pass** (lobby) |
 | G | **Playground** (lobby): free roam on the match map with dummies |
 | F [D-pad right] | Find a match / leave the queue (lobby) |
 | U [R-stick click] | Duel a player: challenge someone in the server (lobby) |
@@ -400,7 +404,7 @@ opens a Standard crate). Each one unlocks a rifle or knife skin.
 
 | | Standard crate | Elite crate |
 |---|---|---|
-| Costs | 10 **Keys** (earned by playing) | 100 **Credits** (bought with Robux) |
+| Costs | 10 **Keys** | 250 **Keys** |
 | Common (grey) | 62% | - |
 | Uncommon (green) | 25% | - |
 | Rare (blue) | 9.5% | 70% |
@@ -449,18 +453,68 @@ The model keeps its own textures; the skin adds its glow, glitter and aura.
 ## The shop and Robux
 
 **Keys** are earned by playing: 3 for a win, 1 for a loss, and new players
-start with 10 (one free Standard crate). **Credits** are bought with Robux
-and open Elite crates. Your keys and credits show at the top right of the
+start with 10 (one free Standard crate). They open both crates, and can also
+be bought in the shop. **Credits** are bought with Robux and buy the
+FEATURED skins outright. Your keys and credits show at the top right of the
 lobby.
 
-The SHOP has three tabs:
+The SHOP has four tabs:
 
 - **CRATES**: open either crate.
+- **FEATURED**: three skins a day (a new set every day, UTC), bought
+  outright with Credits. Prices: Common 40, Uncommon 80, Rare 160, Epic
+  320, Legendary 700.
 - **CREDITS**: credit packs. These are Developer Products: 100 credits for
   79 R$, 550 for 399, 1200 for 799 and 2600 for 1499. There's also a key pack
   (30 keys for 49 R$; bought keys open crates but can't be wagered).
 - **VIP**: a Game Pass (299 R$) that gives 2x keys from every match and a
   gold VIP tag.
+
+**Regions:** in countries where paid random items aren't allowed
+(`PolicyService`), the key pack is hidden, so crates are earn-only there.
+
+## Battle pass
+
+Press **J** (or BATTLE PASS in the lobby). This is Season 1, "First Blood",
+with 30 tiers.
+
+- **Earning XP:** a win gives 300 XP and a loss 120, plus 40 for every
+  round you won. Each tier takes 1000 XP.
+- **Free track:** every tier has a free reward (keys, credits, tracers and
+  titles).
+- **Premium track:** a Game Pass (`Config.Shop.Passes.BattlePass`, 499 R$)
+  adds a better reward to every tier. These include 10 exclusive skins
+  (Striker, Night Ops, Redline, Eclipse and Sovereign, for rifle and knife),
+  plus tracers, kill effects, poses, titles, credits and keys.
+- Rewards are given the moment you reach a tier. Buying Premium later gives
+  you every Premium reward you've already passed.
+- Progress resets when `Config.BattlePass.Season` changes. To start a new
+  season, change it along with the `Tiers` list. Code: `PassService.lua`,
+  `ui/BattlePass.lua`.
+
+## Cosmetics: tracers, kill effects, poses, titles
+
+Equip these in the LOCKER (L), on its TRACER, KILL FX, POSE and TITLE tabs.
+Everyone sees them.
+
+- **Tracers**: the colour of your bullet trails. There are Gold, Cyan,
+  Lime, Hot Pink, Violet, Crimson and Void.
+- **Kill effects**: what happens to the body when you get a kill:
+  - Shatter (the default)
+  - Confetti
+  - Vaporize
+  - Inferno (flames)
+  - Thunderstrike (a lightning bolt from the sky)
+  - Black Hole (a dark sphere swallows the body)
+- **Poses**: your victory pose when the kill cam cuts to you. There are
+  Fist Pump, Salute, You're Next (pointing at the camera) and Bye Bye
+  (waving).
+- **Titles**: shown in a tag over your head, next to VIP. There are Rookie,
+  Sharpshooter, Knife Master, Sniper God and S1 Veteran. **Diamond** and
+  **Champion** unlock by themselves when you reach that rating in ranked.
+
+They come from the battle pass and ranked. The list is in
+`Config.Cosmetics`, the lookups in `Cosmetics.lua`.
 
 **To start selling:**
 

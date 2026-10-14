@@ -19,6 +19,7 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local GunModel = require(ReplicatedStorage.Shared.GunModel)
 local KnifeModel = require(ReplicatedStorage.Shared.KnifeModel)
 local Skins = require(ReplicatedStorage.Shared.Skins)
+local Cosmetics = require(ReplicatedStorage.Shared.Cosmetics)
 local Util = require(ReplicatedStorage.Shared.Util)
 
 local Palette = Config.Palette
@@ -378,30 +379,7 @@ function CharacterService.Spawn(player, cframe, options)
 		))
 	end
 	CharacterService.Style(character, options.Color or Palette.LobbyPlayer, player)
-	if not Util.isBot(player) and player:GetAttribute("VIP") then
-		-- the VIP pass: a gold tag over your head
-		local head = character:FindFirstChild("Head")
-		if head then
-			local tag = Instance.new("BillboardGui")
-			tag.Name = "VipTag"
-			tag.Size = UDim2.fromOffset(60, 24)
-			tag.StudsOffset = Vector3.new(0, 2.2, 0)
-			tag.MaxDistance = 80
-			tag.Adornee = head
-			local label = Instance.new("TextLabel")
-			label.Size = UDim2.fromScale(1, 1)
-			label.BackgroundColor3 = Color3.fromRGB(255, 196, 60)
-			label.Text = "VIP"
-			label.TextScaled = true
-			label.FontFace = Font.new(Config.UI.FontFamily, Enum.FontWeight.Heavy)
-			label.TextColor3 = Color3.fromRGB(30, 24, 10)
-			label.Parent = tag
-			local corner = Instance.new("UICorner")
-			corner.CornerRadius = UDim.new(0.3, 0)
-			corner.Parent = label
-			tag.Parent = head
-		end
-	end
+	CharacterService.RefreshTag(player)
 	character:SetAttribute("Weapon", "Sniper") -- every life starts with the rifle out
 	addHitboxes(character)
 	addWorldGun(character, options.PowerUps)
@@ -452,6 +430,65 @@ function CharacterService.RefreshWorldGun(player, powerUps)
 	if humanoid and humanoid.Health > 0 then
 		addWorldGun(character, powerUps)
 	end
+end
+
+-- The tag over a player's head: their title (Locker) and a gold VIP badge.
+function CharacterService.RefreshTag(player)
+	if Util.isBot(player) then
+		return
+	end
+	local character = player.Character
+	local head = character and character:FindFirstChild("Head")
+	if not head then
+		return
+	end
+	local old = head:FindFirstChild("PlayerTag")
+	if old then
+		old:Destroy()
+	end
+	local title = Cosmetics.Worn(player, "Title")
+	local vip = player:GetAttribute("VIP") == true
+	if (not title or title.Text == "") and not vip then
+		return
+	end
+	local tag = Instance.new("BillboardGui")
+	tag.Name = "PlayerTag"
+	tag.Size = UDim2.fromOffset(220, 26)
+	tag.StudsOffset = Vector3.new(0, 2.4, 0)
+	tag.MaxDistance = 80
+	tag.Adornee = head
+	local row = Instance.new("Frame")
+	row.BackgroundTransparency = 1
+	row.Size = UDim2.fromScale(1, 1)
+	row.Parent = tag
+	local layout = Instance.new("UIListLayout")
+	layout.FillDirection = Enum.FillDirection.Horizontal
+	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	layout.VerticalAlignment = Enum.VerticalAlignment.Center
+	layout.Padding = UDim.new(0, 6)
+	layout.Parent = row
+	local function chip(text, background, color)
+		local label = Instance.new("TextLabel")
+		label.AutomaticSize = Enum.AutomaticSize.X
+		label.Size = UDim2.fromOffset(0, 22)
+		label.BackgroundColor3 = background
+		label.BackgroundTransparency = 0.15
+		label.Text = " " .. text .. " "
+		label.TextSize = 15
+		label.FontFace = Font.new(Config.UI.FontFamily, Enum.FontWeight.Heavy)
+		label.TextColor3 = color
+		label.Parent = row
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0.3, 0)
+		corner.Parent = label
+	end
+	if vip then
+		chip("VIP", Color3.fromRGB(255, 196, 60), Color3.fromRGB(30, 24, 10))
+	end
+	if title and title.Text ~= "" then
+		chip(title.Text, Color3.fromRGB(18, 20, 26), title.Color or Color3.new(1, 1, 1))
+	end
+	tag.Parent = head
 end
 
 -- Rebuilds both weapons in a player's hands in their equipped skins.

@@ -63,6 +63,7 @@ local SECONDARY = {
 	{ Id = "PowerUpLab", Text = "POWER-UP LAB", Hint = "TRY BUILDS" },
 	{ Id = "Locker", Text = "LOCKER", Hint = "SKINS" },
 	{ Id = "Shop", Text = "SHOP", Hint = "CRATES + CREDITS" },
+	{ Id = "BattlePass", Text = "BATTLE PASS", Hint = "SEASON 1" },
 	{ Id = "DuelFriend", Text = "DUEL A PLAYER", Hint = "INVITE" },
 	{ Id = "Settings", Text = "SETTINGS", Hint = "" },
 	{ Id = "BotMatch", Text = "PLAY VS BOT", Hint = "ADMIN" },
@@ -1124,6 +1125,12 @@ function LobbyUI.Start(playerGui)
 		Theme.pop(entries.PowerUpLab.Button, 0.06)
 		Keybinds.Press("PowerUpLab", true)
 		Keybinds.Press("PowerUpLab", false)
+	end)
+	entries.BattlePass.Button.Activated:Connect(function()
+		Theme.pop(entries.BattlePass.Button, 0.06)
+		if Controllers and Controllers.BattlePass then
+			Controllers.BattlePass.Toggle()
+		end
 	end)
 	entries.Shop.Button.Activated:Connect(function()
 		Theme.pop(entries.Shop.Button, 0.06)

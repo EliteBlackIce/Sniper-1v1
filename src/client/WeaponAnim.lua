@@ -458,6 +458,9 @@ end
 local VICTORY_RIFLE = kaim(V(1.0, -0.95, 0.05), V(0.22, 1, 0.3))
 local VICTORY_KNIFE = kaim(V(1.15, -0.55, -0.55), V(0.35, 1, -0.2))
 local FIST_UP = CFrame.new(-1.2, 2.1, 0.15) * CFrame.Angles(0, 0, math.pi) * CFrame.Angles(0, rad(90), 0)
+local SALUTE = CFrame.new(-0.3, 0.6, -0.45) * CFrame.Angles(0, 0, rad(150))
+local POINT = CFrame.new(-0.55, 0.15, -2.4) * CFrame.Angles(rad(90), 0, 0)
+local WAVE = CFrame.new(-1.15, 0.9, -0.3) * CFrame.Angles(0, 0, math.pi) * CFrame.Angles(0, rad(90), 0)
 
 local function victory(anim, state, t)
 	local v = t - state.VictoryStart
@@ -465,14 +468,32 @@ local function victory(anim, state, t)
 		return anim
 	end
 	local w = easeOutBack(seg(v, 0, 0.45))
-	local pump = easeOutBack(seg(v, 0.25, 0.6)) - 0.12 * math.sin(seg(v, 0.6, 1.4) * math.pi * 2)
+	local raise = easeOutBack(seg(v, 0.25, 0.6))
 	local knifeOut = state.Weapon == "Knife"
 	local weapon = anim.Weapon:Lerp(knifeOut and VICTORY_KNIFE or VICTORY_RIFLE, w)
+	local style = state.VictoryStyle or "FistPump"
+	local left, body
+	if style == "Salute" then
+		left = anim.Left:Lerp(SALUTE, raise)
+		body = { Yaw = 6 * w, Lean = -4 * w, NeckPitch = -2 * w }
+	elseif style == "Point" then
+		-- straight at the camera: "you're next"
+		left = anim.Left:Lerp(POINT * CFrame.new(0, 0, -0.06 * math.sin(seg(v, 0.6, 1.2) * math.pi)), raise)
+		body = { Yaw = -10 * w, Lean = 6 * w, NeckPitch = 4 * w, NeckYaw = 6 * w }
+	elseif style == "Wave" then
+		local sway = math.sin(math.max(v - 0.5, 0) * 9) * 0.28
+		left = anim.Left:Lerp(WAVE * CFrame.new(sway, 0, 0) * CFrame.Angles(0, 0, -sway * 0.8), raise)
+		body = { Yaw = 8 * w, Lean = -3 * w, NeckPitch = -4 * w, NeckYaw = -10 * w }
+	else
+		local pump = raise - 0.12 * math.sin(seg(v, 0.6, 1.4) * math.pi * 2)
+		left = anim.Left:Lerp(FIST_UP, pump)
+		body = { Yaw = 12 * w, Lean = -7 * w, NeckPitch = -10 * w, NeckYaw = -8 * w }
+	end
 	return {
 		Weapon = weapon,
 		Right = weapon * (knifeOut and HAND_ON_KNIFE or RIGHT_ON_GRIP),
-		Left = anim.Left:Lerp(FIST_UP, pump),
-		Body = { Yaw = 12 * w, Lean = -7 * w, NeckPitch = -10 * w, NeckYaw = -8 * w },
+		Left = left,
+		Body = body,
 		Bolt = CFrame.new(),
 	}
 end
@@ -558,8 +579,10 @@ function WeaponAnim.Inspect(state, t, variant)
 end
 
 -- The victory pose (holds until the state is reset).
-function WeaponAnim.Victory(state, t)
+-- style: "FistPump" (default) | "Salute" | "Point" | "Wave" (Config.Cosmetics.Poses)
+function WeaponAnim.Victory(state, t, style)
 	state.VictoryStart = t
+	state.VictoryStyle = style
 	state.Action = nil
 	state.BoltLength = 0
 end

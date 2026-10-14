@@ -134,6 +134,7 @@ local function refresh()
 	buttons.Lab.Visible = not inMatch
 	buttons.Skins.Visible = not inMatch
 	buttons.Shop.Visible = not inMatch
+	buttons.Pass.Visible = not inMatch
 	buttons.Duel.Visible = not inMatch
 	buttons.Sprint.BackgroundColor3 = sprintOn and Palette.UIAccent or Palette.UIPanel
 end
@@ -208,6 +209,11 @@ function MobileControls.Start(playerGui)
 
 	pill("Lab", "LAB", UDim2.new(0, 60, 0, 120), tap("PowerUpLab"))
 	pill("Duel", "DUEL", UDim2.new(0, 150, 0, 120), tap("DuelFriend"))
+	pill("Pass", "PASS", UDim2.new(0, 420, 0, 120), function()
+		if Controllers and Controllers.BattlePass then
+			Controllers.BattlePass.Toggle()
+		end
+	end)
 	pill("Shop", "SHOP", UDim2.new(0, 330, 0, 120), function()
 		if Controllers and Controllers.Shop then
 			Controllers.Shop.Toggle()

@@ -442,11 +442,12 @@ end
 function BodyAnimator.PlayKill() end
 
 -- The victory pose on a tracked model (the kill cam's copy of the winner).
-function BodyAnimator.PlayVictory(model)
+-- style: the winner's pose (Config.Cosmetics.Poses Style), nil = fist pump
+function BodyAnimator.PlayVictory(model, style)
 	local entry = getEntry(model)
 	if entry then
 		entry.State.Weapon = model:GetAttribute("Weapon") == "Knife" and "Knife" or "Sniper"
-		WeaponAnim.Victory(entry.State, now())
+		WeaponAnim.Victory(entry.State, now(), style)
 	end
 end
 

@@ -27,6 +27,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
+local Cosmetics = require(Shared.Cosmetics)
 local Remotes = require(Shared.Remotes)
 local ClientState = require(script.Parent.ClientState)
 local Sfx = require(script.Parent.Sfx)
@@ -121,6 +122,16 @@ local function emit(position, kind, color, count, direction)
 		e.SpreadAngle = direction and Vector2.new(55, 55) or Vector2.new(180, 180)
 		e.Acceleration = Vector3.new(0, -60, 0)
 		e.Drag = 3
+	elseif kind == "Fire" then
+		e.Texture = "rbxasset://textures/particles/fire_main.dds"
+		e.LightEmission = 1
+		e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1.6), NumberSequenceKeypoint.new(1, 0.2) })
+		e.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.2), NumberSequenceKeypoint.new(1, 1) })
+		e.Speed = NumberRange.new(4, 12)
+		e.Lifetime = NumberRange.new(0.4, 0.9)
+		e.SpreadAngle = Vector2.new(60, 60)
+		e.Acceleration = Vector3.new(0, 14, 0)
+		e.Drag = 1.5
 	else -- Smoke / Dust
 		e.Texture = FX.SmokeTexture
 		e.LightEmission = 0
@@ -213,7 +224,7 @@ end
 	segments  list of { From, To, Kind }   (from Ballistics)
 	passes    points where the bullet went through a wall (Ghost Round)
 	startPos  where the tracer visually starts (gun muzzle)
-	options   { Explosive = bool, HitPlayer = bool }
+	options   { Explosive = bool, HitPlayer = bool, Tracer = Color3 (the shooter's tracer cosmetic) }
 ]]
 function Effects.DrawShot(segments, passes, endPosition, endNormal, startPos, options)
 	options = options or {}
@@ -224,7 +235,7 @@ function Effects.DrawShot(segments, passes, endPosition, endNormal, startPos, op
 			from = startPos
 		end
 		table.insert(headPoints, from)
-		local color = Palette.Tracer
+		local color = options.Tracer or Palette.Tracer
 		local thickness = 0.1
 		if seg.Kind == "Bounce" then
 			color = Palette.TracerBounce
@@ -242,7 +253,7 @@ function Effects.DrawShot(segments, passes, endPosition, endNormal, startPos, op
 	end
 	if #segments > 0 then
 		table.insert(headPoints, segments[#segments].To)
-		bulletHead(headPoints, options.Explosive and Palette.TracerExplosive or Palette.Tracer)
+		bulletHead(headPoints, options.Explosive and Palette.TracerExplosive or options.Tracer or Palette.Tracer)
 	end
 	for _, p in ipairs(passes or {}) do
 		puff(p, Palette.Hologram, 1.4, 0.4, true)
@@ -292,6 +303,7 @@ local function onEnemyShot(userId, bullets, explosive)
 		Effects.DrawShot(bullet.Segments, bullet.Passes, bullet.EndPosition, bullet.EndNormal, muzzle, {
 			Explosive = explosive,
 			HitPlayer = bullet.HitPlayer,
+			Tracer = Cosmetics.TracerColor(shooter),
 		})
 	end
 	if muzzleAttachment then
@@ -336,6 +348,87 @@ local function shatter(position, color, headshot)
 	end
 	if headshot then
 		ring(position + Vector3.new(0, 1.5, 0), Palette.UIHeadshot, 7, 0.45, true)
+	end
+end
+
+-- The killer's kill effect (Config.Cosmetics.KillEffects): data.KillFx is
+-- its id; the default is the shatter.
+local CONFETTI = {
+	Color3.fromRGB(255, 80, 90),
+	Color3.fromRGB(255, 200, 60),
+	Color3.fromRGB(80, 220, 120),
+	Color3.fromRGB(70, 160, 255),
+	Color3.fromRGB(200, 100, 255),
+}
+local function killEffect(data)
+	local item = Cosmetics.Get(data.KillFx)
+	local style = item and item.Style or "Shatter"
+	local position = data.Position
+	local color = item and item.Color or data.Color or Palette.PlayerB
+	if style == "Shatter" or not FX.KillShatter then
+		shatter(position, data.Color or Palette.PlayerB, data.Headshot)
+		return
+	end
+	if data.Headshot then
+		ring(position + Vector3.new(0, 1.5, 0), Palette.UIHeadshot, 7, 0.45, true)
+	end
+	if style == "Confetti" then
+		puff(position, Color3.new(1, 1, 1), 2.5, 0.3, true)
+		for _, c in ipairs(CONFETTI) do
+			emit(position + Vector3.new(0, 1, 0), "Sparks", c, 14)
+		end
+		Sfx.PlayAt("CardFlip", position, { Pitch = 1.4, Volume = 1.2 })
+	elseif style == "Vaporize" then
+		puff(position, color, 4.5, 0.5, true)
+		puff(position + Vector3.new(0, 2, 0), Color3.new(1, 1, 1), 2.5, 0.35, true)
+		emit(position, "Sparks", color, 30)
+		emit(position + Vector3.new(0, 2, 0), "Sparks", color, 20)
+		lightFlash(position, color, 6, 20, 0.35)
+	elseif style == "Flames" then
+		emit(position, "Fire", color, 30)
+		emit(position, "Sparks", Color3.fromRGB(255, 200, 80), 26)
+		puff(position, color, 3.5, 0.45, true)
+		lightFlash(position, color, 6, 22, 0.5)
+		Sfx.PlayAt("Explosion", position, { Pitch = 1.3, Volume = 0.8 })
+	elseif style == "Lightning" then
+		local sky = position + Vector3.new(math.random(-4, 4), 60, math.random(-4, 4))
+		local last = sky
+		for i = 1, 6 do
+			local nextPoint = sky:Lerp(position, i / 6) + Vector3.new(math.random() - 0.5, 0, math.random() - 0.5) * (i < 6 and 6 or 0)
+			tracer(last, nextPoint, color, 0.5, 0.35)
+			last = nextPoint
+		end
+		ring(position - Vector3.new(0, 2.5, 0), color, 14, 0.5, true)
+		lightFlash(position, color, 10, 40, 0.3)
+		emit(position, "Sparks", color, 30)
+		Sfx.PlayAt("Explosion", position, { Pitch = 0.7, Volume = 1.2 })
+	elseif style == "Void" then
+		-- a dark sphere that swallows the body, then collapses
+		local sphere = Instance.new("Part")
+		sphere.Shape = Enum.PartType.Ball
+		sphere.Size = Vector3.new(0.5, 0.5, 0.5)
+		sphere.CFrame = CFrame.new(position)
+		sphere.Anchored = true
+		sphere.CanCollide = false
+		sphere.CanQuery = false
+		sphere.CanTouch = false
+		sphere.CastShadow = false
+		sphere.Color = Color3.fromRGB(8, 4, 16)
+		sphere.Material = Enum.Material.SmoothPlastic
+		sphere.Parent = workspace:FindFirstChild("Effects") or getFolder()
+		TweenService:Create(sphere, TweenInfo.new(0.25, Enum.EasingStyle.Back), { Size = Vector3.new(7, 7, 7) }):Play()
+		task.delay(0.45, function()
+			TweenService:Create(sphere, TweenInfo.new(0.35, Enum.EasingStyle.Quint, Enum.EasingDirection.In), { Size = Vector3.new(0.1, 0.1, 0.1) }):Play()
+			task.delay(0.36, function()
+				sphere:Destroy()
+				ring(position, color, 12, 0.4, true)
+				emit(position, "Sparks", color, 24)
+			end)
+		end)
+		ring(position, color, 9, 0.4, true)
+		lightFlash(position, color, 5, 18, 0.6)
+	else
+		shatter(position, data.Color or Palette.PlayerB, data.Headshot)
 	end
 end
 
@@ -538,7 +631,7 @@ local function onEffect(data)
 		puff(data.Position, Palette.Hologram, 3, 0.4, true)
 		emit(data.Position, "Sparks", Palette.Hologram, 16)
 	elseif t == "Kill" then
-		shatter(data.Position, data.Color or Palette.PlayerB, data.Headshot)
+		killEffect(data)
 	elseif t == "SecondWind" then
 		if data.Position then
 			puff(data.Position, Color3.fromRGB(90, 230, 140), 4, 0.6, true)

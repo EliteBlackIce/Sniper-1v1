@@ -35,7 +35,6 @@ src/server/                -> ServerScriptService.Server
   LightingSetup.lua           Future lighting + post effects (arena profile)
   CrateService.lua            crate keys, server-side rolls, owned + equipped skins (DataStore)
   RankService.lua             ranked rating (Elo, DataStore) + the lobby leaderboard wall
-  PassService.lua             battle pass XP + tier rewards, ranked titles
   MapBuilder.lua              builds the lobby and the arena from parts
   ArenaPolygon.lua            compact Rivals-style arena, tall walls + ramps
   ArenaCanyon / Pillars / Bridges / Ziggurat / Quarry.lua   big simple movement maps (in the rotation)
@@ -82,7 +81,7 @@ src/client/                -> StarterPlayerScripts.Client
     PowerUpLab.lua            try any power-up solo in the lobby (B)
     Locker.lua                pick your rifle and knife skins (L)
     Shop.lua                  crates, featured skins, credit packs (Robux), VIP pass (M)
-    BattlePass.lua            the season's battle pass: tiers, free + premium rewards (J)
+    Welcome.lua               the one-time welcome card for new players
 
 assets/SniperRifle.glb        PGM 338 rifle, ready for Studio's 3D Importer (CC-BY-4.0, see Quick start)
 
@@ -249,7 +248,6 @@ Every key below can be rebound in **Settings (P) > Keyboard** or
 | B | **Power-Up Lab** (lobby / playground): try any power-up solo |
 | L | **Locker** (lobby): equip rifle and knife skins |
 | M | **Shop** (lobby): open crates, featured skins, credits, VIP |
-| J | **Battle pass** (lobby) |
 | G | **Playground** (lobby): free roam on the match map with dummies |
 | F [D-pad right] | Find a match / leave the queue (lobby) |
 | U [R-stick click] | Duel a player: challenge someone in the server (lobby) |
@@ -461,9 +459,10 @@ lobby.
 The SHOP has four tabs:
 
 - **CRATES**: open either crate.
-- **FEATURED**: three skins a day (a new set every day, UTC), bought
-  outright with Credits. Prices: Common 40, Uncommon 80, Rare 160, Epic
-  320, Legendary 700.
+- **FEATURED**: three skins (each with a spinning 3D preview) and two
+  cosmetics a day (a new set every day, UTC), bought outright with
+  Credits. Prices: Common 40, Uncommon 80, Rare 160, Epic 320, Legendary
+  700.
 - **CREDITS**: credit packs. These are Developer Products: 100 credits for
   79 R$, 550 for 399, 1200 for 799 and 2600 for 1499. There's also a key pack
   (30 keys for 49 R$; bought keys open crates but can't be wagered).
@@ -472,25 +471,6 @@ The SHOP has four tabs:
 
 **Regions:** in countries where paid random items aren't allowed
 (`PolicyService`), the key pack is hidden, so crates are earn-only there.
-
-## Battle pass
-
-Press **J** (or BATTLE PASS in the lobby). This is Season 1, "First Blood",
-with 30 tiers.
-
-- **Earning XP:** a win gives 300 XP and a loss 120, plus 40 for every
-  round you won. Each tier takes 1000 XP.
-- **Free track:** every tier has a free reward (keys, credits, tracers and
-  titles).
-- **Premium track:** a Game Pass (`Config.Shop.Passes.BattlePass`, 499 R$)
-  adds a better reward to every tier. These include 10 exclusive skins
-  (Striker, Night Ops, Redline, Eclipse and Sovereign, for rifle and knife),
-  plus tracers, kill effects, poses, titles, credits and keys.
-- Rewards are given the moment you reach a tier. Buying Premium later gives
-  you every Premium reward you've already passed.
-- Progress resets when `Config.BattlePass.Season` changes. To start a new
-  season, change it along with the `Tiers` list. Code: `PassService.lua`,
-  `ui/BattlePass.lua`.
 
 ## Cosmetics: tracers, kill effects, poses, titles
 
@@ -513,8 +493,9 @@ Everyone sees them.
   Sharpshooter, Knife Master, Sniper God and S1 Veteran. **Diamond** and
   **Champion** unlock by themselves when you reach that rating in ranked.
 
-They come from the battle pass and ranked. The list is in
-`Config.Cosmetics`, the lookups in `Cosmetics.lua`.
+They're sold in the SHOP's daily FEATURED items (two a day), and the ranked
+titles unlock from your rating. The list is in `Config.Cosmetics`, the
+lookups in `Cosmetics.lua`.
 
 **To start selling:**
 
@@ -533,8 +514,13 @@ touch) to see every skin for each weapon, owned or locked, with a spinning
 saves it, and everyone sees it. Changes made during a match apply from
 the next round.
 
-In Studio, opening is free (`Config.Crates.FreeInStudio`) so you can watch
-the animation as often as you like.
+In Studio, crates take keys like in the real game, but you're topped up to
+1000 keys (`Config.Crates.StudioKeys`) so you can test as much as you like.
+Set `FreeInStudio = true` to make opening free there.
+
+**Daily reward**: the first visit each day (UTC) gives keys: 3, 4, 5, 6, 8,
+10, then 15 for 7+ days in a row (`Config.Crates.DailyKeys`). New players
+also get a one-time welcome card with the main keys.
 
 **The opening**: the camera swoops in and the crate lifts, spins faster and
 shakes while sparks are sucked into it, over a heartbeat that speeds up.

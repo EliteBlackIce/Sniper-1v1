@@ -410,7 +410,16 @@ Config.Body = {
 	-- Seen from outside, the same animation is played lower and a little
 	-- further out (weapons at chest / waist height, not up by the face).
 	ThirdPersonOffset = CFrame.new(0, -0.5, -0.15),
-	ShowUpperArms = false, -- first person: also draw your upper arms (they're mostly off screen)
+	-- First person: slim copies of your avatar's arms (skin, shirt and all)
+	-- and of your weapon, drawn on the camera. Everyone else sees your real
+	-- character doing the same moves.
+	FirstPerson = {
+		ArmThickness = 0.4, -- how wide the copied arms are (your real arms are about 1)
+		HandWidth = 0.42,
+		UpperLength = 1.15, -- shoulder to elbow
+		LowerLength = 1.1, -- elbow to wrist
+		Shoulder = Vector3.new(0.95, -1.3, 0.25), -- the right shoulder, from your eyes (the left is mirrored)
+	},
 	MaxDistance = 300, -- other characters further away than this aren't animated
 	PitchSmoothing = 14, -- how quickly other players' aim follows their updates
 }
@@ -8239,7 +8248,7 @@ return LightingSetup
 	      |  CRATE ====== ( SUNKEN CENTRE ) ====== DUEL |
 	      |  VAULT         (monument,              AREA |
 	       \         /     skylight dome)  \           /
-	         '-. WALL RUN     |      PARKOUR      .-'
+	         '-.  BENCHES     |      PARKOUR      .-'
 	              '-.______ STAGE ___________.-'
 
 	  * Centre: a sunken ring with smooth steps down, the monument (the
@@ -8254,7 +8263,7 @@ return LightingSetup
 	    and two light pillars. Lobby.CrateAltar has the "Open Crate" prompt.
 	  * South: the stage with the title sign.
 	  * Diagonals: the Playground portal, an indoor garden, a parkour corner and
-	    a wall-run wall with a low ceiling (Magnetic Boots).
+	    a quiet corner with a tree and benches.
 
 	Detail parts use builder.decor (no collision), so paths stay smooth.
 ]]
@@ -8381,10 +8390,14 @@ local function plant(b, pos, scale)
 		end
 	end)
 	b.soft(function()
-		b.ball(7.4 * scale, pos + V(0, 9 * scale, 0), C.Foliage)
-		b.ball(5.4 * scale, pos + V(2.4, 8, 1.2) * scale, C.FoliageDark)
-		b.ball(5.4 * scale, pos + V(-2.2, 8.4, -1.6) * scale, C.FoliageLight)
-		b.ball(4.6 * scale, pos + V(0.6, 11.6, 0.4) * scale, C.FoliageLight)
+		for _, parts in ipairs({
+			b.ball(7.4 * scale, pos + V(0, 9 * scale, 0), C.Foliage),
+			b.ball(5.4 * scale, pos + V(2.4, 8, 1.2) * scale, C.FoliageDark),
+			b.ball(5.4 * scale, pos + V(-2.2, 8.4, -1.6) * scale, C.FoliageLight),
+			b.ball(4.6 * scale, pos + V(0.6, 11.6, 0.4) * scale, C.FoliageLight),
+		}) do
+			b.material(parts, Enum.Material.Grass)
+		end
 	end)
 end
 
@@ -8412,14 +8425,25 @@ local function bench(b, cf)
 	end)
 end
 
-local function flowers(b, pos)
+-- A round, leafy shrub: overlapping clumps in three greens, sat on `pos`.
+local function bush(b, pos, size)
+	size = size or 1
 	b.decor(function()
-		for k = 0, 6 do
-			local a = k * 0.9 + pos.Z
-			local r = 0.6 + (k % 3) * 0.7
-			b.ball(0.7, pos + V(math.cos(a) * r, 0.5, math.sin(a) * r), C.Awning[(k % 3) + 1])
+		local parts = {}
+		local function clump(d, offset, color)
+			for _, part in ipairs(b.ball(d * size, pos + offset * size, color)) do
+				part.CastShadow = false
+				table.insert(parts, part)
+			end
 		end
-		b.ball(1.6, pos + V(0, 0.3, 0), C.FoliageDark)
+		clump(2.7, V(0, 1.15, 0), C.Foliage)
+		clump(2.1, V(1.05, 0.9, 0.35), C.FoliageDark)
+		clump(2.1, V(-1.0, 0.9, -0.4), C.FoliageDark)
+		clump(1.9, V(0.35, 0.85, -1.05), C.Foliage)
+		clump(1.9, V(-0.4, 0.85, 1.0), C.FoliageDark)
+		clump(1.6, V(0.25, 2.05, 0.15), C.FoliageLight)
+		clump(1.3, V(-0.55, 1.85, -0.45), C.FoliageLight)
+		b.material(parts, Enum.Material.Grass)
 	end)
 end
 
@@ -8556,8 +8580,8 @@ function LobbyBuilder.Build()
 			if i % 2 == 0 then -- potted plant at the base
 				local pot = polar(COL_R - 3, deg, 0)
 				b.cylinder(1.6, 2.4, pot + V(0, 0.8, 0), C.Trim)
-				b.ball(2.6, pot + V(0, 2.4, 0), C.FoliageDark)
-				b.ball(1.8, pot + V(0.5, 3.2, 0.3), C.Foliage)
+				b.cylinder(0.12, 2.1, pot + V(0, 1.64, 0), C.Soil)
+				bush(b, pot + V(0, 1.4, 0), 0.75)
 			end
 			-- banners between columns: the SNIPER DUEL logo, trimmed in team colours
 			-- (none in front of the four main signs: north, east, south, west)
@@ -8744,8 +8768,10 @@ function LobbyBuilder.Build()
 		b.decor(function()
 			b.part(V(6.4, 0.2, 2.4), CFrame.lookAt(pos + V(0, 1.25, 0), V(0, 1.25, 0)), C.Soil)
 		end)
-		flowers(b, pos + V(1.5, 1.1, 0))
-		flowers(b, pos + V(-1.5, 1.1, 0))
+		local along = V(-outward(deg).Z, 0, outward(deg).X)
+		for _, k in ipairs({ -2.1, 0, 2.1 }) do
+			bush(b, pos + along * k + V(0, 0.9, 0), k == 0 and 0.62 or 0.52)
+		end
 	end
 
 	-- NORTH: TUNNEL TO THE SHOOTING RANGE -----------------------------------------------
@@ -9027,40 +9053,99 @@ function LobbyBuilder.Build()
 		end
 	end)
 
-	-- SOUTH-WEST: WALL-RUN WALL + LOW CEILING ----------------------------------------------------
-	local wallDeg = 225
-	local wallCf = facingIn(50, wallDeg, 7) * CFrame.Angles(0, rad(90), 0)
-	b.part(V(24, 14, 1.4), wallCf, P.Light)
-	b.decor(function()
-		accent(b, b.part(V(24.2, 0.4, 1.6), wallCf * CFrame.new(0, 7.1, 0), P.AccentA))
-		for x = -10, 10, 4 do
-			b.part(V(0.5, 12, 1.5), wallCf * CFrame.new(x, 0, 0), C.Stone)
-		end
-	end)
-	local ceil = polar(42, 245, 14)
-	b.part(V(14, 1.2, 10), CFrame.lookAt(ceil, ceil + outward(245)), P.Mid)
-	for _, dx in ipairs({ -6.2, 6.2 }) do
-		for _, dz in ipairs({ -4.2, 4.2 }) do
-			local post = CFrame.lookAt(ceil, ceil + outward(245)) * CFrame.new(dx, -7, dz)
-			b.part(V(0.9, 13.4, 0.9), post, C.Metal)
-		end
-	end
+	-- SOUTH-WEST: a quiet corner, a bench under a tree
+	plant(b, polar(54, 225), 0.9)
+	bench(b, facingIn(46, 215, 0))
+	bench(b, facingIn(46, 235, 0))
 
-	-- SHOOTING RANGE (north, through the tunnel) --------------------------------------------
-	local rangeStart = -70
-	b.block(V(64, 4, 344), V(0, -2, rangeStart - 172), P.Snow)
-	b.block(V(2, 8, 344), V(32, 4, rangeStart - 172), P.Light, "X")
-	b.block(V(64, 46, 4), V(0, 23, rangeStart - 346), P.Light)
+	-- SHOOTING RANGE (north, through the tunnel): a long indoor hall -----------------------
+	-- Walls, a roof with light strips, a firing line with booths, lane markings
+	-- every 50 studs, hanging distance boards and a target wall at the end.
+	local FRONT, BACK = -75, -414 -- inner faces of the front and back walls
+	local HALF_W, HALL_H = 32, 32 -- half width, ceiling height
+	local length = FRONT - BACK
+	local midZ = (FRONT + BACK) / 2
+	local FIRING = -92 -- the firing line
+	b.material(b.block(V(HALF_W * 2, 4, length), V(0, -2, midZ), P.Light), Enum.Material.SmoothPlastic)
+	b.block(V(2, HALL_H, length), V(HALF_W + 1, HALL_H / 2, midZ), P.Snow, "X") -- side walls
+	b.block(V(HALF_W * 2 + 4, 2, length + 4), V(0, HALL_H + 1, midZ), C.BuildingA) -- roof
+	b.block(V(HALF_W * 2 + 3.8, HALL_H + 1.9, 4), V(0, HALL_H / 2 + 0.95, BACK - 2), C.Dark) -- back wall
+	-- front wall, open where the tunnel comes in (the tunnel's sides are x 8..10)
+	b.block(V(HALF_W - 8, HALL_H, 2), V(-(HALF_W + 12) / 2, HALL_H / 2, FRONT + 0.8), P.Snow, "X") -- x 10..34 (just in front of the tunnel's ends)
+	b.block(V(20, HALL_H - 16, 2), V(0, (HALL_H + 16) / 2, FRONT + 0.8), P.Snow)
 	b.decor(function()
-		for _, z in ipairs({ -120, -170, -270, -370 }) do
-			b.block(V(60, 0.1, 1), V(0, 0.05, z), P.Mid)
+		-- walls: a dark skirting board, slim pilasters and a trim under the roof
+		b.block(V(0.4, 1.2, length), V(HALF_W - 0.2, 0.6, midZ), C.Trim, "X")
+		b.block(V(0.4, 0.6, length), V(HALF_W - 0.2, HALL_H - 0.3, midZ), C.Trim, "X")
+		for z = FRONT - 24, BACK + 12, -24 do
+			b.block(V(0.6, HALL_H - 1.8, 1.4), V(HALF_W - 0.3, HALL_H / 2 + 0.3, z), P.Mid, "X")
+			light(neon(b, b.block(V(0.25, 6, 0.5), V(HALF_W - 0.72, 12, z), P.AccentA, "X")), P.AccentA, 14, 0.6)
 		end
-		neon(b, b.block(V(2.4, 0.5, 344), V(32, 8.25, rangeStart - 172), P.AccentA, "X"))
+		-- ceiling: cross beams and two long light strips
+		for z = FRONT - 12, BACK + 6, -24 do
+			b.block(V(HALF_W * 2, 1.2, 1), V(0, HALL_H - 0.6, z), C.Trim)
+		end
+		for _, x in ipairs({ -11, 11 }) do
+			b.block(V(1.6, 0.3, length - 4), V(x, HALL_H - 1.35, midZ), C.Dark)
+			b.block(V(1.0, 0.2, length - 6), V(x, HALL_H - 1.6, midZ), C.LampLight)
+			neon(b, b.block(V(0.6, 0.12, length - 6), V(x, HALL_H - 1.75, midZ), C.LampLight))
+			for z = FRONT - 20, BACK + 10, -40 do
+				light(b.invisible(b.block(V(0.2, 0.2, 0.2), V(x, HALL_H - 3, z), C.LampLight)), C.LampLight, 60, 1.6)
+			end
+		end
+		-- the floor: lane lines and a marker every 50 studs from the firing line
+		for _, x in ipairs({ -16, 0, 16 }) do
+			b.block(V(0.3, 0.06, FIRING - BACK - 2), V(x, 0.03, (FIRING + BACK) / 2 - 1), P.Mid)
+		end
+		b.block(V(HALF_W * 2, 0.1, 0.6), V(0, 0.05, FIRING - 3), P.AccentB) -- the firing line
+		for d = 50, 300, 50 do
+			local z = FIRING - d
+			b.block(V(HALF_W * 2, 0.08, 0.4), V(0, 0.04, z), C.Trim)
+		end
+		-- the target wall: a big bullseye on the back wall
+		local wallFace = BACK
+		for i, ring in ipairs({ { 26, P.Snow }, { 20, C.Dark }, { 14, P.Snow }, { 8, P.PlayerB }, { 3, P.Snow } }) do
+			b.cylinder(0.2 + i * 0.1, ring[1], nil, ring[2], nil,
+				CFrame.new(0, 15, wallFace + (0.1 + i * 0.1) / 2) * CFrame.Angles(0, rad(90), 0))
+		end
 	end)
-	b.block(V(16, 20, 10), V(12, 10, -300), P.AccentA)
-	b.block(V(8, 5, 3), V(-8, 2.5, -150), P.AccentA)
-	b.block(V(6, 8, 3), V(14, 4, -215), P.Mid)
-	b.block(V(10, 4, 3), V(-6, 2, -330), P.AccentA)
+	-- the firing line: booth counters with glass dividers (an aisle down the middle)
+	for _, x in ipairs({ -24, -12.5 }) do
+		b.block(V(9, 3.2, 1.6), V(x, 1.6, FIRING), C.FrameDark, "X")
+		b.decor(function()
+			b.block(V(9.4, 0.3, 2.2), V(x, 3.35, FIRING), C.Wood, "X")
+		end)
+	end
+	b.decor(function()
+		for _, x in ipairs({ -30.5, -18.5, -7.5 }) do
+			b.block(V(0.6, 7, 0.6), V(x, 3.5, FIRING + 2), C.Metal, "X")
+			for _, pane in ipairs(b.material(b.block(V(0.25, 5.5, 3.4), V(x, 4, FIRING + 0.2), C.Glass, "X"), Enum.Material.Glass)) do
+				pane.Transparency = 0.55
+			end
+		end
+	end)
+	-- hanging distance boards
+	for _, d in ipairs({ 50, 100, 200, 300 }) do
+		local z = FIRING - d
+		local boardCf = CFrame.new(-HALF_W + 7, HALL_H - 6, z) * CFrame.Angles(0, math.pi, 0)
+		sign(model, V(7, 2.4, 0.3), boardCf, tostring(d), "STUDS")
+		b.decor(function()
+			for _, dx in ipairs({ -2.6, 2.6 }) do
+				b.block(V(0.12, 4.8, 0.12), V(-HALF_W + 7 + dx, HALL_H - 2.4, z), C.Metal)
+			end
+		end)
+	end
+	-- cover the dummies move around (some stand on top)
+	local function cover(size, pos, color)
+		b.block(size, pos, color)
+		b.decor(function()
+			b.block(V(size.X + 0.3, 0.3, size.Z + 0.3), pos + V(0, size.Y / 2 + 0.15, 0), C.Trim)
+		end)
+	end
+	cover(V(16, 20, 10), V(12, 10, -300), P.Mid)
+	cover(V(8, 5, 3), V(-8, 2.5, -150), P.AccentA)
+	cover(V(6, 8, 3), V(14, 4, -215), P.Mid)
+	cover(V(10, 4, 3), V(-6, 2, -330), P.AccentA)
 
 	model.Parent = workspace
 	return {
@@ -10778,10 +10863,10 @@ return AimAssist
             <string name="Source"><![CDATA[--[[
 	BodyAnimator.lua  (Client.BodyAnimator)
 
-	Your real character holds and animates the weapons. No separate
-	viewmodel: in first person you see your own forearms and hands (copied
-	from nothing; they're your character's actual parts), and everyone else
-	sees the same animation on your whole character.
+	Your real character holds and animates the weapons: everyone else sees
+	every move on your whole character. In first person you see slim copies
+	of your own arms and weapon playing the same animation
+	(FirstPersonView), so your full-size arms don't fill the screen.
 
 	Every frame (RunService.Stepped, right after Roblox's walk / run
 	animations) for every character near you:
@@ -10816,6 +10901,7 @@ local Sfx = require(script.Parent.Sfx)
 local Keybinds = require(script.Parent.Keybinds)
 local WeaponAnim = require(script.Parent.WeaponAnim)
 local BodyRig = require(script.Parent.BodyRig)
+local FirstPersonView = require(script.Parent.FirstPersonView)
 
 local B = Config.Body
 local VM = Config.Viewmodel
@@ -10986,29 +11072,8 @@ local function animate(model, dt, t, camera)
 			if look.Magnitude > 0.05 and free then
 				root.CFrame = CFrame.lookAt(root.Position, root.Position + look)
 			end
-			-- sway (lags behind the mouse) and walk bob
-			local movement = Controllers.Movement
-			local delta = UserInputService:GetMouseDelta()
-			local scope = Controllers.Weapon.GetScopeAlpha()
-			local swayScale = (1 - scope * 0.9) * VM.SwayAmount
-			swaySpring.Target = Vector3.new(
-				math.clamp(-delta.Y * swayScale, -5, 5),
-				math.clamp(-delta.X * swayScale, -5, 5),
-				math.clamp(-delta.X * swayScale * 0.7, -4, 4)
-			)
-			local sway = swaySpring:Update(dt)
-			local speed = movement.GetSpeed()
-			local running = movement.IsGrounded() and speed > 2 and movement.GetMode() == "Ground"
-			if running then
-				bobTime += dt * (7 + speed * 0.2)
-			end
-			local bob = running and math.clamp(speed / Config.Movement.RunSpeed, 0, 1.4) * (1 - scope) * VM.BobAmount or 0
-			sprintAlpha = Util.lerp(sprintAlpha, movement.IsSprinting() and scope < 0.1 and 1 or 0, Util.smooth(10, dt))
-			view = view
-				* CFrame.new(math.sin(bobTime) * 0.05 * bob, math.sin(bobTime * 2) * 0.035 * bob, 0)
-				* CFrame.Angles(rad(sway.X), rad(sway.Y), rad(sway.Z) + math.sin(bobTime) * rad(2) * bob)
 			ctx.Sprint = sprintAlpha
-			ctx.Scope = scope
+			ctx.Scope = Controllers.Weapon.GetScopeAlpha()
 		end
 	else
 		-- seen from outside: the aim they send, smoothed
@@ -11070,25 +11135,16 @@ local function step(dt)
 	end
 end
 
--- First person: show your own forearms, hands and weapon (Roblox hides your
--- whole character in first person); hide them while scoped or in menus.
-local ARM_PARTS = { "RightLowerArm", "RightHand", "LeftLowerArm", "LeftHand" }
+-- Your real arms and weapon are hidden in first person (Roblox hides your
+-- character there anyway); the kill cam's copy of your killer too, while
+-- you watch through its eyes. You see FirstPersonView's copies instead.
+local ARM_PARTS = { "RightUpperArm", "RightLowerArm", "RightHand", "LeftUpperArm", "LeftLowerArm", "LeftHand" }
 local weaponParts = setmetatable({}, { __mode = "k" }) -- [weapon model] = its parts
-local UPPER_ARMS = { "RightUpperArm", "LeftUpperArm" }
-local function showArms(model, shown)
-	local value = shown and 0 or 1
+local function hideReal(model)
 	for _, name in ipairs(ARM_PARTS) do
 		local part = model:FindFirstChild(name)
 		if part then
-			part.LocalTransparencyModifier = value
-		end
-	end
-	if B.ShowUpperArms then
-		for _, name in ipairs(UPPER_ARMS) do
-			local part = model:FindFirstChild(name)
-			if part then
-				part.LocalTransparencyModifier = value
-			end
+			part.LocalTransparencyModifier = 1
 		end
 	end
 	local state = stateFor(model)
@@ -11109,7 +11165,7 @@ local function showArms(model, shown)
 			end
 			local held = name == weaponName
 			for _, part in ipairs(cache) do
-				part.LocalTransparencyModifier = (shown and held) and 0 or 1
+				part.LocalTransparencyModifier = 1
 				if isCopy then
 					part.Transparency = held and (part:GetAttribute("BaseTransparency") or 0) or 1
 				end
@@ -11118,19 +11174,68 @@ local function showArms(model, shown)
 	end
 end
 
-local function updateVisibility()
-	local character = player.Character
-	if puppet and puppet.Character and puppet.Character.Parent then
-		showArms(puppet.Character, next(hiddenBy) == nil)
+-- Sway (the weapon lags behind the mouse) and walk bob, on top of the eyes.
+local function swayAndBob(dt)
+	local movement = Controllers.Movement
+	local delta = UserInputService:GetMouseDelta()
+	local scope = Controllers.Weapon.GetScopeAlpha()
+	local swayScale = (1 - scope * 0.9) * VM.SwayAmount
+	swaySpring.Target = Vector3.new(
+		math.clamp(-delta.Y * swayScale, -5, 5),
+		math.clamp(-delta.X * swayScale, -5, 5),
+		math.clamp(-delta.X * swayScale * 0.7, -4, 4)
+	)
+	local sway = swaySpring:Update(dt)
+	local speed = movement.GetSpeed()
+	local running = movement.IsGrounded() and speed > 2 and movement.GetMode() == "Ground"
+	if running then
+		bobTime += dt * (7 + speed * 0.2)
 	end
-	if not character then
+	local bob = running and math.clamp(speed / Config.Movement.RunSpeed, 0, 1.4) * (1 - scope) * VM.BobAmount or 0
+	sprintAlpha = Util.lerp(sprintAlpha, movement.IsSprinting() and scope < 0.1 and 1 or 0, Util.smooth(10, dt))
+	return CFrame.new(math.sin(bobTime) * 0.05 * bob, math.sin(bobTime * 2) * 0.035 * bob, 0)
+		* CFrame.Angles(rad(sway.X), rad(sway.Y), rad(sway.Z) + math.sin(bobTime) * rad(2) * bob), scope
+end
+
+-- Each frame, after the camera: draw the first-person arms + weapon.
+local function drawFirstPerson(dt)
+	local camera = workspace.CurrentCamera
+	local character = player.Character
+	local source, state, view
+	local ctx = {}
+	if puppet and puppet.Character and puppet.Character.Parent then
+		hideReal(puppet.Character)
+		if next(hiddenBy) == nil then
+			source, state = puppet.Character, puppet.State
+			view = camera.CFrame * CFrame.new(0, 0, -EYE_BACK)
+		end
+	elseif character and Controllers.Camera.IsFirstPerson() then
+		hideReal(character)
+		local offset, scope = swayAndBob(dt)
+		if isAlive(character) and next(hiddenBy) == nil and scope < 0.92 and ClientState.HasGun() then
+			source, state = character, localState
+			view = camera.CFrame * CFrame.new(0, 0, -EYE_BACK) * offset
+			ctx.Sprint, ctx.Scope = sprintAlpha, scope
+		end
+	end
+	local entry = source and getEntry(source)
+	if not entry then
+		FirstPersonView.Hide()
 		return
 	end
-	local firstPerson = Controllers.Camera.IsFirstPerson() and not puppet
-	if firstPerson then
-		local scope = Controllers.Weapon.GetScopeAlpha()
-		local shown = isAlive(character) and next(hiddenBy) == nil and scope < 0.92 and ClientState.HasGun()
-		showArms(character, shown)
+	ctx.Profile = profileFor(entry)
+	local anim = WeaponAnim.Evaluate(state, now(), ctx)
+	FirstPersonView.Draw(source, view, anim, anim.Body, state.Weapon == "Knife" and "WorldKnife" or "WorldGun")
+end
+
+local function updateVisibility(dt)
+	local ok, err = pcall(drawFirstPerson, dt)
+	if not ok then
+		FirstPersonView.Hide()
+		if not warnedErrors[err] then
+			warnedErrors[err] = true
+			warn("[BodyAnimator] first person: " .. tostring(err))
+		end
 	end
 	-- tell everyone when you're aiming down the scope
 	local scoped = Controllers.Weapon.GetScopeAlpha() > 0.5
@@ -11190,9 +11295,8 @@ function BodyAnimator.PlayKnife(kind)
 		if WeaponAnim.Inspect(state, t) and not puppet then
 			local length = WeaponAnim.Clips.Inspect.Length
 			Sfx.Play("CardHover", { Pitch = 0.8, Volume = 1.2 })
-			task.delay(length * 0.29, Sfx.Play, "CardFlip", { Pitch = 1.1, Volume = 0.8 })
-			task.delay(length * 0.5, Sfx.Play, "Bolt", { Pitch = 1.5, Volume = 0.7 })
-			task.delay(length * 0.62, Sfx.Play, "CardFlip", { Pitch = 1.5, Volume = 0.5 })
+			task.delay(length * 0.42, Sfx.Play, "CardFlip", { Pitch = 1.1, Volume = 0.8 }) -- tossed
+			task.delay(length * 0.6, Sfx.Play, "Bolt", { Pitch = 1.5, Volume = 0.7 }) -- caught
 		end
 		return
 	end
@@ -11205,6 +11309,10 @@ local function weaponRootOf(model, name)
 end
 
 function BodyAnimator.GetKnifeTip()
+	local tip = FirstPersonView.GetKnifeTip()
+	if tip then
+		return tip
+	end
 	local root = weaponRootOf(puppet and puppet.Character or player.Character, "WorldKnife")
 	if root then
 		return (root.CFrame * CFrame.new(KnifeModel.Tip * Config.Knife.WorldScale)).Position
@@ -11213,6 +11321,10 @@ function BodyAnimator.GetKnifeTip()
 end
 
 function BodyAnimator.GetMuzzlePosition()
+	local fp = FirstPersonView.GetMuzzle()
+	if fp then
+		return fp
+	end
 	local model = puppet and puppet.Character or player.Character
 	local gun = model and model:FindFirstChild("WorldGun")
 	local barrel = gun and gun:FindFirstChild("Barrel")
@@ -11224,6 +11336,10 @@ function BodyAnimator.GetMuzzlePosition()
 end
 
 function BodyAnimator.GetLeftHandPosition()
+	local fp = FirstPersonView.GetLeftHand()
+	if fp then
+		return fp
+	end
 	local hand = player.Character and player.Character:FindFirstChild("LeftHand")
 	return hand and hand.Position or workspace.CurrentCamera.CFrame.Position
 end
@@ -11231,9 +11347,6 @@ end
 -- Kill cam: play through someone's eyes, their real arms in view.
 -- info = { Character = Model, Owned = {...} } or nil to stop.
 function BodyAnimator.SetPuppet(info)
-	if puppet and puppet.Character and puppet.Character.Parent then
-		showArms(puppet.Character, false)
-	end
 	if info and info.Character then
 		local state = WeaponAnim.New()
 		state.Weapon = info.Character:GetAttribute("Weapon") == "Knife" and "Knife" or "Sniper"
@@ -13595,6 +13708,396 @@ return Effects
         </Item>
         <Item class="ModuleScript" referent="45">
           <Properties>
+            <string name="Name">FirstPersonView</string>
+            <string name="Source"><![CDATA[--[[
+	FirstPersonView.lua  (Client.FirstPersonView)
+
+	What you see in first person: slim copies of your own avatar's arms
+	(skin colour, shirt and all) holding a copy of your own weapon (with
+	your power-ups), drawn on the camera every frame so nothing lags.
+
+	Your real character still does every move at full size; that's what
+	everyone else sees (BodyAnimator). The copies play the SAME animation
+	(WeaponAnim): the weapon goes exactly where it goes on your real body,
+	and the arms reach it from shoulders just under the camera.
+
+		FirstPersonView.Draw(source, view, anim, body)   -- each frame
+		FirstPersonView.Hide()
+		FirstPersonView.GetMuzzle() / GetKnifeTip()      -- (nil while hidden)
+
+	source = the character whose arms and weapon to copy (you, or the kill
+	cam's copy of your killer); view = the eyes (CFrame); anim = the
+	WeaponAnim.Evaluate output.
+]]
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Config = require(Shared.Config)
+local KnifeModel = require(Shared.KnifeModel)
+
+local FP = Config.Body.FirstPerson
+local V = Vector3.new
+local rad = math.rad
+
+local FirstPersonView = {}
+
+local ARM_NAMES = { "RightUpperArm", "RightLowerArm", "RightHand", "LeftUpperArm", "LeftLowerArm", "LeftHand" }
+local R6_ARMS = { Right = "Right Arm", Left = "Left Arm" }
+local KEEP = { SurfaceAppearance = true, SpecialMesh = true, Decal = true, Texture = true }
+
+local folder -- in the camera
+local arms -- { Source, Model, Parts = {[name] = part}, Base = {[name] = size}, Dirty }
+local weapons = {} -- [name] = { Source, Model, Root, Items = { {Part, Offset, Bolt} }, BoltRest, Muzzle, Tip }
+local shown = false
+local current -- the weapon copy drawn this frame
+
+----------------------------------------------------------------------------
+-- Building the copies
+----------------------------------------------------------------------------
+local function setup(part)
+	part.Anchored = true
+	part.CanCollide = false
+	part.CanQuery = false
+	part.CanTouch = false
+	part.CastShadow = false
+	part.Massless = true
+	part.LocalTransparencyModifier = 0
+end
+
+local function strip(part, keep)
+	for _, child in ipairs(part:GetChildren()) do
+		if not keep(child) then
+			child:Destroy()
+		end
+	end
+end
+
+local function ensureFolder()
+	local camera = workspace.CurrentCamera
+	if not folder or folder.Parent ~= camera then
+		if folder then
+			folder:Destroy()
+		end
+		folder = Instance.new("Folder")
+		folder.Name = "FirstPerson"
+		folder.Parent = camera
+		arms = nil
+		table.clear(weapons)
+	end
+	return folder
+end
+
+-- plain blocks in the avatar's skin colour (characters without R15 arms)
+local function plainArms(source, model)
+	local colors = source:FindFirstChildOfClass("BodyColors")
+	local parts, base = {}, {}
+	for _, name in ipairs(ARM_NAMES) do
+		local side = name:sub(1, 1) == "R" and "Right" or "Left"
+		local part = Instance.new("Part")
+		part.Name = name
+		part.Size = V(1, 1, 1)
+		local arm = source:FindFirstChild(R6_ARMS[side])
+		part.Color = colors and colors[side .. "ArmColor3"] or (arm and arm.Color) or Color3.fromRGB(234, 184, 146)
+		part.Material = Enum.Material.SmoothPlastic
+		part.TopSurface = Enum.SurfaceType.Smooth
+		part.BottomSurface = Enum.SurfaceType.Smooth
+		setup(part)
+		part.Parent = model
+		parts[name] = part
+		base[name] = V(1, name:find("Hand") and 0.35 or 1, 1)
+	end
+	return parts, base
+end
+
+local function buildArms(source)
+	if arms then
+		arms.Model:Destroy()
+		if arms.Connection then
+			arms.Connection:Disconnect()
+		end
+	end
+	local model = Instance.new("Model")
+	model.Name = "Arms"
+	-- (a Humanoid in the model is what makes the shirt show up on the copies)
+	local humanoid = Instance.new("Humanoid")
+	humanoid.RigType = Enum.HumanoidRigType.R15
+	humanoid.RequiresNeck = false
+	humanoid.BreakJointsOnDeath = false
+	humanoid.EvaluateStateMachine = false
+	humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+	humanoid.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
+	humanoid.Parent = model
+	for _, item in ipairs(source:GetChildren()) do
+		if item:IsA("Shirt") or item:IsA("BodyColors") then
+			item:Clone().Parent = model
+		end
+	end
+	local parts, base = {}, {}
+	local ok = true
+	for _, name in ipairs(ARM_NAMES) do
+		local original = source:FindFirstChild(name)
+		local copied, part = false, nil
+		if original and original:IsA("BasePart") then
+			copied, part = pcall(original.Clone, original)
+		end
+		if not copied or not part then
+			ok = false
+			break
+		end
+		strip(part, function(child)
+			return KEEP[child.ClassName] == true
+		end)
+		setup(part)
+		part.Transparency = 0
+		part.Parent = model
+		parts[name] = part
+		base[name] = original.Size
+	end
+	if not ok then
+		for _, part in pairs(parts) do
+			part:Destroy()
+		end
+		parts, base = plainArms(source, model)
+	end
+	model.Parent = ensureFolder()
+	arms = { Source = source, Model = model, Parts = parts, Base = base }
+	-- the avatar's look can arrive after the character does: rebuild then
+	local entry = arms
+	entry.Connection = source.ChildAdded:Connect(function(child)
+		if child:IsA("Shirt") or child:IsA("BodyColors") or table.find(ARM_NAMES, child.Name) then
+			entry.Dirty = true
+		end
+	end)
+end
+
+local function weldedToBolt(part, boltRoot)
+	if not boltRoot then
+		return false
+	end
+	for _, item in ipairs(part:GetChildren()) do
+		if item:IsA("WeldConstraint") or item:IsA("JointInstance") then
+			if item.Part0 == boltRoot or item.Part1 == boltRoot then
+				return true
+			end
+		end
+	end
+	return false
+end
+
+-- A copy of a held weapon (WorldGun / WorldKnife), every part at its offset
+-- from the weapon's root (bolt parts from the bolt).
+local function buildWeapon(source)
+	local root = source:FindFirstChild("WeaponRoot")
+	if not root then
+		return nil
+	end
+	local boltRoot = source:FindFirstChild("BoltRoot")
+	local boltJoint = root:FindFirstChild("BoltJoint")
+	local model = Instance.new("Model")
+	model.Name = source.Name
+	local copy = { Source = source, Model = model, Items = {}, BoltRest = boltJoint and boltJoint.C0 or CFrame.new() }
+	local count = 0
+	for _, part in ipairs(source:GetDescendants()) do
+		if part:IsA("BasePart") and part ~= root and part ~= boltRoot then
+			count += 1
+			local onBolt = weldedToBolt(part, boltRoot)
+			local from = onBolt and boltRoot.CFrame or root.CFrame
+			local clone = part:Clone()
+			strip(clone, function(child)
+				return not (child:IsA("JointInstance") or child:IsA("WeldConstraint") or child:IsA("Constraint") or child:IsA("BasePart") or child:IsA("LuaSourceContainer"))
+			end)
+			setup(clone)
+			clone.Transparency = part:GetAttribute("BaseTransparency") or part.Transparency
+			clone.Parent = model
+			table.insert(copy.Items, { Part = clone, Offset = from:ToObjectSpace(part.CFrame), Bolt = onBolt })
+			if part.Name == "Barrel" then
+				copy.Muzzle = clone:FindFirstChild("Muzzle")
+			end
+		end
+	end
+	copy.Count = count
+	copy.Parts = table.create(#copy.Items)
+	for i, item in ipairs(copy.Items) do
+		copy.Parts[i] = item.Part
+	end
+	copy.CFrames = table.create(#copy.Items)
+	model.Parent = ensureFolder()
+	return copy
+end
+
+local function weaponCopy(source, name)
+	local original = source:FindFirstChild(name)
+	local copy = weapons[name]
+	if copy and (copy.Source ~= original or not original) then
+		copy.Model:Destroy()
+		copy, weapons[name] = nil, nil
+	end
+	if original and not copy then
+		copy = buildWeapon(original)
+		weapons[name] = copy
+	end
+	return copy
+end
+
+----------------------------------------------------------------------------
+-- Placing the arms
+----------------------------------------------------------------------------
+-- Where the elbow goes for a shoulder S and a wrist W (bending toward `pole`).
+local function solveElbow(S, W, pole, upper, lower)
+	local toW = W - S
+	local d = math.clamp(toW.Magnitude, math.abs(upper - lower) + 0.01, upper + lower - 0.002)
+	local dir = toW.Magnitude > 1e-4 and toW.Unit or V(0, -1, 0)
+	local cosA = math.clamp((upper * upper + d * d - lower * lower) / (2 * upper * d), -1, 1)
+	local sinA = math.sqrt(1 - cosA * cosA)
+	local side = pole - dir * pole:Dot(dir)
+	side = side.Magnitude > 1e-4 and side.Unit or V(0, -1, 0)
+	return S + dir * upper * cosA + side * upper * sinA, side
+end
+
+-- Resizes a copied limb (rounded, so meshes aren't resized every frame).
+local function resize(part, size)
+	if (part.Size - size).Magnitude > 0.004 then
+		part.Size = size
+	end
+end
+
+-- A limb from a to b (its -Y runs a -> b), its front (-Z) facing `front`.
+local function limb(name, a, b, front, thick)
+	local part, base = arms.Parts[name], arms.Base[name]
+	local length = math.max(math.floor((b - a).Magnitude * 20 + 0.5) / 20, 0.05)
+	local k = thick / math.max(base.X, 0.01)
+	resize(part, V(base.X * k, length, base.Z * k))
+	local down = (b - a).Unit
+	local z = -(front - down * front:Dot(down))
+	z = z.Magnitude > 1e-3 and z.Unit or (math.abs(down.Y) < 0.9 and V(0, 1, 0):Cross(down).Unit or V(1, 0, 0))
+	local y = -down
+	return CFrame.fromMatrix((a + b) / 2, y:Cross(z), y, z)
+end
+
+local function placeArm(side, view, handCF, body, parts, cframes)
+	local sx = side == "Right" and 1 or -1
+	local look, down = view.LookVector, -view.UpVector
+	-- the shoulders turn and lean with the body
+	local lean = rad(body.Lean or 0)
+	local chest = view
+		* CFrame.new(0, FP.Shoulder.Y, FP.Shoulder.Z - (body.Forward or 0) - math.sin(lean) * 1.3)
+		* CFrame.Angles(0, -rad(body.Yaw or 0), 0)
+	local shoulder = (chest * CFrame.new(FP.Shoulder.X * sx, 0, 0)).Position
+
+	local handName = side .. "Hand"
+	local handBase = arms.Base[handName]
+	local handSize = handBase * (FP.HandWidth / math.max(handBase.X, 0.01))
+	resize(arms.Parts[handName], handSize)
+	local wrist = (handCF * CFrame.new(0, handSize.Y / 2, 0)).Position
+	local pole = (view.RightVector * (0.7 * sx) + down - look * 0.15).Unit
+	local elbow, bend = solveElbow(shoulder, wrist, pole, FP.UpperLength, FP.LowerLength)
+
+	local upperDir = (elbow - shoulder).Unit
+	local lowerDir = (wrist - elbow).Unit
+	-- inner elbows face each other (falls back to away from the bend when straight)
+	local upperFront = lowerDir - upperDir * lowerDir:Dot(upperDir)
+	upperFront = upperFront.Magnitude > 0.05 and upperFront or -bend
+	local lowerFront = -upperDir + lowerDir * upperDir:Dot(lowerDir)
+	lowerFront = lowerFront.Magnitude > 0.05 and lowerFront or -bend
+
+	local thick = FP.ArmThickness
+	table.insert(parts, arms.Parts[handName])
+	table.insert(cframes, handCF)
+	table.insert(parts, arms.Parts[side .. "LowerArm"])
+	table.insert(cframes, limb(side .. "LowerArm", elbow, wrist, lowerFront, thick * 0.92))
+	table.insert(parts, arms.Parts[side .. "UpperArm"])
+	table.insert(cframes, limb(side .. "UpperArm", shoulder, elbow, upperFront, thick))
+end
+
+----------------------------------------------------------------------------
+-- API
+----------------------------------------------------------------------------
+local function setShown(value)
+	if shown == value then
+		return
+	end
+	shown = value
+	if folder then
+		for _, part in ipairs(folder:GetDescendants()) do
+			if part:IsA("BasePart") then
+				part.LocalTransparencyModifier = value and 0 or 1
+			end
+		end
+	end
+end
+
+function FirstPersonView.Hide()
+	setShown(false)
+	current = nil
+end
+
+-- weaponName: "WorldGun" or "WorldKnife"
+function FirstPersonView.Draw(source, view, anim, body, weaponName)
+	ensureFolder()
+	if not arms or arms.Source ~= source or arms.Dirty or not arms.Model.Parent then
+		buildArms(source) -- (new parts start visible)
+	end
+	setShown(true)
+	local parts, cframes = {}, {}
+	placeArm("Right", view, view * anim.Right, body or {}, parts, cframes)
+	placeArm("Left", view, view * anim.Left, body or {}, parts, cframes)
+
+	-- the weapon in hand; the other one is put away
+	current = nil
+	for _, name in ipairs({ "WorldGun", "WorldKnife" }) do
+		local copy = weaponCopy(source, name)
+		if copy then
+			local held = name == weaponName
+			for _, part in ipairs(copy.Parts) do
+				part.LocalTransparencyModifier = held and 0 or 1
+			end
+			if held then
+				current = copy
+				local root = view * anim.Weapon
+				local bolt = root * copy.BoltRest * (anim.Bolt or CFrame.new())
+				for i, item in ipairs(copy.Items) do
+					copy.CFrames[i] = (item.Bolt and bolt or root) * item.Offset
+				end
+				copy.Root = root
+				workspace:BulkMoveTo(copy.Parts, copy.CFrames, Enum.BulkMoveMode.FireCFrameChanged)
+			end
+		end
+	end
+	workspace:BulkMoveTo(parts, cframes, Enum.BulkMoveMode.FireCFrameChanged)
+end
+
+function FirstPersonView.IsShown()
+	return shown
+end
+
+function FirstPersonView.GetMuzzle()
+	if shown and current and current.Muzzle then
+		return current.Muzzle.WorldPosition
+	end
+	return nil
+end
+
+function FirstPersonView.GetKnifeTip()
+	if shown and current and current.Source.Name == "WorldKnife" and current.Root then
+		return (current.Root * CFrame.new(KnifeModel.Tip * Config.Knife.WorldScale)).Position
+	end
+	return nil
+end
+
+function FirstPersonView.GetLeftHand()
+	if shown and arms and arms.Parts.LeftHand then
+		return arms.Parts.LeftHand.Position
+	end
+	return nil
+end
+
+return FirstPersonView
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="46">
+          <Properties>
             <string name="Name">Keybinds</string>
             <string name="Source"><![CDATA[--[[
 	Keybinds.lua  (Client.Keybinds)
@@ -13732,7 +14235,7 @@ return Keybinds
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="46">
+        <Item class="ModuleScript" referent="47">
           <Properties>
             <string name="Name">KillCamController</string>
             <string name="Source"><![CDATA[--[[
@@ -14301,7 +14804,7 @@ return KillCam
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="47">
+        <Item class="ModuleScript" referent="48">
           <Properties>
             <string name="Name">KnifeController</string>
             <string name="Source"><![CDATA[--[[
@@ -14311,7 +14814,7 @@ return KillCam
 		1 / 2 / mouse wheel   switch rifle <-> knife (ButtonR1 on a controller)
 		Left click            slash (alternates left / right, leaves a trail)
 		Right click           stab: wind up, then a short lunge forward
-		V                     inspect: toss it up and catch it, or twirl it
+		V                     inspect: look it over, toss it and catch it
 
 	With the knife out you run a little faster (MovementController) and the
 	rifle can't fire (WeaponController / the server both check).
@@ -14634,7 +15137,7 @@ return KnifeController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="48">
+        <Item class="ModuleScript" referent="49">
           <Properties>
             <string name="Name">LightingController</string>
             <string name="Source"><![CDATA[--[[
@@ -14746,7 +15249,7 @@ return LightingController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="LocalScript" referent="49">
+        <Item class="LocalScript" referent="50">
           <Properties>
             <string name="Name">Main</string>
             <string name="Source"><![CDATA[--[[
@@ -14822,7 +15325,7 @@ end
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="50">
+        <Item class="ModuleScript" referent="51">
           <Properties>
             <string name="Name">MovementController</string>
             <string name="Source"><![CDATA[--[[
@@ -15830,7 +16333,7 @@ return Movement
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="51">
+        <Item class="ModuleScript" referent="52">
           <Properties>
             <string name="Name">Sfx</string>
             <string name="Source"><![CDATA[--[[
@@ -15887,7 +16390,7 @@ return Sfx
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="52">
+        <Item class="ModuleScript" referent="53">
           <Properties>
             <string name="Name">Spring</string>
             <string name="Source"><![CDATA[--[[
@@ -15933,7 +16436,7 @@ return Spring
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="53">
+        <Item class="ModuleScript" referent="54">
           <Properties>
             <string name="Name">UIController</string>
             <string name="Source"><![CDATA[--[[
@@ -16025,7 +16528,7 @@ return UIController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="54">
+        <Item class="ModuleScript" referent="55">
           <Properties>
             <string name="Name">WeaponAnim</string>
             <string name="Source"><![CDATA[--[[
@@ -16351,26 +16854,27 @@ CLIPS.Stab = {
 	},
 }
 
--- Inspect: turn the blade to the light, flip it over, toss it end over end
--- and catch it, roll it into a reverse grip, flip it back.
-local SHOW = aim(V(0.25, -0.42, -1.15), V(-1, 0.25, -0.25), V(0, -1, 0))
-local SHOW_FLIP = SHOW * CFrame.Angles(0, 0, math.pi)
-local TOSS_HOLD = aim(V(0.35, -0.6, -1.25), V(-0.1, 1, -0.25), V(-1, 0, 0))
-local REVERSE = aim(V(0.45, -0.5, -1.1), V(-0.1, -1, -0.3), V(0, 0.3, -1))
+-- Inspect: just handling it. Bring it up and look along the flat, tip it
+-- up to check the edge, a little toss (the knife turns over once in the
+-- air, not your wrist), catch, and back down. Every turn of the hand stays
+-- within what a real wrist does.
+local SHOW = aim(V(0.25, -0.45, -1.15), V(-1, 0.25, -0.3), V(0, -1, 0.15))
+local SHOW_TILT = aim(V(0.22, -0.4, -1.12), V(-1, 0.35, -0.2), V(0, -0.85, 0.5))
+local SHOW_EDGE = aim(V(0.32, -0.42, -1.15), V(-0.2, 1, -0.2), V(-0.45, 0, 0.9))
+local TOSS_HOLD = aim(V(0.35, -0.6, -1.2), V(-0.1, 1, -0.25), V(-1, 0, 0.3))
 CLIPS.Inspect = {
-	Length = 2.9,
-	Toss = { From = 0.29, To = 0.5, Height = 1.25, Spins = -2, Catch = 6 },
+	Length = 2.6,
+	Toss = { From = 0.42, To = 0.6, Height = 0.9, Spins = -1, Catch = 7 },
 	Keys = {
 		{ T = 0, Weapon = "BASE" },
-		{ T = 0.1, Weapon = SHOW, Body = { NeckPitch = -10, NeckYaw = 6 } },
-		{ T = 0.2, Weapon = SHOW_FLIP, Body = { NeckPitch = -10, NeckYaw = 8 } },
-		{ T = 0.26, Weapon = TOSS_HOLD * CFrame.new(0, -0.12, 0), Body = { NeckPitch = -6 } },
-		{ T = 0.29, Weapon = TOSS_HOLD, Body = { NeckPitch = 4 } },
-		{ T = 0.5, Weapon = TOSS_HOLD, Body = { NeckPitch = 8 } },
-		{ T = 0.55, Weapon = TOSS_HOLD * CFrame.new(0, -0.15, 0), Body = { NeckPitch = -2, Dip = 0.05 } },
-		{ T = 0.68, Weapon = REVERSE, Body = { NeckPitch = -8, Yaw = 6 } },
-		{ T = 0.8, Weapon = REVERSE * CFrame.Angles(0, rad(-160), 0), Body = { NeckPitch = -8, Yaw = 8 } },
-		{ T = 0.9, Weapon = KNIFE_IDLE * CFrame.Angles(rad(-25), 0, 0) },
+		{ T = 0.12, Weapon = SHOW, Body = { NeckPitch = -10, NeckYaw = 6 } },
+		{ T = 0.22, Weapon = SHOW_TILT, Body = { NeckPitch = -11, NeckYaw = 8 } },
+		{ T = 0.32, Weapon = SHOW_EDGE, Body = { NeckPitch = -8, NeckYaw = 4 } },
+		{ T = 0.38, Weapon = TOSS_HOLD * CFrame.new(0, -0.12, 0), Body = { NeckPitch = -4 } },
+		{ T = 0.42, Weapon = TOSS_HOLD, Body = { NeckPitch = 4 } },
+		{ T = 0.6, Weapon = TOSS_HOLD, Body = { NeckPitch = 6 } },
+		{ T = 0.67, Weapon = TOSS_HOLD * CFrame.new(0, -0.14, 0), Body = { NeckPitch = -2, Dip = 0.05 } },
+		{ T = 0.84, Weapon = KNIFE_IDLE * CFrame.Angles(rad(-18), 0, 0) },
 		{ T = 1, Weapon = "BASE" },
 	},
 }
@@ -16513,7 +17017,7 @@ return WeaponAnim
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="55">
+        <Item class="ModuleScript" referent="56">
           <Properties>
             <string name="Name">WeaponController</string>
             <string name="Source"><![CDATA[--[[
@@ -16764,11 +17268,11 @@ return Weapon
 ]]></string>
           </Properties>
         </Item>
-        <Item class="Folder" referent="56">
+        <Item class="Folder" referent="57">
           <Properties>
             <string name="Name">ui</string>
           </Properties>
-          <Item class="ModuleScript" referent="57">
+          <Item class="ModuleScript" referent="58">
             <Properties>
               <string name="Name">CrateReveal</string>
               <string name="Source"><![CDATA[--[[
@@ -17265,7 +17769,7 @@ return CrateReveal
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="58">
+          <Item class="ModuleScript" referent="59">
             <Properties>
               <string name="Name">DuelUI</string>
               <string name="Source"><![CDATA[--[[
@@ -17574,7 +18078,7 @@ return DuelUI
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="59">
+          <Item class="ModuleScript" referent="60">
             <Properties>
               <string name="Name">HUD</string>
               <string name="Source"><![CDATA[--[[
@@ -18468,7 +18972,7 @@ return HUD
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="60">
+          <Item class="ModuleScript" referent="61">
             <Properties>
               <string name="Name">Icons</string>
               <string name="Source"><![CDATA[--[[
@@ -18530,7 +19034,7 @@ return Icons
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="61">
+          <Item class="ModuleScript" referent="62">
             <Properties>
               <string name="Name">LobbyUI</string>
               <string name="Source"><![CDATA[--[[
@@ -19699,7 +20203,7 @@ return LobbyUI
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="62">
+          <Item class="ModuleScript" referent="63">
             <Properties>
               <string name="Name">MobileControls</string>
               <string name="Source"><![CDATA[--[[
@@ -19933,7 +20437,7 @@ return MobileControls
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="63">
+          <Item class="ModuleScript" referent="64">
             <Properties>
               <string name="Name">PickScreen</string>
               <string name="Source"><![CDATA[--[[
@@ -20710,7 +21214,7 @@ return PickScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="64">
+          <Item class="ModuleScript" referent="65">
             <Properties>
               <string name="Name">PowerUpLab</string>
               <string name="Source"><![CDATA[--[[
@@ -21011,7 +21515,7 @@ return PowerUpLab
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="65">
+          <Item class="ModuleScript" referent="66">
             <Properties>
               <string name="Name">SettingsMenu</string>
               <string name="Source"><![CDATA[--[[
@@ -21540,7 +22044,7 @@ return SettingsMenu
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="66">
+          <Item class="ModuleScript" referent="67">
             <Properties>
               <string name="Name">Theme</string>
               <string name="Source"><![CDATA[--[[
@@ -21850,7 +22354,7 @@ return Theme
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="67">
+          <Item class="ModuleScript" referent="68">
             <Properties>
               <string name="Name">Toast</string>
               <string name="Source"><![CDATA[--[[
@@ -21937,7 +22441,7 @@ return Toast
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="68">
+          <Item class="ModuleScript" referent="69">
             <Properties>
               <string name="Name">VictoryScreen</string>
               <string name="Source"><![CDATA[--[[

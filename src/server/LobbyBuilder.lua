@@ -15,7 +15,7 @@
 	      |  CRATE ====== ( SUNKEN CENTRE ) ====== DUEL |
 	      |  VAULT         (monument,              AREA |
 	       \         /     skylight dome)  \           /
-	         '-. WALL RUN     |      PARKOUR      .-'
+	         '-.  BENCHES     |      PARKOUR      .-'
 	              '-.______ STAGE ___________.-'
 
 	  * Centre: a sunken ring with smooth steps down, the monument (the
@@ -30,7 +30,7 @@
 	    and two light pillars. Lobby.CrateAltar has the "Open Crate" prompt.
 	  * South: the stage with the title sign.
 	  * Diagonals: the Playground portal, an indoor garden, a parkour corner and
-	    a wall-run wall with a low ceiling (Magnetic Boots).
+	    a quiet corner with a tree and benches.
 
 	Detail parts use builder.decor (no collision), so paths stay smooth.
 ]]
@@ -157,10 +157,14 @@ local function plant(b, pos, scale)
 		end
 	end)
 	b.soft(function()
-		b.ball(7.4 * scale, pos + V(0, 9 * scale, 0), C.Foliage)
-		b.ball(5.4 * scale, pos + V(2.4, 8, 1.2) * scale, C.FoliageDark)
-		b.ball(5.4 * scale, pos + V(-2.2, 8.4, -1.6) * scale, C.FoliageLight)
-		b.ball(4.6 * scale, pos + V(0.6, 11.6, 0.4) * scale, C.FoliageLight)
+		for _, parts in ipairs({
+			b.ball(7.4 * scale, pos + V(0, 9 * scale, 0), C.Foliage),
+			b.ball(5.4 * scale, pos + V(2.4, 8, 1.2) * scale, C.FoliageDark),
+			b.ball(5.4 * scale, pos + V(-2.2, 8.4, -1.6) * scale, C.FoliageLight),
+			b.ball(4.6 * scale, pos + V(0.6, 11.6, 0.4) * scale, C.FoliageLight),
+		}) do
+			b.material(parts, Enum.Material.Grass)
+		end
 	end)
 end
 
@@ -188,14 +192,25 @@ local function bench(b, cf)
 	end)
 end
 
-local function flowers(b, pos)
+-- A round, leafy shrub: overlapping clumps in three greens, sat on `pos`.
+local function bush(b, pos, size)
+	size = size or 1
 	b.decor(function()
-		for k = 0, 6 do
-			local a = k * 0.9 + pos.Z
-			local r = 0.6 + (k % 3) * 0.7
-			b.ball(0.7, pos + V(math.cos(a) * r, 0.5, math.sin(a) * r), C.Awning[(k % 3) + 1])
+		local parts = {}
+		local function clump(d, offset, color)
+			for _, part in ipairs(b.ball(d * size, pos + offset * size, color)) do
+				part.CastShadow = false
+				table.insert(parts, part)
+			end
 		end
-		b.ball(1.6, pos + V(0, 0.3, 0), C.FoliageDark)
+		clump(2.7, V(0, 1.15, 0), C.Foliage)
+		clump(2.1, V(1.05, 0.9, 0.35), C.FoliageDark)
+		clump(2.1, V(-1.0, 0.9, -0.4), C.FoliageDark)
+		clump(1.9, V(0.35, 0.85, -1.05), C.Foliage)
+		clump(1.9, V(-0.4, 0.85, 1.0), C.FoliageDark)
+		clump(1.6, V(0.25, 2.05, 0.15), C.FoliageLight)
+		clump(1.3, V(-0.55, 1.85, -0.45), C.FoliageLight)
+		b.material(parts, Enum.Material.Grass)
 	end)
 end
 
@@ -332,8 +347,8 @@ function LobbyBuilder.Build()
 			if i % 2 == 0 then -- potted plant at the base
 				local pot = polar(COL_R - 3, deg, 0)
 				b.cylinder(1.6, 2.4, pot + V(0, 0.8, 0), C.Trim)
-				b.ball(2.6, pot + V(0, 2.4, 0), C.FoliageDark)
-				b.ball(1.8, pot + V(0.5, 3.2, 0.3), C.Foliage)
+				b.cylinder(0.12, 2.1, pot + V(0, 1.64, 0), C.Soil)
+				bush(b, pot + V(0, 1.4, 0), 0.75)
 			end
 			-- banners between columns: the SNIPER DUEL logo, trimmed in team colours
 			-- (none in front of the four main signs: north, east, south, west)
@@ -520,8 +535,10 @@ function LobbyBuilder.Build()
 		b.decor(function()
 			b.part(V(6.4, 0.2, 2.4), CFrame.lookAt(pos + V(0, 1.25, 0), V(0, 1.25, 0)), C.Soil)
 		end)
-		flowers(b, pos + V(1.5, 1.1, 0))
-		flowers(b, pos + V(-1.5, 1.1, 0))
+		local along = V(-outward(deg).Z, 0, outward(deg).X)
+		for _, k in ipairs({ -2.1, 0, 2.1 }) do
+			bush(b, pos + along * k + V(0, 0.9, 0), k == 0 and 0.62 or 0.52)
+		end
 	end
 
 	-- NORTH: TUNNEL TO THE SHOOTING RANGE -----------------------------------------------
@@ -803,40 +820,99 @@ function LobbyBuilder.Build()
 		end
 	end)
 
-	-- SOUTH-WEST: WALL-RUN WALL + LOW CEILING ----------------------------------------------------
-	local wallDeg = 225
-	local wallCf = facingIn(50, wallDeg, 7) * CFrame.Angles(0, rad(90), 0)
-	b.part(V(24, 14, 1.4), wallCf, P.Light)
-	b.decor(function()
-		accent(b, b.part(V(24.2, 0.4, 1.6), wallCf * CFrame.new(0, 7.1, 0), P.AccentA))
-		for x = -10, 10, 4 do
-			b.part(V(0.5, 12, 1.5), wallCf * CFrame.new(x, 0, 0), C.Stone)
-		end
-	end)
-	local ceil = polar(42, 245, 14)
-	b.part(V(14, 1.2, 10), CFrame.lookAt(ceil, ceil + outward(245)), P.Mid)
-	for _, dx in ipairs({ -6.2, 6.2 }) do
-		for _, dz in ipairs({ -4.2, 4.2 }) do
-			local post = CFrame.lookAt(ceil, ceil + outward(245)) * CFrame.new(dx, -7, dz)
-			b.part(V(0.9, 13.4, 0.9), post, C.Metal)
-		end
-	end
+	-- SOUTH-WEST: a quiet corner, a bench under a tree
+	plant(b, polar(54, 225), 0.9)
+	bench(b, facingIn(46, 215, 0))
+	bench(b, facingIn(46, 235, 0))
 
-	-- SHOOTING RANGE (north, through the tunnel) --------------------------------------------
-	local rangeStart = -70
-	b.block(V(64, 4, 344), V(0, -2, rangeStart - 172), P.Snow)
-	b.block(V(2, 8, 344), V(32, 4, rangeStart - 172), P.Light, "X")
-	b.block(V(64, 46, 4), V(0, 23, rangeStart - 346), P.Light)
+	-- SHOOTING RANGE (north, through the tunnel): a long indoor hall -----------------------
+	-- Walls, a roof with light strips, a firing line with booths, lane markings
+	-- every 50 studs, hanging distance boards and a target wall at the end.
+	local FRONT, BACK = -75, -414 -- inner faces of the front and back walls
+	local HALF_W, HALL_H = 32, 32 -- half width, ceiling height
+	local length = FRONT - BACK
+	local midZ = (FRONT + BACK) / 2
+	local FIRING = -92 -- the firing line
+	b.material(b.block(V(HALF_W * 2, 4, length), V(0, -2, midZ), P.Light), Enum.Material.SmoothPlastic)
+	b.block(V(2, HALL_H, length), V(HALF_W + 1, HALL_H / 2, midZ), P.Snow, "X") -- side walls
+	b.block(V(HALF_W * 2 + 4, 2, length + 4), V(0, HALL_H + 1, midZ), C.BuildingA) -- roof
+	b.block(V(HALF_W * 2 + 3.8, HALL_H + 1.9, 4), V(0, HALL_H / 2 + 0.95, BACK - 2), C.Dark) -- back wall
+	-- front wall, open where the tunnel comes in (the tunnel's sides are x 8..10)
+	b.block(V(HALF_W - 8, HALL_H, 2), V(-(HALF_W + 12) / 2, HALL_H / 2, FRONT + 0.8), P.Snow, "X") -- x 10..34 (just in front of the tunnel's ends)
+	b.block(V(20, HALL_H - 16, 2), V(0, (HALL_H + 16) / 2, FRONT + 0.8), P.Snow)
 	b.decor(function()
-		for _, z in ipairs({ -120, -170, -270, -370 }) do
-			b.block(V(60, 0.1, 1), V(0, 0.05, z), P.Mid)
+		-- walls: a dark skirting board, slim pilasters and a trim under the roof
+		b.block(V(0.4, 1.2, length), V(HALF_W - 0.2, 0.6, midZ), C.Trim, "X")
+		b.block(V(0.4, 0.6, length), V(HALF_W - 0.2, HALL_H - 0.3, midZ), C.Trim, "X")
+		for z = FRONT - 24, BACK + 12, -24 do
+			b.block(V(0.6, HALL_H - 1.8, 1.4), V(HALF_W - 0.3, HALL_H / 2 + 0.3, z), P.Mid, "X")
+			light(neon(b, b.block(V(0.25, 6, 0.5), V(HALF_W - 0.72, 12, z), P.AccentA, "X")), P.AccentA, 14, 0.6)
 		end
-		neon(b, b.block(V(2.4, 0.5, 344), V(32, 8.25, rangeStart - 172), P.AccentA, "X"))
+		-- ceiling: cross beams and two long light strips
+		for z = FRONT - 12, BACK + 6, -24 do
+			b.block(V(HALF_W * 2, 1.2, 1), V(0, HALL_H - 0.6, z), C.Trim)
+		end
+		for _, x in ipairs({ -11, 11 }) do
+			b.block(V(1.6, 0.3, length - 4), V(x, HALL_H - 1.35, midZ), C.Dark)
+			b.block(V(1.0, 0.2, length - 6), V(x, HALL_H - 1.6, midZ), C.LampLight)
+			neon(b, b.block(V(0.6, 0.12, length - 6), V(x, HALL_H - 1.75, midZ), C.LampLight))
+			for z = FRONT - 20, BACK + 10, -40 do
+				light(b.invisible(b.block(V(0.2, 0.2, 0.2), V(x, HALL_H - 3, z), C.LampLight)), C.LampLight, 60, 1.6)
+			end
+		end
+		-- the floor: lane lines and a marker every 50 studs from the firing line
+		for _, x in ipairs({ -16, 0, 16 }) do
+			b.block(V(0.3, 0.06, FIRING - BACK - 2), V(x, 0.03, (FIRING + BACK) / 2 - 1), P.Mid)
+		end
+		b.block(V(HALF_W * 2, 0.1, 0.6), V(0, 0.05, FIRING - 3), P.AccentB) -- the firing line
+		for d = 50, 300, 50 do
+			local z = FIRING - d
+			b.block(V(HALF_W * 2, 0.08, 0.4), V(0, 0.04, z), C.Trim)
+		end
+		-- the target wall: a big bullseye on the back wall
+		local wallFace = BACK
+		for i, ring in ipairs({ { 26, P.Snow }, { 20, C.Dark }, { 14, P.Snow }, { 8, P.PlayerB }, { 3, P.Snow } }) do
+			b.cylinder(0.2 + i * 0.1, ring[1], nil, ring[2], nil,
+				CFrame.new(0, 15, wallFace + (0.1 + i * 0.1) / 2) * CFrame.Angles(0, rad(90), 0))
+		end
 	end)
-	b.block(V(16, 20, 10), V(12, 10, -300), P.AccentA)
-	b.block(V(8, 5, 3), V(-8, 2.5, -150), P.AccentA)
-	b.block(V(6, 8, 3), V(14, 4, -215), P.Mid)
-	b.block(V(10, 4, 3), V(-6, 2, -330), P.AccentA)
+	-- the firing line: booth counters with glass dividers (an aisle down the middle)
+	for _, x in ipairs({ -24, -12.5 }) do
+		b.block(V(9, 3.2, 1.6), V(x, 1.6, FIRING), C.FrameDark, "X")
+		b.decor(function()
+			b.block(V(9.4, 0.3, 2.2), V(x, 3.35, FIRING), C.Wood, "X")
+		end)
+	end
+	b.decor(function()
+		for _, x in ipairs({ -30.5, -18.5, -7.5 }) do
+			b.block(V(0.6, 7, 0.6), V(x, 3.5, FIRING + 2), C.Metal, "X")
+			for _, pane in ipairs(b.material(b.block(V(0.25, 5.5, 3.4), V(x, 4, FIRING + 0.2), C.Glass, "X"), Enum.Material.Glass)) do
+				pane.Transparency = 0.55
+			end
+		end
+	end)
+	-- hanging distance boards
+	for _, d in ipairs({ 50, 100, 200, 300 }) do
+		local z = FIRING - d
+		local boardCf = CFrame.new(-HALF_W + 7, HALL_H - 6, z) * CFrame.Angles(0, math.pi, 0)
+		sign(model, V(7, 2.4, 0.3), boardCf, tostring(d), "STUDS")
+		b.decor(function()
+			for _, dx in ipairs({ -2.6, 2.6 }) do
+				b.block(V(0.12, 4.8, 0.12), V(-HALF_W + 7 + dx, HALL_H - 2.4, z), C.Metal)
+			end
+		end)
+	end
+	-- cover the dummies move around (some stand on top)
+	local function cover(size, pos, color)
+		b.block(size, pos, color)
+		b.decor(function()
+			b.block(V(size.X + 0.3, 0.3, size.Z + 0.3), pos + V(0, size.Y / 2 + 0.15, 0), C.Trim)
+		end)
+	end
+	cover(V(16, 20, 10), V(12, 10, -300), P.Mid)
+	cover(V(8, 5, 3), V(-8, 2.5, -150), P.AccentA)
+	cover(V(6, 8, 3), V(14, 4, -215), P.Mid)
+	cover(V(10, 4, 3), V(-6, 2, -330), P.AccentA)
 
 	model.Parent = workspace
 	return {

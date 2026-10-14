@@ -356,7 +356,11 @@ from the centre to alcoves around the curved wall:
   plinth in a shallow pool, lit from below. A ring of columns holds up a
   glass skylight dome; between them hang banners with the
   SNIPER DUEL logo, trimmed in team colours.
-- **North**: a tunnel with a gate into the shooting range (moving dummies).
+- **North**: a tunnel into the shooting range, a long indoor hall: clean
+  white walls with pilasters, a roof with two long light strips, a firing
+  line with booths and glass dividers, lane lines and a floor marker every
+  50 studs, hanging distance boards, cover for the moving dummies and a big
+  bullseye on the back wall.
 - **East**: the duel area, a raised dais with team-coloured pads under a
   canopy (find a match with F, or duel a player with U).
 - **West**: the crate vault: a round dais with a rarity ring, the crate
@@ -364,12 +368,13 @@ from the centre to alcoves around the curved wall:
   (see "Crates" below).
 - **South**: the stage with the logo sign, speakers and a light rig.
 - **Diagonals**: the Playground portal, an indoor garden with a pond, a
-  parkour corner (ramp, boxes, rising blocks) and a wall-run wall with a low
-  ceiling for Magnetic Boots.
+  parkour corner (ramp, boxes, rising blocks) and a quiet corner with a tree
+  and two benches.
 - The walls have framed panels, windows, pilasters, a cornice and soft
   sconces; the ceiling has beam rings and hanging lights. A glass railing
   runs round the sunken centre, the centre floor has a tiled star, the
-  columns are fluted with potted plants, and there are vending machines and
+  columns are fluted with potted shrubs, the planters between the paths
+  hold rows of round leafy bushes, and there are vending machines and
   bins. Lights are kept soft (`LIGHT_SCALE` in `LobbyBuilder.lua`).
 
 It's built in `src/server/LobbyBuilder.lua`.

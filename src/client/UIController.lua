@@ -11,7 +11,7 @@
 		PowerUpLab    try power-ups solo in the lobby (B)
 		Locker        pick your rifle and knife skins (L)
 		Shop          crates, featured skins, credit packs, VIP (M)
-		BattlePass    the season's battle pass (J)
+		Welcome       the one-time welcome card for new players
 		Toast         short server messages (admin commands)
 		DuelUI        challenge a player, duel / rematch invites
 		MobileControls on-screen buttons + look pad for touch screens
@@ -30,7 +30,7 @@ local SettingsMenu = require(ui.SettingsMenu)
 local PowerUpLab = require(ui.PowerUpLab)
 local Locker = require(ui.Locker)
 local Shop = require(ui.Shop)
-local BattlePass = require(ui.BattlePass)
+local Welcome = require(ui.Welcome)
 local Toast = require(ui.Toast)
 local DuelUI = require(ui.DuelUI)
 local MobileControls = require(ui.MobileControls)
@@ -46,7 +46,6 @@ function UIController.Init(controllers)
 	controllers.Duel = DuelUI
 	controllers.Locker = Locker
 	controllers.Shop = Shop
-	controllers.BattlePass = BattlePass
 	MobileControls.Init(controllers)
 	HUD.Init(controllers)
 	LobbyUI.Init(controllers)
@@ -82,7 +81,7 @@ function UIController.Start()
 	PowerUpLab.Start(playerGui)
 	Locker.Start(playerGui)
 	Shop.Start(playerGui)
-	BattlePass.Start(playerGui)
+	Welcome.Start(playerGui)
 	Toast.Start(playerGui)
 	DuelUI.Start(playerGui)
 	MobileControls.Start(playerGui)

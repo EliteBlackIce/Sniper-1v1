@@ -131,7 +131,7 @@ local function playClip(clip, u, base, baseLeft)
 	local k1, k2 = keys[i], keys[i + 1]
 	local x = clamp01((u - k1.T) / math.max(k2.T - k1.T, 1e-4))
 	if k2.Ease == "Snap" then
-		x = 1 - (1 - x) ^ 2.6 -- fast start, soft landing (strikes)
+		x = 1 - (1 - x) ^ 1.8 -- quick start, soft landing (strikes)
 	elseif k2.Ease == "Wind" then
 		x = x * x * (2 - x) * 0.5 + x * 0.5
 	end
@@ -275,7 +275,7 @@ end
 local KS = KN.WorldScale
 
 -- A knife pose from where the handle is and where the blade points. The
--- roll round the blade is worked out so the spine faces your right shoulder:
+-- roll round the blade is worked out so the spine faces your elbow:
 -- the fist closes on the handle with the forearm running back from it to the
 -- elbow (a real hammer grip), so the arm and the knife always move as one
 -- and the handle never cuts through the wrist. `twist` (degrees) rolls it
@@ -283,8 +283,11 @@ local KS = KN.WorldScale
 local KNIFE_SHOULDER = V(0.95, -1.3, 0.35)
 local function kaim(pos, forward, twist)
 	local f = forward.Unit
-	local toShoulder = KNIFE_SHOULDER - pos
-	local spine = toShoulder - f * toShoulder:Dot(f)
+	-- toward the elbow: mostly down, a bit toward the shoulder. (Aiming straight
+	-- at the shoulder flipped the hand over whenever the blade tilted, because
+	-- the shoulder sits almost directly behind the blade.)
+	local toElbow = (KNIFE_SHOULDER - pos).Unit * 0.5 + V(0.2, -0.8, 0)
+	local spine = toElbow - f * toElbow:Dot(f)
 	if spine.Magnitude < 1e-3 then
 		spine = V(0, -1, 0) + f * f.Y -- (pointing straight at the shoulder: spine down)
 	end
@@ -327,9 +330,9 @@ CLIPS.SlashA = {
 	Length = KN.SlashTime,
 	Keys = {
 		{ T = 0, Weapon = "BASE" },
-		{ T = 0.18, Weapon = kaim(V(0.85, -0.3, -0.9), V(0.45, 0.6, -0.65)), Left = GUARD_OUT, Ease = "Wind",
+		{ T = 0.16, Weapon = kaim(V(0.85, -0.3, -0.9), V(0.45, 0.6, -0.65)), Left = GUARD_OUT, Ease = "Wind",
 			Body = { Yaw = 12, Roll = -3 } },
-		{ T = 0.34, Weapon = kaim(V(0.1, -0.45, -1.35), V(-0.85, 0.15, -0.55)), Ease = "Snap",
+		{ T = 0.36, Weapon = kaim(V(0.1, -0.45, -1.35), V(-0.85, 0.15, -0.55)), Ease = "Snap",
 			Body = { Yaw = -6, Lean = 4, Dip = 0.05 } },
 		{ T = 0.48, Weapon = kaim(V(-0.75, -0.8, -1.05), V(-0.92, -0.25, -0.3)), Left = GUARD_BACK,
 			Body = { Yaw = -16, Roll = 3, Lean = 6, Dip = 0.08 } },
@@ -345,9 +348,9 @@ CLIPS.SlashB = {
 	Length = KN.SlashTime,
 	Keys = {
 		{ T = 0, Weapon = "BASE" },
-		{ T = 0.18, Weapon = kaim(V(-0.3, -0.35, -0.95), V(-0.55, 0.55, -0.6)), Left = GUARD_BACK, Ease = "Wind",
+		{ T = 0.16, Weapon = kaim(V(-0.3, -0.35, -0.95), V(-0.55, 0.55, -0.6)), Left = GUARD_BACK, Ease = "Wind",
 			Body = { Yaw = -12, Roll = 3 } },
-		{ T = 0.34, Weapon = kaim(V(0.4, -0.45, -1.35), V(0.85, 0.15, -0.55)), Ease = "Snap",
+		{ T = 0.36, Weapon = kaim(V(0.4, -0.45, -1.35), V(0.85, 0.15, -0.55)), Ease = "Snap",
 			Body = { Yaw = 6, Lean = 4, Dip = 0.05 } },
 		{ T = 0.48, Weapon = kaim(V(1.15, -0.8, -1.0), V(0.92, -0.25, -0.3)), Left = GUARD_OUT,
 			Body = { Yaw = 15, Roll = -3, Lean = 5, Dip = 0.07 } },

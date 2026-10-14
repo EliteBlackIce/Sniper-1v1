@@ -63,7 +63,7 @@ local pools = {} -- [crateType][rarity] = { skins }
 for typeName, crateType in pairs(CR.Types) do
 	pools[typeName] = {}
 	for _, skin in ipairs(CR.Skins) do
-		if (crateType.Odds[skin.Rarity] or 0) > 0 and (crateType.EliteSkins or not skin.Elite) and not skin.Pass then
+		if (crateType.Odds[skin.Rarity] or 0) > 0 and (crateType.EliteSkins or not skin.Elite) then
 			pools[typeName][skin.Rarity] = pools[typeName][skin.Rarity] or {}
 			table.insert(pools[typeName][skin.Rarity], skin)
 		end
@@ -73,6 +73,8 @@ local rarityById = {}
 for _, rarity in ipairs(CR.Rarities) do
 	rarityById[rarity.Id] = rarity
 end
+
+local checkRankTitles, scheduleSave -- (defined below, used when a save loads)
 
 local function notify(player, text)
 	Remotes.Get("Notify"):FireClient(player, text)
@@ -88,8 +90,8 @@ local function sendInventory(player)
 			Skins = d.Skins,
 			Cosmetics = d.Cosmetics,
 			Equipped = d.Equipped,
-			Pass = d.Pass,
 			Featured = CrateService.FeaturedToday(),
+			FeaturedCosmetics = CrateService.FeaturedCosmeticsToday(),
 		})
 	end
 end
@@ -137,10 +139,11 @@ local function save(player)
 			PaidKeys = d.PaidKeys,
 			Skins = d.Skins,
 			Cosmetics = d.Cosmetics,
-			Pass = d.Pass,
 			Opened = d.Opened,
 			Equipped = d.Equipped,
 			Receipts = d.Receipts,
+			LastDaily = d.LastDaily,
+			Streak = d.Streak,
 		})
 	end)
 	if not ok then
@@ -183,7 +186,8 @@ local function load(player)
 		Opened = 0,
 		Equipped = {},
 		Receipts = {},
-		Pass = nil, -- battle pass progress (PassService)
+		LastDaily = 0, -- the UTC day number of the last daily reward
+		Streak = 0,
 	}
 	if typeof(saved) == "table" then
 		if typeof(saved.Keys) == "number" then
@@ -199,8 +203,11 @@ local function load(player)
 				end
 			end
 		end
-		if typeof(saved.Pass) == "table" then
-			d.Pass = saved.Pass
+		if typeof(saved.LastDaily) == "number" then
+			d.LastDaily = saved.LastDaily
+		end
+		if typeof(saved.Streak) == "number" then
+			d.Streak = saved.Streak
 		end
 		if typeof(saved.PaidKeys) == "number" then
 			d.PaidKeys = math.clamp(math.floor(saved.PaidKeys), 0, d.Keys)
@@ -240,6 +247,9 @@ local function load(player)
 			end
 		end
 	end
+	if RunService:IsStudio() and CR.StudioKeys and d.Keys < CR.StudioKeys then
+		d.Keys = CR.StudioKeys -- (testing in Studio: plenty of keys; still taken when you open)
+	end
 	data[player] = d
 	loaded[player] = true
 	for _, kind in ipairs(Cosmetics.Kinds) do
@@ -255,6 +265,32 @@ local function load(player)
 		end
 	end)
 	CharacterService.RefreshTag(player) -- (the saved title, now it's loaded)
+	checkRankTitles(player)
+	-- first time here: the welcome card (ui/Welcome)
+	if typeof(saved) ~= "table" then
+		player:SetAttribute("FirstVisit", true)
+	end
+	-- the daily reward (a streak of days in a row gives more)
+	local today = math.floor(os.time() / 86400)
+	if not loadFailed[player] and today > (d.LastDaily or 0) then
+		d.Streak = today == (d.LastDaily or 0) + 1 and (d.Streak or 0) + 1 or 1
+		d.LastDaily = today
+		local list = CR.DailyKeys
+		local gain = list[math.min(d.Streak, #list)]
+		setKeys(player, d.Keys + gain)
+		player:SetAttribute("WagerKeys", d.Keys - (d.PaidKeys or 0))
+		player:SetAttribute("DailyStreak", d.Streak)
+		dirty[player] = true
+		scheduleSave(player)
+		task.delay(4, function()
+			if player.Parent then
+				notify(player, ("DAILY REWARD  -  +%d KEYS  (DAY %d STREAK)"):format(gain, d.Streak))
+			end
+		end)
+	end
+	player:GetAttributeChangedSignal("Rating"):Connect(function()
+		checkRankTitles(player)
+	end)
 	player:SetAttribute("Keys", d.Keys)
 	player:SetAttribute("Credits", d.Credits)
 	player:SetAttribute("WagerKeys", d.Keys - d.PaidKeys)
@@ -269,7 +305,7 @@ end
 -- One save a few seconds from now (several changes in a row = one write,
 -- well inside the DataStore's limits).
 local saveScheduled = {} -- [player] = true
-local function scheduleSave(player)
+scheduleSave = function(player)
 	if saveScheduled[player] then
 		return
 	end
@@ -441,102 +477,94 @@ function CrateService.Equip(player, kind, id)
 end
 
 ----------------------------------------------------------------------------
--- Rewards (battle pass, ranked titles) and the profile for PassService
+-- Ranked titles: reaching a rating unlocks its title (Config.Cosmetics.Titles RankMin)
 ----------------------------------------------------------------------------
--- reward = { Keys = n } | { Credits = n } | { Skin = id } | { Cosmetic = id }
--- Returns a short text for the toast, or nil if it couldn't be given.
--- paid = true: it came from something bought with Robux (the Premium pass),
--- so keys from it can't be wagered
-function CrateService.Grant(player, reward, paid)
+checkRankTitles = function(player)
 	local d = data[player]
-	if not d or not loaded[player] or typeof(reward) ~= "table" then
-		return nil
+	local rating = tonumber(player:GetAttribute("Rating"))
+	if not d or not loaded[player] or loadFailed[player] or not rating then
+		return
 	end
-	local text
-	if reward.Keys then
-		if paid then
-			d.PaidKeys = (d.PaidKeys or 0) + reward.Keys
+	for _, title in ipairs(Config.Cosmetics.Titles) do
+		if title.RankMin and rating >= title.RankMin and not d.Cosmetics[title.Id] then
+			d.Cosmetics[title.Id] = true
+			dirty[player] = true
+			notify(player, "TITLE UNLOCKED  -  " .. string.upper(title.Name))
+			sendInventory(player)
+			scheduleSave(player)
 		end
-		setKeys(player, d.Keys + reward.Keys)
-		player:SetAttribute("WagerKeys", d.Keys - (d.PaidKeys or 0))
-		text = ("+%d KEYS"):format(reward.Keys)
-	elseif reward.Credits then
-		setCredits(player, d.Credits + reward.Credits)
-		text = ("+%d CREDITS"):format(reward.Credits)
-	elseif reward.Skin and Skins.Get(reward.Skin) then
-		d.Skins[reward.Skin] = (d.Skins[reward.Skin] or 0) + 1
-		local skin = Skins.Get(reward.Skin)
-		text = string.upper(skin.Name) .. " " .. string.upper(skin.Weapon) .. " SKIN"
-	elseif reward.Cosmetic and Cosmetics.Get(reward.Cosmetic) then
-		d.Cosmetics[reward.Cosmetic] = true
-		local item = Cosmetics.Get(reward.Cosmetic)
-		text = string.upper(item.Name) .. " " .. string.upper(item.Kind == "KillFx" and "kill effect" or item.Kind)
-	else
-		return nil
-	end
-	dirty[player] = true
-	sendInventory(player)
-	scheduleSave(player)
-	return text
-end
-
--- The saved profile table (PassService keeps .Pass in it), or nil until loaded.
-function CrateService.GetProfile(player)
-	return loaded[player] and not loadFailed[player] and data[player] or nil
-end
-
-function CrateService.Changed(player)
-	if data[player] then
-		dirty[player] = true
-		sendInventory(player)
-		scheduleSave(player)
 	end
 end
 
 ----------------------------------------------------------------------------
--- Featured skins: a new set to buy with Credits every day (UTC)
+-- Featured: skins + cosmetics to buy with Credits, a new set every day (UTC)
 ----------------------------------------------------------------------------
-function CrateService.FeaturedToday()
+local function dailyPicks(candidates, count, salt)
 	local day = math.floor(os.time() / 86400)
-	local candidates = {}
-	for _, skin in ipairs(CR.Skins) do
-		if skin.Rarity ~= "Secret" and not skin.Pass and Config.Featured.Prices[skin.Rarity] then
-			table.insert(candidates, skin.Id)
-		end
-	end
-	local rng2 = Random.new(day * 7919 + 13)
+	local rng2 = Random.new(day * 7919 + salt)
 	local picks = {}
-	for _ = 1, math.min(Config.Featured.Count, #candidates) do
-		local index = rng2:NextInteger(1, #candidates)
-		table.insert(picks, table.remove(candidates, index))
+	for _ = 1, math.min(count, #candidates) do
+		table.insert(picks, table.remove(candidates, rng2:NextInteger(1, #candidates)))
 	end
 	return picks
 end
 
+function CrateService.FeaturedToday()
+	local candidates = {}
+	for _, skin in ipairs(CR.Skins) do
+		if skin.Rarity ~= "Secret" and Config.Featured.Prices[skin.Rarity] then
+			table.insert(candidates, skin.Id)
+		end
+	end
+	return dailyPicks(candidates, Config.Featured.Count, 13)
+end
+
+function CrateService.FeaturedCosmeticsToday()
+	local candidates = {}
+	for _, kind in ipairs(Cosmetics.Kinds) do
+		for _, item in ipairs(Cosmetics.ForKind(kind)) do
+			if not item.Default and not item.RankMin and Config.Featured.Prices[item.Rarity or ""] then
+				table.insert(candidates, item.Id)
+			end
+		end
+	end
+	return dailyPicks(candidates, Config.Featured.CosmeticCount or 0, 97)
+end
+
 function CrateService.BuyFeatured(player, id)
 	local d = data[player]
-	local skin = typeof(id) == "string" and Skins.Get(id)
-	if not d or not loaded[player] or not skin then
+	if not d or not loaded[player] or typeof(id) ~= "string" then
 		return
 	end
-	if not table.find(CrateService.FeaturedToday(), id) then
-		notify(player, "The featured skins have changed - here are today's")
+	local skin = Skins.Get(id)
+	local item = not skin and Cosmetics.Get(id)
+	if not skin and not item then
+		return
+	end
+	local today = skin and CrateService.FeaturedToday() or CrateService.FeaturedCosmeticsToday()
+	if not table.find(today, id) then
+		notify(player, "The featured items have changed - here are today's")
 		sendInventory(player)
 		return
 	end
-	if (d.Skins[id] or 0) > 0 then
-		notify(player, "You already own that skin")
+	if (skin and (d.Skins[id] or 0) > 0) or (item and d.Cosmetics[id]) then
+		notify(player, "You already own that")
 		return
 	end
-	local price = Config.Featured.Prices[skin.Rarity]
+	local price = Config.Featured.Prices[(skin or item).Rarity]
 	if d.Credits < price then
 		notify(player, ("You need %d credits"):format(price))
 		return
 	end
 	setCredits(player, d.Credits - price)
-	d.Skins[id] = 1
+	if skin then
+		d.Skins[id] = 1
+		notify(player, ("UNLOCKED  -  %s %s SKIN"):format(string.upper(skin.Name), string.upper(skin.Weapon)))
+	else
+		d.Cosmetics[id] = true
+		notify(player, ("UNLOCKED  -  %s"):format(string.upper(item.Name)))
+	end
 	dirty[player] = true
-	notify(player, ("UNLOCKED  -  %s %s SKIN"):format(string.upper(skin.Name), string.upper(skin.Weapon)))
 	sendInventory(player)
 	scheduleSave(player)
 end

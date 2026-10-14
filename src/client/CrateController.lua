@@ -722,6 +722,9 @@ local function onResult(result)
 		if typeof(result.Featured) == "table" then
 			ClientState.Featured = result.Featured -- (the SHOP reads these)
 		end
+		if typeof(result.FeaturedCosmetics) == "table" then
+			ClientState.FeaturedCosmetics = result.FeaturedCosmetics
+		end
 		ClientState.SkinsChanged:Fire()
 	end
 	if result.Type == "Denied" then

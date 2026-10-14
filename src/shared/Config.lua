@@ -190,7 +190,11 @@ Config.Crates = {
 	StartingKeys = 10, -- keys a brand-new player starts with (one free crate)
 	KeysPerWin = 3, -- keys for winning a match
 	KeysPerLoss = 1, -- keys for finishing a match you lost
-	FreeInStudio = true, -- opening is free when testing in Studio
+	FreeInStudio = false, -- true: opening is free when testing in Studio (keys aren't taken)
+	StudioKeys = 1000, -- in Studio you're topped up to this many keys so you can test crates
+	-- Daily reward: keys for the first visit each day (UTC); a streak of days
+	-- in a row gives more, up to the last entry
+	DailyKeys = { 3, 4, 5, 6, 8, 10, 15 },
 	Cooldown = 1.5, -- seconds between opens (stops spam; the animation is longer)
 	-- The two crates (open them at the crate vault's altar or from the SHOP):
 	--   Standard  10 Keys
@@ -239,7 +243,6 @@ Config.Crates = {
 	--   Pulse     a second colour the glow pulses to (Legendary)
 	--   Sparkle   true: glittering particles (Legendary)
 	--   Elite     true: only drops from the Elite crate
-	--   Pass      true: only from the battle pass (never in crates)
 	--   Aura      true: a flickering aura of particles round the weapon
 	--   Template  Secret skins: the name of a model in Workspace.SecretWeapons
 	--             (moved to ReplicatedStorage at start) to use instead of
@@ -308,12 +311,11 @@ Config.Crates = {
 		{ Id = "SecretVoidReaper", Name = "Void Reaper", Weapon = "Rifle", Rarity = "Secret", Body = Color3.fromRGB(8, 6, 14), Stock = Color3.fromRGB(40, 10, 70), Metal = Color3.fromRGB(4, 4, 8), Accent = Color3.fromRGB(170, 60, 255), Pulse = Color3.fromRGB(60, 0, 140), Finish = "Hologram", StockFinish = "Hologram", Template = "VoidReaper", Glow = true, Sparkle = true, Elite = true, Aura = true },
 		{ Id = "SecretCelestial", Name = "Celestial", Weapon = "Rifle", Rarity = "Secret", Body = Color3.fromRGB(250, 248, 240), Stock = Color3.fromRGB(255, 220, 120), Metal = Color3.fromRGB(230, 200, 120), Accent = Color3.fromRGB(255, 250, 220), Pulse = Color3.fromRGB(140, 200, 255), Finish = "Pearl", StockFinish = "Gold", MetalFinish = "Gold", Template = "Celestial", Glow = true, Sparkle = true, Elite = true, Aura = true },
 
-		-- battle pass (never in crates)
-		{ Id = "PassStriker", Name = "Striker", Weapon = "Rifle", Rarity = "Rare", Body = Color3.fromRGB(230, 60, 40), Stock = Color3.fromRGB(30, 30, 34), Metal = Color3.fromRGB(24, 24, 28), Accent = Color3.fromRGB(255, 220, 90), Finish = "Gloss", Pass = true },
-		{ Id = "PassNightOps", Name = "Night Ops", Weapon = "Rifle", Rarity = "Epic", Body = Color3.fromRGB(30, 34, 30), Metal = Color3.fromRGB(16, 18, 16), Accent = Color3.fromRGB(90, 255, 120), Finish = "Tread", Glow = true, Pass = true },
-		{ Id = "PassRedline", Name = "Redline", Weapon = "Rifle", Rarity = "Epic", Body = Color3.fromRGB(20, 20, 22), Stock = Color3.fromRGB(220, 20, 30), Metal = Color3.fromRGB(12, 12, 14), Accent = Color3.fromRGB(255, 40, 50), Finish = "Chrome", Glow = true, Pass = true },
-		{ Id = "PassEclipse", Name = "Eclipse", Weapon = "Rifle", Rarity = "Legendary", Body = Color3.fromRGB(14, 10, 24), Metal = Color3.fromRGB(8, 6, 14), Accent = Color3.fromRGB(255, 150, 40), Pulse = Color3.fromRGB(255, 60, 120), Finish = "Pearl", Glow = true, Sparkle = true, Pass = true },
-		{ Id = "PassSovereign", Name = "Sovereign", Weapon = "Rifle", Rarity = "Legendary", Body = Color3.fromRGB(250, 250, 255), Stock = Color3.fromRGB(240, 200, 90), Metal = Color3.fromRGB(230, 190, 80), Accent = Color3.fromRGB(255, 230, 140), Pulse = Color3.fromRGB(255, 250, 220), Finish = "Pearl", StockFinish = "Gold", MetalFinish = "Gold", Glow = true, Sparkle = true, Aura = true, Pass = true },
+		{ Id = "PassStriker", Name = "Striker", Weapon = "Rifle", Rarity = "Rare", Body = Color3.fromRGB(230, 60, 40), Stock = Color3.fromRGB(30, 30, 34), Metal = Color3.fromRGB(24, 24, 28), Accent = Color3.fromRGB(255, 220, 90), Finish = "Gloss" },
+		{ Id = "PassNightOps", Name = "Night Ops", Weapon = "Rifle", Rarity = "Epic", Body = Color3.fromRGB(30, 34, 30), Metal = Color3.fromRGB(16, 18, 16), Accent = Color3.fromRGB(90, 255, 120), Finish = "Tread", Glow = true },
+		{ Id = "PassRedline", Name = "Redline", Weapon = "Rifle", Rarity = "Epic", Body = Color3.fromRGB(20, 20, 22), Stock = Color3.fromRGB(220, 20, 30), Metal = Color3.fromRGB(12, 12, 14), Accent = Color3.fromRGB(255, 40, 50), Finish = "Chrome", Glow = true },
+		{ Id = "PassEclipse", Name = "Eclipse", Weapon = "Rifle", Rarity = "Legendary", Body = Color3.fromRGB(14, 10, 24), Metal = Color3.fromRGB(8, 6, 14), Accent = Color3.fromRGB(255, 150, 40), Pulse = Color3.fromRGB(255, 60, 120), Finish = "Pearl", Glow = true, Sparkle = true },
+		{ Id = "PassSovereign", Name = "Sovereign", Weapon = "Rifle", Rarity = "Legendary", Body = Color3.fromRGB(250, 250, 255), Stock = Color3.fromRGB(240, 200, 90), Metal = Color3.fromRGB(230, 190, 80), Accent = Color3.fromRGB(255, 230, 140), Pulse = Color3.fromRGB(255, 250, 220), Finish = "Pearl", StockFinish = "Gold", MetalFinish = "Gold", Glow = true, Sparkle = true, Aura = true },
 
 		-- KNIFE
 		{ Id = "KnifeStonewash", Name = "Stonewash", Weapon = "Knife", Rarity = "Common", Blade = Color3.fromRGB(150, 154, 160), Body = Color3.fromRGB(58, 60, 64), Metal = Color3.fromRGB(90, 92, 96), Accent = Color3.fromRGB(200, 200, 200) },
@@ -360,12 +362,11 @@ Config.Crates = {
 		{ Id = "SecretKarambit", Name = "Shadow Karambit", Weapon = "Knife", Rarity = "Secret", Blade = Color3.fromRGB(20, 16, 30), Body = Color3.fromRGB(8, 6, 12), Metal = Color3.fromRGB(120, 40, 200), Accent = Color3.fromRGB(170, 60, 255), Pulse = Color3.fromRGB(60, 0, 140), Finish = "Hologram", Template = "ShadowKarambit", Glow = true, Sparkle = true, Elite = true, Aura = true },
 		{ Id = "SecretBloodfang", Name = "Bloodfang", Weapon = "Knife", Rarity = "Secret", Blade = Color3.fromRGB(120, 10, 16), Body = Color3.fromRGB(20, 8, 8), Metal = Color3.fromRGB(60, 10, 12), Accent = Color3.fromRGB(255, 30, 40), Pulse = Color3.fromRGB(120, 0, 10), Finish = "Chrome", Template = "Bloodfang", Glow = true, Sparkle = true, Elite = true, Aura = true },
 		{ Id = "SecretStarforged", Name = "Starforged", Weapon = "Knife", Rarity = "Secret", Blade = Color3.fromRGB(250, 248, 240), Body = Color3.fromRGB(255, 220, 120), Metal = Color3.fromRGB(230, 200, 120), Accent = Color3.fromRGB(255, 250, 220), Pulse = Color3.fromRGB(140, 200, 255), Finish = "Pearl", MetalFinish = "Gold", HandleFinish = "Gold", Template = "Starforged", Glow = true, Sparkle = true, Elite = true, Aura = true },
-		-- battle pass (never in crates)
-		{ Id = "KnifePassStriker", Name = "Striker", Weapon = "Knife", Rarity = "Rare", Blade = Color3.fromRGB(230, 60, 40), Body = Color3.fromRGB(30, 30, 34), Metal = Color3.fromRGB(255, 220, 90), Accent = Color3.fromRGB(255, 220, 90), Finish = "Gloss", Pass = true },
-		{ Id = "KnifePassNightOps", Name = "Night Ops", Weapon = "Knife", Rarity = "Epic", Blade = Color3.fromRGB(30, 34, 30), Body = Color3.fromRGB(16, 18, 16), Metal = Color3.fromRGB(60, 70, 60), Accent = Color3.fromRGB(90, 255, 120), Finish = "Tread", Glow = true, Pass = true },
-		{ Id = "KnifePassRedline", Name = "Redline", Weapon = "Knife", Rarity = "Epic", Blade = Color3.fromRGB(20, 20, 22), Body = Color3.fromRGB(220, 20, 30), Metal = Color3.fromRGB(80, 80, 90), Accent = Color3.fromRGB(255, 40, 50), Finish = "Chrome", Glow = true, Pass = true },
-		{ Id = "KnifePassEclipse", Name = "Eclipse", Weapon = "Knife", Rarity = "Legendary", Blade = Color3.fromRGB(14, 10, 24), Body = Color3.fromRGB(8, 6, 14), Metal = Color3.fromRGB(255, 150, 40), Accent = Color3.fromRGB(255, 150, 40), Pulse = Color3.fromRGB(255, 60, 120), Finish = "Pearl", Glow = true, Sparkle = true, Pass = true },
-		{ Id = "KnifePassSovereign", Name = "Sovereign", Weapon = "Knife", Rarity = "Legendary", Blade = Color3.fromRGB(250, 250, 255), Body = Color3.fromRGB(240, 200, 90), Metal = Color3.fromRGB(230, 190, 80), Accent = Color3.fromRGB(255, 230, 140), Pulse = Color3.fromRGB(255, 250, 220), Finish = "Pearl", MetalFinish = "Gold", HandleFinish = "Gold", Glow = true, Sparkle = true, Aura = true, Pass = true },
+		{ Id = "KnifePassStriker", Name = "Striker", Weapon = "Knife", Rarity = "Rare", Blade = Color3.fromRGB(230, 60, 40), Body = Color3.fromRGB(30, 30, 34), Metal = Color3.fromRGB(255, 220, 90), Accent = Color3.fromRGB(255, 220, 90), Finish = "Gloss" },
+		{ Id = "KnifePassNightOps", Name = "Night Ops", Weapon = "Knife", Rarity = "Epic", Blade = Color3.fromRGB(30, 34, 30), Body = Color3.fromRGB(16, 18, 16), Metal = Color3.fromRGB(60, 70, 60), Accent = Color3.fromRGB(90, 255, 120), Finish = "Tread", Glow = true },
+		{ Id = "KnifePassRedline", Name = "Redline", Weapon = "Knife", Rarity = "Epic", Blade = Color3.fromRGB(20, 20, 22), Body = Color3.fromRGB(220, 20, 30), Metal = Color3.fromRGB(80, 80, 90), Accent = Color3.fromRGB(255, 40, 50), Finish = "Chrome", Glow = true },
+		{ Id = "KnifePassEclipse", Name = "Eclipse", Weapon = "Knife", Rarity = "Legendary", Blade = Color3.fromRGB(14, 10, 24), Body = Color3.fromRGB(8, 6, 14), Metal = Color3.fromRGB(255, 150, 40), Accent = Color3.fromRGB(255, 150, 40), Pulse = Color3.fromRGB(255, 60, 120), Finish = "Pearl", Glow = true, Sparkle = true },
+		{ Id = "KnifePassSovereign", Name = "Sovereign", Weapon = "Knife", Rarity = "Legendary", Blade = Color3.fromRGB(250, 250, 255), Body = Color3.fromRGB(240, 200, 90), Metal = Color3.fromRGB(230, 190, 80), Accent = Color3.fromRGB(255, 230, 140), Pulse = Color3.fromRGB(255, 250, 220), Finish = "Pearl", MetalFinish = "Gold", HandleFinish = "Gold", Glow = true, Sparkle = true, Aura = true },
 	},
 }
 
@@ -392,14 +393,14 @@ Config.Shop = {
 	-- Game Passes
 	Passes = {
 		VIP = { Id = 0, Robux = 299, Name = "VIP", Perks = "2x keys from every match and a gold VIP tag over your head" },
-		BattlePass = { Id = 0, Robux = 499, Name = "PREMIUM PASS", Perks = "The Premium track of this season's battle pass: 8 exclusive skins, tracers, kill effects, poses, titles, credits and keys" },
 	},
 }
 
 ----------------------------------------------------------------------------
 -- COSMETICS beyond skins: tracer colours, kill effects, victory poses and
 -- titles. Equip them in the LOCKER. Each has an Id; "Default" ones are free.
--- They come from the battle pass, the SHOP's featured items or ranked.
+-- They're sold in the SHOP's daily featured items; ranked titles unlock
+-- when you reach their rating.
 ----------------------------------------------------------------------------
 Config.Cosmetics = {
 	-- the colour of your bullet trails (everyone sees them)
@@ -436,65 +437,18 @@ Config.Cosmetics = {
 		{ Id = "TitleSharpshooter", Name = "Sharpshooter", Text = "SHARPSHOOTER", Color = Color3.fromRGB(60, 146, 255), Rarity = "Rare" },
 		{ Id = "TitleKnifeMaster", Name = "Knife Master", Text = "KNIFE MASTER", Color = Color3.fromRGB(176, 84, 255), Rarity = "Epic" },
 		{ Id = "TitleSniperGod", Name = "Sniper God", Text = "SNIPER GOD", Color = Color3.fromRGB(255, 192, 46), Rarity = "Legendary" },
-		{ Id = "TitleSeason1", Name = "Season 1 Veteran", Text = "S1 VETERAN", Color = Color3.fromRGB(255, 80, 110), Rarity = "Legendary" },
+		{ Id = "TitleVeteran", Name = "Veteran", Text = "VETERAN", Color = Color3.fromRGB(255, 80, 110), Rarity = "Legendary" },
 		-- earned in ranked (granted automatically when you reach the tier)
 		{ Id = "TitleDiamond", Name = "Diamond", Text = "DIAMOND", Color = Color3.fromRGB(110, 170, 255), Rarity = "Epic", RankMin = 1500 },
 		{ Id = "TitleChampion", Name = "Champion", Text = "CHAMPION", Color = Color3.fromRGB(255, 80, 110), Rarity = "Legendary", RankMin = 1700 },
 	},
 }
 
-----------------------------------------------------------------------------
--- BATTLE PASS: play matches to earn XP and climb the tiers. Every tier has a
--- free reward; the Premium track (a Game Pass, Config.Shop.Passes.BattlePass)
--- adds a second, better one. Rewards are given straight away when you reach
--- a tier (buying Premium later gives you every Premium reward you've passed).
--- Reward = { Keys = n } | { Credits = n } | { Skin = id } | { Cosmetic = id }
-----------------------------------------------------------------------------
-Config.BattlePass = {
-	Season = 1,
-	Name = "SEASON 1: FIRST BLOOD",
-	XPPerTier = 1000,
-	XPWin = 300, -- XP for winning a match
-	XPLoss = 120, -- XP for finishing a match you lost
-	XPPerRound = 40, -- plus this for every round you won
-	Tiers = {
-		{ Free = { Keys = 5 }, Premium = { Credits = 30 } },
-		{ Free = { Cosmetic = "TitleRookie" }, Premium = { Skin = "PassStriker" } },
-		{ Free = { Keys = 5 }, Premium = { Cosmetic = "TracerGold" } },
-		{ Free = { Credits = 10 }, Premium = { Keys = 15 } },
-		{ Free = { Keys = 10 }, Premium = { Skin = "KnifePassStriker" } },
-		{ Free = { Cosmetic = "TracerCyan" }, Premium = { Credits = 50 } },
-		{ Free = { Keys = 5 }, Premium = { Cosmetic = "FxConfetti" } },
-		{ Free = { Credits = 10 }, Premium = { Skin = "PassNightOps" } },
-		{ Free = { Keys = 10 }, Premium = { Cosmetic = "PoseSalute" } },
-		{ Free = { Cosmetic = "TitleSharpshooter" }, Premium = { Keys = 25 } },
-		{ Free = { Keys = 5 }, Premium = { Cosmetic = "TracerPink" } },
-		{ Free = { Credits = 15 }, Premium = { Skin = "KnifePassNightOps" } },
-		{ Free = { Keys = 10 }, Premium = { Cosmetic = "FxVaporize" } },
-		{ Free = { Cosmetic = "TracerLime" }, Premium = { Credits = 80 } },
-		{ Free = { Keys = 10 }, Premium = { Skin = "PassRedline" } },
-		{ Free = { Credits = 20 }, Premium = { Cosmetic = "PosePoint" } },
-		{ Free = { Keys = 10 }, Premium = { Cosmetic = "TracerViolet" } },
-		{ Free = { Keys = 15 }, Premium = { Skin = "KnifePassRedline" } },
-		{ Free = { Credits = 20 }, Premium = { Cosmetic = "FxFlames" } },
-		{ Free = { Cosmetic = "TitleKnifeMaster" }, Premium = { Credits = 120 } },
-		{ Free = { Keys = 15 }, Premium = { Cosmetic = "PoseWave" } },
-		{ Free = { Credits = 25 }, Premium = { Skin = "PassEclipse" } },
-		{ Free = { Keys = 15 }, Premium = { Cosmetic = "TracerCrimson" } },
-		{ Free = { Credits = 30 }, Premium = { Cosmetic = "FxLightning" } },
-		{ Free = { Keys = 20 }, Premium = { Skin = "KnifePassEclipse" } },
-		{ Free = { Credits = 30 }, Premium = { Cosmetic = "TracerVoid" } },
-		{ Free = { Keys = 20 }, Premium = { Cosmetic = "FxVoid" } },
-		{ Free = { Credits = 40 }, Premium = { Cosmetic = "TitleSniperGod" } },
-		{ Free = { Keys = 25 }, Premium = { Skin = "PassSovereign" } },
-		{ Free = { Cosmetic = "TitleSeason1" }, Premium = { Skin = "KnifePassSovereign" } },
-	},
-}
-
--- FEATURED: three skins you can buy outright with Credits, a new set every
--- day (UTC). Price by rarity. (Secret and battle pass skins never show up.)
+-- FEATURED: skins and cosmetics you can buy outright with Credits, a new set
+-- every day (UTC). Price by rarity. (Secret skins never show up.)
 Config.Featured = {
-	Count = 3,
+	Count = 3, -- skins a day
+	CosmeticCount = 2, -- tracers / kill effects / poses / titles a day
 	Prices = { Common = 40, Uncommon = 80, Rare = 160, Epic = 320, Legendary = 700 },
 }
 

@@ -28,6 +28,7 @@ ClientState.Weapon = "Sniper" -- what's in your hands: "Sniper" or "Knife" (Knif
 ClientState.OwnedSkins = {} -- { [skinId] = count } (from the server's "Crates" messages)
 ClientState.OwnedCosmetics = {} -- { [cosmeticId] = true }
 ClientState.Featured = {} -- today's featured skin ids (SHOP)
+ClientState.FeaturedCosmetics = {} -- today's featured cosmetic ids (SHOP)
 
 ClientState.Changed = Signal.new() -- (newSnapshot, oldSnapshot)
 ClientState.SettingsChanged = Signal.new() -- (settings)

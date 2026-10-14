@@ -175,9 +175,7 @@ local function refreshDetails()
 		statusLabel.TextColor3 = Palette.UIAccent
 	elseif skin and count <= 0 then
 		if not isSkinTab() then
-			statusLabel.Text = skin.RankMin and ("LOCKED  -  REACH %d RATING IN RANKED"):format(skin.RankMin) or "LOCKED  -  FROM THE BATTLE PASS"
-		elseif skin.Pass then
-			statusLabel.Text = "LOCKED  -  FROM THE BATTLE PASS"
+			statusLabel.Text = skin.RankMin and ("LOCKED  -  REACH %d RATING IN RANKED"):format(skin.RankMin) or "LOCKED  -  BUY IT WHEN IT'S FEATURED IN THE SHOP"
 		else
 			statusLabel.Text = skin.Elite and "LOCKED  -  ONLY IN THE ELITE CRATE" or "LOCKED  -  OPEN CRATES (SHOP OR CRATE VAULT)"
 		end
@@ -271,7 +269,7 @@ local function makeTile(skin, order)
 		Theme.label({
 			Position = UDim2.fromOffset(70, 8),
 			Size = UDim2.new(1, -78, 0, 16),
-			Text = (skin.Pass and "PASS  " or "") .. (skin.Elite and "ELITE  " or "") .. (skin.Pulse and "GLOW + FX" or "GLOW"),
+			Text = (skin.Elite and "ELITE  " or "") .. (skin.Pulse and "GLOW + FX" or "GLOW"),
 			TextSize = 10,
 			TextXAlignment = Enum.TextXAlignment.Right,
 			TextColor3 = color,

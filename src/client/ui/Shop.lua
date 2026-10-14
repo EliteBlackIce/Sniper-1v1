@@ -5,7 +5,7 @@
 		CRATES    the Standard crate (Keys, earned by playing) and the Elite
 		          crate (Credits: better odds, Elite-only skins, Secrets).
 		          OPEN plays the opening at the crate vault.
-		FEATURED  three skins a day to buy outright with Credits
+		FEATURED  three skins (3D previews) + two cosmetics a day, for Credits
 		CREDITS   Credit packs (and a Key pack) for Robux
 		VIP       the VIP pass (2x keys)
 	Purchases are Roblox prompts; the server grants them (CrateService).
@@ -170,90 +170,193 @@ local function buildCrates(page)
 		"Rare and up only, and the only crate with Elite-only skins (" .. table.concat(elite, ", ") .. "...) and the SECRETS.")
 end
 
--- FEATURED: today's skins to buy outright with Credits
+-- FEATURED: today's skins (with a spinning 3D preview of each) and
+-- cosmetics, to buy outright with Credits
 local featuredPage
+local spinning = {} -- { Built, IsKnife, Scale } previews turning while the shop is open
+
+-- A ViewportFrame showing the skin on its weapon.
+local function skinPreview(parent, skin)
+	local Skins = require(Shared.Skins)
+	local viewport = Theme.new("ViewportFrame", {
+		Position = UDim2.fromOffset(0, 52),
+		Size = UDim2.new(1, 0, 0, 120),
+		BackgroundColor3 = Palette.UIBackground,
+		BackgroundTransparency = 0.2,
+		Ambient = Color3.fromRGB(160, 165, 180),
+		LightColor = Color3.fromRGB(255, 250, 240),
+		LightDirection = Vector3.new(-0.4, -1, -0.6),
+		Parent = parent,
+	})
+	Theme.corner(viewport, 10)
+	local world = Instance.new("WorldModel")
+	world.Parent = viewport
+	local isKnife = skin.Weapon == "Knife"
+	local scale = isKnife and 2.4 or 1
+	local model = Instance.new("Model")
+	local built = Skins.Build(skin.Weapon, model, skin, { Scale = scale, Anchored = true, Effects = false })
+	model.Parent = world
+	local camera = Instance.new("Camera")
+	camera.FieldOfView = 26
+	camera.CFrame = CFrame.lookAt(Vector3.new(0, 1, 9.5), Vector3.new(0, 0, 0))
+	camera.Parent = viewport
+	viewport.CurrentCamera = camera
+	table.insert(spinning, { Built = built, IsKnife = isKnife, Scale = scale, Phase = #spinning })
+end
+
+local function placeSpinning()
+	local KnifeModel = require(Shared.KnifeModel)
+	local GunModel = require(Shared.GunModel)
+	local t = os.clock()
+	for _, item in ipairs(spinning) do
+		local cf = CFrame.Angles(0, math.pi / 2 + math.sin(t * 0.7 + item.Phase) * 0.5, 0) * CFrame.Angles(0, 0, math.rad(4))
+		if item.IsKnife then
+			KnifeModel.Place(item.Built, cf * CFrame.new(0, 0, 0.47 * item.Scale))
+		else
+			GunModel.Place(item.Built, cf * CFrame.new(0, 0, 1.4), 1)
+		end
+	end
+end
+
+-- An icon for a cosmetic: a tracer streak, a kill effect burst, a pose or a title.
+local function cosmeticIcon(parent, item)
+	local box = Theme.new("Frame", {
+		Position = UDim2.fromOffset(0, 52),
+		Size = UDim2.new(1, 0, 0, 120),
+		BackgroundColor3 = Palette.UIBackground,
+		BackgroundTransparency = 0.2,
+		Parent = parent,
+	})
+	Theme.corner(box, 10)
+	local color = item.Color or GOLD
+	if item.Kind == "Tracer" then
+		for k = 0, 2 do
+			local streak = Theme.new("Frame", {
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.new(0.5, 0, 0.3 + k * 0.2, 0),
+				Size = UDim2.new(0.75 - k * 0.15, 0, 0, 6 - k * 2),
+				Rotation = -12,
+				BackgroundColor3 = color,
+				BackgroundTransparency = k * 0.25,
+				Parent = box,
+			})
+			Theme.corner(streak, 3)
+		end
+	elseif item.Kind == "KillFx" then
+		for k = 0, 7 do
+			local a = k / 8 * math.pi * 2
+			local shard = Theme.new("Frame", {
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.new(0.5, math.cos(a) * 34, 0.5, math.sin(a) * 34),
+				Size = UDim2.fromOffset(12, 12),
+				Rotation = k * 25,
+				BackgroundColor3 = color,
+				Parent = box,
+			})
+			Theme.corner(shard, 3)
+		end
+		local core = Theme.new("Frame", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromOffset(26, 26),
+			BackgroundColor3 = Color3.new(1, 1, 1),
+			Parent = box,
+		})
+		Theme.corner(core, 13)
+	else
+		Theme.label({
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.new(0.9, 0, 0, 40),
+			Text = item.Kind == "Title" and item.Text or string.upper(item.Name),
+			TextScaled = true,
+			TextColor3 = color,
+			FontFace = Theme.Font(Enum.FontWeight.Heavy),
+			Parent = box,
+		})
+	end
+end
+
 local function buildFeatured()
 	local page = featuredPage
 	for _, child in ipairs(page:GetChildren()) do
 		child:Destroy()
 	end
+	table.clear(spinning)
 	local Skins = require(Shared.Skins)
-	local ids = ClientState.Featured or {}
-	local count = math.max(#ids, 1)
-	for i, id in ipairs(ids) do
+	local Cosmetics = require(Shared.Cosmetics)
+	local entries = {}
+	for _, id in ipairs(ClientState.Featured or {}) do
 		local skin = Skins.Get(id)
 		if skin then
-			local rarity = rarityById[skin.Rarity]
-			local frame = card(page, {
-				Position = UDim2.new((i - 1) / count, 6, 0, 0),
-				Size = UDim2.new(1 / count, -12, 1, 0),
-				Color = rarity and rarity.Color,
-			})
-			Theme.label({
-				Size = UDim2.new(1, 0, 0, 18),
-				Text = (rarity and rarity.Name or "") .. "  -  " .. string.upper(skin.Weapon),
-				TextSize = 13,
-				TextColor3 = rarity and rarity.Color or Palette.UIText,
-				Parent = frame,
-			})
-			Theme.label({
-				Position = UDim2.fromOffset(0, 26),
-				Size = UDim2.new(1, 0, 0, 34),
-				Text = string.upper(skin.Name),
-				TextSize = 26,
-				TextScaled = false,
-				FontFace = Theme.Font(Enum.FontWeight.Heavy),
-				Parent = frame,
-			})
-			for k, color in ipairs({ skin.Body, skin.Blade or skin.Metal, skin.Accent }) do
-				local swatch = Theme.new("Frame", {
-					AnchorPoint = Vector2.new(0.5, 0),
-					Position = UDim2.new(0.5, (k - 2) * 46, 0, 84),
-					Size = UDim2.fromOffset(38, 38),
-					BackgroundColor3 = color,
-					Parent = frame,
-				})
-				Theme.corner(swatch, 19)
-			end
-			Theme.label({
-				Position = UDim2.fromOffset(0, 140),
-				Size = UDim2.new(1, 0, 0, 20),
-				Text = (skin.Finish and string.upper(skin.Finish) .. " FINISH" or "") .. (skin.Glow and "  +  GLOW" or ""),
-				TextSize = 13,
-				TextColor3 = Palette.UISubText,
-				Parent = frame,
-			})
-			local price = Config.Featured.Prices[skin.Rarity] or 0
-			local have = (ClientState.OwnedSkins[id] or 0) > 0
-			local button = Theme.button({
-				AnchorPoint = Vector2.new(0, 1),
-				Position = UDim2.fromScale(0, 1),
-				Size = UDim2.new(1, 0, 0, 44),
-				Text = have and "OWNED" or ("BUY  -  %d CREDITS"):format(price),
-				TextSize = 16,
-				BackgroundColor3 = have and Palette.UIPanel or GOLD,
-				AutoButtonColor = not have,
-				Parent = frame,
-			})
-			button.Activated:Connect(function()
-				if have then
-					return
-				end
-				if (player:GetAttribute("Credits") or 0) < price then
-					Sfx.Play("CardHover", { Pitch = 0.6 })
-					Shop.Show("Credits")
-					return
-				end
-				Sfx.Play("CardPick", { Pitch = 1.2 })
-				Remotes.Get("ShopBuy"):FireServer("Featured", id)
-			end)
+			table.insert(entries, { Id = id, Skin = skin, Item = skin, Owned = (ClientState.OwnedSkins[id] or 0) > 0 })
 		end
+	end
+	for _, id in ipairs(ClientState.FeaturedCosmetics or {}) do
+		local item = Cosmetics.Get(id)
+		if item then
+			table.insert(entries, { Id = id, Item = item, Owned = ClientState.OwnedCosmetics[id] == true })
+		end
+	end
+	local count = math.max(#entries, 1)
+	local KIND = { Tracer = "TRACER", KillFx = "KILL EFFECT", Pose = "VICTORY POSE", Title = "TITLE" }
+	for i, entry in ipairs(entries) do
+		local item = entry.Item
+		local rarity = rarityById[item.Rarity]
+		local frame = card(page, {
+			Position = UDim2.new((i - 1) / count, 4, 0, 0),
+			Size = UDim2.new(1 / count, -8, 1, 0),
+			Color = rarity and rarity.Color,
+		})
+		Theme.label({
+			Size = UDim2.new(1, 0, 0, 16),
+			Text = (rarity and rarity.Name or "") .. "  -  " .. (entry.Skin and string.upper(entry.Skin.Weapon) or KIND[item.Kind] or ""),
+			TextSize = 11,
+			TextColor3 = rarity and rarity.Color or Palette.UIText,
+			Parent = frame,
+		})
+		Theme.label({
+			Position = UDim2.fromOffset(0, 18),
+			Size = UDim2.new(1, 0, 0, 28),
+			Text = string.upper(item.Name),
+			TextScaled = true,
+			FontFace = Theme.Font(Enum.FontWeight.Heavy),
+			Parent = frame,
+		})
+		if entry.Skin then
+			skinPreview(frame, entry.Skin)
+		else
+			cosmeticIcon(frame, item)
+		end
+		local price = Config.Featured.Prices[item.Rarity] or 0
+		local button = Theme.button({
+			AnchorPoint = Vector2.new(0, 1),
+			Position = UDim2.fromScale(0, 1),
+			Size = UDim2.new(1, 0, 0, 40),
+			Text = entry.Owned and "OWNED" or ("%d CREDITS"):format(price),
+			TextSize = 15,
+			BackgroundColor3 = entry.Owned and Palette.UIPanel or GOLD,
+			AutoButtonColor = not entry.Owned,
+			Parent = frame,
+		})
+		button.Activated:Connect(function()
+			if entry.Owned then
+				return
+			end
+			if (player:GetAttribute("Credits") or 0) < price then
+				Sfx.Play("CardHover", { Pitch = 0.6 })
+				Shop.Show("Credits")
+				return
+			end
+			Sfx.Play("CardPick", { Pitch = 1.2 })
+			Remotes.Get("ShopBuy"):FireServer("Featured", entry.Id)
+		end)
 	end
 	Theme.label({
 		AnchorPoint = Vector2.new(0, 1),
 		Position = UDim2.new(0, 0, 1, 28),
 		Size = UDim2.new(1, 0, 0, 20),
-		Text = "New featured skins every day.",
+		Text = "New featured items every day.",
 		TextSize = 13,
 		TextColor3 = Palette.UISubText,
 		Parent = page,
@@ -513,6 +616,11 @@ function Shop.Start(playerGui)
 	featuredPage = pages.Featured
 	buildFeatured()
 	ClientState.SkinsChanged:Connect(buildFeatured) -- (owned / today's list changed)
+	RunService.RenderStepped:Connect(function()
+		if isOpen and current == "Featured" then
+			placeSpinning()
+		end
+	end)
 	buildCredits(pages.Credits)
 	player:GetAttributeChangedSignal("PaidRandomBlocked"):Connect(function()
 		for _, child in ipairs(pages.Credits:GetChildren()) do

@@ -360,12 +360,6 @@ function LobbyBuilder.Build()
 			for f = 0, 3 do -- fluting
 				b.part(V(0.3, WALL_H - 4, 2.75), CFrame.new(base + V(0, WALL_H / 2, 0)) * CFrame.Angles(0, f * math.pi / 4, 0), C.Stone)
 			end
-			if i % 2 == 0 then -- potted plant at the base
-				local pot = polar(COL_R - 3, deg, 0)
-				b.cylinder(1.6, 2.4, pot + V(0, 0.8, 0), C.Trim)
-				b.cylinder(0.12, 2.1, pot + V(0, 1.64, 0), C.Soil)
-				bush(b, pot + V(0, 1.4, 0), 0.75)
-			end
 			-- banners between columns: the SNIPER DUEL logo, trimmed in team colours
 			-- (none in front of the four main signs: north, east, south, west)
 			if (deg + 15) % 90 ~= 0 then
@@ -483,6 +477,8 @@ function LobbyBuilder.Build()
 	plaque.Color = C.Metal
 	plaque.Material = Enum.Material.Metal
 	plaque.Parent = model
+	-- a mount behind it, so the flat plaque doesn't hang off the round plinth
+	b.part(V(3.7, 1.3, 0.6), CFrame.lookAt(V(0, pitY + 1.15, 4.18), V(0, pitY + 1.15, 10)), C.Trim)
 	Logo.OnPart(plaque, Enum.NormalId.Front, { Layout = "Inline", Color = P.UIText, Accent = P.AccentA, Stroke = 3 }, 60)
 
 	-- benches around the pit, facing the monument
@@ -533,8 +529,8 @@ function LobbyBuilder.Build()
 			lampPost(b, (frame * CFrame.new(s * 7, 0, 0)).Position)
 		end
 	end
-	for _, deg in ipairs({ 45, 135, 225, 315 }) do
-		path(b, stepTop, 46, deg, 6, C.Stone)
+	for _, deg in ipairs({ 45, 135, 225, 315 }) do -- all the way to the wall (NW ends at the portal)
+		path(b, stepTop, deg == 315 and 45.2 or R - 1, deg, 6, C.Stone)
 	end
 	-- planters + flowers between the paths
 	for k = 0, 7 do
@@ -755,15 +751,6 @@ function LobbyBuilder.Build()
 	end)
 	sign(model, V(16, 3.2, 0.5), CFrame.lookAt(V(-60.4, 15.4, 0), V(0, 15.4, 0)), "CRATE VAULT", "OPEN CRATES  -  SKINS  -  SHOP [M]", P.AccentB)
 
-	-- BINS ---------------------------------------------------------------------------------
-	for _, deg in ipairs({ 20, 160, 200, 340 }) do -- bins by the paths
-		local pos = polar(31, deg, 0)
-		b.decor(function()
-			b.cylinder(2.4, 1.6, pos + V(0, 1.2, 0), C.Metal)
-			b.cylinder(0.3, 1.8, pos + V(0, 2.5, 0), C.Dark)
-		end)
-	end
-
 	-- SOUTH: STAGE --------------------------------------------------------------------------
 	b.block(V(36, 3, 12), V(0, 1.5, 55), C.Stone)
 	b.ramp(V(0, 0, 44), V(0, 0, 1), 5, 3, 16, C.Stone)
@@ -822,7 +809,7 @@ function LobbyBuilder.Build()
 			b.ball(1.4 + (k % 2) * 0.6, pos, C.Concrete) -- rocks
 		end
 	end)
-	bench(b, facingIn(44, 40, 0))
+	bench(b, facingIn(42, 36, 0)) -- (between the pond and the diagonal path)
 
 	-- NORTH-WEST: PLAYGROUND PORTAL -----------------------------------------------------------
 	local portalDeg = 315

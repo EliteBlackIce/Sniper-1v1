@@ -275,21 +275,23 @@ end
 local KS = KN.WorldScale
 
 -- A knife pose from where the handle is and where the blade points. The
--- roll round the blade is worked out so the spine faces your elbow:
--- the fist closes on the handle with the forearm running back from it to the
--- elbow (a real hammer grip), so the arm and the knife always move as one
+-- roll round the blade is worked out so the spine faces back toward you:
+-- the fist closes on the handle knuckles up with the forearm running back
+-- from it (a real hammer grip), so the arm and the knife always move as one
 -- and the handle never cuts through the wrist. `twist` (degrees) rolls it
 -- a little more when a move wants the flat or the edge shown.
-local KNIFE_SHOULDER = V(0.95, -1.3, 0.35)
 local function kaim(pos, forward, twist)
 	local f = forward.Unit
-	-- toward the elbow: mostly down, a bit toward the shoulder. (Aiming straight
-	-- at the shoulder flipped the hand over whenever the blade tilted, because
-	-- the shoulder sits almost directly behind the blade.)
-	local toElbow = (KNIFE_SHOULDER - pos).Unit * 0.5 + V(0.2, -0.8, 0)
-	local spine = toElbow - f * toElbow:Dot(f)
+	-- The spine faces back toward you (and a bit up and right), the edge
+	-- away from you: a normal hammer grip, knuckles up, with the forearm
+	-- leaving the fist on the spine side. One fixed reference for every pose,
+	-- and the blade never points back at you, so the roll can't flip between
+	-- keys. (Aiming at the shoulder or the elbow flipped the hand over: both
+	-- sit almost directly behind the blade.)
+	local ref = V(0.25, 0.35, 1)
+	local spine = ref - f * ref:Dot(f)
 	if spine.Magnitude < 1e-3 then
-		spine = V(0, -1, 0) + f * f.Y -- (pointing straight at the shoulder: spine down)
+		spine = V(0, 1, 0) - f * f.Y
 	end
 	local cf = aim(pos, f, -spine)
 	if twist then
@@ -300,7 +302,7 @@ end
 local KNIFE_IDLE = kaim(V(0.5, -0.88, -1.05), V(-0.35, 0.5, -0.8))
 local KNIFE_SPRINT = kaim(V(0.6, -1.15, -0.8), V(-0.2, -0.1, -1))
 -- the fist closes round the handle, thumb by the guard; the forearm leaves
--- the fist on the spine side (kaim points the spine at the shoulder), tipped
+-- the fist on the spine side (kaim turns the spine back toward you), tipped
 -- a touch toward the pommel like a real wrist
 local HAND_ON_KNIFE = CFrame.new(KnifeModel.Grip.Position * KS) * CFrame.Angles(rad(8), 0, 0)
 

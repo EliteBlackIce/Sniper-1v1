@@ -126,15 +126,32 @@ function Logo.Make(parent, options)
 	if layout == "Mark" then
 		Logo.Mark(root, color, accent, options.Stroke)
 	elseif layout == "Inline" then
-		-- [mark] SNIPER DUEL  (subtitle under the words)
-		Logo.Mark(root, color, accent, options.Stroke, UDim2.fromScale(0.09, 0.5), UDim2.fromScale(0.9, 0.9))
+		-- [mark] SNIPER DUEL  (subtitle under the words). Everything sits in
+		-- one centred box with a fixed shape, so the mark and the words line
+		-- up the same on any board, and both words are one label (one size).
 		local hasSub = options.Subtitle ~= nil
-		local wordY = hasSub and 0.38 or 0.5
-		local wordH = hasSub and 0.56 or 0.8
-		word(root, "SNIPER", color, UDim2.fromScale(0.2, wordY), UDim2.fromScale(0.44, wordH), Enum.TextXAlignment.Left)
-		word(root, "DUEL", accent, UDim2.fromScale(0.66, wordY), UDim2.fromScale(0.32, wordH), Enum.TextXAlignment.Left)
+		local box = new("Frame", {
+			Name = "Inline",
+			BackgroundTransparency = 1,
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromScale(0.94, 0.86),
+			Parent = root,
+		})
+		new("UIAspectRatioConstraint", { AspectRatio = 4, Parent = box })
+		-- the mark is a square as tall as the box: 1/4 of its width
+		Logo.Mark(box, color, accent, options.Stroke, UDim2.fromScale(0.125, 0.5), UDim2.fromScale(0.25, 1))
+		local words = word(
+			box,
+			string.format('SNIPER <font color="#%s">DUEL</font>', accent:ToHex()),
+			color,
+			UDim2.fromScale(0.3, hasSub and 0.38 or 0.5),
+			UDim2.fromScale(0.7, hasSub and 0.62 or 0.8),
+			Enum.TextXAlignment.Left
+		)
+		words.RichText = true
 		if hasSub then
-			local sub = word(root, options.Subtitle, color, UDim2.fromScale(0.2, 0.82), UDim2.fromScale(0.78, 0.2), Enum.TextXAlignment.Left)
+			local sub = word(box, options.Subtitle, color, UDim2.fromScale(0.3, 0.84), UDim2.fromScale(0.7, 0.2), Enum.TextXAlignment.Left)
 			sub.FontFace = font(Enum.FontWeight.Bold)
 			sub.TextTransparency = 0.15
 		end

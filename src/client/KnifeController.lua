@@ -39,7 +39,6 @@ local equippedAt = 0
 local busyUntil = 0 -- no new swing before this
 local pending = {} -- scheduled hit checks { At, Kind, Done }
 local trailUntil = 0
-local lastTip
 
 ----------------------------------------------------------------------------
 -- Helpers
@@ -208,34 +207,86 @@ local function resolve(hitCheck)
 end
 
 ----------------------------------------------------------------------------
--- Slash trail: thin glowing streaks along the tip's path
+-- Slash trail: a thin glowing streak along the tip's path. The tip moves a
+-- long way each frame mid-swing, so the streak follows a Catmull-Rom curve
+-- through the last few tip positions (several short pieces per frame, one
+-- frame behind) instead of one straight chord per frame: a smooth arc, not
+-- a zig-zag.
 ----------------------------------------------------------------------------
+local TRAIL_COLOR = Color3.fromRGB(235, 240, 255)
+local TRAIL_WIDTH = 0.03
+local TRAIL_LIFE = 0.14
 local trailFolder
+local history = {} -- the last 4 tip positions, oldest first
+
+local function catmull(p0, p1, p2, p3, t)
+	local t2, t3 = t * t, t * t * t
+	return 0.5 * ((2 * p1) + (p2 - p0) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 + (3 * p1 - p0 - 3 * p2 + p3) * t3)
+end
+
+local function piece(a, c, born)
+	local length = (c - a).Magnitude
+	if length < 1e-3 then
+		return
+	end
+	local part = Instance.new("Part")
+	part.Anchored = true
+	part.CanCollide = false
+	part.CanQuery = false
+	part.CanTouch = false
+	part.CastShadow = false
+	part.Shape = Enum.PartType.Cylinder
+	part.Material = Enum.Material.Neon
+	part.Color = TRAIL_COLOR
+	part.Transparency = 0.4
+	-- (a cylinder runs along X; a little longer than the gap so pieces overlap)
+	part.Size = Vector3.new(length + TRAIL_WIDTH, TRAIL_WIDTH, TRAIL_WIDTH)
+	part.CFrame = CFrame.lookAt((a + c) / 2, c) * CFrame.Angles(0, math.pi / 2, 0)
+	part.Parent = trailFolder
+	task.spawn(function()
+		while part.Parent do
+			local f = (os.clock() - born) / TRAIL_LIFE
+			if f >= 1 then
+				break
+			end
+			local w = TRAIL_WIDTH * (1 - f * 0.8)
+			part.Size = Vector3.new(part.Size.X, w, w)
+			part.Transparency = 0.4 + f * 0.6
+			task.wait()
+		end
+		part:Destroy()
+	end)
+end
+
 local function drawTrail()
 	local tip = Controllers.Viewmodel.GetKnifeTip()
-	if os.clock() < trailUntil and lastTip and (tip - lastTip).Magnitude > 0.02 and Config.Effects.NeonEffects then
-		local part = Instance.new("Part")
-		part.Anchored = true
-		part.CanCollide = false
-		part.CanQuery = false
-		part.CanTouch = false
-		part.CastShadow = false
-		part.Material = Enum.Material.Neon
-		part.Color = Color3.fromRGB(235, 240, 255)
-		part.Transparency = 0.45
-		part.Size = Vector3.new(0.025, 0.025, (tip - lastTip).Magnitude)
-		part.CFrame = CFrame.lookAt((tip + lastTip) / 2, tip)
-		part.Parent = trailFolder
-		task.spawn(function()
-			for i = 1, 6 do
-				task.wait(0.02)
-				part.Transparency = 0.45 + i * 0.09
-				part.Size = Vector3.new(0.025 * (1 - i / 7), 0.025 * (1 - i / 7), part.Size.Z)
-			end
-			part:Destroy()
-		end)
+	if not (os.clock() < trailUntil and Config.Effects.NeonEffects) then
+		table.clear(history)
+		return
 	end
-	lastTip = tip
+	local last = history[#history]
+	if last and (tip - last).Magnitude < 0.01 then
+		return
+	end
+	table.insert(history, tip)
+	if #history > 4 then
+		table.remove(history, 1)
+	end
+	local n = #history
+	if n < 3 then
+		return
+	end
+	-- draw the piece before the newest point: p1 -> p2 (p0 and p3 bend it)
+	local p1, p2, p3 = history[n - 2], history[n - 1], history[n]
+	local p0 = history[n - 3] or (2 * p1 - p2)
+	local steps = math.clamp(math.ceil((p2 - p1).Magnitude / 0.06), 1, 10)
+	local now = os.clock()
+	local prev = p1
+	for k = 1, steps do
+		local point = catmull(p0, p1, p2, p3, k / steps)
+		piece(prev, point, now)
+		prev = point
+	end
 end
 
 ----------------------------------------------------------------------------
@@ -319,7 +370,7 @@ function KnifeController.Start()
 		if ClientState.Weapon == "Knife" then
 			drawTrail()
 		else
-			lastTip = nil
+			table.clear(history)
 		end
 	end)
 end

@@ -9,8 +9,11 @@
 	Opening (when the server sends a result over the "Crates" remote):
 	  1. INTRO    the camera swoops in, letterbox bars slide on
 	  2. CHARGE   the crate lifts and spins faster and faster, shaking, while
-	              sparks get sucked in; its glow climbs the rarity ladder
-	              (COMMON > UNCOMMON > ...) and stops on what you got.
+	              sparks get sucked in over a quickening heartbeat; its glow
+	              climbs the rarity ladder (COMMON > UNCOMMON > ..., slower
+	              each step) and stops on what you got, flickers toward the
+	              next rarity (the tease) and falls back, then everything
+	              stops dead for a breath before the blast.
 	              Secret fakes you out: it stalls on Legendary, goes dark,
 	              then cracks red.
 	  3. BURST    the lid blasts off, a flash, a pillar of light, a shockwave
@@ -390,23 +393,35 @@ local function play(result, continuing)
 		burst.Parent = attachment
 	end
 
-	-- timeline
-	local tIntro = continuing and 0.35 or 1.0
-	local stepTime = 0.5
+	-- timeline: the climb slows down as it goes up (every step is a "will
+	-- it go higher?"), then a tease where it flickers toward the next rarity
+	-- and falls back, then a breath of silence before the blast
+	local tIntro = continuing and 0.45 or 1.3
 	local steps = {} -- { time, rarity, final }
 	local climbTo = isSecret and 5 or tier
 	local stepCount = math.max(climbTo, 2) -- always build a little suspense
+	local stepT = tIntro
 	for k = 1, stepCount do
 		local r = CR.Rarities[math.min(k, climbTo)]
-		table.insert(steps, { T = tIntro + (k - 1) * stepTime, Rarity = r, Final = (k == stepCount) and not isSecret })
+		table.insert(steps, { T = stepT, Rarity = r, Final = (k == stepCount) and not isSecret })
+		stepT += 0.55 + k * 0.14
 	end
-	local chargeEnd = tIntro + stepCount * stepTime + (big and 0.5 or 0.25)
+	local lastStep = steps[#steps].T
+	local nextRarity = not isSecret and CR.Rarities[math.min(tier + 1, #CR.Rarities - 1)] or nil
+	local teaseStart, teaseEnd
+	if nextRarity and nextRarity ~= rarity then
+		teaseStart = lastStep + 0.5
+		teaseEnd = teaseStart + 0.9
+	end
+	local chargeEnd = (teaseEnd or lastStep + 0.6) + (big and 0.75 or 0.55)
 	local stallStart, crackTime
 	if isSecret then
-		stallStart = chargeEnd - 0.25
-		crackTime = stallStart + 1.1
-		chargeEnd = crackTime + 0.55
+		stallStart = lastStep + 0.5
+		crackTime = stallStart + 1.3
+		chargeEnd = crackTime + 0.7
 	end
+	local holdStart = chargeEnd - 0.5 -- everything stops, then BOOM
+	local nextBeat = tIntro
 	local tBurst = chargeEnd
 	local tReveal = tBurst + 0.35
 	local fired = {}
@@ -448,6 +463,32 @@ local function play(result, continuing)
 			end
 		end
 		crate.Light.Brightness = math.max(1.2, crate.Light.Brightness - dt * 6)
+		-- a heartbeat that speeds up
+		if t >= nextBeat and t < holdStart then
+			local c = math.clamp((t - tIntro) / math.max(holdStart - tIntro, 0.1), 0, 1)
+			Sfx.Play("KillThump", { Pitch = 0.75 + c * 0.25, Volume = 0.6 + c * 0.6 })
+			nextBeat = t + (0.85 - c * 0.55)
+		end
+		-- the tease: flickers toward the next rarity... and falls back
+		if teaseStart and t >= teaseStart and t < teaseEnd then
+			local u = (t - teaseStart) / (teaseEnd - teaseStart)
+			local on = math.sin(u * u * 70) > 0.2
+			CrateModel.SetColor(crate, on and nextRarity.Color or rarity.Color)
+			if ring then
+				ring.Color = on and nextRarity.Color or rarity.Color
+			end
+			crate.Light.Brightness = on and 2.5 or 1.4
+		end
+		if teaseEnd and once("teaseEnd", teaseEnd, t) then
+			CrateModel.SetColor(crate, rarity.Color)
+			if ring then
+				ring.Color = rarity.Color
+			end
+			Sfx.Play("Countdown", { Pitch = 0.6, Volume = 1.3 })
+		end
+		if once("hold", holdStart, t) then
+			Sfx.Play("CardHover", { Pitch = 0.5, Volume = 2.5 })
+		end
 		if isSecret then
 			if once("stall", stallStart, t) then
 				-- "it's over"... everything goes dark
@@ -482,9 +523,17 @@ local function play(result, continuing)
 			if isSecret and t >= stallStart and t < crackTime then
 				spin, shake = 0.3, 0.02 -- the fake-out: it all winds down
 			end
+			local holding = t >= holdStart
+			if holding then
+				-- the breath before the blast: it stops dead and trembles
+				local h = (t - holdStart) / (chargeEnd - holdStart)
+				spin = 14 * (1 - h) ^ 3
+				shake = 0.05 + h * 0.12
+				lift += h * 0.4
+			end
 			if inward then
 				inward.Color = ColorSequence.new(color)
-				inward.Rate = t > tIntro and (20 + charge * 120) or 0
+				inward.Rate = (t > tIntro and not holding) and (20 + charge * 120) or 0
 			end
 		else
 			local after = t - tBurst

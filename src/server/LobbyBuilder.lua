@@ -428,7 +428,7 @@ function LobbyBuilder.Build()
 	local POOL_R = 8
 	ring(b, POOL_R, POOL_R + 0.9, pitY + 0.9, 0.9, C.Stone, 48) -- pool wall
 	b.cylinder(0.5, POOL_R * 2 + 0.2, V(0, pitY + 0.25, 0), C.FrameDark) -- pool floor
-	b.cylinder(2.2, 6.4, V(0, pitY + 1.1, 0), C.Stone) -- plinth, lower tier
+	b.cylinder(2.2, 9, V(0, pitY + 1.1, 0), C.Stone) -- plinth, lower tier (wide enough for the uplights)
 	b.cylinder(1.4, 4.8, V(0, pitY + 2.9, 0), C.BuildingA) -- upper tier
 	local coreY = pitY + 3.6 + 6.2 -- centre of the rings
 	b.decor(function()
@@ -438,7 +438,7 @@ function LobbyBuilder.Build()
 		for _, part in ipairs(water) do
 			part.Transparency = 0.25
 		end
-		b.cylinder(0.16, 6.7, V(0, pitY + 1.9, 0), C.Trim) -- tier bands (kept off the tops)
+		b.cylinder(0.16, 9.3, V(0, pitY + 1.9, 0), C.Trim) -- tier bands (kept off the tops)
 		b.cylinder(0.16, 5.1, V(0, pitY + 3.2, 0), C.Trim)
 		b.cylinder(0.3, 5.2, V(0, pitY + 3.75, 0), C.Metal) -- cap
 		b.cylinder(1.2, 1.1, V(0, pitY + 4.5, 0), C.Metal) -- neck up to the rings
@@ -482,7 +482,7 @@ function LobbyBuilder.Build()
 	plaque.Anchored = true
 	plaque.CanCollide = false
 	plaque.Size = V(3.4, 1.1, 0.2)
-	plaque.CFrame = CFrame.lookAt(V(0, pitY + 1.15, 3.25), V(0, pitY + 1.15, 10)) -- faces the stage side (south)
+	plaque.CFrame = CFrame.lookAt(V(0, pitY + 1.15, 4.6), V(0, pitY + 1.15, 10)) -- faces the stage side (south)
 	plaque.Color = C.Metal
 	plaque.Material = Enum.Material.Metal
 	plaque.Parent = model
@@ -571,23 +571,56 @@ function LobbyBuilder.Build()
 	sign(model, V(16, 3, 0.5), CFrame.new(0, 17.5, -R + 0.8) * CFrame.Angles(0, math.pi, 0), "SHOOTING RANGE", nil)
 
 	-- EAST: DUEL AREA -----------------------------------------------------------------------
+	-- A stone dais with a blue pad and a red pad, a glowing VS line between
+	-- them, team-coloured light beams over the pads and a canopy with
+	-- team underglow.
 	b.block(V(12, 1.4, 30), V(56, 0.7, 0), C.Stone)
 	b.ramp(V(48, 0, 0), V(1, 0, 0), 2.5, 1.4, 12, C.Stone)
 	b.decor(function()
-		accent(b, b.block(V(12.2, 0.2, 30.2), V(56, 1.45, 0), P.AccentA))
+		b.block(V(12.2, 0.2, 30.2), V(56, 1.45, 0), C.FrameDark) -- the dais top
+		b.block(V(12.4, 0.3, 30.4), V(56, 1.25, 0), C.Trim) -- its lip
 		for i, z in ipairs({ -7.5, 7.5 }) do
 			local color = i == 1 and P.PlayerA or P.PlayerB
-			neon(b, b.cylinder(0.15, 10, V(56, 1.5, z), color))
-			b.cylinder(0.18, 8.2, V(56, 1.53, z), C.Dark)
-			neon(b, b.cylinder(0.2, 2, V(56, 1.56, z), color))
+			-- the pad: a neon ring round a dark disc, a glowing core
+			neon(b, b.cylinder(0.12, 9.4, V(56, 1.6, z), color))
+			b.cylinder(0.16, 8.6, V(56, 1.62, z), C.Dark)
+			neon(b, b.cylinder(0.12, 5.2, V(56, 1.66, z), color))
+			b.cylinder(0.16, 4.8, V(56, 1.68, z), C.Dark)
+			light(neon(b, b.cylinder(0.12, 1.6, V(56, 1.72, z), color)), color, 16, 1.1)
+			-- a soft beam of light over the pad
+			for _, part in ipairs(neon(b, b.cylinder(9, 7.8, V(56, 6.2, z), color))) do
+				part.Transparency = 0.92
+				part.CastShadow = false
+			end
+			-- team light bar on the back wall + underglow on the canopy
 			light(neon(b, b.block(V(1, 12, 0.6), V(61, 7.4, z * 1.9), color)), color, 18, 1)
+			neon(b, b.block(V(10, 0.12, 0.5), V(56.5, 14.88, z * 1.6), color))
 		end
-		-- canopy on two posts
-		for _, z in ipairs({ -14, 14 }) do
+		-- the VS line between the pads
+		neon(b, b.block(V(6.4, 0.08, 0.3), V(57.9, 1.58, 0), P.UIText))
+		local vs = b.block(V(3.2, 0.06, 3.2), V(53, 1.59, 0), C.Dark)[1]
+		local gui = Instance.new("SurfaceGui")
+		gui.Face = Enum.NormalId.Top
+		gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		gui.PixelsPerStud = 60
+		gui.LightInfluence = 0
+		gui.Parent = vs
+		local label = Instance.new("TextLabel")
+		label.BackgroundTransparency = 1
+		label.Size = UDim2.fromScale(1, 1)
+		label.Rotation = 90 -- reads from the ramp
+		label.Text = "VS"
+		label.TextScaled = true
+		label.FontFace = Font.new(Config.UI.FontFamily, Enum.FontWeight.Heavy)
+		label.TextColor3 = P.UIText
+		label.Parent = gui
+		-- canopy on two posts (team-coloured caps)
+		for i, z in ipairs({ -14, 14 }) do
 			b.block(V(1, 14, 1), V(50.5, 8.4, z), C.Metal)
+			neon(b, b.block(V(1.1, 0.3, 1.1), V(50.5, 14.9, z), i == 1 and P.PlayerA or P.PlayerB))
 		end
 		b.block(V(13, 0.8, 30), V(56.5, 15.6, 0), C.BuildingA)
-		accent(b, b.block(V(13.2, 0.25, 30.2), V(56.5, 15.1, 0), P.AccentA))
+		b.block(V(13.2, 0.25, 30.2), V(56.5, 15.08, 0), C.Trim)
 	end)
 	sign(model, V(24, 8, 1), CFrame.new(R - 1.6, 9, 0) * CFrame.Angles(0, math.pi / 2, 0), "1v1 DUEL", "FIND MATCH [F]  -  DUEL A PLAYER [U]")
 

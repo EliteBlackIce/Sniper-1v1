@@ -302,7 +302,7 @@ Config.Palette = {
 
 	-- Players (each player in a match gets one of these)
 	PlayerA = Color3.fromRGB(90, 132, 255), -- blue
-	PlayerB = Color3.fromRGB(255, 94, 112), -- red
+	PlayerB = Color3.fromRGB(232, 56, 64), -- red
 	LobbyPlayer = Color3.fromRGB(205, 210, 220),
 
 	-- Sniper + arms (viewmodel and the gun other players see)
@@ -484,7 +484,11 @@ Config.Crates = {
 	--   Metal     rifle: barrel, scope, metal  knife: guard + pommel
 	--   Accent    rifle: bolt + stock trims   knife: (glow colour)
 	--   Blade     knife: the blade
-	--   Finish    "Matte" | "Gloss" | "Metal" | "Chrome" | "Gold" (the body / blade)
+	--   Stock     rifle: the stock colour (default: between Body and Metal)
+	--   Finish    the body / blade: "Matte" | "Gloss" | "Pearl" | "Metal" |
+	--             "Chrome" | "Gold" | "Marble" | "Wood" | "Rust" | "Tread" |
+	--             "Frost" | "Stone" | "Crystal" (see-through) | "Hologram"
+	--   StockFinish / MetalFinish / HandleFinish   the same for those parts
 	--   Glow      true: the trims glow (Epic and up)
 	--   Pulse     a second colour the glow pulses to (Legendary)
 	--   Sparkle   true: glittering particles (Legendary)
@@ -506,6 +510,32 @@ Config.Crates = {
 		{ Id = "GoldenEagle", Name = "Golden Eagle", Weapon = "Rifle", Rarity = "Legendary", Body = Color3.fromRGB(232, 182, 60), Metal = Color3.fromRGB(60, 46, 24), Accent = Color3.fromRGB(255, 240, 170), Finish = "Gold", Glow = true, Pulse = Color3.fromRGB(255, 170, 40), Sparkle = true },
 		{ Id = "SolarFlare", Name = "Solar Flare", Weapon = "Rifle", Rarity = "Legendary", Body = Color3.fromRGB(255, 120, 30), Metal = Color3.fromRGB(50, 30, 20), Accent = Color3.fromRGB(255, 220, 90), Finish = "Gloss", Glow = true, Pulse = Color3.fromRGB(255, 60, 30), Sparkle = true },
 
+		{ Id = "Gunmetal", Name = "Gunmetal", Weapon = "Rifle", Rarity = "Common", Body = Color3.fromRGB(92, 96, 104), Metal = Color3.fromRGB(40, 42, 46), Accent = Color3.fromRGB(150, 156, 166), Finish = "Metal" },
+		{ Id = "OliveDrab", Name = "Olive Drab", Weapon = "Rifle", Rarity = "Common", Body = Color3.fromRGB(96, 104, 64), Metal = Color3.fromRGB(44, 46, 36), Accent = Color3.fromRGB(160, 150, 110) },
+		{ Id = "Coyote", Name = "Coyote", Weapon = "Rifle", Rarity = "Common", Body = Color3.fromRGB(150, 120, 84), Metal = Color3.fromRGB(56, 48, 40), Accent = Color3.fromRGB(200, 180, 140) },
+		{ Id = "Urban", Name = "Urban", Weapon = "Rifle", Rarity = "Common", Body = Color3.fromRGB(210, 212, 216), Stock = Color3.fromRGB(60, 62, 68), Metal = Color3.fromRGB(48, 50, 56), Accent = Color3.fromRGB(120, 124, 132) },
+		{ Id = "Navy", Name = "Navy", Weapon = "Rifle", Rarity = "Common", Body = Color3.fromRGB(40, 56, 96), Metal = Color3.fromRGB(26, 30, 40), Accent = Color3.fromRGB(140, 160, 200) },
+		{ Id = "Cherry", Name = "Cherry", Weapon = "Rifle", Rarity = "Uncommon", Body = Color3.fromRGB(200, 30, 44), Metal = Color3.fromRGB(30, 26, 28), Accent = Color3.fromRGB(255, 210, 210), Finish = "Gloss" },
+		{ Id = "Tangerine", Name = "Tangerine", Weapon = "Rifle", Rarity = "Uncommon", Body = Color3.fromRGB(255, 130, 40), Metal = Color3.fromRGB(40, 34, 30), Accent = Color3.fromRGB(255, 230, 190), Finish = "Gloss" },
+		{ Id = "Mint", Name = "Mint", Weapon = "Rifle", Rarity = "Uncommon", Body = Color3.fromRGB(140, 226, 190), Metal = Color3.fromRGB(50, 70, 66), Accent = Color3.fromRGB(230, 255, 245), Finish = "Gloss" },
+		{ Id = "Bubblegum", Name = "Bubblegum", Weapon = "Rifle", Rarity = "Uncommon", Body = Color3.fromRGB(255, 140, 200), Metal = Color3.fromRGB(70, 50, 66), Accent = Color3.fromRGB(255, 235, 245), Finish = "Gloss" },
+		{ Id = "Walnut", Name = "Walnut", Weapon = "Rifle", Rarity = "Uncommon", Body = Color3.fromRGB(110, 70, 40), Stock = Color3.fromRGB(92, 58, 34), Metal = Color3.fromRGB(40, 40, 42), Accent = Color3.fromRGB(180, 150, 110), Finish = "Wood" },
+		{ Id = "TwoTone", Name = "Two-Tone", Weapon = "Rifle", Rarity = "Uncommon", Body = Color3.fromRGB(30, 30, 34), Stock = Color3.fromRGB(236, 236, 240), Metal = Color3.fromRGB(24, 24, 28), Accent = Color3.fromRGB(236, 236, 240), Finish = "Gloss", StockFinish = "Gloss" },
+		{ Id = "Marble", Name = "Marble", Weapon = "Rifle", Rarity = "Rare", Body = Color3.fromRGB(236, 234, 230), Stock = Color3.fromRGB(70, 70, 76), Metal = Color3.fromRGB(40, 40, 44), Accent = Color3.fromRGB(232, 190, 90), Finish = "Marble", MetalFinish = "Gold" },
+		{ Id = "Rustbucket", Name = "Rustbucket", Weapon = "Rifle", Rarity = "Rare", Body = Color3.fromRGB(150, 84, 50), Metal = Color3.fromRGB(80, 60, 48), Accent = Color3.fromRGB(200, 140, 90), Finish = "Rust", MetalFinish = "Rust" },
+		{ Id = "DiamondPlate", Name = "Diamond Plate", Weapon = "Rifle", Rarity = "Rare", Body = Color3.fromRGB(196, 200, 208), Metal = Color3.fromRGB(80, 84, 92), Accent = Color3.fromRGB(230, 234, 240), Finish = "Tread" },
+		{ Id = "Frostbite", Name = "Frostbite", Weapon = "Rifle", Rarity = "Rare", Body = Color3.fromRGB(170, 214, 240), Metal = Color3.fromRGB(70, 96, 120), Accent = Color3.fromRGB(220, 245, 255), Finish = "Frost" },
+		{ Id = "Obsidian", Name = "Obsidian", Weapon = "Rifle", Rarity = "Rare", Body = Color3.fromRGB(20, 20, 24), Metal = Color3.fromRGB(10, 10, 12), Accent = Color3.fromRGB(200, 206, 216), Finish = "Chrome", MetalFinish = "Chrome" },
+		{ Id = "NeonTiger", Name = "Neon Tiger", Weapon = "Rifle", Rarity = "Epic", Body = Color3.fromRGB(255, 120, 20), Stock = Color3.fromRGB(24, 24, 26), Metal = Color3.fromRGB(22, 22, 24), Accent = Color3.fromRGB(255, 200, 40), Finish = "Gloss", Glow = true },
+		{ Id = "ToxicWaste", Name = "Toxic Waste", Weapon = "Rifle", Rarity = "Epic", Body = Color3.fromRGB(44, 52, 40), Metal = Color3.fromRGB(24, 28, 22), Accent = Color3.fromRGB(140, 255, 60), Finish = "Rust", Glow = true },
+		{ Id = "IceQueen", Name = "Ice Queen", Weapon = "Rifle", Rarity = "Epic", Body = Color3.fromRGB(200, 232, 250), Metal = Color3.fromRGB(110, 140, 170), Accent = Color3.fromRGB(90, 220, 255), Finish = "Frost", Glow = true },
+		{ Id = "CrimsonEdge", Name = "Crimson Edge", Weapon = "Rifle", Rarity = "Epic", Body = Color3.fromRGB(28, 24, 26), Metal = Color3.fromRGB(16, 14, 16), Accent = Color3.fromRGB(255, 40, 56), Finish = "Chrome", Glow = true },
+		{ Id = "Electric", Name = "Electric", Weapon = "Rifle", Rarity = "Epic", Body = Color3.fromRGB(30, 34, 52), Metal = Color3.fromRGB(18, 20, 30), Accent = Color3.fromRGB(255, 236, 60), Finish = "Metal", Glow = true },
+		{ Id = "Hologram", Name = "Hologram", Weapon = "Rifle", Rarity = "Legendary", Body = Color3.fromRGB(80, 220, 255), Stock = Color3.fromRGB(80, 220, 255), Metal = Color3.fromRGB(30, 60, 90), Accent = Color3.fromRGB(140, 240, 255), Pulse = Color3.fromRGB(200, 120, 255), Finish = "Hologram", StockFinish = "Hologram", Glow = true, Sparkle = true },
+		{ Id = "Crystal", Name = "Crystal", Weapon = "Rifle", Rarity = "Legendary", Body = Color3.fromRGB(190, 230, 255), Stock = Color3.fromRGB(170, 210, 250), Metal = Color3.fromRGB(120, 150, 190), Accent = Color3.fromRGB(240, 250, 255), Pulse = Color3.fromRGB(150, 200, 255), Finish = "Crystal", StockFinish = "Crystal", MetalFinish = "Chrome", Glow = true, Sparkle = true },
+		{ Id = "Aurora", Name = "Aurora", Weapon = "Rifle", Rarity = "Legendary", Body = Color3.fromRGB(24, 40, 60), Metal = Color3.fromRGB(16, 24, 36), Accent = Color3.fromRGB(80, 255, 170), Pulse = Color3.fromRGB(190, 90, 255), Finish = "Pearl", Glow = true, Sparkle = true },
+		{ Id = "Midas", Name = "Midas", Weapon = "Rifle", Rarity = "Legendary", Body = Color3.fromRGB(240, 190, 70), Stock = Color3.fromRGB(230, 176, 60), Metal = Color3.fromRGB(200, 150, 50), Accent = Color3.fromRGB(255, 244, 190), Pulse = Color3.fromRGB(255, 190, 60), Finish = "Gold", StockFinish = "Gold", MetalFinish = "Gold", Glow = true, Sparkle = true },
+
 		-- KNIFE
 		{ Id = "KnifeStonewash", Name = "Stonewash", Weapon = "Knife", Rarity = "Common", Blade = Color3.fromRGB(150, 154, 160), Body = Color3.fromRGB(58, 60, 64), Metal = Color3.fromRGB(90, 92, 96), Accent = Color3.fromRGB(200, 200, 200) },
 		{ Id = "KnifeDesert", Name = "Desert", Weapon = "Knife", Rarity = "Common", Blade = Color3.fromRGB(170, 166, 156), Body = Color3.fromRGB(176, 150, 106), Metal = Color3.fromRGB(96, 84, 64), Accent = Color3.fromRGB(230, 214, 176) },
@@ -517,6 +547,25 @@ Config.Crates = {
 		{ Id = "KnifeNeon", Name = "Neon Edge", Weapon = "Knife", Rarity = "Epic", Blade = Color3.fromRGB(46, 30, 70), Body = Color3.fromRGB(20, 16, 32), Metal = Color3.fromRGB(80, 60, 110), Accent = Color3.fromRGB(255, 70, 200), Finish = "Gloss", Glow = true },
 		{ Id = "KnifeGold", Name = "Gilded", Weapon = "Knife", Rarity = "Legendary", Blade = Color3.fromRGB(240, 190, 70), Body = Color3.fromRGB(40, 30, 20), Metal = Color3.fromRGB(255, 220, 120), Accent = Color3.fromRGB(255, 240, 170), Finish = "Gold", Glow = true, Pulse = Color3.fromRGB(255, 170, 40), Sparkle = true },
 		{ Id = "KnifeInferno", Name = "Inferno", Weapon = "Knife", Rarity = "Legendary", Blade = Color3.fromRGB(60, 24, 18), Body = Color3.fromRGB(24, 14, 12), Metal = Color3.fromRGB(120, 50, 30), Accent = Color3.fromRGB(255, 120, 30), Finish = "Gloss", Glow = true, Pulse = Color3.fromRGB(255, 40, 20), Sparkle = true },
+		{ Id = "KnifeField", Name = "Field", Weapon = "Knife", Rarity = "Common", Blade = Color3.fromRGB(150, 154, 160), Body = Color3.fromRGB(96, 104, 64), Metal = Color3.fromRGB(60, 64, 48), Accent = Color3.fromRGB(200, 200, 180) },
+		{ Id = "KnifeNight", Name = "Night", Weapon = "Knife", Rarity = "Common", Blade = Color3.fromRGB(70, 72, 78), Body = Color3.fromRGB(28, 30, 34), Metal = Color3.fromRGB(46, 48, 52), Accent = Color3.fromRGB(150, 150, 160) },
+		{ Id = "KnifeSand", Name = "Sand", Weapon = "Knife", Rarity = "Common", Blade = Color3.fromRGB(176, 172, 164), Body = Color3.fromRGB(200, 176, 130), Metal = Color3.fromRGB(120, 104, 80), Accent = Color3.fromRGB(230, 214, 176) },
+		{ Id = "KnifeUrban", Name = "Urban", Weapon = "Knife", Rarity = "Common", Blade = Color3.fromRGB(190, 194, 200), Body = Color3.fromRGB(210, 212, 216), Metal = Color3.fromRGB(70, 72, 78), Accent = Color3.fromRGB(240, 240, 240) },
+		{ Id = "KnifeCherry", Name = "Cherry", Weapon = "Knife", Rarity = "Uncommon", Blade = Color3.fromRGB(200, 206, 214), Body = Color3.fromRGB(200, 30, 44), Metal = Color3.fromRGB(40, 36, 38), Accent = Color3.fromRGB(255, 210, 210), Finish = "Gloss" },
+		{ Id = "KnifeWalnut", Name = "Walnut", Weapon = "Knife", Rarity = "Uncommon", Blade = Color3.fromRGB(176, 182, 190), Body = Color3.fromRGB(110, 70, 40), Metal = Color3.fromRGB(150, 120, 80), Accent = Color3.fromRGB(230, 210, 170), HandleFinish = "Wood" },
+		{ Id = "KnifeArctic", Name = "Arctic", Weapon = "Knife", Rarity = "Uncommon", Blade = Color3.fromRGB(220, 230, 240), Body = Color3.fromRGB(236, 242, 248), Metal = Color3.fromRGB(140, 160, 180), Accent = Color3.fromRGB(170, 220, 250), Finish = "Gloss" },
+		{ Id = "KnifeBubblegum", Name = "Bubblegum", Weapon = "Knife", Rarity = "Uncommon", Blade = Color3.fromRGB(255, 200, 230), Body = Color3.fromRGB(255, 140, 200), Metal = Color3.fromRGB(120, 80, 110), Accent = Color3.fromRGB(255, 235, 245), Finish = "Gloss" },
+		{ Id = "KnifeDamascus", Name = "Damascus", Weapon = "Knife", Rarity = "Rare", Blade = Color3.fromRGB(140, 144, 152), Body = Color3.fromRGB(40, 30, 26), Metal = Color3.fromRGB(170, 140, 90), Accent = Color3.fromRGB(210, 214, 220), Finish = "Marble", HandleFinish = "Wood" },
+		{ Id = "KnifeRust", Name = "Rust", Weapon = "Knife", Rarity = "Rare", Blade = Color3.fromRGB(150, 90, 56), Body = Color3.fromRGB(60, 46, 36), Metal = Color3.fromRGB(110, 70, 46), Accent = Color3.fromRGB(200, 140, 90), Finish = "Rust" },
+		{ Id = "KnifeObsidian", Name = "Obsidian", Weapon = "Knife", Rarity = "Rare", Blade = Color3.fromRGB(22, 22, 26), Body = Color3.fromRGB(14, 14, 16), Metal = Color3.fromRGB(190, 196, 206), Accent = Color3.fromRGB(200, 206, 216), Finish = "Chrome" },
+		{ Id = "KnifeFrost", Name = "Frost", Weapon = "Knife", Rarity = "Rare", Blade = Color3.fromRGB(180, 220, 245), Body = Color3.fromRGB(90, 120, 150), Metal = Color3.fromRGB(150, 190, 220), Accent = Color3.fromRGB(220, 245, 255), Finish = "Frost" },
+		{ Id = "KnifeElectric", Name = "Electric", Weapon = "Knife", Rarity = "Epic", Blade = Color3.fromRGB(40, 44, 64), Body = Color3.fromRGB(20, 22, 32), Metal = Color3.fromRGB(60, 64, 90), Accent = Color3.fromRGB(255, 236, 60), Finish = "Metal", Glow = true },
+		{ Id = "KnifeCrimson", Name = "Crimson Edge", Weapon = "Knife", Rarity = "Epic", Blade = Color3.fromRGB(30, 26, 28), Body = Color3.fromRGB(16, 14, 16), Metal = Color3.fromRGB(80, 30, 36), Accent = Color3.fromRGB(255, 40, 56), Finish = "Chrome", Glow = true },
+		{ Id = "KnifeIce", Name = "Ice Queen", Weapon = "Knife", Rarity = "Epic", Blade = Color3.fromRGB(200, 232, 250), Body = Color3.fromRGB(110, 140, 170), Metal = Color3.fromRGB(160, 200, 230), Accent = Color3.fromRGB(90, 220, 255), Finish = "Frost", Glow = true },
+		{ Id = "KnifeHologram", Name = "Hologram", Weapon = "Knife", Rarity = "Legendary", Blade = Color3.fromRGB(80, 220, 255), Body = Color3.fromRGB(30, 60, 90), Metal = Color3.fromRGB(80, 220, 255), Accent = Color3.fromRGB(140, 240, 255), Pulse = Color3.fromRGB(200, 120, 255), Finish = "Hologram", Glow = true, Sparkle = true },
+		{ Id = "KnifeCrystal", Name = "Crystal", Weapon = "Knife", Rarity = "Legendary", Blade = Color3.fromRGB(190, 230, 255), Body = Color3.fromRGB(120, 150, 190), Metal = Color3.fromRGB(220, 235, 250), Accent = Color3.fromRGB(240, 250, 255), Pulse = Color3.fromRGB(150, 200, 255), Finish = "Crystal", MetalFinish = "Chrome", Glow = true, Sparkle = true },
+		{ Id = "KnifeAurora", Name = "Aurora", Weapon = "Knife", Rarity = "Legendary", Blade = Color3.fromRGB(40, 60, 90), Body = Color3.fromRGB(20, 28, 40), Metal = Color3.fromRGB(80, 255, 170), Accent = Color3.fromRGB(80, 255, 170), Pulse = Color3.fromRGB(190, 90, 255), Finish = "Pearl", Glow = true, Sparkle = true },
+		{ Id = "KnifeMidas", Name = "Midas", Weapon = "Knife", Rarity = "Legendary", Blade = Color3.fromRGB(240, 190, 70), Body = Color3.fromRGB(200, 150, 50), Metal = Color3.fromRGB(255, 220, 120), Accent = Color3.fromRGB(255, 244, 190), Pulse = Color3.fromRGB(255, 190, 60), Finish = "Gold", MetalFinish = "Gold", HandleFinish = "Gold", Glow = true, Sparkle = true },
 	},
 }
 
@@ -3552,13 +3601,24 @@ function Skins.ForWeapon(weapon)
 	return list
 end
 
+-- finish name -> { material, reflectance, transparency }
 local FINISH = {
 	Matte = { Enum.Material.SmoothPlastic, 0 },
 	Gloss = { Enum.Material.SmoothPlastic, 0.12 },
+	Pearl = { Enum.Material.SmoothPlastic, 0.3 },
 	Metal = { Enum.Material.Metal, 0.05 },
 	Chrome = { Enum.Material.Metal, 0.35 },
 	Gold = { Enum.Material.Foil, 0.15 },
+	Marble = { Enum.Material.Marble, 0.05 },
+	Wood = { Enum.Material.Wood, 0 },
+	Rust = { Enum.Material.CorrodedMetal, 0 },
+	Tread = { Enum.Material.DiamondPlate, 0.1 },
+	Frost = { Enum.Material.Ice, 0.05 },
+	Stone = { Enum.Material.Slate, 0 },
+	Crystal = { Enum.Material.Glass, 0.2, 0.25 },
+	Hologram = { Enum.Material.ForceField, 0 },
 }
+Skins.Finishes = FINISH
 
 local WHITE = Color3.new(1, 1, 1)
 
@@ -3566,11 +3626,19 @@ local function finish(part, name)
 	local f = FINISH[name or "Matte"] or FINISH.Matte
 	part.Material = f[1]
 	part.Reflectance = f[2]
+	if f[3] then
+		part.Transparency = f[3]
+	end
 end
 
-local function metal(part)
-	part.Material = Enum.Material.Metal
-	part.Reflectance = 0
+-- the metal parts: plain metal unless the skin gives them a finish (MetalFinish)
+local function metal(part, skin)
+	if skin and skin.MetalFinish then
+		finish(part, skin.MetalFinish)
+	else
+		part.Material = Enum.Material.Metal
+		part.Reflectance = 0
+	end
 end
 
 -- Glowing trim: neon in the accent colour (pulsing for Legendary skins).
@@ -3594,23 +3662,23 @@ local RIFLE = {
 		finish(part, skin.Finish)
 	end,
 	Stock = function(part, skin)
-		part.Color = skin.Body:Lerp(skin.Metal, 0.5)
-		finish(part, skin.Finish == "Gold" and "Gloss" or skin.Finish)
+		part.Color = skin.Stock or skin.Body:Lerp(skin.Metal, 0.5)
+		finish(part, skin.StockFinish or (skin.Finish == "Gold" and "Gloss" or skin.Finish))
 	end,
 	Metal = function(part, skin)
 		part.Color = skin.Metal
-		metal(part)
+		metal(part, skin)
 	end,
 	MetalLight = function(part, skin)
 		part.Color = skin.Metal:Lerp(skin.Accent, 0.25)
-		metal(part)
+		metal(part, skin)
 	end,
 	Trim = function(part, skin)
 		if skin.Glow then
 			glow(part, skin)
 		else
 			part.Color = skin.Accent
-			metal(part)
+			metal(part, skin)
 		end
 	end,
 }
@@ -3643,12 +3711,11 @@ local KNIFE_GROUPS = {
 	end,
 	Handle = function(part, skin)
 		part.Color = skin.Body
-		part.Material = Enum.Material.SmoothPlastic
-		part.Reflectance = skin.Finish == "Gloss" and 0.1 or 0
+		finish(part, skin.HandleFinish or (skin.Finish == "Gloss" and "Gloss" or "Matte"))
 	end,
 	Fittings = function(part, skin)
 		part.Color = skin.Metal
-		metal(part)
+		metal(part, skin)
 	end,
 }
 
@@ -9044,7 +9111,7 @@ function LobbyBuilder.Build()
 	local POOL_R = 8
 	ring(b, POOL_R, POOL_R + 0.9, pitY + 0.9, 0.9, C.Stone, 48) -- pool wall
 	b.cylinder(0.5, POOL_R * 2 + 0.2, V(0, pitY + 0.25, 0), C.FrameDark) -- pool floor
-	b.cylinder(2.2, 6.4, V(0, pitY + 1.1, 0), C.Stone) -- plinth, lower tier
+	b.cylinder(2.2, 9, V(0, pitY + 1.1, 0), C.Stone) -- plinth, lower tier (wide enough for the uplights)
 	b.cylinder(1.4, 4.8, V(0, pitY + 2.9, 0), C.BuildingA) -- upper tier
 	local coreY = pitY + 3.6 + 6.2 -- centre of the rings
 	b.decor(function()
@@ -9054,7 +9121,7 @@ function LobbyBuilder.Build()
 		for _, part in ipairs(water) do
 			part.Transparency = 0.25
 		end
-		b.cylinder(0.16, 6.7, V(0, pitY + 1.9, 0), C.Trim) -- tier bands (kept off the tops)
+		b.cylinder(0.16, 9.3, V(0, pitY + 1.9, 0), C.Trim) -- tier bands (kept off the tops)
 		b.cylinder(0.16, 5.1, V(0, pitY + 3.2, 0), C.Trim)
 		b.cylinder(0.3, 5.2, V(0, pitY + 3.75, 0), C.Metal) -- cap
 		b.cylinder(1.2, 1.1, V(0, pitY + 4.5, 0), C.Metal) -- neck up to the rings
@@ -9098,7 +9165,7 @@ function LobbyBuilder.Build()
 	plaque.Anchored = true
 	plaque.CanCollide = false
 	plaque.Size = V(3.4, 1.1, 0.2)
-	plaque.CFrame = CFrame.lookAt(V(0, pitY + 1.15, 3.25), V(0, pitY + 1.15, 10)) -- faces the stage side (south)
+	plaque.CFrame = CFrame.lookAt(V(0, pitY + 1.15, 4.6), V(0, pitY + 1.15, 10)) -- faces the stage side (south)
 	plaque.Color = C.Metal
 	plaque.Material = Enum.Material.Metal
 	plaque.Parent = model
@@ -9187,23 +9254,56 @@ function LobbyBuilder.Build()
 	sign(model, V(16, 3, 0.5), CFrame.new(0, 17.5, -R + 0.8) * CFrame.Angles(0, math.pi, 0), "SHOOTING RANGE", nil)
 
 	-- EAST: DUEL AREA -----------------------------------------------------------------------
+	-- A stone dais with a blue pad and a red pad, a glowing VS line between
+	-- them, team-coloured light beams over the pads and a canopy with
+	-- team underglow.
 	b.block(V(12, 1.4, 30), V(56, 0.7, 0), C.Stone)
 	b.ramp(V(48, 0, 0), V(1, 0, 0), 2.5, 1.4, 12, C.Stone)
 	b.decor(function()
-		accent(b, b.block(V(12.2, 0.2, 30.2), V(56, 1.45, 0), P.AccentA))
+		b.block(V(12.2, 0.2, 30.2), V(56, 1.45, 0), C.FrameDark) -- the dais top
+		b.block(V(12.4, 0.3, 30.4), V(56, 1.25, 0), C.Trim) -- its lip
 		for i, z in ipairs({ -7.5, 7.5 }) do
 			local color = i == 1 and P.PlayerA or P.PlayerB
-			neon(b, b.cylinder(0.15, 10, V(56, 1.5, z), color))
-			b.cylinder(0.18, 8.2, V(56, 1.53, z), C.Dark)
-			neon(b, b.cylinder(0.2, 2, V(56, 1.56, z), color))
+			-- the pad: a neon ring round a dark disc, a glowing core
+			neon(b, b.cylinder(0.12, 9.4, V(56, 1.6, z), color))
+			b.cylinder(0.16, 8.6, V(56, 1.62, z), C.Dark)
+			neon(b, b.cylinder(0.12, 5.2, V(56, 1.66, z), color))
+			b.cylinder(0.16, 4.8, V(56, 1.68, z), C.Dark)
+			light(neon(b, b.cylinder(0.12, 1.6, V(56, 1.72, z), color)), color, 16, 1.1)
+			-- a soft beam of light over the pad
+			for _, part in ipairs(neon(b, b.cylinder(9, 7.8, V(56, 6.2, z), color))) do
+				part.Transparency = 0.92
+				part.CastShadow = false
+			end
+			-- team light bar on the back wall + underglow on the canopy
 			light(neon(b, b.block(V(1, 12, 0.6), V(61, 7.4, z * 1.9), color)), color, 18, 1)
+			neon(b, b.block(V(10, 0.12, 0.5), V(56.5, 14.88, z * 1.6), color))
 		end
-		-- canopy on two posts
-		for _, z in ipairs({ -14, 14 }) do
+		-- the VS line between the pads
+		neon(b, b.block(V(6.4, 0.08, 0.3), V(57.9, 1.58, 0), P.UIText))
+		local vs = b.block(V(3.2, 0.06, 3.2), V(53, 1.59, 0), C.Dark)[1]
+		local gui = Instance.new("SurfaceGui")
+		gui.Face = Enum.NormalId.Top
+		gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		gui.PixelsPerStud = 60
+		gui.LightInfluence = 0
+		gui.Parent = vs
+		local label = Instance.new("TextLabel")
+		label.BackgroundTransparency = 1
+		label.Size = UDim2.fromScale(1, 1)
+		label.Rotation = 90 -- reads from the ramp
+		label.Text = "VS"
+		label.TextScaled = true
+		label.FontFace = Font.new(Config.UI.FontFamily, Enum.FontWeight.Heavy)
+		label.TextColor3 = P.UIText
+		label.Parent = gui
+		-- canopy on two posts (team-coloured caps)
+		for i, z in ipairs({ -14, 14 }) do
 			b.block(V(1, 14, 1), V(50.5, 8.4, z), C.Metal)
+			neon(b, b.block(V(1.1, 0.3, 1.1), V(50.5, 14.9, z), i == 1 and P.PlayerA or P.PlayerB))
 		end
 		b.block(V(13, 0.8, 30), V(56.5, 15.6, 0), C.BuildingA)
-		accent(b, b.block(V(13.2, 0.25, 30.2), V(56.5, 15.1, 0), P.AccentA))
+		b.block(V(13.2, 0.25, 30.2), V(56.5, 15.08, 0), C.Trim)
 	end)
 	sign(model, V(24, 8, 1), CFrame.new(R - 1.6, 9, 0) * CFrame.Angles(0, math.pi / 2, 0), "1v1 DUEL", "FIND MATCH [F]  -  DUEL A PLAYER [U]")
 
@@ -13172,8 +13272,11 @@ return ClientState
 	Opening (when the server sends a result over the "Crates" remote):
 	  1. INTRO    the camera swoops in, letterbox bars slide on
 	  2. CHARGE   the crate lifts and spins faster and faster, shaking, while
-	              sparks get sucked in; its glow climbs the rarity ladder
-	              (COMMON > UNCOMMON > ...) and stops on what you got.
+	              sparks get sucked in over a quickening heartbeat; its glow
+	              climbs the rarity ladder (COMMON > UNCOMMON > ..., slower
+	              each step) and stops on what you got, flickers toward the
+	              next rarity (the tease) and falls back, then everything
+	              stops dead for a breath before the blast.
 	              Secret fakes you out: it stalls on Legendary, goes dark,
 	              then cracks red.
 	  3. BURST    the lid blasts off, a flash, a pillar of light, a shockwave
@@ -13553,23 +13656,35 @@ local function play(result, continuing)
 		burst.Parent = attachment
 	end
 
-	-- timeline
-	local tIntro = continuing and 0.35 or 1.0
-	local stepTime = 0.5
+	-- timeline: the climb slows down as it goes up (every step is a "will
+	-- it go higher?"), then a tease where it flickers toward the next rarity
+	-- and falls back, then a breath of silence before the blast
+	local tIntro = continuing and 0.45 or 1.3
 	local steps = {} -- { time, rarity, final }
 	local climbTo = isSecret and 5 or tier
 	local stepCount = math.max(climbTo, 2) -- always build a little suspense
+	local stepT = tIntro
 	for k = 1, stepCount do
 		local r = CR.Rarities[math.min(k, climbTo)]
-		table.insert(steps, { T = tIntro + (k - 1) * stepTime, Rarity = r, Final = (k == stepCount) and not isSecret })
+		table.insert(steps, { T = stepT, Rarity = r, Final = (k == stepCount) and not isSecret })
+		stepT += 0.55 + k * 0.14
 	end
-	local chargeEnd = tIntro + stepCount * stepTime + (big and 0.5 or 0.25)
+	local lastStep = steps[#steps].T
+	local nextRarity = not isSecret and CR.Rarities[math.min(tier + 1, #CR.Rarities - 1)] or nil
+	local teaseStart, teaseEnd
+	if nextRarity and nextRarity ~= rarity then
+		teaseStart = lastStep + 0.5
+		teaseEnd = teaseStart + 0.9
+	end
+	local chargeEnd = (teaseEnd or lastStep + 0.6) + (big and 0.75 or 0.55)
 	local stallStart, crackTime
 	if isSecret then
-		stallStart = chargeEnd - 0.25
-		crackTime = stallStart + 1.1
-		chargeEnd = crackTime + 0.55
+		stallStart = lastStep + 0.5
+		crackTime = stallStart + 1.3
+		chargeEnd = crackTime + 0.7
 	end
+	local holdStart = chargeEnd - 0.5 -- everything stops, then BOOM
+	local nextBeat = tIntro
 	local tBurst = chargeEnd
 	local tReveal = tBurst + 0.35
 	local fired = {}
@@ -13611,6 +13726,32 @@ local function play(result, continuing)
 			end
 		end
 		crate.Light.Brightness = math.max(1.2, crate.Light.Brightness - dt * 6)
+		-- a heartbeat that speeds up
+		if t >= nextBeat and t < holdStart then
+			local c = math.clamp((t - tIntro) / math.max(holdStart - tIntro, 0.1), 0, 1)
+			Sfx.Play("KillThump", { Pitch = 0.75 + c * 0.25, Volume = 0.6 + c * 0.6 })
+			nextBeat = t + (0.85 - c * 0.55)
+		end
+		-- the tease: flickers toward the next rarity... and falls back
+		if teaseStart and t >= teaseStart and t < teaseEnd then
+			local u = (t - teaseStart) / (teaseEnd - teaseStart)
+			local on = math.sin(u * u * 70) > 0.2
+			CrateModel.SetColor(crate, on and nextRarity.Color or rarity.Color)
+			if ring then
+				ring.Color = on and nextRarity.Color or rarity.Color
+			end
+			crate.Light.Brightness = on and 2.5 or 1.4
+		end
+		if teaseEnd and once("teaseEnd", teaseEnd, t) then
+			CrateModel.SetColor(crate, rarity.Color)
+			if ring then
+				ring.Color = rarity.Color
+			end
+			Sfx.Play("Countdown", { Pitch = 0.6, Volume = 1.3 })
+		end
+		if once("hold", holdStart, t) then
+			Sfx.Play("CardHover", { Pitch = 0.5, Volume = 2.5 })
+		end
 		if isSecret then
 			if once("stall", stallStart, t) then
 				-- "it's over"... everything goes dark
@@ -13645,9 +13786,17 @@ local function play(result, continuing)
 			if isSecret and t >= stallStart and t < crackTime then
 				spin, shake = 0.3, 0.02 -- the fake-out: it all winds down
 			end
+			local holding = t >= holdStart
+			if holding then
+				-- the breath before the blast: it stops dead and trembles
+				local h = (t - holdStart) / (chargeEnd - holdStart)
+				spin = 14 * (1 - h) ^ 3
+				shake = 0.05 + h * 0.12
+				lift += h * 0.4
+			end
 			if inward then
 				inward.Color = ColorSequence.new(color)
-				inward.Rate = t > tIntro and (20 + charge * 120) or 0
+				inward.Rate = (t > tIntro and not holding) and (20 + charge * 120) or 0
 			end
 		else
 			local after = t - tBurst

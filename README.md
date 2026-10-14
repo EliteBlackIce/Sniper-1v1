@@ -398,8 +398,8 @@ or knife skin:
 | Rarity | Colour | Chance | What you get |
 |---|---|---|---|
 | Common | grey | 50.5% | plain recolours |
-| Uncommon | green | 25.3% | two-tone, glossy |
-| Rare | blue | 14.1% | shiny metal, chrome |
+| Uncommon | green | 25.3% | two-tone, glossy, wood |
+| Rare | blue | 14.1% | shiny metal, chrome, marble, rust, ice |
 | Epic | purple | 7.1% | glowing trims (rifle bolt + stock trims, knife edge or grip) |
 | Legendary | gold | 3% | gold / gloss, the glow pulses between two colours, glitter |
 | Secret | red | soon | their own weapon models (coming later) |
@@ -410,6 +410,12 @@ share its 1% (the odds board in the vault shows the real numbers).
 Skins are the same rifle and knife models in new paint: every part belongs
 to a paint group (body, metal, scope, bolt, trims, blade, handle) and the
 skin colours each group (`Skins.lua`, the list is `Config.Crates.Skins`).
+There are 38 rifle skins and 29 knife skins: plain colours (Field Grey,
+Olive Drab, Navy...), glossy two-tones (Cherry, Bubblegum, Two-Tone...),
+real materials (Walnut wood, Marble with gold, Rustbucket, Diamond Plate,
+Frostbite ice, chrome Obsidian), glowing Epics (Neon Tiger, Toxic Waste,
+Electric...) and Legendaries (Hologram force-field, see-through Crystal,
+Aurora, all-gold Midas, Golden Eagle...).
 
 **Locker**: press **L** in the lobby (or the LOCKER button, SKINS on
 touch) to see every skin for each weapon, owned or locked, with a spinning
@@ -423,8 +429,11 @@ is free (`Config.Crates.FreeInStudio`) so you can watch the animation as often
 as you like.
 
 **The opening**: the camera swoops in and the crate lifts, spins faster and
-shakes while sparks are sucked into it. Its glow climbs the rarity ladder
-(COMMON, UNCOMMON, RARE...) and stops on what you got. Then the lid blasts
+shakes while sparks are sucked into it, over a heartbeat that speeds up.
+Its glow climbs the rarity ladder (COMMON, UNCOMMON, RARE...), slower with
+every step, and stops on what you got. Then it teases: the glow flickers
+toward the next rarity... and falls back. Everything stops dead for a
+breath, the crate trembling. Then the lid blasts
 off with a flash, a pillar of light, a shockwave and sparks in the rarity
 colour, and the rifle (or knife) rises out of the crate in the skin's colours. The
 rarity name slams in over spinning light rays. Legendary and Secret rain

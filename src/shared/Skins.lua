@@ -44,13 +44,24 @@ function Skins.ForWeapon(weapon)
 	return list
 end
 
+-- finish name -> { material, reflectance, transparency }
 local FINISH = {
 	Matte = { Enum.Material.SmoothPlastic, 0 },
 	Gloss = { Enum.Material.SmoothPlastic, 0.12 },
+	Pearl = { Enum.Material.SmoothPlastic, 0.3 },
 	Metal = { Enum.Material.Metal, 0.05 },
 	Chrome = { Enum.Material.Metal, 0.35 },
 	Gold = { Enum.Material.Foil, 0.15 },
+	Marble = { Enum.Material.Marble, 0.05 },
+	Wood = { Enum.Material.Wood, 0 },
+	Rust = { Enum.Material.CorrodedMetal, 0 },
+	Tread = { Enum.Material.DiamondPlate, 0.1 },
+	Frost = { Enum.Material.Ice, 0.05 },
+	Stone = { Enum.Material.Slate, 0 },
+	Crystal = { Enum.Material.Glass, 0.2, 0.25 },
+	Hologram = { Enum.Material.ForceField, 0 },
 }
+Skins.Finishes = FINISH
 
 local WHITE = Color3.new(1, 1, 1)
 
@@ -58,11 +69,19 @@ local function finish(part, name)
 	local f = FINISH[name or "Matte"] or FINISH.Matte
 	part.Material = f[1]
 	part.Reflectance = f[2]
+	if f[3] then
+		part.Transparency = f[3]
+	end
 end
 
-local function metal(part)
-	part.Material = Enum.Material.Metal
-	part.Reflectance = 0
+-- the metal parts: plain metal unless the skin gives them a finish (MetalFinish)
+local function metal(part, skin)
+	if skin and skin.MetalFinish then
+		finish(part, skin.MetalFinish)
+	else
+		part.Material = Enum.Material.Metal
+		part.Reflectance = 0
+	end
 end
 
 -- Glowing trim: neon in the accent colour (pulsing for Legendary skins).
@@ -86,23 +105,23 @@ local RIFLE = {
 		finish(part, skin.Finish)
 	end,
 	Stock = function(part, skin)
-		part.Color = skin.Body:Lerp(skin.Metal, 0.5)
-		finish(part, skin.Finish == "Gold" and "Gloss" or skin.Finish)
+		part.Color = skin.Stock or skin.Body:Lerp(skin.Metal, 0.5)
+		finish(part, skin.StockFinish or (skin.Finish == "Gold" and "Gloss" or skin.Finish))
 	end,
 	Metal = function(part, skin)
 		part.Color = skin.Metal
-		metal(part)
+		metal(part, skin)
 	end,
 	MetalLight = function(part, skin)
 		part.Color = skin.Metal:Lerp(skin.Accent, 0.25)
-		metal(part)
+		metal(part, skin)
 	end,
 	Trim = function(part, skin)
 		if skin.Glow then
 			glow(part, skin)
 		else
 			part.Color = skin.Accent
-			metal(part)
+			metal(part, skin)
 		end
 	end,
 }
@@ -135,12 +154,11 @@ local KNIFE_GROUPS = {
 	end,
 	Handle = function(part, skin)
 		part.Color = skin.Body
-		part.Material = Enum.Material.SmoothPlastic
-		part.Reflectance = skin.Finish == "Gloss" and 0.1 or 0
+		finish(part, skin.HandleFinish or (skin.Finish == "Gloss" and "Gloss" or "Matte"))
 	end,
 	Fittings = function(part, skin)
 		part.Color = skin.Metal
-		metal(part)
+		metal(part, skin)
 	end,
 }
 

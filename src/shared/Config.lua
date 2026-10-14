@@ -28,7 +28,7 @@ Config.Palette = {
 
 	-- Players (each player in a match gets one of these)
 	PlayerA = Color3.fromRGB(90, 132, 255), -- blue
-	PlayerB = Color3.fromRGB(255, 94, 112), -- red
+	PlayerB = Color3.fromRGB(232, 56, 64), -- red
 	LobbyPlayer = Color3.fromRGB(205, 210, 220),
 
 	-- Sniper + arms (viewmodel and the gun other players see)
@@ -210,7 +210,11 @@ Config.Crates = {
 	--   Metal     rifle: barrel, scope, metal  knife: guard + pommel
 	--   Accent    rifle: bolt + stock trims   knife: (glow colour)
 	--   Blade     knife: the blade
-	--   Finish    "Matte" | "Gloss" | "Metal" | "Chrome" | "Gold" (the body / blade)
+	--   Stock     rifle: the stock colour (default: between Body and Metal)
+	--   Finish    the body / blade: "Matte" | "Gloss" | "Pearl" | "Metal" |
+	--             "Chrome" | "Gold" | "Marble" | "Wood" | "Rust" | "Tread" |
+	--             "Frost" | "Stone" | "Crystal" (see-through) | "Hologram"
+	--   StockFinish / MetalFinish / HandleFinish   the same for those parts
 	--   Glow      true: the trims glow (Epic and up)
 	--   Pulse     a second colour the glow pulses to (Legendary)
 	--   Sparkle   true: glittering particles (Legendary)
@@ -232,6 +236,32 @@ Config.Crates = {
 		{ Id = "GoldenEagle", Name = "Golden Eagle", Weapon = "Rifle", Rarity = "Legendary", Body = Color3.fromRGB(232, 182, 60), Metal = Color3.fromRGB(60, 46, 24), Accent = Color3.fromRGB(255, 240, 170), Finish = "Gold", Glow = true, Pulse = Color3.fromRGB(255, 170, 40), Sparkle = true },
 		{ Id = "SolarFlare", Name = "Solar Flare", Weapon = "Rifle", Rarity = "Legendary", Body = Color3.fromRGB(255, 120, 30), Metal = Color3.fromRGB(50, 30, 20), Accent = Color3.fromRGB(255, 220, 90), Finish = "Gloss", Glow = true, Pulse = Color3.fromRGB(255, 60, 30), Sparkle = true },
 
+		{ Id = "Gunmetal", Name = "Gunmetal", Weapon = "Rifle", Rarity = "Common", Body = Color3.fromRGB(92, 96, 104), Metal = Color3.fromRGB(40, 42, 46), Accent = Color3.fromRGB(150, 156, 166), Finish = "Metal" },
+		{ Id = "OliveDrab", Name = "Olive Drab", Weapon = "Rifle", Rarity = "Common", Body = Color3.fromRGB(96, 104, 64), Metal = Color3.fromRGB(44, 46, 36), Accent = Color3.fromRGB(160, 150, 110) },
+		{ Id = "Coyote", Name = "Coyote", Weapon = "Rifle", Rarity = "Common", Body = Color3.fromRGB(150, 120, 84), Metal = Color3.fromRGB(56, 48, 40), Accent = Color3.fromRGB(200, 180, 140) },
+		{ Id = "Urban", Name = "Urban", Weapon = "Rifle", Rarity = "Common", Body = Color3.fromRGB(210, 212, 216), Stock = Color3.fromRGB(60, 62, 68), Metal = Color3.fromRGB(48, 50, 56), Accent = Color3.fromRGB(120, 124, 132) },
+		{ Id = "Navy", Name = "Navy", Weapon = "Rifle", Rarity = "Common", Body = Color3.fromRGB(40, 56, 96), Metal = Color3.fromRGB(26, 30, 40), Accent = Color3.fromRGB(140, 160, 200) },
+		{ Id = "Cherry", Name = "Cherry", Weapon = "Rifle", Rarity = "Uncommon", Body = Color3.fromRGB(200, 30, 44), Metal = Color3.fromRGB(30, 26, 28), Accent = Color3.fromRGB(255, 210, 210), Finish = "Gloss" },
+		{ Id = "Tangerine", Name = "Tangerine", Weapon = "Rifle", Rarity = "Uncommon", Body = Color3.fromRGB(255, 130, 40), Metal = Color3.fromRGB(40, 34, 30), Accent = Color3.fromRGB(255, 230, 190), Finish = "Gloss" },
+		{ Id = "Mint", Name = "Mint", Weapon = "Rifle", Rarity = "Uncommon", Body = Color3.fromRGB(140, 226, 190), Metal = Color3.fromRGB(50, 70, 66), Accent = Color3.fromRGB(230, 255, 245), Finish = "Gloss" },
+		{ Id = "Bubblegum", Name = "Bubblegum", Weapon = "Rifle", Rarity = "Uncommon", Body = Color3.fromRGB(255, 140, 200), Metal = Color3.fromRGB(70, 50, 66), Accent = Color3.fromRGB(255, 235, 245), Finish = "Gloss" },
+		{ Id = "Walnut", Name = "Walnut", Weapon = "Rifle", Rarity = "Uncommon", Body = Color3.fromRGB(110, 70, 40), Stock = Color3.fromRGB(92, 58, 34), Metal = Color3.fromRGB(40, 40, 42), Accent = Color3.fromRGB(180, 150, 110), Finish = "Wood" },
+		{ Id = "TwoTone", Name = "Two-Tone", Weapon = "Rifle", Rarity = "Uncommon", Body = Color3.fromRGB(30, 30, 34), Stock = Color3.fromRGB(236, 236, 240), Metal = Color3.fromRGB(24, 24, 28), Accent = Color3.fromRGB(236, 236, 240), Finish = "Gloss", StockFinish = "Gloss" },
+		{ Id = "Marble", Name = "Marble", Weapon = "Rifle", Rarity = "Rare", Body = Color3.fromRGB(236, 234, 230), Stock = Color3.fromRGB(70, 70, 76), Metal = Color3.fromRGB(40, 40, 44), Accent = Color3.fromRGB(232, 190, 90), Finish = "Marble", MetalFinish = "Gold" },
+		{ Id = "Rustbucket", Name = "Rustbucket", Weapon = "Rifle", Rarity = "Rare", Body = Color3.fromRGB(150, 84, 50), Metal = Color3.fromRGB(80, 60, 48), Accent = Color3.fromRGB(200, 140, 90), Finish = "Rust", MetalFinish = "Rust" },
+		{ Id = "DiamondPlate", Name = "Diamond Plate", Weapon = "Rifle", Rarity = "Rare", Body = Color3.fromRGB(196, 200, 208), Metal = Color3.fromRGB(80, 84, 92), Accent = Color3.fromRGB(230, 234, 240), Finish = "Tread" },
+		{ Id = "Frostbite", Name = "Frostbite", Weapon = "Rifle", Rarity = "Rare", Body = Color3.fromRGB(170, 214, 240), Metal = Color3.fromRGB(70, 96, 120), Accent = Color3.fromRGB(220, 245, 255), Finish = "Frost" },
+		{ Id = "Obsidian", Name = "Obsidian", Weapon = "Rifle", Rarity = "Rare", Body = Color3.fromRGB(20, 20, 24), Metal = Color3.fromRGB(10, 10, 12), Accent = Color3.fromRGB(200, 206, 216), Finish = "Chrome", MetalFinish = "Chrome" },
+		{ Id = "NeonTiger", Name = "Neon Tiger", Weapon = "Rifle", Rarity = "Epic", Body = Color3.fromRGB(255, 120, 20), Stock = Color3.fromRGB(24, 24, 26), Metal = Color3.fromRGB(22, 22, 24), Accent = Color3.fromRGB(255, 200, 40), Finish = "Gloss", Glow = true },
+		{ Id = "ToxicWaste", Name = "Toxic Waste", Weapon = "Rifle", Rarity = "Epic", Body = Color3.fromRGB(44, 52, 40), Metal = Color3.fromRGB(24, 28, 22), Accent = Color3.fromRGB(140, 255, 60), Finish = "Rust", Glow = true },
+		{ Id = "IceQueen", Name = "Ice Queen", Weapon = "Rifle", Rarity = "Epic", Body = Color3.fromRGB(200, 232, 250), Metal = Color3.fromRGB(110, 140, 170), Accent = Color3.fromRGB(90, 220, 255), Finish = "Frost", Glow = true },
+		{ Id = "CrimsonEdge", Name = "Crimson Edge", Weapon = "Rifle", Rarity = "Epic", Body = Color3.fromRGB(28, 24, 26), Metal = Color3.fromRGB(16, 14, 16), Accent = Color3.fromRGB(255, 40, 56), Finish = "Chrome", Glow = true },
+		{ Id = "Electric", Name = "Electric", Weapon = "Rifle", Rarity = "Epic", Body = Color3.fromRGB(30, 34, 52), Metal = Color3.fromRGB(18, 20, 30), Accent = Color3.fromRGB(255, 236, 60), Finish = "Metal", Glow = true },
+		{ Id = "Hologram", Name = "Hologram", Weapon = "Rifle", Rarity = "Legendary", Body = Color3.fromRGB(80, 220, 255), Stock = Color3.fromRGB(80, 220, 255), Metal = Color3.fromRGB(30, 60, 90), Accent = Color3.fromRGB(140, 240, 255), Pulse = Color3.fromRGB(200, 120, 255), Finish = "Hologram", StockFinish = "Hologram", Glow = true, Sparkle = true },
+		{ Id = "Crystal", Name = "Crystal", Weapon = "Rifle", Rarity = "Legendary", Body = Color3.fromRGB(190, 230, 255), Stock = Color3.fromRGB(170, 210, 250), Metal = Color3.fromRGB(120, 150, 190), Accent = Color3.fromRGB(240, 250, 255), Pulse = Color3.fromRGB(150, 200, 255), Finish = "Crystal", StockFinish = "Crystal", MetalFinish = "Chrome", Glow = true, Sparkle = true },
+		{ Id = "Aurora", Name = "Aurora", Weapon = "Rifle", Rarity = "Legendary", Body = Color3.fromRGB(24, 40, 60), Metal = Color3.fromRGB(16, 24, 36), Accent = Color3.fromRGB(80, 255, 170), Pulse = Color3.fromRGB(190, 90, 255), Finish = "Pearl", Glow = true, Sparkle = true },
+		{ Id = "Midas", Name = "Midas", Weapon = "Rifle", Rarity = "Legendary", Body = Color3.fromRGB(240, 190, 70), Stock = Color3.fromRGB(230, 176, 60), Metal = Color3.fromRGB(200, 150, 50), Accent = Color3.fromRGB(255, 244, 190), Pulse = Color3.fromRGB(255, 190, 60), Finish = "Gold", StockFinish = "Gold", MetalFinish = "Gold", Glow = true, Sparkle = true },
+
 		-- KNIFE
 		{ Id = "KnifeStonewash", Name = "Stonewash", Weapon = "Knife", Rarity = "Common", Blade = Color3.fromRGB(150, 154, 160), Body = Color3.fromRGB(58, 60, 64), Metal = Color3.fromRGB(90, 92, 96), Accent = Color3.fromRGB(200, 200, 200) },
 		{ Id = "KnifeDesert", Name = "Desert", Weapon = "Knife", Rarity = "Common", Blade = Color3.fromRGB(170, 166, 156), Body = Color3.fromRGB(176, 150, 106), Metal = Color3.fromRGB(96, 84, 64), Accent = Color3.fromRGB(230, 214, 176) },
@@ -243,6 +273,25 @@ Config.Crates = {
 		{ Id = "KnifeNeon", Name = "Neon Edge", Weapon = "Knife", Rarity = "Epic", Blade = Color3.fromRGB(46, 30, 70), Body = Color3.fromRGB(20, 16, 32), Metal = Color3.fromRGB(80, 60, 110), Accent = Color3.fromRGB(255, 70, 200), Finish = "Gloss", Glow = true },
 		{ Id = "KnifeGold", Name = "Gilded", Weapon = "Knife", Rarity = "Legendary", Blade = Color3.fromRGB(240, 190, 70), Body = Color3.fromRGB(40, 30, 20), Metal = Color3.fromRGB(255, 220, 120), Accent = Color3.fromRGB(255, 240, 170), Finish = "Gold", Glow = true, Pulse = Color3.fromRGB(255, 170, 40), Sparkle = true },
 		{ Id = "KnifeInferno", Name = "Inferno", Weapon = "Knife", Rarity = "Legendary", Blade = Color3.fromRGB(60, 24, 18), Body = Color3.fromRGB(24, 14, 12), Metal = Color3.fromRGB(120, 50, 30), Accent = Color3.fromRGB(255, 120, 30), Finish = "Gloss", Glow = true, Pulse = Color3.fromRGB(255, 40, 20), Sparkle = true },
+		{ Id = "KnifeField", Name = "Field", Weapon = "Knife", Rarity = "Common", Blade = Color3.fromRGB(150, 154, 160), Body = Color3.fromRGB(96, 104, 64), Metal = Color3.fromRGB(60, 64, 48), Accent = Color3.fromRGB(200, 200, 180) },
+		{ Id = "KnifeNight", Name = "Night", Weapon = "Knife", Rarity = "Common", Blade = Color3.fromRGB(70, 72, 78), Body = Color3.fromRGB(28, 30, 34), Metal = Color3.fromRGB(46, 48, 52), Accent = Color3.fromRGB(150, 150, 160) },
+		{ Id = "KnifeSand", Name = "Sand", Weapon = "Knife", Rarity = "Common", Blade = Color3.fromRGB(176, 172, 164), Body = Color3.fromRGB(200, 176, 130), Metal = Color3.fromRGB(120, 104, 80), Accent = Color3.fromRGB(230, 214, 176) },
+		{ Id = "KnifeUrban", Name = "Urban", Weapon = "Knife", Rarity = "Common", Blade = Color3.fromRGB(190, 194, 200), Body = Color3.fromRGB(210, 212, 216), Metal = Color3.fromRGB(70, 72, 78), Accent = Color3.fromRGB(240, 240, 240) },
+		{ Id = "KnifeCherry", Name = "Cherry", Weapon = "Knife", Rarity = "Uncommon", Blade = Color3.fromRGB(200, 206, 214), Body = Color3.fromRGB(200, 30, 44), Metal = Color3.fromRGB(40, 36, 38), Accent = Color3.fromRGB(255, 210, 210), Finish = "Gloss" },
+		{ Id = "KnifeWalnut", Name = "Walnut", Weapon = "Knife", Rarity = "Uncommon", Blade = Color3.fromRGB(176, 182, 190), Body = Color3.fromRGB(110, 70, 40), Metal = Color3.fromRGB(150, 120, 80), Accent = Color3.fromRGB(230, 210, 170), HandleFinish = "Wood" },
+		{ Id = "KnifeArctic", Name = "Arctic", Weapon = "Knife", Rarity = "Uncommon", Blade = Color3.fromRGB(220, 230, 240), Body = Color3.fromRGB(236, 242, 248), Metal = Color3.fromRGB(140, 160, 180), Accent = Color3.fromRGB(170, 220, 250), Finish = "Gloss" },
+		{ Id = "KnifeBubblegum", Name = "Bubblegum", Weapon = "Knife", Rarity = "Uncommon", Blade = Color3.fromRGB(255, 200, 230), Body = Color3.fromRGB(255, 140, 200), Metal = Color3.fromRGB(120, 80, 110), Accent = Color3.fromRGB(255, 235, 245), Finish = "Gloss" },
+		{ Id = "KnifeDamascus", Name = "Damascus", Weapon = "Knife", Rarity = "Rare", Blade = Color3.fromRGB(140, 144, 152), Body = Color3.fromRGB(40, 30, 26), Metal = Color3.fromRGB(170, 140, 90), Accent = Color3.fromRGB(210, 214, 220), Finish = "Marble", HandleFinish = "Wood" },
+		{ Id = "KnifeRust", Name = "Rust", Weapon = "Knife", Rarity = "Rare", Blade = Color3.fromRGB(150, 90, 56), Body = Color3.fromRGB(60, 46, 36), Metal = Color3.fromRGB(110, 70, 46), Accent = Color3.fromRGB(200, 140, 90), Finish = "Rust" },
+		{ Id = "KnifeObsidian", Name = "Obsidian", Weapon = "Knife", Rarity = "Rare", Blade = Color3.fromRGB(22, 22, 26), Body = Color3.fromRGB(14, 14, 16), Metal = Color3.fromRGB(190, 196, 206), Accent = Color3.fromRGB(200, 206, 216), Finish = "Chrome" },
+		{ Id = "KnifeFrost", Name = "Frost", Weapon = "Knife", Rarity = "Rare", Blade = Color3.fromRGB(180, 220, 245), Body = Color3.fromRGB(90, 120, 150), Metal = Color3.fromRGB(150, 190, 220), Accent = Color3.fromRGB(220, 245, 255), Finish = "Frost" },
+		{ Id = "KnifeElectric", Name = "Electric", Weapon = "Knife", Rarity = "Epic", Blade = Color3.fromRGB(40, 44, 64), Body = Color3.fromRGB(20, 22, 32), Metal = Color3.fromRGB(60, 64, 90), Accent = Color3.fromRGB(255, 236, 60), Finish = "Metal", Glow = true },
+		{ Id = "KnifeCrimson", Name = "Crimson Edge", Weapon = "Knife", Rarity = "Epic", Blade = Color3.fromRGB(30, 26, 28), Body = Color3.fromRGB(16, 14, 16), Metal = Color3.fromRGB(80, 30, 36), Accent = Color3.fromRGB(255, 40, 56), Finish = "Chrome", Glow = true },
+		{ Id = "KnifeIce", Name = "Ice Queen", Weapon = "Knife", Rarity = "Epic", Blade = Color3.fromRGB(200, 232, 250), Body = Color3.fromRGB(110, 140, 170), Metal = Color3.fromRGB(160, 200, 230), Accent = Color3.fromRGB(90, 220, 255), Finish = "Frost", Glow = true },
+		{ Id = "KnifeHologram", Name = "Hologram", Weapon = "Knife", Rarity = "Legendary", Blade = Color3.fromRGB(80, 220, 255), Body = Color3.fromRGB(30, 60, 90), Metal = Color3.fromRGB(80, 220, 255), Accent = Color3.fromRGB(140, 240, 255), Pulse = Color3.fromRGB(200, 120, 255), Finish = "Hologram", Glow = true, Sparkle = true },
+		{ Id = "KnifeCrystal", Name = "Crystal", Weapon = "Knife", Rarity = "Legendary", Blade = Color3.fromRGB(190, 230, 255), Body = Color3.fromRGB(120, 150, 190), Metal = Color3.fromRGB(220, 235, 250), Accent = Color3.fromRGB(240, 250, 255), Pulse = Color3.fromRGB(150, 200, 255), Finish = "Crystal", MetalFinish = "Chrome", Glow = true, Sparkle = true },
+		{ Id = "KnifeAurora", Name = "Aurora", Weapon = "Knife", Rarity = "Legendary", Blade = Color3.fromRGB(40, 60, 90), Body = Color3.fromRGB(20, 28, 40), Metal = Color3.fromRGB(80, 255, 170), Accent = Color3.fromRGB(80, 255, 170), Pulse = Color3.fromRGB(190, 90, 255), Finish = "Pearl", Glow = true, Sparkle = true },
+		{ Id = "KnifeMidas", Name = "Midas", Weapon = "Knife", Rarity = "Legendary", Blade = Color3.fromRGB(240, 190, 70), Body = Color3.fromRGB(200, 150, 50), Metal = Color3.fromRGB(255, 220, 120), Accent = Color3.fromRGB(255, 244, 190), Pulse = Color3.fromRGB(255, 190, 60), Finish = "Gold", MetalFinish = "Gold", HandleFinish = "Gold", Glow = true, Sparkle = true },
 	},
 }
 

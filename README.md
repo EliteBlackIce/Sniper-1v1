@@ -78,6 +78,7 @@ src/client/                -> StarterPlayerScripts.Client
     Toast.lua                 short messages from the server (admin commands)
     PowerUpLab.lua            try any power-up solo in the lobby (B)
     Locker.lua                pick your rifle and knife skins (L)
+    Shop.lua                  crates, credit packs (Robux), VIP pass (M)
 
 assets/SniperRifle.glb        PGM 338 rifle, ready for Studio's 3D Importer (CC-BY-4.0, see Quick start)
 
@@ -243,6 +244,7 @@ Every key below can be rebound in **Settings (P) > Keyboard** or
 | Right mouse (knife) | Stab with a short lunge |
 | B | **Power-Up Lab** (lobby / playground): try any power-up solo |
 | L | **Locker** (lobby): equip rifle and knife skins |
+| M | **Shop** (lobby): open crates, buy credits, VIP |
 | G | **Playground** (lobby): free roam on the match map with dummies |
 | F [D-pad right] | Find a match / leave the queue (lobby) |
 | U [R-stick click] | Duel a player: challenge someone in the server (lobby) |
@@ -391,31 +393,84 @@ It's built in `src/server/LobbyBuilder.lua`.
 
 ![Crate vault](dist/crate-preview.png)
 
-Walk up to the crate in the crate vault (west side of the lobby) and press
-**X** (or tap the prompt) to open it for a key. Each crate unlocks a rifle
-or knife skin:
+There are two crates. Open them from the **SHOP** (press **M**, or the SHOP
+button) or at the crate vault's altar (west side of the lobby, **X**, which
+opens a Standard crate). Each one unlocks a rifle or knife skin.
 
-| Rarity | Colour | Chance | What you get |
-|---|---|---|---|
-| Common | grey | 50.5% | plain recolours |
-| Uncommon | green | 25.3% | two-tone, glossy, wood |
-| Rare | blue | 14.1% | shiny metal, chrome, marble, rust, ice |
-| Epic | purple | 7.1% | glowing trims (rifle bolt + stock trims, knife edge or grip) |
-| Legendary | gold | 3% | gold / gloss, the glow pulses between two colours, glitter |
-| Secret | red | soon | their own weapon models (coming later) |
+| | Standard crate | Elite crate |
+|---|---|---|
+| Costs | 10 **Keys** (earned by playing) | 100 **Credits** (bought with Robux) |
+| Common (grey) | 50% | - |
+| Uncommon (green) | 26% | - |
+| Rare (blue) | 15% | 45% |
+| Epic (purple) | 7% | 30% |
+| Legendary (gold) | 2% | 19% |
+| Secret (red) | - | 6% |
+| Elite-only skins | no | yes |
 
-Until the Secret models are in, no crate rolls Secret; the other rarities
-share its 1% (the odds board in the vault shows the real numbers).
+What the rarities look like: Common = plain recolours; Uncommon = glossy,
+two-tone, wood; Rare = chrome, metal, marble, rust, ice; Epic = glowing
+trims; Legendary = gold, the glow pulses, glitter and flames; Secret = their
+own weapon models.
 
 Skins are the same rifle and knife models in new paint: every part belongs
 to a paint group (body, metal, scope, bolt, trims, blade, handle) and the
 skin colours each group (`Skins.lua`, the list is `Config.Crates.Skins`).
-There are 38 rifle skins and 29 knife skins: plain colours (Field Grey,
-Olive Drab, Navy...), glossy two-tones (Cherry, Bubblegum, Two-Tone...),
-real materials (Walnut wood, Marble with gold, Rustbucket, Diamond Plate,
-Frostbite ice, chrome Obsidian), glowing Epics (Neon Tiger, Toxic Waste,
-Electric...) and Legendaries (Hologram force-field, see-through Crystal,
-Aurora, all-gold Midas, Golden Eagle...).
+There are 58 rifle skins and 44 knife skins. They include plain colours
+(Field Grey, Olive Drab, Navy...) and glossy two-tones (Cherry, Royal,
+Sunset...). There are real materials (Walnut wood, Marble with gold,
+Granite, Copper, Rustbucket, Glacier...) and glowing Epics (Neon Tiger,
+Venom, Ghost...). The Legendaries are Hologram, Crystal, Aurora, Midas and
+Magma. **Elite-only** skins are Galaxy, Plasma, Diamond, Glitch and Phoenix.
+The **Secrets** are Dragonfire, Void Reaper and Celestial (rifle) and Shadow
+Karambit, Bloodfang and Starforged (knife).
+
+### Secret models
+
+Each Secret is meant to be its own weapon model. Until you add one, its
+skin uses its colours, glow, pulse, glitter and aura on the normal model,
+so it already works. To give it its own model:
+
+1. Import the model in Studio and put it in a Folder called
+   **SecretWeapons** in the Workspace (the server moves it to
+   ReplicatedStorage at start).
+2. Name the model like the skin's `Template`: `Dragonfire`, `VoidReaper`,
+   `Celestial`, `ShadowKarambit`, `Bloodfang` or `Starforged` (or add your
+   own skin entries in `Config.Crates.Skins` with `Rarity = "Secret"`,
+   `Elite = true`, `Template = "YourModel"`).
+3. Optional: put an Attachment named **Grip** where the right hand holds
+   it (rifle: the pistol grip; knife: the middle of the handle), so the
+   hand lines up. Without it, it's fitted to the normal rifle / knife's size
+   and position.
+
+The model keeps its own textures; the skin adds its glow, glitter and aura.
+
+## The shop and Robux
+
+**Keys** are earned by playing: 3 for a win, 1 for a loss, and new players
+start with 10 (one free Standard crate). **Credits** are bought with Robux
+and open Elite crates. Your keys and credits show at the top right of the
+lobby.
+
+The SHOP has three tabs:
+
+- **CRATES**: open either crate.
+- **CREDITS**: credit packs. These are Developer Products: 100 credits for
+  79 R$, 550 for 399, 1200 for 799 and 2600 for 1499. There's also a key pack
+  (30 keys for 49 R$).
+- **VIP**: a Game Pass (299 R$) that gives 2x keys from every match and a
+  gold VIP tag.
+
+**To start selling:**
+
+1. Create the products on the Roblox website: Creator Hub > your
+   experience > Monetization > Developer Products, and one Pass.
+2. Paste their ids into `Config.Shop`. An id of 0 means "not set up yet":
+   the shop shows the item but says it isn't set up.
+
+Purchases are granted by the server (`CrateService.lua`, ProcessReceipt).
+Each purchase is granted exactly once: purchase ids are kept in the save,
+and Roblox is only told it's done after the save went through.
 
 **Locker**: press **L** in the lobby (or the LOCKER button, SKINS on
 touch) to see every skin for each weapon, owned or locked, with a spinning
@@ -423,10 +478,8 @@ touch) to see every skin for each weapon, owned or locked, with a spinning
 saves it, and everyone sees it. Changes made during a match apply from
 the next round.
 
-**Keys**: new players start with 5. Winning a match gives 2, losing gives 1.
-Your key count shows at the top right of the lobby screen. In Studio, opening
-is free (`Config.Crates.FreeInStudio`) so you can watch the animation as often
-as you like.
+In Studio, opening is free (`Config.Crates.FreeInStudio`) so you can watch
+the animation as often as you like.
 
 **The opening**: the camera swoops in and the crate lifts, spins faster and
 shakes while sparks are sucked into it, over a heartbeat that speeds up.
@@ -442,7 +495,7 @@ dark, then cracks red, and the title glitches. Press **X** to open another,
 or **Space** to go back.
 
 The roll happens on the server (`CrateService.lua`), which checks that you're
-in the lobby, near the altar and have a key. Keys and owned skins are saved
+in the lobby and can pay. Keys, credits and owned skins are saved
 in a DataStore (in Studio this needs Game Settings > Security > "Enable Studio
 Access to API Services"). Rarities, odds, key rewards and the skin list are in
 `Config.Crates`.

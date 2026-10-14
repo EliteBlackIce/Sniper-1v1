@@ -93,9 +93,8 @@ local function addWorldGun(character, powerUps)
 	local scale = Config.Body.GunScale
 	local gun = Instance.new("Model")
 	gun.Name = "WorldGun"
-	local built = GunModel.Build(gun, { Scale = scale, CastShadow = true, PowerUps = powerUps })
+	local built = Skins.Build("Rifle", gun, skinFor(character, "Rifle"), { Scale = scale, CastShadow = true, PowerUps = powerUps })
 	gunPowerUps[character] = powerUps
-	Skins.Apply(gun, skinFor(character, "Rifle"))
 
 	local grip = hand.CFrame * CFrame.new(0, -0.15, 0) * CFrame.Angles(math.rad(-90), 0, 0)
 	GunModel.Place(built, grip, scale)
@@ -162,8 +161,7 @@ local function addWorldKnife(character)
 	local knife = Instance.new("Model")
 	knife.Name = "WorldKnife"
 	local scale = Config.Knife.WorldScale
-	local built = KnifeModel.Build(knife, { Scale = scale, CastShadow = true })
-	Skins.Apply(knife, skinFor(character, "Knife"))
+	local built = Skins.Build("Knife", knife, skinFor(character, "Knife"), { Scale = scale, CastShadow = true })
 	local grip = hand.CFrame * CFrame.new(0, -0.15, 0) * CFrame.Angles(math.rad(-90), 0, 0)
 	local origin = grip * CFrame.new(KnifeModel.Grip.Position * -scale)
 	KnifeModel.Place(built, origin)
@@ -380,6 +378,30 @@ function CharacterService.Spawn(player, cframe, options)
 		))
 	end
 	CharacterService.Style(character, options.Color or Palette.LobbyPlayer, player)
+	if not Util.isBot(player) and player:GetAttribute("VIP") then
+		-- the VIP pass: a gold tag over your head
+		local head = character:FindFirstChild("Head")
+		if head then
+			local tag = Instance.new("BillboardGui")
+			tag.Name = "VipTag"
+			tag.Size = UDim2.fromOffset(60, 24)
+			tag.StudsOffset = Vector3.new(0, 2.2, 0)
+			tag.MaxDistance = 80
+			tag.Adornee = head
+			local label = Instance.new("TextLabel")
+			label.Size = UDim2.fromScale(1, 1)
+			label.BackgroundColor3 = Color3.fromRGB(255, 196, 60)
+			label.Text = "VIP"
+			label.TextScaled = true
+			label.FontFace = Font.new(Config.UI.FontFamily, Enum.FontWeight.Heavy)
+			label.TextColor3 = Color3.fromRGB(30, 24, 10)
+			label.Parent = tag
+			local corner = Instance.new("UICorner")
+			corner.CornerRadius = UDim.new(0.3, 0)
+			corner.Parent = label
+			tag.Parent = head
+		end
+	end
 	character:SetAttribute("Weapon", "Sniper") -- every life starts with the rifle out
 	addHitboxes(character)
 	addWorldGun(character, options.PowerUps)

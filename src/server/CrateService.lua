@@ -5,23 +5,29 @@
 	  * Every player has Keys (the "Keys" attribute on the Player). New
 	    players start with Config.Crates.StartingKeys; finishing a match
 	    gives KeysPerWin / KeysPerLoss.
-	  * Opening a crate (the altar's "Open Crate" prompt, or the "CrateOpen"
-	    remote from the reveal screen's OPEN ANOTHER button) costs a key. The
-	    server checks you're in the lobby, near the altar and not spamming,
-	    then rolls the rarity (Chance %) and a skin of that rarity.
+	  * Opening a crate (the altar's "Open Crate" prompt, the SHOP, or the
+	    reveal screen's OPEN ANOTHER button: the "CrateOpen" remote) costs
+	    that crate's price. The server checks you're in the lobby, can pay
+	    and aren't spamming, then rolls the rarity (the crate's Odds) and a
+	    skin of that rarity.
 	  * The result goes to the client over the "Crates" remote, which plays
 	    the opening animation (CrateController).
 	  * Equipping: the "SkinEquip" remote (the lobby LOCKER) picks one owned
 	    skin per weapon. It's saved, shown to everyone (player attributes
 	    RifleSkin / KnifeSkin) and the weapons in your hands are rebuilt.
-	  * Secret skins will be their own models; until there are any, crates
-	    only roll the rarities that have skins.
-	  * Keys, owned skins and equipped skins are saved in a DataStore. In Studio that needs
+	  * Two crates (Config.Crates.Types): Standard for Keys, Elite for Credits
+	    (better odds, the Elite-only skins and the Secrets).
+	  * Robux: Credit / Key packs (Developer Products, Config.Shop) are
+	    granted in ProcessReceipt, once each (purchase ids are kept in the
+	    save) and only reported as granted after the save went through.
+	    The VIP pass (2x keys) is checked on join.
+	  * Keys, credits, owned skins and equipped skins are saved in a DataStore. In Studio that needs
 	    Game Settings > Security > "Enable Studio Access to API Services";
 	    without it everything works for the session, it just isn't saved.
 ]]
 
 local Players = game:GetService("Players")
+local MarketplaceService = game:GetService("MarketplaceService")
 local DataStoreService = game:GetService("DataStoreService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -42,17 +48,28 @@ pcall(function()
 	store = DataStoreService:GetDataStore("Crates_v1")
 end)
 
-local data = {} -- [player] = { Keys = n, Skins = { [skinId] = count }, Opened = n, Equipped = { Rifle = id, Knife = id } }
+-- [player] = { Keys, Credits, Skins = { [skinId] = count }, Opened, Equipped = { Rifle, Knife }, Receipts = { purchaseId... } }
+local data = {}
 local loaded = {} -- [player] = true once their save has loaded
 local loadFailed = {} -- [player] = true if the DataStore read failed (never overwrite their save)
 local lastOpen = {} -- [player] = os.clock()
 local dirty = {} -- [player] = true when there are unsaved changes
 local rng = Random.new()
 
-local skinsByRarity = {}
-for _, skin in ipairs(CR.Skins) do
-	skinsByRarity[skin.Rarity] = skinsByRarity[skin.Rarity] or {}
-	table.insert(skinsByRarity[skin.Rarity], skin)
+-- the skins each crate can drop, by rarity (Elite-only skins only in the Elite crate)
+local pools = {} -- [crateType][rarity] = { skins }
+for typeName, crateType in pairs(CR.Types) do
+	pools[typeName] = {}
+	for _, skin in ipairs(CR.Skins) do
+		if (crateType.Odds[skin.Rarity] or 0) > 0 and (crateType.EliteSkins or not skin.Elite) then
+			pools[typeName][skin.Rarity] = pools[typeName][skin.Rarity] or {}
+			table.insert(pools[typeName][skin.Rarity], skin)
+		end
+	end
+end
+local rarityById = {}
+for _, rarity in ipairs(CR.Rarities) do
+	rarityById[rarity.Id] = rarity
 end
 
 local function notify(player, text)
@@ -62,7 +79,7 @@ end
 local function sendInventory(player)
 	local d = data[player]
 	if d then
-		Remotes.Get("Crates"):FireClient(player, { Type = "Inventory", Keys = d.Keys, Skins = d.Skins, Equipped = d.Equipped })
+		Remotes.Get("Crates"):FireClient(player, { Type = "Inventory", Keys = d.Keys, Credits = d.Credits, Skins = d.Skins, Equipped = d.Equipped })
 	end
 end
 
@@ -73,22 +90,41 @@ local function setKeys(player, keys)
 	dirty[player] = true
 end
 
+local function setCredits(player, credits)
+	local d = data[player]
+	d.Credits = math.max(0, math.floor(credits))
+	player:SetAttribute("Credits", d.Credits)
+	dirty[player] = true
+end
+
 ----------------------------------------------------------------------------
 -- Saving
 ----------------------------------------------------------------------------
+-- Returns false only if a write was needed and couldn't happen.
 local function save(player)
 	local d = data[player]
-	if not store or not d or not loaded[player] or loadFailed[player] or not dirty[player] then
-		return
+	if loadFailed[player] then
+		return false -- (never overwrite a save we couldn't read)
+	end
+	if not store or not d or not loaded[player] or not dirty[player] then
+		return true
 	end
 	dirty[player] = nil
 	local ok, err = pcall(function()
-		store:SetAsync("u" .. player.UserId, { Keys = d.Keys, Skins = d.Skins, Opened = d.Opened, Equipped = d.Equipped })
+		store:SetAsync("u" .. player.UserId, {
+			Keys = d.Keys,
+			Credits = d.Credits,
+			Skins = d.Skins,
+			Opened = d.Opened,
+			Equipped = d.Equipped,
+			Receipts = d.Receipts,
+		})
 	end)
 	if not ok then
 		dirty[player] = true
 		warn("[CrateService] save failed for", player.Name, err)
 	end
+	return ok
 end
 
 local function load(player)
@@ -115,10 +151,20 @@ local function load(player)
 	if not player.Parent then
 		return
 	end
-	local d = { Keys = CR.StartingKeys, Skins = {}, Opened = 0, Equipped = {} }
+	local d = { Keys = CR.StartingKeys, Credits = 0, Skins = {}, Opened = 0, Equipped = {}, Receipts = {} }
 	if typeof(saved) == "table" then
 		if typeof(saved.Keys) == "number" then
 			d.Keys = math.max(0, math.floor(saved.Keys))
+		end
+		if typeof(saved.Credits) == "number" then
+			d.Credits = math.max(0, math.floor(saved.Credits))
+		end
+		if typeof(saved.Receipts) == "table" then
+			for _, id in ipairs(saved.Receipts) do
+				if typeof(id) == "string" then
+					table.insert(d.Receipts, id)
+				end
+			end
 		end
 		if typeof(saved.Opened) == "number" then
 			d.Opened = saved.Opened
@@ -143,6 +189,7 @@ local function load(player)
 	data[player] = d
 	loaded[player] = true
 	player:SetAttribute("Keys", d.Keys)
+	player:SetAttribute("Credits", d.Credits)
 	player:SetAttribute("RifleSkin", d.Equipped.Rifle)
 	player:SetAttribute("KnifeSkin", d.Equipped.Knife)
 	if d.Equipped.Rifle or d.Equipped.Knife then
@@ -170,52 +217,42 @@ end
 ----------------------------------------------------------------------------
 -- Opening
 ----------------------------------------------------------------------------
--- (only rarities that have skins: no Secret until its models are in)
-local function rollRarity()
+-- A rarity by the crate's odds (only rarities it has skins for), then a skin of it.
+local function rollSkin(typeName)
+	local crateType = CR.Types[typeName]
+	local pool = pools[typeName]
 	local total = 0
 	for _, rarity in ipairs(CR.Rarities) do
-		if skinsByRarity[rarity.Id] then
-			total += rarity.Chance
+		if pool[rarity.Id] then
+			total += crateType.Odds[rarity.Id] or 0
 		end
 	end
 	local pick = rng:NextNumber() * total
 	for _, rarity in ipairs(CR.Rarities) do
-		if skinsByRarity[rarity.Id] then
-			pick -= rarity.Chance
+		local list = pool[rarity.Id]
+		if list then
+			pick -= crateType.Odds[rarity.Id] or 0
 			if pick <= 0 then
-				return rarity
+				return rarity, list[rng:NextInteger(1, #list)]
 			end
 		end
 	end
-	return CR.Rarities[1]
-end
-
-local function rollSkin()
-	-- re-roll the (very unlikely) case of a rarity with no skins
-	for _ = 1, 10 do
-		local rarity = rollRarity()
-		local list = skinsByRarity[rarity.Id]
-		if list and #list > 0 then
-			return rarity, list[rng:NextInteger(1, #list)]
-		end
-	end
 	local skin = CR.Skins[1]
-	for _, rarity in ipairs(CR.Rarities) do
-		if rarity.Id == skin.Rarity then
-			return rarity, skin
-		end
-	end
-	return CR.Rarities[1], skin
+	return rarityById[skin.Rarity], skin
 end
 
 local function isFree()
 	return CR.FreeInStudio and RunService:IsStudio()
 end
 
-local function canOpen(player)
+local function canOpen(player, typeName)
 	local d = data[player]
+	local crateType = CR.Types[typeName]
 	if not d then
 		return false, "Your crates are still loading"
+	end
+	if not crateType then
+		return false, nil
 	end
 	if MatchService.GetMatch(player) then
 		return false, nil -- in a match: ignore quietly
@@ -223,47 +260,54 @@ local function canOpen(player)
 	if lastOpen[player] and os.clock() - lastOpen[player] < CR.Cooldown then
 		return false, nil
 	end
-	local lobby = MatchService.GetLobby()
-	local altar = lobby and lobby.CrateAltar
-	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-	if not altar or not root or (root.Position - altar.Position).Magnitude > CR.MaxDistance then
-		return false, "Go to the crate vault to open crates"
-	end
-	if not isFree() and d.Keys < CR.Cost then
-		return false, "No keys left - play matches to earn more"
+	if not isFree() and (d[crateType.Currency] or 0) < crateType.Cost then
+		if crateType.Currency == "Keys" then
+			return false, ("You need %d keys - win matches to earn more (or get keys in the SHOP)"):format(crateType.Cost)
+		end
+		return false, ("You need %d credits - get them in the SHOP"):format(crateType.Cost)
 	end
 	return true
 end
 
-function CrateService.Open(player)
-	local ok, reason = canOpen(player)
+-- typeName: "Standard" (keys) or "Elite" (credits)
+function CrateService.Open(player, typeName)
+	typeName = CR.Types[typeName] and typeName or "Standard"
+	local ok, reason = canOpen(player, typeName)
 	if not ok then
 		if reason then
 			notify(player, reason)
 		end
 		-- lets the reveal screen give the view back straight away
-		Remotes.Get("Crates"):FireClient(player, { Type = "Denied", Reason = reason })
+		Remotes.Get("Crates"):FireClient(player, { Type = "Denied", Reason = reason, CrateType = typeName })
 		return
 	end
 	lastOpen[player] = os.clock()
 	local d = data[player]
+	local crateType = CR.Types[typeName]
 	if not isFree() then
-		setKeys(player, d.Keys - CR.Cost)
+		if crateType.Currency == "Credits" then
+			setCredits(player, d.Credits - crateType.Cost)
+		else
+			setKeys(player, d.Keys - crateType.Cost)
+		end
 	end
-	local rarity, skin = rollSkin()
+	local rarity, skin = rollSkin(typeName)
 	local isNew = (d.Skins[skin.Id] or 0) == 0
 	d.Skins[skin.Id] = (d.Skins[skin.Id] or 0) + 1
 	d.Opened += 1
 	dirty[player] = true
 	Remotes.Get("Crates"):FireClient(player, {
 		Type = "Result",
+		CrateType = typeName,
 		Equipped = d.Equipped,
 		Rarity = rarity.Id,
 		Skin = skin.Id,
 		New = isNew,
 		Count = d.Skins[skin.Id],
 		Keys = d.Keys,
+		Credits = d.Credits,
 		Free = isFree(),
+		CanAgain = isFree() or (d[crateType.Currency] or 0) >= crateType.Cost,
 		Skins = d.Skins,
 	})
 	scheduleSave(player) -- (opening several in a row = one save)
@@ -298,6 +342,63 @@ function CrateService.Equip(player, weapon, id)
 end
 
 ----------------------------------------------------------------------------
+-- Robux: credit / key packs (Developer Products) and the VIP pass
+----------------------------------------------------------------------------
+local products = {} -- [productId] = { Credits = n } or { Keys = n }
+for _, pack in ipairs(Config.Shop.CreditPacks) do
+	if pack.Id ~= 0 then
+		products[pack.Id] = { Credits = pack.Credits }
+	end
+end
+for _, pack in ipairs(Config.Shop.KeyPacks) do
+	if pack.Id ~= 0 then
+		products[pack.Id] = { Keys = pack.Keys }
+	end
+end
+
+-- Roblox calls this for every purchase (again and again until we say it's
+-- granted, so it must never give the same purchase twice).
+local function processReceipt(info)
+	local player = Players:GetPlayerByUserId(info.PlayerId)
+	local d = player and data[player]
+	local product = products[info.ProductId]
+	if not player or not d or not loaded[player] or loadFailed[player] or not product then
+		return Enum.ProductPurchaseDecision.NotProcessedYet -- (try again when they're back / loaded)
+	end
+	if not table.find(d.Receipts, info.PurchaseId) then
+		if product.Credits then
+			setCredits(player, d.Credits + product.Credits)
+		end
+		if product.Keys then
+			setKeys(player, d.Keys + product.Keys)
+		end
+		table.insert(d.Receipts, info.PurchaseId)
+		while #d.Receipts > 50 do
+			table.remove(d.Receipts, 1)
+		end
+		dirty[player] = true
+		notify(player, product.Credits and ("+%d CREDITS"):format(product.Credits) or ("+%d KEYS"):format(product.Keys))
+		sendInventory(player)
+	end
+	-- only tell Roblox it's done once it's saved
+	if save(player) then
+		return Enum.ProductPurchaseDecision.PurchaseGranted
+	end
+	return Enum.ProductPurchaseDecision.NotProcessedYet
+end
+
+local function checkVip(player)
+	local pass = Config.Shop.Passes.VIP
+	if pass.Id == 0 then
+		return
+	end
+	local ok, owns = pcall(MarketplaceService.UserOwnsGamePassAsync, MarketplaceService, player.UserId, pass.Id)
+	if ok and owns then
+		player:SetAttribute("VIP", true)
+	end
+end
+
+----------------------------------------------------------------------------
 -- Keys for playing
 ----------------------------------------------------------------------------
 local function onMatchFinished(match)
@@ -308,6 +409,9 @@ local function onMatchFinished(match)
 	for _, player in ipairs(match.Players) do
 		if not Util.isBot(player) and player.Parent and data[player] then
 			local gain = player == winner and CR.KeysPerWin or CR.KeysPerLoss
+			if player:GetAttribute("VIP") then
+				gain *= 2 -- (the VIP pass)
+			end
 			if gain > 0 then
 				setKeys(player, data[player].Keys + gain)
 				notify(player, ("+%d KEY%s  -  open crates in the crate vault"):format(gain, gain == 1 and "" or "S"))
@@ -360,19 +464,31 @@ function CrateService.Init(matchService, characterService)
 		saveScheduled[player] = nil
 	end)
 
-	Remotes.Get("CrateOpen").OnServerEvent:Connect(function(player)
-		CrateService.Open(player)
+	Remotes.Get("CrateOpen").OnServerEvent:Connect(function(player, typeName)
+		CrateService.Open(player, typeName)
 	end)
 
 	local lobby = MatchService.GetLobby()
 	local prompt = lobby and lobby.CrateAltar and lobby.CrateAltar:FindFirstChildOfClass("ProximityPrompt")
 	if prompt then
 		prompt.Triggered:Connect(function(player)
-			CrateService.Open(player)
+			CrateService.Open(player, "Standard")
 		end)
 	end
 
 	MatchService.MatchFinished:Connect(onMatchFinished)
+
+	MarketplaceService.ProcessReceipt = processReceipt
+	MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passId, bought)
+		if bought and passId == Config.Shop.Passes.VIP.Id then
+			player:SetAttribute("VIP", true)
+			notify(player, "VIP UNLOCKED  -  2x keys from every match")
+		end
+	end)
+	Players.PlayerAdded:Connect(checkVip)
+	for _, player in ipairs(Players:GetPlayers()) do
+		task.spawn(checkVip, player)
+	end
 
 	Players.PlayerAdded:Connect(load)
 	for _, player in ipairs(Players:GetPlayers()) do

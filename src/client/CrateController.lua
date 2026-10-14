@@ -72,6 +72,7 @@ local pendingResult -- a result that arrived while we were busy
 local waitingAgain = false
 local finishing = false
 local againToken = 0
+local lastCrateType = "Standard"
 
 ----------------------------------------------------------------------------
 -- Helpers
@@ -175,7 +176,7 @@ local function idle(dt)
 	if prompt then
 		local keys = player:GetAttribute("Keys") or 0
 		prompt.ObjectText = (CR.FreeInStudio and RunService:IsStudio()) and "Free in Studio"
-			or ("%d key%s"):format(keys, keys == 1 and "" or "s")
+			or ("Standard crate: %d keys (you have %d)"):format(CR.Types.Standard.Cost, keys)
 	end
 end
 
@@ -187,18 +188,12 @@ local function buildRifle(skin, rarity)
 	model.Name = "CrateReward"
 	local isKnife = skin.Weapon == "Knife"
 	local scale = isKnife and 2.6 or 1.7
-	local built
-	if isKnife then
-		built = KnifeModel.Build(model, { Scale = scale, Anchored = true })
-	else
-		built = GunModel.Build(model, { Scale = scale, Anchored = true, CastShadow = false, Effects = false })
-	end
+	local built = Skins.Build(skin.Weapon or "Rifle", model, skin, { Scale = scale, Anchored = true, CastShadow = false, Effects = false })
 	for _, part in pairs(built.Parts) do
 		part.CanCollide = false
 		part.CanQuery = false
 		part.CanTouch = false
 	end
-	Skins.Apply(model, skin)
 	-- a soft outline in the rarity colour
 	local highlight = Instance.new("Highlight")
 	highlight.FillTransparency = 1
@@ -399,10 +394,12 @@ local function play(result, continuing)
 	local tIntro = continuing and 0.45 or 1.3
 	local steps = {} -- { time, rarity, final }
 	local climbTo = isSecret and 5 or tier
-	local stepCount = math.max(climbTo, 2) -- always build a little suspense
+	-- (the Elite crate has no Common / Uncommon: its climb starts at Rare)
+	local firstTier = result.CrateType == "Elite" and math.min(3, climbTo) or 1
+	local stepCount = math.max(climbTo - firstTier + 1, 2) -- always build a little suspense
 	local stepT = tIntro
 	for k = 1, stepCount do
-		local r = CR.Rarities[math.min(k, climbTo)]
+		local r = CR.Rarities[math.min(firstTier + k - 1, climbTo)]
 		table.insert(steps, { T = stepT, Rarity = r, Final = (k == stepCount) and not isSecret })
 		stepT += 0.55 + k * 0.14
 	end
@@ -635,8 +632,10 @@ local function play(result, continuing)
 				New = result.New,
 				Count = result.Count,
 				Keys = result.Keys,
+				Credits = result.Credits,
+				CrateType = result.CrateType,
 				Free = result.Free,
-				CanAgain = result.Free or (result.Keys or 0) >= CR.Cost,
+				CanAgain = result.CanAgain == true,
 			})
 			Sfx.Play(isSecret and "Victory" or "CardPick", { Pitch = 1, Volume = 1.2 })
 		end
@@ -697,7 +696,7 @@ local function openAgain()
 	CrateReveal.HideCard()
 	clearScene()
 	crate.Model:PivotTo(restPose(idleT))
-	Remotes.Get("CrateOpen"):FireServer()
+	Remotes.Get("CrateOpen"):FireServer(lastCrateType)
 	-- no answer at all: give the view back (a stale timer can't end a later opening)
 	againToken += 1
 	local token = againToken
@@ -711,6 +710,9 @@ end
 local function onResult(result)
 	if typeof(result) ~= "table" then
 		return
+	end
+	if result.CrateType then
+		lastCrateType = result.CrateType -- (OPEN ANOTHER opens the same kind)
 	end
 	if typeof(result.Skins) == "table" then
 		ClientState.OwnedSkins = result.Skins -- (the Locker reads these)

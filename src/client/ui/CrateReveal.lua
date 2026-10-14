@@ -398,7 +398,13 @@ function CrateReveal.Reveal(info)
 	infoLabel.TextTransparency = 1
 	badge.Visible = false
 	buttons.Visible = false
-	keysLabel.Text = info.Free and "FREE OPENS IN STUDIO" or ("%d KEY%s LEFT"):format(info.Keys or 0, info.Keys == 1 and "" or "S")
+	if info.Free then
+		keysLabel.Text = "FREE OPENS IN STUDIO"
+	elseif info.CrateType == "Elite" then
+		keysLabel.Text = ("%d CREDITS LEFT"):format(info.Credits or 0)
+	else
+		keysLabel.Text = ("%d KEY%s LEFT"):format(info.Keys or 0, info.Keys == 1 and "" or "S")
+	end
 	keysLabel.TextTransparency = 1
 
 	task.delay(0.35, function()

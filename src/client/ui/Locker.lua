@@ -62,9 +62,7 @@ local function buildPreview()
 	local model = Instance.new("Model")
 	local isKnife = weapon == "Knife"
 	local scale = isKnife and 2.2 or 1
-	local built = isKnife and KnifeModel.Build(model, { Scale = scale, Anchored = true })
-		or GunModel.Build(model, { Scale = scale, Anchored = true, Effects = false })
-	Skins.Apply(model, Skins.Get(selected))
+	local built = Skins.Build(weapon, model, Skins.Get(selected), { Scale = scale, Anchored = true, Effects = false })
 	model.Parent = worldModel
 	preview = { Model = model, Built = built, IsKnife = isKnife, Scale = scale }
 end
@@ -123,7 +121,7 @@ local function refreshDetails()
 		statusLabel.Text = "EQUIPPED"
 		statusLabel.TextColor3 = Palette.UIAccent
 	elseif skin and count <= 0 then
-		statusLabel.Text = "LOCKED  -  OPEN CRATES IN THE CRATE VAULT"
+		statusLabel.Text = skin.Elite and "LOCKED  -  ONLY IN THE ELITE CRATE (SHOP)" or "LOCKED  -  OPEN CRATES (SHOP OR CRATE VAULT)"
 		statusLabel.TextColor3 = Palette.UISubText
 	else
 		statusLabel.Text = skin and (count > 1 and ("OWNED  x%d"):format(count) or "OWNED") or "ALWAYS AVAILABLE"
@@ -208,7 +206,7 @@ local function makeTile(skin, order)
 		Theme.label({
 			Position = UDim2.fromOffset(70, 8),
 			Size = UDim2.new(1, -78, 0, 16),
-			Text = skin.Pulse and "GLOW + FX" or "GLOW",
+			Text = (skin.Elite and "ELITE  " or "") .. (skin.Pulse and "GLOW + FX" or "GLOW"),
 			TextSize = 10,
 			TextXAlignment = Enum.TextXAlignment.Right,
 			TextColor3 = color,

@@ -6,7 +6,7 @@
 	clear while you walk around the lobby in first person:
 
 		top left      SNIPER DUEL wordmark (+ PLAYGROUND chip in the playground)
-		top right     player card (avatar, name) + ONLINE, KEYS and RANK chips
+		top right     player card (avatar, name) + ONLINE, KEYS, CREDITS and RANK chips
 		bottom left   action stack: REMATCH (after a match), FIND MATCH
 		              (animated "searching" state with timer + queue count),
 		              then Playground / Power-Up Lab / Duel / Settings /
@@ -62,6 +62,7 @@ local SECONDARY = {
 	{ Id = "Playground", Text = "PLAYGROUND", Hint = "FREE ROAM" },
 	{ Id = "PowerUpLab", Text = "POWER-UP LAB", Hint = "TRY BUILDS" },
 	{ Id = "Locker", Text = "LOCKER", Hint = "SKINS" },
+	{ Id = "Shop", Text = "SHOP", Hint = "CRATES + CREDITS" },
 	{ Id = "DuelFriend", Text = "DUEL A PLAYER", Hint = "INVITE" },
 	{ Id = "Settings", Text = "SETTINGS", Hint = "" },
 	{ Id = "BotMatch", Text = "PLAY VS BOT", Hint = "ADMIN" },
@@ -72,6 +73,7 @@ local scrimLeft, scrimTop
 local brand, brandMark, title, tagline, modeRow, modeChip, subtitle
 local card, cardPanel, avatar, chipRow, onlineChip, onlineLabel, keysChip, keysLabel
 local rankChip, rankLabel, rankTier, rankStroke
+local creditsChip, creditsLabel
 local stack, statusLabel
 local primary, playButton, playgroundButton, rematchButton
 local spinner, progressTrack, progressFill, shine, timeLabel, subLabel
@@ -913,7 +915,27 @@ local function buildCard()
 		LayoutOrder = 3,
 		Parent = keysChip,
 	})
-	rankChip = buildChip("Rank", chipRow, 3, Palette.UIText)
+	creditsChip = buildChip("Credits", chipRow, 3, Color3.fromRGB(255, 196, 60))
+	creditsLabel = Theme.label({
+		Size = UDim2.fromOffset(0, 18),
+		AutomaticSize = Enum.AutomaticSize.X,
+		Text = "0",
+		TextSize = 15,
+		FontFace = Theme.Font(Enum.FontWeight.Heavy),
+		LayoutOrder = 1,
+		Parent = creditsChip,
+	})
+	Theme.label({
+		Size = UDim2.fromOffset(0, 16),
+		AutomaticSize = Enum.AutomaticSize.X,
+		Text = "CREDITS",
+		TextSize = 11,
+		TextColor3 = Palette.UISubText,
+		FontFace = Theme.Font(Enum.FontWeight.Bold),
+		LayoutOrder = 2,
+		Parent = creditsChip,
+	})
+	rankChip = buildChip("Rank", chipRow, 4, Palette.UIText)
 	rankStroke = rankChip:FindFirstChildOfClass("UIStroke")
 	rankTier = Theme.label({
 		Size = UDim2.fromOffset(0, 16),
@@ -1103,6 +1125,12 @@ function LobbyUI.Start(playerGui)
 		Keybinds.Press("PowerUpLab", true)
 		Keybinds.Press("PowerUpLab", false)
 	end)
+	entries.Shop.Button.Activated:Connect(function()
+		Theme.pop(entries.Shop.Button, 0.06)
+		if Controllers and Controllers.Shop then
+			Controllers.Shop.Toggle()
+		end
+	end)
 	entries.Locker.Button.Activated:Connect(function()
 		Theme.pop(entries.Locker.Button, 0.06)
 		if Controllers and Controllers.Locker then
@@ -1168,6 +1196,12 @@ function LobbyUI.Start(playerGui)
 	-- KEYS (crates): LocalPlayer attribute "Keys"
 	refreshKeys()
 	player:GetAttributeChangedSignal("Keys"):Connect(refreshKeys)
+	-- CREDITS (bought in the SHOP): LocalPlayer attribute "Credits"
+	local function refreshCredits()
+		creditsLabel.Text = tostring(math.floor(tonumber(player:GetAttribute("Credits")) or 0))
+	end
+	refreshCredits()
+	player:GetAttributeChangedSignal("Credits"):Connect(refreshCredits)
 	-- RANK: LocalPlayer attribute "Rating"
 	refreshRank()
 	player:GetAttributeChangedSignal("Rating"):Connect(refreshRank)

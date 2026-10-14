@@ -133,6 +133,7 @@ local function refresh()
 	buttons.Decoy.Visible = stats.Decoy == true
 	buttons.Lab.Visible = not inMatch
 	buttons.Skins.Visible = not inMatch
+	buttons.Shop.Visible = not inMatch
 	buttons.Duel.Visible = not inMatch
 	buttons.Sprint.BackgroundColor3 = sprintOn and Palette.UIAccent or Palette.UIPanel
 end
@@ -207,6 +208,11 @@ function MobileControls.Start(playerGui)
 
 	pill("Lab", "LAB", UDim2.new(0, 60, 0, 120), tap("PowerUpLab"))
 	pill("Duel", "DUEL", UDim2.new(0, 150, 0, 120), tap("DuelFriend"))
+	pill("Shop", "SHOP", UDim2.new(0, 330, 0, 120), function()
+		if Controllers and Controllers.Shop then
+			Controllers.Shop.Toggle()
+		end
+	end)
 	pill("Skins", "SKINS", UDim2.new(0, 240, 0, 120), function()
 		if Controllers and Controllers.Locker then
 			Controllers.Locker.Toggle()

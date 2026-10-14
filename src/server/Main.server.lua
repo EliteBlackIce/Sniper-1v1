@@ -34,6 +34,12 @@ local importedKnife = workspace:FindFirstChild(knifeName)
 if importedKnife and not ReplicatedStorage:FindFirstChild(knifeName) then
 	importedKnife.Parent = ReplicatedStorage
 end
+-- Secret skins' own models: a folder "SecretWeapons" in the Workspace, one
+-- model per Secret (named like the skin's Template in Config.Crates.Skins)
+local secrets = workspace:FindFirstChild("SecretWeapons")
+if secrets and not ReplicatedStorage:FindFirstChild("SecretWeapons") then
+	secrets.Parent = ReplicatedStorage
+end
 
 local LightingSetup = require(script.Parent.LightingSetup)
 local CharacterService = require(script.Parent.CharacterService)

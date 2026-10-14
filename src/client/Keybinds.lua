@@ -56,6 +56,7 @@ Keybinds.Actions = {
 	{ Id = "Knife", Name = "Knife", Keyboard = "Two", Gamepad = "ButtonR1" },
 	{ Id = "PowerUpLab", Name = "Power-Up Lab", Keyboard = "B", Gamepad = "DPadLeft" },
 	{ Id = "Locker", Name = "Locker (skins)", Keyboard = "L", Gamepad = "None" },
+	{ Id = "Shop", Name = "Shop (crates, credits, VIP)", Keyboard = "M", Gamepad = "None" },
 	{ Id = "FindMatch", Name = "Find match", Keyboard = "F", Gamepad = "DPadRight" },
 	{ Id = "Playground", Name = "Playground", Keyboard = "G", Gamepad = "ButtonL1" },
 	{ Id = "BotMatch", Name = "Play vs bot (admin)", Keyboard = "N", Gamepad = "None" }, -- (RB is the knife)

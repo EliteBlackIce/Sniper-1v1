@@ -140,21 +140,18 @@ local function light(parts, color, range, brightness)
 	return parts
 end
 
--- A rarity's real odds on the board: rarities with no skins yet (Secret,
--- until its models are in) aren't rolled, so the rest share their chance.
+-- A rarity's odds in the Standard crate (the one the altar opens); what
+-- only drops from the Elite crate says so.
 local function oddsText(rarity)
-	local hasSkins = {}
-	for _, skin in ipairs(Config.Crates.Skins) do
-		hasSkins[skin.Rarity] = true
-	end
-	if not hasSkins[rarity.Id] then
-		return "SOON"
+	local odds = Config.Crates.Types.Standard.Odds
+	if (odds[rarity.Id] or 0) <= 0 then
+		return "ELITE"
 	end
 	local total = 0
-	for _, other in ipairs(Config.Crates.Rarities) do
-		total += hasSkins[other.Id] and other.Chance or 0
+	for _, chance in pairs(odds) do
+		total += chance
 	end
-	local pct = rarity.Chance / total * 100
+	local pct = odds[rarity.Id] / total * 100
 	return (pct >= 10 and ("%d%%"):format(math.floor(pct + 0.5)) or ("%.1f%%"):format(pct))
 end
 
@@ -756,7 +753,7 @@ function LobbyBuilder.Build()
 		b.part(V(0.4, 9.8, 0.5), frame * CFrame.new(-11.2, 0, 0), C.Metal)
 		b.part(V(0.4, 9.8, 0.5), frame * CFrame.new(11.2, 0, 0), C.Metal)
 	end)
-	sign(model, V(16, 3.2, 0.5), CFrame.lookAt(V(-60.4, 15.4, 0), V(0, 15.4, 0)), "CRATE VAULT", "OPEN CRATES  -  UNLOCK RIFLE SKINS", P.AccentB)
+	sign(model, V(16, 3.2, 0.5), CFrame.lookAt(V(-60.4, 15.4, 0), V(0, 15.4, 0)), "CRATE VAULT", "OPEN CRATES  -  SKINS  -  SHOP [M]", P.AccentB)
 
 	-- BINS ---------------------------------------------------------------------------------
 	for _, deg in ipairs({ 20, 160, 200, 340 }) do -- bins by the paths

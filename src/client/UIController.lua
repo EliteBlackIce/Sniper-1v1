@@ -10,6 +10,7 @@
 		SettingsMenu  sliders + keybinds for mouse and controller (P)
 		PowerUpLab    try power-ups solo in the lobby (B)
 		Locker        pick your rifle and knife skins (L)
+		Shop          crates, credit packs, VIP (M)
 		Toast         short server messages (admin commands)
 		DuelUI        challenge a player, duel / rematch invites
 		MobileControls on-screen buttons + look pad for touch screens
@@ -27,6 +28,7 @@ local LobbyUI = require(ui.LobbyUI)
 local SettingsMenu = require(ui.SettingsMenu)
 local PowerUpLab = require(ui.PowerUpLab)
 local Locker = require(ui.Locker)
+local Shop = require(ui.Shop)
 local Toast = require(ui.Toast)
 local DuelUI = require(ui.DuelUI)
 local MobileControls = require(ui.MobileControls)
@@ -41,6 +43,7 @@ function UIController.Init(controllers)
 	controllers.Settings = SettingsMenu
 	controllers.Duel = DuelUI
 	controllers.Locker = Locker
+	controllers.Shop = Shop
 	MobileControls.Init(controllers)
 	HUD.Init(controllers)
 	LobbyUI.Init(controllers)
@@ -75,6 +78,7 @@ function UIController.Start()
 	SettingsMenu.Start(playerGui)
 	PowerUpLab.Start(playerGui)
 	Locker.Start(playerGui)
+	Shop.Start(playerGui)
 	Toast.Start(playerGui)
 	DuelUI.Start(playerGui)
 	MobileControls.Start(playerGui)

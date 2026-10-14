@@ -16,7 +16,10 @@
 		Epic       the trims glow (rifle: bolt + stock trims, knife: the edge,
 		           or the grip on the imported knife)
 		Legendary  the glow pulses between two colours (clients animate parts
-		           tagged "SkinPulse") and the weapon glitters
+		           tagged "SkinPulse") and the weapon glitters (Aura: flames)
+		Secret     their own weapon model (Template), dropped from the Elite crate
+
+		Skins.Build("Rifle" | "Knife", model, skin, buildOptions)  -- build + paint
 ]]
 
 local CollectionService = game and game:GetService("CollectionService")
@@ -179,10 +182,32 @@ local function sparkle(part, skin)
 end
 
 -- Paints every part of a built weapon (anything with a "Paint" attribute).
+-- A flickering aura of particles round the weapon (Aura skins).
+local function aura(part, skin)
+	local emitter = Instance.new("ParticleEmitter")
+	emitter.Name = "SkinAura"
+	emitter.Texture = "rbxasset://textures/particles/fire_main.dds"
+	emitter.Color = ColorSequence.new(skin.Accent, skin.Pulse or skin.Accent)
+	emitter.LightEmission = 1
+	emitter.LightInfluence = 0
+	emitter.Lifetime = NumberRange.new(0.3, 0.6)
+	emitter.Rate = 16
+	emitter.Speed = NumberRange.new(0.3, 1)
+	emitter.Acceleration = Vector3.new(0, 2.5, 0)
+	emitter.SpreadAngle = Vector2.new(180, 180)
+	emitter.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.18), NumberSequenceKeypoint.new(1, 0) })
+	emitter.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.35), NumberSequenceKeypoint.new(1, 1) })
+	emitter.Parent = part
+end
+
+-- Paints every part of a built weapon (anything with a "Paint" attribute)
+-- and adds the skin's effects. A Secret's own model keeps its own look and
+-- only gets the effects.
 function Skins.Apply(model, skin)
 	if not skin then
 		return
 	end
+	local ownModel = model:GetAttribute("SecretModel") ~= nil
 	local groups = skin.Weapon == "Knife" and KNIFE_GROUPS or RIFLE_GROUPS
 	local parts, hasEdge = {}, false
 	for _, part in ipairs(model:GetDescendants()) do
@@ -193,27 +218,65 @@ function Skins.Apply(model, skin)
 		end
 	end
 	local biggest
-	for _, part in ipairs(model:GetDescendants()) do
-		-- the parts-built rifle (no imported mesh): its glow lines take the skin's glow
-		if skin.Glow and skin.Weapon ~= "Knife" and part:IsA("BasePart") and part:GetAttribute("Paint") == "GunGlow" then
-			glow(part, skin)
+	if not ownModel then
+		for _, part in ipairs(model:GetDescendants()) do
+			-- the parts-built rifle (no imported mesh): its glow lines take the skin's glow
+			if skin.Glow and skin.Weapon ~= "Knife" and part:IsA("BasePart") and part:GetAttribute("Paint") == "GunGlow" then
+				glow(part, skin)
+			end
 		end
 	end
 	for _, part in ipairs(parts) do
 		local key = part:GetAttribute("Paint")
-		if skin.Weapon == "Knife" and key == "Handle" and skin.Glow and not hasEdge then
+		if ownModel then
+			-- (keep the Secret model's own colours and textures)
+		elseif skin.Weapon == "Knife" and key == "Handle" and skin.Glow and not hasEdge then
 			glow(part, skin) -- (the imported knife has no separate edge: its grip glows instead)
 		else
 			groups[key](part, skin)
 		end
-		local main = key == "Body" or key == "GunShell" or key == "Blade"
-		if main and (not biggest or part.Size.Magnitude > biggest.Size.Magnitude) then
+		if not biggest or part.Size.Magnitude > biggest.Size.Magnitude then
 			biggest = part
 		end
 	end
 	if skin.Sparkle and biggest then
 		sparkle(biggest, skin)
 	end
+	if skin.Aura and biggest then
+		aura(biggest, skin)
+	end
+end
+
+-- A Secret skin's own model (ReplicatedStorage.SecretWeapons[skin.Template]), or nil.
+function Skins.FindTemplate(skin)
+	if not (skin and skin.Template and game) then
+		return nil
+	end
+	local folder = game:GetService("ReplicatedStorage"):FindFirstChild("SecretWeapons")
+	local template = folder and folder:FindFirstChild(skin.Template)
+	if template and template:FindFirstChildWhichIsA("BasePart", true) then
+		return template
+	end
+	return nil
+end
+
+--[[
+	Builds a weapon in a skin: GunModel / KnifeModel.Build (with a Secret's
+	own model when there is one) + Apply. weapon = "Rifle" | "Knife";
+	skin may be nil (the default look). Returns what Build returns.
+]]
+function Skins.Build(weapon, parent, skin, options)
+	options = table.clone(options or {})
+	local template = Skins.FindTemplate(skin)
+	if template then
+		options.Template = template
+		options.KeepTextures = true
+		parent:SetAttribute("SecretModel", skin.Template)
+	end
+	local builder = require(script.Parent[weapon == "Knife" and "KnifeModel" or "GunModel"])
+	local built = builder.Build(parent, options)
+	Skins.Apply(parent, skin)
+	return built
 end
 
 return Skins

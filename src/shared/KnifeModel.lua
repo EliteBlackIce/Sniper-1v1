@@ -141,6 +141,15 @@ local function meshLayout(template)
 			Offset = CFrame.new(B.Min + (cf.Position - mn) * k) * cf.Rotation,
 		})
 	end
+	-- a Secret model can mark the middle of its handle with an Attachment
+	-- named "Grip": line that up with the normal knife's grip
+	local grip = template:FindFirstChild("Grip", true)
+	if grip and grip:IsA("Attachment") then
+		local at = B.Min + ((rot * CFrame.new(grip.WorldPosition)).Position - mn) * k
+		for _, info in ipairs(layout) do
+			info.Offset = info.Offset - at + KnifeModel.Grip.Position
+		end
+	end
 	layoutCache[template] = { Layout = layout, Count = #parts }
 	return layout
 end
@@ -190,7 +199,8 @@ function KnifeModel.Build(parent, options)
 		result.Parts[name] = part
 		result.Offsets[name] = offset
 	end
-	local template = KnifeModel.FindTemplate()
+	-- options.Template: a Secret skin's own model (an Instance) instead of the knife
+	local template = options.Template or KnifeModel.FindTemplate()
 	if template then
 		result.UsesMesh = true
 		for _, info in ipairs(meshLayout(template)) do
@@ -202,7 +212,9 @@ function KnifeModel.Build(parent, options)
 			end
 			part.Size = info.Size * scale
 			part:SetAttribute("Paint", info.Part.Name:lower():find("blade") and "Blade" or "Handle")
-			paint(part)
+			if not options.KeepTextures then
+				paint(part)
+			end
 			setup(part, info.Name, info.Offset.Rotation + info.Offset.Position * scale)
 		end
 	else

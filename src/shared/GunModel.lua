@@ -342,6 +342,15 @@ local function meshLayout(template)
 			Offset = CFrame.new(B.Min + (cf.Position - mn) * k) * cf.Rotation,
 		})
 	end
+	-- a Secret model can mark where the right hand holds it with an
+	-- Attachment named "Grip": line that up with the normal rifle's grip
+	local grip = template:FindFirstChild("Grip", true)
+	if grip and grip:IsA("Attachment") then
+		local at = B.Min + ((rot * CFrame.new(grip.WorldPosition)).Position - mn) * k
+		for _, info in ipairs(layout) do
+			info.Offset = info.Offset - at
+		end
+	end
 	layoutCache[template] = layout
 	return layout
 end
@@ -713,7 +722,8 @@ function GunModel.Build(parent, options)
 	local scale = options.Scale or 1
 	local owned = options.PowerUps or {}
 	local glowColor = GunModel.GlowColor(owned)
-	local template = options.UseMesh ~= false and GunModel.FindTemplate() or nil
+	-- options.Template: a Secret skin's own model (an Instance) instead of the rifle
+	local template = options.Template or (options.UseMesh ~= false and GunModel.FindTemplate() or nil)
 	local profile = template and GunModel.MeshProfile or GunModel.PartsProfile
 	local result = {
 		Parts = {},
@@ -753,7 +763,9 @@ function GunModel.Build(parent, options)
 			part.Size = info.Size * scale
 			part.CastShadow = options.CastShadow == true
 			part:SetAttribute("Paint", meshPaintKey(info.Part))
-			paintMesh(part)
+			if not options.KeepTextures then
+				paintMesh(part)
+			end
 			local offset = info.Offset.Rotation + info.Offset.Position * scale
 			if info.Part.Name:lower():find("bolt") then
 				-- the bolt handle moves with the bolt pivot (see Place / the viewmodel)

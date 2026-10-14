@@ -10,9 +10,10 @@
 	               FIRE (you can keep dragging on it to aim), SCOPE, JUMP
 	               (hold to bunny hop), SLIDE, SPRINT (toggle) and your
 	               ability buttons (Grapple / Blink / Decoy, when you have them)
-	  top          LAB (Power-Up Lab, in the lobby), DUEL (challenge a player),
-	               SKINS (the Locker)
-	               and a settings button
+	  top left     one MENU button under the lobby wordmark. In the lobby it
+	               opens a small list: SKINS (Locker), SHOP, DUEL, LAB and
+	               SETTINGS; in a match it opens Settings directly. Nothing
+	               sits near the thumbstick or the fire / jump buttons.
 
 	Buttons don't do anything themselves: they press the same actions as
 	the keys (Keybinds.Press), so every rule (cooldowns, menus...) applies.
@@ -20,6 +21,7 @@
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
+local GuiService = game:GetService("GuiService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
@@ -35,6 +37,8 @@ local MobileControls = {}
 local Controllers
 
 local gui, root, lookPad
+local menuGui, menuRoot, menuButton, menuPanel
+local menuOpen = false
 local buttons = {} -- [name] = button
 local lookTouches = {} -- [InputObject] = true: touches that turn the camera
 local sprintOn = false
@@ -88,19 +92,80 @@ local function roundButton(name, text, size, anchorPos, color, onDown, onUp, dra
 	return button
 end
 
-local function pill(name, text, pos, onPress)
-	local button = Theme.button({
+-- same top inset rule as LobbyUI (so the MENU button sits under its wordmark)
+local function topInset()
+	local inset = 0
+	local ok, topLeft = pcall(function()
+		return GuiService:GetGuiInset()
+	end)
+	if ok and typeof(topLeft) == "Vector2" then
+		inset = topLeft.Y
+	end
+	local ok2, rect = pcall(function()
+		return GuiService.TopbarInset
+	end)
+	if ok2 and typeof(rect) == "Rect" then
+		inset = math.max(inset, rect.Max.Y)
+	end
+	return inset
+end
+
+local function setMenuOpen(open)
+	menuOpen = open
+	if not menuPanel then
+		return
+	end
+	menuPanel.Visible = open
+	menuButton.BackgroundColor3 = open and Palette.UIAccent or Palette.UIPanel
+	local fg = open and Palette.UIBackground or Palette.UIText
+	menuButton.Label.TextColor3 = fg
+	Theme.tintIcon(menuButton.Icon, fg)
+	if open then
+		Theme.pop(menuPanel, 0.05)
+	end
+end
+
+-- One row of the MENU list: icon + label.
+local function menuItem(name, text, iconName, order, onPress)
+	local button = Theme.new("TextButton", {
 		Name = name,
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = pos,
-		Size = UDim2.fromOffset(78, 34),
-		Text = text,
-		TextSize = 14,
-		BackgroundColor3 = Palette.UIPanel,
-		TextColor3 = Palette.UIText,
-		Parent = root,
+		Size = UDim2.new(1, 0, 0, 38),
+		Text = "",
+		AutoButtonColor = false,
+		BackgroundColor3 = Palette.UIPanelLight,
+		BackgroundTransparency = 1,
+		LayoutOrder = order,
+		Parent = menuPanel,
 	})
-	button.Activated:Connect(onPress)
+	Theme.corner(button, 8)
+	local icon = Theme.icon(iconName, 16, Palette.UIText, Palette.UIPanel)
+	icon.AnchorPoint = Vector2.new(0, 0.5)
+	icon.Position = UDim2.new(0, 10, 0.5, 0)
+	icon.Parent = button
+	Theme.label({
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 36, 0.5, 0),
+		Size = UDim2.new(1, -44, 0, 16),
+		Text = text,
+		TextSize = 13,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		FontFace = Theme.Font(Enum.FontWeight.Bold),
+		Parent = button,
+	})
+	button.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.Touch then
+			button.BackgroundTransparency = 0.4
+		end
+	end)
+	button.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.Touch then
+			button.BackgroundTransparency = 1
+		end
+	end)
+	button.Activated:Connect(function()
+		setMenuOpen(false)
+		onPress()
+	end)
 	buttons[name] = button
 	return button
 end
@@ -123,7 +188,9 @@ end
 local function refresh()
 	local show = isTouch() and not ClientState.MenuOpen
 	gui.Enabled = show
+	menuGui.Enabled = show
 	if not show then
+		setMenuOpen(false)
 		return
 	end
 	local stats = ClientState.Stats
@@ -131,11 +198,9 @@ local function refresh()
 	buttons.Grapple.Visible = stats.Grapple == true
 	buttons.Blink.Visible = stats.Blink == true
 	buttons.Decoy.Visible = stats.Decoy == true
-	buttons.Lab.Visible = not inMatch
-	buttons.Skins.Visible = not inMatch
-	buttons.Shop.Visible = not inMatch
-	buttons.Pass.Visible = not inMatch
-	buttons.Duel.Visible = not inMatch
+	if inMatch and menuOpen then
+		setMenuOpen(false) -- the list is lobby-only (MENU opens Settings in a match)
+	end
 	buttons.Sprint.BackgroundColor3 = sprintOn and Palette.UIAccent or Palette.UIPanel
 end
 
@@ -207,32 +272,108 @@ function MobileControls.Start(playerGui)
 		end
 	end)
 
-	pill("Lab", "LAB", UDim2.new(0, 60, 0, 120), tap("PowerUpLab"))
-	pill("Duel", "DUEL", UDim2.new(0, 150, 0, 120), tap("DuelFriend"))
-	pill("Pass", "PASS", UDim2.new(0, 420, 0, 120), function()
-		if Controllers and Controllers.BattlePass then
-			Controllers.BattlePass.Toggle()
-		end
+	-- MENU (top left, under the lobby wordmark): its own ScreenGui above the
+	-- lobby so the list can open over it, clear of notches like LobbyUI.
+	menuGui = Theme.screen("MobileMenu", 3, playerGui)
+	pcall(function()
+		menuGui.ScreenInsets = Enum.ScreenInsets.DeviceSafeInsets
 	end)
-	pill("Shop", "SHOP", UDim2.new(0, 330, 0, 120), function()
-		if Controllers and Controllers.Shop then
-			Controllers.Shop.Toggle()
-		end
-	end)
-	pill("Skins", "SKINS", UDim2.new(0, 240, 0, 120), function()
+	menuRoot = Theme.new("Frame", {
+		Name = "Menu",
+		Size = UDim2.fromOffset(150, 320),
+		BackgroundTransparency = 1,
+		Parent = menuGui,
+	})
+	local menuScale = Theme.scaleOf(menuRoot)
+	menuButton = Theme.new("TextButton", {
+		Name = "MenuButton",
+		Size = UDim2.fromOffset(96, 34),
+		Text = "",
+		AutoButtonColor = false,
+		BackgroundColor3 = Palette.UIPanel,
+		BackgroundTransparency = 0.15,
+		Parent = menuRoot,
+	})
+	Theme.corner(menuButton, UDim.new(0.5, 0))
+	local menuIcon = Theme.icon("menu", 14, Palette.UIText)
+	menuIcon.Name = "Icon"
+	menuIcon.AnchorPoint = Vector2.new(0, 0.5)
+	menuIcon.Position = UDim2.new(0, 14, 0.5, 0)
+	menuIcon.Parent = menuButton
+	Theme.label({
+		Name = "Label",
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 36, 0.5, 0),
+		Size = UDim2.new(1, -44, 0, 16),
+		Text = "MENU",
+		TextSize = 13,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		FontFace = Theme.Font(Enum.FontWeight.Heavy),
+		Parent = menuButton,
+	})
+	buttons.Menu = menuButton
+
+	menuPanel = Theme.new("Frame", {
+		Name = "List",
+		Position = UDim2.fromOffset(0, 34 + 6),
+		Size = UDim2.fromOffset(150, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundColor3 = Palette.UIPanel,
+		BackgroundTransparency = 0.1,
+		Visible = false,
+		Parent = menuRoot,
+	})
+	Theme.corner(menuPanel, 12)
+	Theme.padding(menuPanel, 6)
+	Theme.new("UIListLayout", {
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Padding = UDim.new(0, 2),
+		Parent = menuPanel,
+	})
+	menuItem("Skins", "SKINS", "shirt", 1, function()
 		if Controllers and Controllers.Locker then
 			Controllers.Locker.Toggle()
 		end
 	end)
-	pill("Settings", "MENU", UDim2.new(1, -60, 0, 64), tap("Settings"))
+	menuItem("Shop", "SHOP", "bag", 2, function()
+		if Controllers and Controllers.Shop then
+			Controllers.Shop.Toggle()
+		end
+	end)
+	menuItem("Duel", "DUEL", "swords", 3, tap("DuelFriend"))
+	menuItem("Lab", "LAB", "flask", 4, tap("PowerUpLab"))
+	menuItem("Settings", "SETTINGS", "gear", 5, tap("Settings"))
 
-	-- smaller on small screens
+	local openSettings = tap("Settings")
+	menuButton.Activated:Connect(function()
+		Theme.pop(menuButton, 0.06)
+		if ClientState.InMatch() then
+			setMenuOpen(false)
+			openSettings()
+		else
+			setMenuOpen(not menuOpen)
+		end
+	end)
+	setMenuOpen(false)
+
+	-- smaller on small screens. root is sized 1/scale so that, after the
+	-- UIScale shrinks it, it still covers the whole screen and the buttons
+	-- stay anchored to the real corners.
 	local function fit()
 		local viewport = workspace.CurrentCamera.ViewportSize
 		scale.Scale = math.clamp(math.min(viewport.X / 900, viewport.Y / 500), 0.65, 1.2)
+		root.Size = UDim2.fromScale(1 / scale.Scale, 1 / scale.Scale)
+		-- MENU: same scale / margins as LobbyUI's touch layout, under its
+		-- 30px wordmark row
+		local s = math.clamp(math.min(viewport.X / 900, viewport.Y / 460), 0.72, 1.2)
+		menuScale.Scale = s
+		menuRoot.Position = UDim2.fromOffset(math.floor(12 * s), topInset() + math.floor((8 + 30 + 10) * s))
 	end
 	fit()
 	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(fit)
+	pcall(function()
+		GuiService:GetPropertyChangedSignal("TopbarInset"):Connect(fit)
+	end)
 
 	UserInputService.LastInputTypeChanged:Connect(refresh)
 	ClientState.Changed:Connect(refresh)

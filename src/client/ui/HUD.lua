@@ -202,7 +202,7 @@ local function buildScoreboard()
 	scoreboard = Theme.new("Frame", {
 		Name = "Scoreboard",
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 14),
+		Position = UDim2.new(0.5, 0, 0, 16),
 		Size = UDim2.fromOffset(520, 110),
 		BackgroundTransparency = 1,
 		Visible = false,
@@ -212,8 +212,10 @@ local function buildScoreboard()
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.fromScale(0.5, 0),
 		Size = UDim2.fromOffset(420, 54),
+		BackgroundTransparency = 0.2,
 		Parent = scoreboard,
 	})
+	panel:FindFirstChildOfClass("UICorner").CornerRadius = UDim.new(0, 14)
 	nameLabels, winLabels, iconRows = {}, {}, {}
 	for slot = 1, 2 do
 		local left = slot == 1
@@ -222,7 +224,7 @@ local function buildScoreboard()
 			Position = UDim2.new(left and 0 or 1, left and 16 or -16, 0.5, 0),
 			Size = UDim2.fromOffset(130, 24),
 			TextXAlignment = left and Enum.TextXAlignment.Left or Enum.TextXAlignment.Right,
-			TextSize = 17,
+			TextSize = 16,
 			TextTruncate = Enum.TextTruncate.AtEnd,
 			Parent = panel,
 		})
@@ -233,7 +235,7 @@ local function buildScoreboard()
 			BackgroundColor3 = ClientState.GetSlotColor(slot),
 			Parent = panel,
 		})
-		Theme.corner(chip, 8)
+		Theme.corner(chip, 10)
 		winLabels[slot] = Theme.label({
 			Size = UDim2.fromScale(1, 1),
 			TextSize = 26,
@@ -270,9 +272,10 @@ local function buildScoreboard()
 	roundLabel = Theme.label({
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.new(0.5, 0, 0, 58),
-		Size = UDim2.fromOffset(120, 16),
-		TextSize = 12,
+		Size = UDim2.fromOffset(160, 16),
+		TextSize = 11,
 		TextColor3 = Palette.UISubText,
+		FontFace = Theme.Font(Enum.FontWeight.SemiBold),
 		Parent = scoreboard,
 	})
 	timerLabel = Theme.label({
@@ -280,6 +283,7 @@ local function buildScoreboard()
 		Position = UDim2.new(0.5, 0, 0, 74),
 		Size = UDim2.fromOffset(120, 20),
 		TextSize = 18,
+		FontFace = Theme.Font(Enum.FontWeight.Heavy),
 		Parent = scoreboard,
 	})
 end
@@ -288,8 +292,9 @@ local function buildHealth()
 	local panel = Theme.panel({
 		Name = "Health",
 		AnchorPoint = Vector2.new(0, 1),
-		Position = UDim2.new(0, 22, 1, -22),
-		Size = UDim2.fromOffset(260, 46),
+		Position = UDim2.new(0, 24, 1, -24),
+		Size = UDim2.fromOffset(240, 42),
+		BackgroundTransparency = 0.2,
 		Visible = false,
 		Parent = gui,
 	})
@@ -298,23 +303,23 @@ local function buildHealth()
 	local track = Theme.new("Frame", {
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = UDim2.fromScale(0, 0.5),
-		Size = UDim2.new(1, -64, 0, 10),
+		Size = UDim2.new(1, -60, 0, 8),
 		BackgroundColor3 = Palette.UIPanelLight,
 		Parent = panel,
 	})
-	Theme.corner(track, 5)
+	Theme.corner(track, 4)
 	healthFill = Theme.new("Frame", {
 		Size = UDim2.fromScale(1, 1),
 		BackgroundColor3 = Palette.UIText,
 		Parent = track,
 	})
-	Theme.corner(healthFill, 5)
+	Theme.corner(healthFill, 4)
 	healthText = Theme.label({
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.fromScale(1, 0.5),
-		Size = UDim2.fromOffset(56, 26),
+		Size = UDim2.fromOffset(52, 24),
 		TextXAlignment = Enum.TextXAlignment.Right,
-		TextSize = 24,
+		TextSize = 22,
 		FontFace = Theme.Font(Enum.FontWeight.Heavy),
 		Parent = panel,
 	})
@@ -324,7 +329,7 @@ local function buildAbilities()
 	abilityList = Theme.new("Frame", {
 		Name = "Abilities",
 		AnchorPoint = Vector2.new(1, 1),
-		Position = UDim2.new(1, -22, 1, -22),
+		Position = UDim2.new(1, -24, 1, -24),
 		Size = UDim2.fromOffset(220, 140),
 		BackgroundTransparency = 1,
 		Parent = gui,
@@ -378,10 +383,10 @@ local function buildSpeedometer()
 		Name = "Speed",
 		AnchorPoint = Vector2.new(0.5, 1),
 		Position = UDim2.new(0.5, 0, 1, -110),
-		Size = UDim2.fromOffset(160, 24),
-		TextSize = 20,
-		FontFace = Theme.Font(Enum.FontWeight.Heavy),
-		TextTransparency = 0.15,
+		Size = UDim2.fromOffset(160, 22),
+		TextSize = 18,
+		FontFace = Theme.Font(Enum.FontWeight.Bold),
+		TextTransparency = 0.2,
 		Parent = gui,
 	})
 	Theme.new("UIStroke", { Thickness = 1.5, Transparency = 0.6, Color = Palette.UIBackground, Parent = speedLabel })
@@ -763,7 +768,8 @@ local function rebuildAbilities()
 	for i, e in ipairs(entries) do
 		local row = Theme.panel({
 			Name = e.Name,
-			Size = UDim2.fromOffset(210, 30),
+			Size = UDim2.fromOffset(200, 30),
+			BackgroundTransparency = 0.2,
 			LayoutOrder = i,
 			Parent = abilityList,
 		})
@@ -771,16 +777,25 @@ local function rebuildAbilities()
 			Position = UDim2.fromOffset(4, 4),
 			Size = UDim2.fromOffset(52, 22),
 			BackgroundColor3 = Palette.UIPanelLight,
+			BackgroundTransparency = 0.2,
 			Parent = row,
 		})
 		Theme.corner(key, 6)
-		Theme.label({ Size = UDim2.fromScale(1, 1), Text = e.Key, TextSize = 13, Parent = key })
+		Theme.label({
+			Size = UDim2.fromScale(1, 1),
+			Text = e.Key,
+			TextSize = 12,
+			FontFace = Theme.Font(Enum.FontWeight.Heavy),
+			Parent = key,
+		})
 		Theme.label({
 			Position = UDim2.fromOffset(64, 0),
-			Size = UDim2.new(1, -70, 1, 0),
+			Size = UDim2.new(1, -72, 1, 0),
 			Text = e.Name,
-			TextSize = 14,
+			TextSize = 13,
 			TextXAlignment = Enum.TextXAlignment.Left,
+			TextTruncate = Enum.TextTruncate.AtEnd,
+			FontFace = Theme.Font(Enum.FontWeight.SemiBold),
 			Parent = row,
 		})
 		if e.Cooldown then

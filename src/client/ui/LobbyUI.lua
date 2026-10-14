@@ -3,26 +3,45 @@
 
 	The lobby / playground overlay (hidden while you're in a match, where the
 	HUD takes over). Everything hugs the screen edges so the middle stays
-	clear while you walk around the lobby in first person:
+	clear while you walk around the lobby in first person.
 
-		top left      SNIPER DUEL wordmark (+ PLAYGROUND chip in the playground)
-		top right     player card (avatar, name) + ONLINE, KEYS, CREDITS and RANK chips
-		bottom left   action stack: REMATCH (after a match), FIND MATCH
-		              (animated "searching" state with timer + queue count),
-		              then Playground / Power-Up Lab / Duel / Settings /
-		              Play vs bot (admins)
+	Desktop / controller (design pixels, scaled as one piece per group):
+
+	 +---------------------------------------------------------------------------+
+	 | (o) SNIPER DUEL   .--------------------------------.   [K 3 KEYS] [C 250  |
+	 |     1V1 ARENA     | shirt  bag   swords flask gear |    CREDITS] [<> GOLD |
+	 |                   | LOCKER SHOP  DUEL   LAB  SETT. |    1180]  Name  (av) |
+	 |  [PLAYGROUND]     |  [L]   [M]   [U]    [B]  [P]   |           * 3 ONLINE |
+	 |   free roam...    '--------------------------------'                      |
+	 |                                                                           |
+	 |                                   +                                       |
+	 |                               (crosshair)                                 |
+	 |                                                                           |
+	 |  [flag PLAYGROUND      G] [bot BOT  N]                                    |
+	 |  [ REMATCH NAME               T ]   (gold, only after a match)            |
+	 |  [ (o) FIND MATCH           [F] ]   hero: searching = spinner, timer,     |
+	 |  [     1V1 - FIRST TO 5         ]         queue count, progress bar       |
+	 +---------------------------------------------------------------------------+
+
+	Touch (compact): the bottom is left free for the thumbstick and the
+	fire / jump buttons. MobileControls draws the MENU button (Locker, Shop,
+	Duel, Lab, Settings) under the wordmark.
+
+	 +---------------------------------------------------------------+
+	 | (o) SNIPER DUEL                       [K 3] [C 250] [<> 1180] |
+	 | [= MENU]     [REMATCH] [FIND MATCH] [PLAYGROUND] [BOT]        |
+	 |                   3 ONLINE - 2 IN QUEUE                       |
+	 |                            +                                  |
+	 |  (thumbstick)                                 (fire / jump)   |
+	 +---------------------------------------------------------------+
 
 	The mouse is locked in first person, so every action shows its key /
-	controller button in a keycap (rebindable in Settings > Keyboard /
-	Controller).
+	controller button in a quiet keycap (rebindable in Settings > Keyboard /
+	Controller). Unbound actions ("-") just hide their keycap.
 
-	On touch screens the stack becomes one compact row at the top centre
-	(Duel, Lab and Settings already have MobileControls buttons) so it never
-	covers the thumbstick or the fire / jump buttons.
-
-	Everything is laid out in "design pixels" on a single spacing scale (SP)
-	and multiplied by a UIScale per corner group, so it fits a 800x400 phone
-	and a 1920x1080 monitor alike.
+	Everything is laid out in design pixels on one spacing scale (SP) and
+	multiplied by a UIScale per corner group, so it fits a 800x400 phone and
+	a 1920x1080 monitor alike.
 ]]
 
 local Players = game:GetService("Players")
@@ -46,37 +65,45 @@ local LobbyUI = {}
 local Controllers
 
 -- one spacing scale for everything (design pixels, before UIScale)
-local SP = { XS = 4, S = 8, M = 12, L = 16, XL = 24 }
+local SP = { XS = 4, S = 8, M = 12, L = 16, XL = 24, XXL = 32 }
 
 -- sizes (design pixels)
-local STACK_WIDTH = 340 -- desktop action stack
-local PRIMARY_HEIGHT = 64
-local REMATCH_HEIGHT = 44
-local ROW_HEIGHT = 36
-local ROW_GAP = 6
-local COMPACT_HEIGHT = 46 -- touch: one row of buttons
-local COMPACT_WIDTHS = { Rematch = 132, FindMatch = 184, Playground = 124, BotMatch = 72 }
+local TOP_H = 68 -- top bar row (brand, nav, profile)
+local BRAND_W = 260 -- wordmark block; the nav starts after it
+local TAB_W, TAB_H = 76, 60 -- nav tiles
+local NAV_PAD = 4
+local NAV_W = TAB_W * 5 + NAV_PAD * 4 + NAV_PAD * 2
+local PILL_H = 32
+local PROFILE_W = 160
+local PLAY_W = 340 -- bottom-left play cluster
+local MODE_H = 40
+local BOT_W = 112
+local REMATCH_H = 44
+local HERO_H = 76
+local HERO_ICON = 28
+local TIME_W = 64 -- searching timer on the hero (desktop)
+local COMPACT_H = 44 -- touch: one row of buttons
+local COMPACT_WIDTHS = { Rematch = 132, FindMatch = 210, Playground = 132, BotMatch = 76 }
 
--- secondary buttons (desktop order). Ids are Keybinds action ids.
-local SECONDARY = {
-	{ Id = "Playground", Text = "PLAYGROUND", Hint = "FREE ROAM" },
-	{ Id = "PowerUpLab", Text = "POWER-UP LAB", Hint = "TRY BUILDS" },
-	{ Id = "Locker", Text = "LOCKER", Hint = "SKINS" },
-	{ Id = "Shop", Text = "SHOP", Hint = "CRATES + CREDITS" },
-	{ Id = "BattlePass", Text = "BATTLE PASS", Hint = "SEASON 1" },
-	{ Id = "DuelFriend", Text = "DUEL A PLAYER", Hint = "INVITE" },
-	{ Id = "Settings", Text = "SETTINGS", Hint = "" },
-	{ Id = "BotMatch", Text = "PLAY VS BOT", Hint = "ADMIN" },
+-- nav tiles (desktop). Ids are Keybinds action ids.
+local NAV = {
+	{ Id = "Locker", Text = "LOCKER", Icon = "shirt" },
+	{ Id = "Shop", Text = "SHOP", Icon = "bag" },
+	{ Id = "DuelFriend", Text = "DUEL", Icon = "swords" },
+	{ Id = "PowerUpLab", Text = "LAB", Icon = "flask" },
+	{ Id = "Settings", Text = "SETTINGS", Icon = "gear" },
 }
 
 local gui, root
-local scrimLeft, scrimTop
+local scrimCorner, scrimTop
 local brand, brandMark, title, tagline, modeRow, modeChip, subtitle
-local card, cardPanel, avatar, chipRow, onlineChip, onlineLabel, keysChip, keysLabel
-local rankChip, rankLabel, rankTier, rankStroke
-local creditsChip, creditsLabel
+local navBar
+local tabs = {} -- [actionId] = tab
+local profile, profileBlock, profileSpacer, onlineLabel
+local keysPill, keysLabel, creditsLabel, rankPill, rankLabel, rankTier, rankIcon
+local captions = {} -- pill captions (hidden on touch)
 local stack, statusLabel
-local primary, playButton, playgroundButton, rematchButton
+local primary, playButton, playgroundButton, rematchButton, heroStroke
 local spinner, progressTrack, progressFill, shine, timeLabel, subLabel
 local entries = {} -- [actionId] = button entry
 local groupScales = {} -- UIScale of each anchored group
@@ -139,160 +166,233 @@ local function formatTime(secs)
 	return string.format("%d:%02d", math.floor(secs / 60), secs % 60)
 end
 
+local function sizeKeyHint(cap, label, key, textSize)
+	cap.Size = UDim2.fromOffset(Theme.keycapWidth(key, textSize), math.floor(textSize * 1.85))
+	label.Text = key
+end
+
 ----------------------------------------------------------------------------
 -- Buttons
 ----------------------------------------------------------------------------
 
--- A button with a keycap chip on the left, a label and an optional hint on
--- the right. Hover / press animate its UIScale and stroke.
+--[[
+	A flat button: optional icon on the left, a label (+ optional sub line)
+	and a quiet keycap on the right. No outline; hover lifts the fill and
+	scales it a touch.
+]]
 local function makeEntry(id, parent, opts)
 	opts = opts or {}
-	local textSize = opts.TextSize or 15
 	local button = Theme.new("TextButton", {
 		Name = id,
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Text = "",
 		AutoButtonColor = false,
 		BackgroundColor3 = Palette.UIPanel,
-		BackgroundTransparency = 0.2,
+		BackgroundTransparency = 0.25,
 		Parent = parent,
 	})
 	Theme.corner(button, opts.Radius or 10)
-	local stroke = Theme.stroke(button, Palette.UIText, 1, 0.88)
-	local keySize = opts.KeySize or 12
-	local cap, capLabel = Theme.keycap("-", keySize, {
-		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, SP.M, 0.5, 0),
+	local pad = opts.Pad or SP.M
+	local icon
+	if opts.Icon then
+		icon = Theme.icon(opts.Icon, opts.IconSize or 16, Palette.UIText)
+		icon.AnchorPoint = Vector2.new(0, 0.5)
+		icon.Position = UDim2.new(0, pad, 0.5, 0)
+		icon.Parent = button
+	end
+	local keySize = opts.KeySize or 10
+	local cap, capLabel = Theme.keyHint("-", keySize, {
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -pad, 0.5, 0),
 		Parent = button,
 	})
+	local textSize = opts.TextSize or 14
 	local label = Theme.label({
 		Name = "Label",
 		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, SP.M, 0.5, opts.LabelY or 0),
-		Size = UDim2.new(1, -SP.M * 2, 0, textSize + 4),
+		Position = UDim2.new(0, pad, 0.5, opts.LabelY or 0),
+		Size = UDim2.new(1, -pad * 2, 0, textSize + 4),
 		TextSize = textSize,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		FontFace = Theme.Font(opts.Weight or Enum.FontWeight.Bold),
 		Parent = button,
 	})
-	local hint
-	if opts.Hint and opts.Hint ~= "" then
-		hint = Theme.label({
-			Name = "Hint",
-			AnchorPoint = Vector2.new(1, 0.5),
-			Position = UDim2.new(1, -SP.M, 0.5, 0),
-			Size = UDim2.fromOffset(96, 14),
-			Text = opts.Hint,
-			TextSize = 11,
-			TextXAlignment = Enum.TextXAlignment.Right,
-			TextColor3 = Palette.UISubText,
-			FontFace = Theme.Font(Enum.FontWeight.SemiBold),
-			Parent = button,
-		})
-	end
 
 	local scale = Theme.scaleOf(button)
 	local entry = {
 		Id = id,
 		Button = button,
-		Stroke = stroke,
-		StrokeRest = 0.88,
+		Icon = icon,
+		IconSize = opts.IconSize or 16,
+		Pad = pad,
 		Cap = cap,
 		CapLabel = capLabel,
 		KeySize = keySize,
 		Label = label,
 		LabelY = opts.LabelY or 0,
-		Hint = hint,
+		BgRest = 0.25,
+		ExtraRight = 0,
+		TextX = pad,
+		RightX = pad,
 		Hover = false,
 	}
+	local function hoverFill()
+		return entry.Hover and math.max(0, entry.BgRest - 0.15) or entry.BgRest
+	end
+	entry.HoverFill = hoverFill
 	button.MouseEnter:Connect(function()
 		entry.Hover = true
-		Theme.tween(scale, 0.15, { Scale = 1.03 })
-		Theme.tween(stroke, 0.15, { Transparency = math.min(entry.StrokeRest, 0.5) })
+		Theme.tween(scale, 0.15, { Scale = 1.02 })
+		Theme.tween(button, 0.15, { BackgroundTransparency = hoverFill() })
 	end)
 	button.MouseLeave:Connect(function()
 		entry.Hover = false
 		Theme.tween(scale, 0.15, { Scale = 1 })
-		Theme.tween(stroke, 0.15, { Transparency = entry.StrokeRest })
+		Theme.tween(button, 0.15, { BackgroundTransparency = hoverFill() })
 	end)
 	button.MouseButton1Down:Connect(function()
-		Theme.tween(scale, 0.08, { Scale = 0.96 })
+		Theme.tween(scale, 0.08, { Scale = 0.97 })
 	end)
 	button.MouseButton1Up:Connect(function()
-		Theme.tween(scale, 0.25, { Scale = entry.Hover and 1.03 or 1 }, Enum.EasingStyle.Back)
+		Theme.tween(scale, 0.25, { Scale = entry.Hover and 1.02 or 1 }, Enum.EasingStyle.Back)
 	end)
 	entries[id] = entry
 	return entry
 end
 
--- Sets the keycap + label of a button (and moves the label next to the cap).
-local function setEntry(entry, key, text, showKey)
+-- Sets the label + keycap of a button and fits the label between the icon
+-- slot (if shown) and the keycap (if shown).
+local function setEntry(entry, key, text, showKey, showIcon)
 	entry.Label.Text = text
-	local x = SP.M
-	entry.Cap.Visible = showKey
-	if showKey then
-		local w = Theme.keycapWidth(key, entry.KeySize)
-		entry.Cap.Size = UDim2.fromOffset(w, math.floor(entry.KeySize * 1.85))
-		entry.CapLabel.Text = key
-		x += w + SP.S + 2
+	local x = entry.Pad
+	if entry.Icon then
+		entry.Icon.Visible = showIcon == true
+		if showIcon then
+			x += entry.IconSize + SP.S + 2
+		end
+	end
+	local right = entry.Pad
+	local capOn = showKey and key ~= "-"
+	entry.Cap.Visible = capOn
+	if capOn then
+		sizeKeyHint(entry.Cap, entry.CapLabel, key, entry.KeySize)
+		right += entry.Cap.Size.X.Offset + SP.S
 	end
 	entry.TextX = x
+	entry.RightX = right
 	entry.Label.Position = UDim2.new(0, x, 0.5, entry.LabelY)
-	local rightPad = entry.RightPad or SP.M
-	entry.Label.Size = UDim2.new(1, -(x + rightPad), 0, entry.Label.TextSize + 4)
-	if entry.Hint then
-		-- short keys only, so a long controller label never runs into it
-		entry.Hint.Visible = showKey and #key <= 3
-	end
+	entry.Label.Size = UDim2.new(1, -(x + right + entry.ExtraRight), 0, entry.Label.TextSize + 4)
 end
 
--- Colours of a button: "primary" (accent), "gold" (AccentB), "active"
--- (highlighted outline) or "normal" (dark panel).
+--[[
+	Colours of a button:
+	  "primary"   accent fill (FIND MATCH)
+	  "gold"      AccentB fill (REMATCH)
+	  "searching" dark fill + thin accent outline (FIND MATCH while queued)
+	  "active"    accent tint (BACK TO LOBBY in the playground)
+	  "normal"    dark translucent panel
+]]
 local function styleEntry(entry, style)
 	local b = entry.Button
+	local fg, bgRest
 	if style == "primary" or style == "gold" then
 		local color = style == "gold" and Palette.AccentB or Palette.UIAccent
 		b.BackgroundColor3 = color
-		b.BackgroundTransparency = 0
-		entry.Label.TextColor3 = Palette.UIBackground
-		entry.Stroke.Color = Palette.UIText
-		entry.StrokeRest = 0.7
+		bgRest = 0
+		fg = Palette.UIBackground
 		entry.Cap.BackgroundColor3 = Palette.UIBackground
+		entry.Cap.BackgroundTransparency = 0.2
 		entry.CapLabel.TextColor3 = color
-	elseif style == "active" then
+	elseif style == "searching" then
 		b.BackgroundColor3 = Palette.UIPanel
-		b.BackgroundTransparency = 0.08
-		entry.Label.TextColor3 = Palette.UIAccent
-		entry.Stroke.Color = Palette.UIAccent
-		entry.StrokeRest = 0.25
+		bgRest = 0.1
+		fg = Palette.UIText
 		entry.Cap.BackgroundColor3 = Palette.UIPanelLight
+		entry.Cap.BackgroundTransparency = 0.3
+		entry.CapLabel.TextColor3 = Palette.UISubText
+	elseif style == "active" then
+		b.BackgroundColor3 = Palette.UIAccent
+		bgRest = 0.78
+		fg = Palette.UIAccent
+		entry.Cap.BackgroundColor3 = Palette.UIPanelLight
+		entry.Cap.BackgroundTransparency = 0.3
 		entry.CapLabel.TextColor3 = Palette.UIText
 	else
 		b.BackgroundColor3 = Palette.UIPanel
-		b.BackgroundTransparency = 0.2
-		entry.Label.TextColor3 = Palette.UIText
-		entry.Stroke.Color = Palette.UIText
-		entry.StrokeRest = 0.88
+		bgRest = 0.25
+		fg = Palette.UIText
 		entry.Cap.BackgroundColor3 = Palette.UIPanelLight
-		entry.CapLabel.TextColor3 = Palette.UIText
+		entry.Cap.BackgroundTransparency = 0.3
+		entry.CapLabel.TextColor3 = Palette.UISubText
 	end
-	entry.Stroke.Transparency = entry.Hover and math.min(entry.StrokeRest, 0.5) or entry.StrokeRest
+	entry.BgRest = bgRest
+	entry.Label.TextColor3 = fg
+	if entry.Icon then
+		Theme.tintIcon(entry.Icon, fg)
+	end
+	b.BackgroundTransparency = entry.HoverFill()
+end
+
+-- A nav tile: icon, label and a quiet keycap stacked in a 76x60 tile.
+local function makeTab(item, order)
+	local tab = Theme.new("TextButton", {
+		Name = item.Id,
+		Size = UDim2.fromOffset(TAB_W, TAB_H),
+		Text = "",
+		AutoButtonColor = false,
+		BackgroundColor3 = Palette.UIPanelLight,
+		BackgroundTransparency = 1,
+		LayoutOrder = order,
+		Parent = navBar,
+	})
+	Theme.corner(tab, 10)
+	local icon = Theme.icon(item.Icon, 18, Palette.UIText, Palette.UIPanel)
+	icon.AnchorPoint = Vector2.new(0.5, 0)
+	icon.Position = UDim2.new(0.5, 0, 0, 6)
+	icon.Parent = tab
+	local label = Theme.label({
+		Name = "Label",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 27),
+		Size = UDim2.new(1, -4, 0, 13),
+		Text = item.Text,
+		TextSize = 11,
+		FontFace = Theme.Font(Enum.FontWeight.Bold),
+		Parent = tab,
+	})
+	local cap, capLabel = Theme.keyHint("-", 9, {
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 42),
+		Parent = tab,
+	})
+	local scale = Theme.scaleOf(tab)
+	local t = { Id = item.Id, Button = tab, Icon = icon, Label = label, Cap = cap, CapLabel = capLabel, Hover = false }
+	tab.MouseEnter:Connect(function()
+		t.Hover = true
+		Theme.tween(tab, 0.15, { BackgroundTransparency = 0.45 })
+		label.TextColor3 = Palette.UIAccent
+		Theme.tintIcon(icon, Palette.UIAccent)
+	end)
+	tab.MouseLeave:Connect(function()
+		t.Hover = false
+		Theme.tween(tab, 0.15, { BackgroundTransparency = 1 })
+		label.TextColor3 = Palette.UIText
+		Theme.tintIcon(icon, Palette.UIText)
+	end)
+	tab.MouseButton1Down:Connect(function()
+		Theme.tween(scale, 0.08, { Scale = 0.94 })
+	end)
+	tab.MouseButton1Up:Connect(function()
+		Theme.tween(scale, 0.25, { Scale = 1 }, Enum.EasingStyle.Back)
+	end)
+	tabs[item.Id] = t
+	return t
 end
 
 ----------------------------------------------------------------------------
 -- Layout
 ----------------------------------------------------------------------------
-
-local function secondaryVisible(id)
-	if id == "BotMatch" then
-		return SHOW_BOT
-	end
-	if id == "Playground" then
-		return true
-	end
-	return not compact -- Lab / Duel / Settings have MobileControls buttons on touch
-end
 
 local function layoutStack()
 	local rematchOn = lastSnapshot.Rematch ~= nil
@@ -305,7 +405,7 @@ local function layoutStack()
 	end
 
 	if compact then
-		-- one row at the top centre
+		-- one row at the top centre (under the wordmark / pills row)
 		local order = {}
 		if rematchOn then
 			table.insert(order, "Rematch")
@@ -314,81 +414,81 @@ local function layoutStack()
 		table.insert(order, "Playground")
 		if SHOW_BOT then
 			table.insert(order, "BotMatch")
-		end
-		for _, item in ipairs(SECONDARY) do
-			entries[item.Id].Button.Visible = false
+		else
+			entries.BotMatch.Button.Visible = false
 		end
 		local x = 0
 		for _, id in ipairs(order) do
 			local w = COMPACT_WIDTHS[id]
-			place(entries[id], x, 0, w, COMPACT_HEIGHT)
+			place(entries[id], x, 0, w, COMPACT_H)
 			x += w + SP.S
 		end
 		x -= SP.S
 		statusLabel.Visible = true
-		statusLabel.Position = UDim2.fromOffset(0, COMPACT_HEIGHT + SP.S)
+		statusLabel.Position = UDim2.fromOffset(0, COMPACT_H + SP.S)
 		statusLabel.Size = UDim2.fromOffset(x, 16)
-		statusLabel.TextXAlignment = Enum.TextXAlignment.Center
-		stack.Size = UDim2.fromOffset(x, COMPACT_HEIGHT + SP.S + 16)
-		return x
+		stack.Size = UDim2.fromOffset(x, COMPACT_H + SP.S + 16)
 	else
-		-- vertical stack, bottom left
+		-- bottom-left cluster: modes, (rematch), hero
 		local y = 0
+		if SHOW_BOT then
+			place(entries.Playground, 0, y, PLAY_W - BOT_W - SP.S, MODE_H)
+			place(entries.BotMatch, PLAY_W - BOT_W, y, BOT_W, MODE_H)
+		else
+			place(entries.Playground, 0, y, PLAY_W, MODE_H)
+			entries.BotMatch.Button.Visible = false
+		end
+		y += MODE_H + SP.M
 		if rematchOn then
-			place(entries.Rematch, 0, y, STACK_WIDTH, REMATCH_HEIGHT)
-			y += REMATCH_HEIGHT + SP.S
+			place(entries.Rematch, 0, y, PLAY_W, REMATCH_H)
+			y += REMATCH_H + SP.S
 		end
-		place(primary, 0, y, STACK_WIDTH, PRIMARY_HEIGHT)
-		y += PRIMARY_HEIGHT + SP.M
-		for _, item in ipairs(SECONDARY) do
-			local entry = entries[item.Id]
-			if secondaryVisible(item.Id) then
-				place(entry, 0, y, STACK_WIDTH, ROW_HEIGHT)
-				y += ROW_HEIGHT + ROW_GAP
-			else
-				entry.Button.Visible = false
-			end
-		end
-		y -= ROW_GAP
+		place(primary, 0, y, PLAY_W, HERO_H)
+		y += HERO_H
 		statusLabel.Visible = false
-		stack.Size = UDim2.fromOffset(STACK_WIDTH, y)
+		stack.Size = UDim2.fromOffset(PLAY_W, y)
 	end
-	return 0
 end
 
-local function layoutBrand()
+local function layoutTop()
 	if compact then
 		brandMark.Size = UDim2.fromOffset(30, 30)
+		brandMark.Position = UDim2.fromOffset(0, 0)
 		title.Position = UDim2.fromOffset(30 + SP.S, 0)
-		title.Size = UDim2.fromOffset(180, 30)
-		title.TextSize = 20
-		title.Visible = true
+		title.Size = UDim2.fromOffset(170, 30)
+		title.TextSize = 18
 		tagline.Visible = false
+		navBar.Visible = false
 		modeRow.Visible = false
-		brand.Size = UDim2.fromOffset(220, 30)
-	else
-		brandMark.Size = UDim2.fromOffset(48, 48)
-		title.Position = UDim2.fromOffset(48 + SP.M, -2)
-		title.Size = UDim2.fromOffset(320, 34)
-		title.TextSize = 32
-		title.Visible = true
-		tagline.Visible = true
-		modeRow.Visible = lastSnapshot.Playground == true
-		brand.Size = UDim2.fromOffset(420, 48 + SP.M + 26)
-	end
-end
+		brand.Size = UDim2.fromOffset(30 + SP.S + 170, 30)
 
-local function layoutCard()
-	if compact then
-		cardPanel.Visible = false
-		onlineChip.Visible = false
-		chipRow.Position = UDim2.fromScale(1, 0)
-		card.Size = UDim2.fromOffset(200, 28)
+		profileBlock.Visible = false
+		profileSpacer.Visible = false
+		for _, c in ipairs(captions) do
+			c.Visible = false
+		end
+		profile.Size = UDim2.fromOffset(600, PILL_H)
 	else
-		cardPanel.Visible = true
-		onlineChip.Visible = true
-		chipRow.Position = UDim2.new(1, 0, 0, 56 + SP.S)
-		card.Size = UDim2.fromOffset(260, 56 + SP.S + 28)
+		local markY = (TOP_H - 44) / 2
+		brandMark.Size = UDim2.fromOffset(44, 44)
+		brandMark.Position = UDim2.fromOffset(0, markY)
+		title.Position = UDim2.fromOffset(44 + SP.M, markY + 1)
+		title.Size = UDim2.fromOffset(BRAND_W - 44 - SP.M, 26)
+		title.TextSize = 24
+		tagline.Visible = true
+		tagline.Position = UDim2.fromOffset(44 + SP.M, markY + 28)
+		navBar.Visible = true
+		navBar.Position = UDim2.fromOffset(BRAND_W + SP.L, 0)
+		modeRow.Visible = lastSnapshot.Playground == true
+		modeRow.Position = UDim2.fromOffset(0, TOP_H + SP.M)
+		brand.Size = UDim2.fromOffset(BRAND_W + SP.L + NAV_W, TOP_H + SP.M + 26)
+
+		profileBlock.Visible = true
+		profileSpacer.Visible = true
+		for _, c in ipairs(captions) do
+			c.Visible = true
+		end
+		profile.Size = UDim2.fromOffset(700, TOP_H)
 	end
 end
 
@@ -410,38 +510,30 @@ local function relayout()
 	local margin = math.floor((compact and SP.M or SP.XL) * scale)
 	local top = topInset() + math.floor((compact and SP.S or SP.L) * scale)
 	brand.Position = UDim2.fromOffset(margin, top)
-	card.Position = UDim2.new(1, -margin, 0, top)
+	profile.Position = UDim2.new(1, -margin, 0, top)
 	if compact then
+		-- second row, centred under the wordmark / pills row
 		stack.AnchorPoint = Vector2.new(0.5, 0)
-		stack.Position = UDim2.new(0.5, 0, 0, top)
+		stack.Position = UDim2.new(0.5, 0, 0, top + math.floor((30 + SP.S) * scale))
 	else
 		stack.AnchorPoint = Vector2.new(0, 1)
 		stack.Position = UDim2.new(0, margin, 1, -margin)
 	end
 
 	-- soft scrims so text stays readable over the 3D lobby (centre stays clear)
-	scrimLeft.Visible = not compact
-	scrimTop.Size = UDim2.new(1, 120, compact and 0.3 or 0.22, 60)
+	scrimCorner.Visible = not compact
+	scrimTop.Size = UDim2.new(1, 120, compact and 0.3 or 0.2, 60)
 
-	-- text sizes for the compact row
-	primary.Label.TextSize = compact and 18 or 22
-	subLabel.TextSize = compact and 11 or 12
-	primary.RightPad = compact and 36 or 112
-	timeLabel.Visible = queued and not compact
-	entries.Rematch.Label.TextSize = compact and 14 or 15
-	for _, item in ipairs(SECONDARY) do
-		entries[item.Id].Label.TextSize = compact and 14 or 15
-	end
+	-- text sizes per layout
+	primary.Label.TextSize = compact and 17 or 24
+	primary.LabelY = compact and -7 or -9
+	subLabel.TextSize = compact and 10 or 12
+	entries.Rematch.Label.TextSize = compact and 13 or 15
+	entries.Playground.Label.TextSize = compact and 13 or 14
+	entries.BotMatch.Label.TextSize = compact and 13 or 14
 
-	layoutBrand()
-	layoutCard()
-	local rowWidth = layoutStack()
-	if compact then
-		-- a very wide row (rematch + bot on a small phone): keep just the mark
-		local brandRight = margin + (30 + SP.S + 150) * scale
-		local rowLeft = viewport.X / 2 - rowWidth * scale / 2
-		title.Visible = rowLeft > brandRight + SP.S
-	end
+	layoutTop()
+	layoutStack()
 end
 
 ----------------------------------------------------------------------------
@@ -454,7 +546,7 @@ local function updateSearchText()
 	local time = formatTime(secs)
 	timeLabel.Text = time
 	if compact then
-		subLabel.Text = time .. " · TAP TO CANCEL"
+		subLabel.Text = time .. "  ·  TAP TO CANCEL"
 	else
 		subLabel.Text = string.format("%d IN QUEUE  ·  PRESS TO CANCEL", lastSnapshot.QueueCount or 1)
 	end
@@ -463,29 +555,35 @@ end
 local function refreshPrimary(snapshot)
 	local showKey = not compact
 	local count = snapshot.QueueCount or 0
+	primary.ExtraRight = (queued and not compact) and TIME_W or 0
 	if queued then
-		setEntry(primary, keyText("FindMatch"), "SEARCHING", showKey)
-		styleEntry(primary, "active")
-		primary.Label.TextColor3 = Palette.UIText
+		setEntry(primary, keyText("FindMatch"), "SEARCHING", showKey, true)
+		styleEntry(primary, "searching")
+		heroStroke.Transparency = 0.35
 		subLabel.TextColor3 = Palette.UISubText
 		subLabel.TextTransparency = 0
 		updateSearchText()
 	else
-		setEntry(primary, keyText("FindMatch"), "FIND MATCH", showKey)
+		setEntry(primary, keyText("FindMatch"), "FIND MATCH", showKey, true)
 		styleEntry(primary, "primary")
+		heroStroke.Transparency = 1
 		subLabel.TextColor3 = Palette.UIBackground
-		subLabel.TextTransparency = 0.25
+		subLabel.TextTransparency = 0.3
 		if count > 0 then
 			subLabel.Text = string.format("%d PLAYER%s WAITING", count, count == 1 and "" or "S")
 		else
 			subLabel.Text = string.format("1V1  ·  FIRST TO %d", Config.Match.RoundsToWin or 5)
 		end
 	end
-	subLabel.Position = UDim2.new(0, primary.TextX or SP.M, 0.5, compact and 10 or 12)
-	subLabel.Size = UDim2.new(1, -((primary.TextX or SP.M) + (compact and 36 or 48)), 0, 16)
+	-- the spinner takes the icon's slot while searching
+	primary.Icon.Visible = not queued
 	spinner.Visible = queued
-	progressTrack.Visible = queued
+	subLabel.Position = UDim2.new(0, primary.TextX, 0.5, compact and 9 or 13)
+	-- the timer shares the title line, so the sub line keeps the full width
+	subLabel.Size = UDim2.new(1, -(primary.TextX + primary.RightX), 0, 14)
+	timeLabel.Position = UDim2.new(1, -primary.RightX, 0.5, primary.LabelY)
 	timeLabel.Visible = queued and not compact
+	progressTrack.Visible = queued
 	shine.Visible = not queued
 end
 
@@ -509,28 +607,27 @@ local function refreshRematch(snapshot)
 	end
 end
 
-local function refreshSecondaries(snapshot)
+local function refreshModes(snapshot)
 	local showKey = not compact
-	for _, item in ipairs(SECONDARY) do
-		local entry = entries[item.Id]
-		local text = item.Text
-		local style = "normal"
-		if item.Id == "Playground" and snapshot.Playground then
-			text = "BACK TO LOBBY"
-			style = "active"
-			if entry.Hint then
-				entry.Hint.Text = "EXIT"
-			end
-		elseif item.Id == "Playground" and entry.Hint then
-			entry.Hint.Text = item.Hint
-		end
-		if compact and item.Id == "BotMatch" then
-			text = "BOT"
-		elseif compact and item.Id == "Playground" and snapshot.Playground then
-			text = "TO LOBBY"
-		end
-		setEntry(entry, keyText(item.Id), text, showKey)
-		styleEntry(entry, style)
+	local showIcon = not compact
+	local inPlayground = snapshot.Playground == true
+	local pgKey = keyText("Playground")
+	local pgText = "PLAYGROUND"
+	if inPlayground then
+		pgText = (compact or #pgKey > 3) and "TO LOBBY" or "BACK TO LOBBY"
+	end
+	setEntry(entries.Playground, pgKey, pgText, showKey, showIcon)
+	styleEntry(entries.Playground, inPlayground and "active" or "normal")
+	setEntry(entries.BotMatch, keyText("BotMatch"), "BOT", showKey, showIcon)
+	styleEntry(entries.BotMatch, "normal")
+end
+
+local function refreshTabs()
+	for _, item in ipairs(NAV) do
+		local t = tabs[item.Id]
+		local key = keyText(item.Id)
+		t.Cap.Visible = key ~= "-"
+		sizeKeyHint(t.Cap, t.CapLabel, key, 9)
 	end
 end
 
@@ -555,17 +652,17 @@ local function refreshInfo(snapshot)
 	statusLabel.Text = table.concat(parts, "  ·  ")
 end
 
--- RANK chip: your tier + rating (RankService's "Rating" attribute)
+-- RANK pill: your tier + rating (RankService's "Rating" attribute)
 local function refreshRank()
 	local rating = tonumber(player:GetAttribute("Rating"))
-	rankChip.Visible = rating ~= nil
+	rankPill.Visible = rating ~= nil
 	if not rating then
 		return
 	end
 	local tier = Config.RankTier(rating)
 	rankTier.Text = tier.Name
 	rankTier.TextColor3 = tier.Color
-	rankStroke.Color = tier.Color
+	Theme.tintIcon(rankIcon, tier.Color)
 	rankLabel.Text = tostring(math.floor(rating))
 end
 
@@ -573,7 +670,7 @@ local function refreshKeys()
 	local keys = tonumber(player:GetAttribute("Keys")) or 0
 	keysLabel.Text = tostring(math.floor(keys))
 	if lastKeys and keys > lastKeys and shown then
-		Theme.pop(keysChip, 0.2)
+		Theme.pop(keysPill, 0.2)
 	end
 	lastKeys = keys
 end
@@ -608,7 +705,8 @@ function LobbyUI.OnState(snapshot)
 	relayout()
 	refreshPrimary(snapshot)
 	refreshRematch(snapshot)
-	refreshSecondaries(snapshot)
+	refreshModes(snapshot)
+	refreshTabs()
 	refreshInfo(snapshot)
 end
 
@@ -640,22 +738,21 @@ local function buildMark(parent)
 		BackgroundTransparency = 0.1,
 		Parent = parent,
 	})
-	Theme.corner(tile, UDim.new(0.24, 0))
-	Theme.stroke(tile, Palette.UIAccent, 1.5, 0.55)
+	Theme.corner(tile, UDim.new(0.26, 0))
 	local ring = Theme.new("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromScale(0.54, 0.54),
+		Size = UDim2.fromScale(0.5, 0.5),
 		BackgroundTransparency = 1,
 		Parent = tile,
 	})
 	Theme.corner(ring, UDim.new(0.5, 0))
 	Theme.stroke(ring, Palette.UIAccent, 2.5, 0)
 	local ticks = {
-		{ UDim2.fromScale(0.5, 0.15), UDim2.new(0, 2, 0.2, 0) },
-		{ UDim2.fromScale(0.5, 0.85), UDim2.new(0, 2, 0.2, 0) },
-		{ UDim2.fromScale(0.15, 0.5), UDim2.new(0.2, 0, 0, 2) },
-		{ UDim2.fromScale(0.85, 0.5), UDim2.new(0.2, 0, 0, 2) },
+		{ UDim2.fromScale(0.5, 0.15), UDim2.new(0, 2, 0.18, 0) },
+		{ UDim2.fromScale(0.5, 0.85), UDim2.new(0, 2, 0.18, 0) },
+		{ UDim2.fromScale(0.15, 0.5), UDim2.new(0.18, 0, 0, 2) },
+		{ UDim2.fromScale(0.85, 0.5), UDim2.new(0.18, 0, 0, 2) },
 	}
 	for _, t in ipairs(ticks) do
 		Theme.new("Frame", {
@@ -677,74 +774,7 @@ local function buildMark(parent)
 	return tile
 end
 
--- Little gold key glyph for the KEYS chip.
-local function buildKeyIcon(parent)
-	local icon = Theme.new("Frame", {
-		Name = "KeyIcon",
-		Size = UDim2.fromOffset(18, 18),
-		BackgroundTransparency = 1,
-		LayoutOrder = 1,
-		Parent = parent,
-	})
-	local bow = Theme.new("Frame", {
-		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.fromScale(0, 0.5),
-		Size = UDim2.fromOffset(9, 9),
-		BackgroundTransparency = 1,
-		Parent = icon,
-	})
-	Theme.corner(bow, UDim.new(0.5, 0))
-	Theme.stroke(bow, Palette.AccentB, 2, 0)
-	Theme.new("Frame", {
-		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, 9, 0.5, 0),
-		Size = UDim2.fromOffset(9, 2),
-		BackgroundColor3 = Palette.AccentB,
-		Parent = icon,
-	})
-	Theme.new("Frame", {
-		Position = UDim2.new(0, 13, 0.5, 0),
-		Size = UDim2.fromOffset(2, 4),
-		BackgroundColor3 = Palette.AccentB,
-		Parent = icon,
-	})
-	Theme.new("Frame", {
-		Position = UDim2.new(0, 16, 0.5, 0),
-		Size = UDim2.fromOffset(2, 3),
-		BackgroundColor3 = Palette.AccentB,
-		Parent = icon,
-	})
-	return icon
-end
-
--- A pill chip with a horizontal row inside (icon, value, caption).
-local function buildChip(name, parent, order, strokeColor)
-	local chip = Theme.new("Frame", {
-		Name = name,
-		Size = UDim2.fromOffset(0, 28),
-		AutomaticSize = Enum.AutomaticSize.X,
-		BackgroundColor3 = Palette.UIPanel,
-		BackgroundTransparency = 0.15,
-		LayoutOrder = order,
-		Parent = parent,
-	})
-	Theme.corner(chip, UDim.new(0.5, 0))
-	Theme.stroke(chip, strokeColor or Palette.UIText, 1, strokeColor and 0.45 or 0.88)
-	Theme.new("UIPadding", {
-		PaddingLeft = UDim.new(0, SP.M - 2),
-		PaddingRight = UDim.new(0, SP.M),
-		Parent = chip,
-	})
-	Theme.new("UIListLayout", {
-		FillDirection = Enum.FillDirection.Horizontal,
-		VerticalAlignment = Enum.VerticalAlignment.Center,
-		SortOrder = Enum.SortOrder.LayoutOrder,
-		Padding = UDim.new(0, SP.XS + 2),
-		Parent = chip,
-	})
-	return chip
-end
-
+-- Top left: wordmark, nav bar, playground chip.
 local function buildBrand()
 	brand = group("Brand", Vector2.new(0, 0))
 	brandMark = buildMark(brand)
@@ -752,7 +782,7 @@ local function buildBrand()
 		Name = "Title",
 		RichText = true,
 		Text = string.format('SNIPER <font color="#%s">DUEL</font>', Palette.UIAccent:ToHex()),
-		TextSize = 32,
+		TextSize = 24,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextYAlignment = Enum.TextYAlignment.Center,
 		FontFace = Theme.Font(Enum.FontWeight.Heavy),
@@ -760,27 +790,46 @@ local function buildBrand()
 	})
 	tagline = Theme.label({
 		Name = "Tagline",
-		Position = UDim2.fromOffset(48 + SP.M, 32),
-		Size = UDim2.fromOffset(320, 14),
+		Size = UDim2.fromOffset(BRAND_W - 44 - SP.M, 14),
 		Text = "1V1 SNIPER ARENA",
-		TextSize = 12,
+		TextSize = 11,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextColor3 = Palette.UISubText,
 		FontFace = Theme.Font(Enum.FontWeight.SemiBold),
 		Parent = brand,
 	})
 
+	-- nav bar: one translucent pill holding the five tiles
+	navBar = Theme.new("Frame", {
+		Name = "Nav",
+		Size = UDim2.fromOffset(NAV_W, TOP_H),
+		BackgroundColor3 = Palette.UIPanel,
+		BackgroundTransparency = 0.3,
+		Parent = brand,
+	})
+	Theme.corner(navBar, 14)
+	Theme.padding(navBar, NAV_PAD)
+	Theme.new("UIListLayout", {
+		FillDirection = Enum.FillDirection.Horizontal,
+		VerticalAlignment = Enum.VerticalAlignment.Center,
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Padding = UDim.new(0, NAV_PAD),
+		Parent = navBar,
+	})
+	for i, item in ipairs(NAV) do
+		makeTab(item, i)
+	end
+
 	-- "PLAYGROUND" chip + explanation under the wordmark
 	modeRow = Theme.new("Frame", {
 		Name = "Mode",
-		Position = UDim2.fromOffset(0, 48 + SP.M),
 		Size = UDim2.fromOffset(420, 26),
 		BackgroundTransparency = 1,
 		Visible = false,
 		Parent = brand,
 	})
 	modeChip = Theme.new("Frame", {
-		Size = UDim2.fromOffset(118, 26),
+		Size = UDim2.fromOffset(112, 26),
 		BackgroundColor3 = Palette.AccentB,
 		Parent = modeRow,
 	})
@@ -788,14 +837,14 @@ local function buildBrand()
 	Theme.label({
 		Size = UDim2.fromScale(1, 1),
 		Text = "PLAYGROUND",
-		TextSize = 13,
+		TextSize = 12,
 		TextColor3 = Palette.UIBackground,
 		FontFace = Theme.Font(Enum.FontWeight.Heavy),
 		Parent = modeChip,
 	})
 	subtitle = Theme.label({
-		Position = UDim2.fromOffset(118 + SP.S + 2, 0),
-		Size = UDim2.new(1, -(118 + SP.S + 2), 1, 0),
+		Position = UDim2.fromOffset(112 + SP.M, 0),
+		Size = UDim2.new(1, -(112 + SP.M), 1, 0),
 		TextSize = 13,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextColor3 = Palette.UIText,
@@ -804,53 +853,156 @@ local function buildBrand()
 	})
 end
 
-local function buildCard()
-	card = group("Player", Vector2.new(1, 0))
-
-	cardPanel = Theme.new("Frame", {
-		Name = "Card",
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.fromScale(1, 0),
-		Size = UDim2.fromOffset(260, 56),
+-- A currency / rank pill: icon, value (and a small caption on desktop).
+local function buildPill(name, order)
+	local pill = Theme.new("Frame", {
+		Name = name,
+		Size = UDim2.fromOffset(0, PILL_H),
+		AutomaticSize = Enum.AutomaticSize.X,
 		BackgroundColor3 = Palette.UIPanel,
-		BackgroundTransparency = 0.15,
-		Parent = card,
+		BackgroundTransparency = 0.25,
+		LayoutOrder = order,
+		Parent = profile,
 	})
-	Theme.corner(cardPanel, 12)
-	Theme.stroke(cardPanel, Palette.UIText, 1, 0.88)
-	avatar = Theme.new("ImageLabel", {
+	Theme.corner(pill, UDim.new(0.5, 0))
+	Theme.new("UIPadding", {
+		PaddingLeft = UDim.new(0, SP.M - 2),
+		PaddingRight = UDim.new(0, SP.M),
+		Parent = pill,
+	})
+	Theme.new("UIListLayout", {
+		FillDirection = Enum.FillDirection.Horizontal,
+		HorizontalAlignment = Enum.HorizontalAlignment.Center,
+		VerticalAlignment = Enum.VerticalAlignment.Center,
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Padding = UDim.new(0, SP.XS + 2),
+		Parent = pill,
+	})
+	Theme.new("UISizeConstraint", {
+		MinSize = Vector2.new(72, PILL_H),
+		Parent = pill,
+	})
+	return pill
+end
+
+local function pillText(parent, order, text, size, weight, color)
+	return Theme.label({
+		Size = UDim2.fromOffset(0, size + 3),
+		AutomaticSize = Enum.AutomaticSize.X,
+		Text = text,
+		TextSize = size,
+		TextColor3 = color or Palette.UIText,
+		FontFace = Theme.Font(weight),
+		LayoutOrder = order,
+		Parent = parent,
+	})
+end
+
+local function pillIcon(parent, name, color)
+	local icon = Theme.icon(name, 16, color, Palette.UIPanel)
+	icon.LayoutOrder = 1
+	icon.Parent = parent
+	return icon
+end
+
+-- Top right: KEYS, CREDITS, RANK pills, then avatar + name + online count.
+local function buildProfile()
+	profile = group("Profile", Vector2.new(1, 0))
+	Theme.new("UIListLayout", {
+		FillDirection = Enum.FillDirection.Horizontal,
+		HorizontalAlignment = Enum.HorizontalAlignment.Right,
+		VerticalAlignment = Enum.VerticalAlignment.Center,
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Padding = UDim.new(0, SP.S),
+		Parent = profile,
+	})
+
+	keysPill = buildPill("Keys", 1)
+	pillIcon(keysPill, "key", Palette.AccentB)
+	keysLabel = pillText(keysPill, 2, "0", 15, Enum.FontWeight.Heavy)
+	table.insert(captions, pillText(keysPill, 3, "KEYS", 10, Enum.FontWeight.Bold, Palette.UISubText))
+
+	local creditsPill = buildPill("Credits", 2)
+	pillIcon(creditsPill, "coin", Color3.fromRGB(255, 196, 60))
+	creditsLabel = pillText(creditsPill, 2, "0", 15, Enum.FontWeight.Heavy)
+	table.insert(captions, pillText(creditsPill, 3, "CREDITS", 10, Enum.FontWeight.Bold, Palette.UISubText))
+
+	rankPill = buildPill("Rank", 3)
+	rankIcon = pillIcon(rankPill, "diamond", Palette.UIText)
+	rankTier = pillText(rankPill, 2, "", 11, Enum.FontWeight.Heavy)
+	rankLabel = pillText(rankPill, 3, "", 15, Enum.FontWeight.Heavy)
+	rankPill.Visible = false
+
+	-- a little extra room between the pills and the player
+	profileSpacer = Theme.new("Frame", {
+		Name = "Spacer",
+		Size = UDim2.fromOffset(SP.XS, 1),
+		BackgroundTransparency = 1,
+		LayoutOrder = 9,
+		Parent = profile,
+	})
+
+	profileBlock = Theme.new("Frame", {
+		Name = "Player",
+		Size = UDim2.fromOffset(PROFILE_W, 44),
+		BackgroundTransparency = 1,
+		LayoutOrder = 10,
+		Parent = profile,
+	})
+	local avatar = Theme.new("ImageLabel", {
 		Name = "Avatar",
-		Position = UDim2.fromOffset(SP.S, SP.S),
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.fromScale(1, 0.5),
 		Size = UDim2.fromOffset(40, 40),
 		BackgroundColor3 = Palette.UIPanelLight,
 		ScaleType = Enum.ScaleType.Crop,
 		Image = "",
-		Parent = cardPanel,
+		Parent = profileBlock,
 	})
 	Theme.corner(avatar, UDim.new(0.5, 0))
-	Theme.stroke(avatar, Palette.UIAccent, 2, 0.2)
+	Theme.stroke(avatar, Palette.UIAccent, 2, 0.35)
 	Theme.label({
 		Name = "DisplayName",
-		Position = UDim2.fromOffset(40 + SP.L, 9),
-		Size = UDim2.new(1, -(40 + SP.L + SP.M), 0, 20),
+		Position = UDim2.fromOffset(0, 3),
+		Size = UDim2.new(1, -(40 + SP.M), 0, 20),
 		Text = player.DisplayName,
-		TextSize = 16,
-		TextXAlignment = Enum.TextXAlignment.Left,
+		TextSize = 15,
+		TextXAlignment = Enum.TextXAlignment.Right,
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		FontFace = Theme.Font(Enum.FontWeight.Bold),
-		Parent = cardPanel,
+		Parent = profileBlock,
 	})
-	Theme.label({
-		Name = "UserName",
-		Position = UDim2.fromOffset(40 + SP.L, 30),
-		Size = UDim2.new(1, -(40 + SP.L + SP.M), 0, 16),
-		Text = "@" .. player.Name,
-		TextSize = 12,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		TextTruncate = Enum.TextTruncate.AtEnd,
+	local onlineRow = Theme.new("Frame", {
+		Name = "Online",
+		Position = UDim2.fromOffset(0, 25),
+		Size = UDim2.new(1, -(40 + SP.M), 0, 14),
+		BackgroundTransparency = 1,
+		Parent = profileBlock,
+	})
+	Theme.new("UIListLayout", {
+		FillDirection = Enum.FillDirection.Horizontal,
+		HorizontalAlignment = Enum.HorizontalAlignment.Right,
+		VerticalAlignment = Enum.VerticalAlignment.Center,
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Padding = UDim.new(0, SP.XS + 1),
+		Parent = onlineRow,
+	})
+	local dot = Theme.new("Frame", {
+		Size = UDim2.fromOffset(6, 6),
+		BackgroundColor3 = Palette.AccentA,
+		LayoutOrder = 1,
+		Parent = onlineRow,
+	})
+	Theme.corner(dot, UDim.new(0.5, 0))
+	onlineLabel = Theme.label({
+		Size = UDim2.fromOffset(0, 14),
+		AutomaticSize = Enum.AutomaticSize.X,
+		Text = "1 ONLINE",
+		TextSize = 11,
 		TextColor3 = Palette.UISubText,
-		FontFace = Theme.Font(Enum.FontWeight.Medium),
-		Parent = cardPanel,
+		FontFace = Theme.Font(Enum.FontWeight.SemiBold),
+		LayoutOrder = 2,
+		Parent = onlineRow,
 	})
 	task.spawn(function()
 		local ok, image = pcall(function()
@@ -859,138 +1011,51 @@ local function buildCard()
 		avatar.Image = (ok and image)
 			or ("rbxthumb://type=AvatarHeadShot&id=" .. tostring(player.UserId) .. "&w=150&h=150")
 	end)
-
-	-- chips under the card: ONLINE, KEYS (right aligned)
-	chipRow = Theme.new("Frame", {
-		Name = "Chips",
-		AnchorPoint = Vector2.new(1, 0),
-		Size = UDim2.fromOffset(260, 28),
-		BackgroundTransparency = 1,
-		Parent = card,
-	})
-	Theme.new("UIListLayout", {
-		FillDirection = Enum.FillDirection.Horizontal,
-		HorizontalAlignment = Enum.HorizontalAlignment.Right,
-		VerticalAlignment = Enum.VerticalAlignment.Center,
-		SortOrder = Enum.SortOrder.LayoutOrder,
-		Padding = UDim.new(0, SP.S),
-		Parent = chipRow,
-	})
-
-	onlineChip = buildChip("Online", chipRow, 1)
-	local dot = Theme.new("Frame", {
-		Size = UDim2.fromOffset(8, 8),
-		BackgroundColor3 = Palette.AccentA,
-		LayoutOrder = 1,
-		Parent = onlineChip,
-	})
-	Theme.corner(dot, UDim.new(0.5, 0))
-	onlineLabel = Theme.label({
-		Size = UDim2.fromOffset(0, 16),
-		AutomaticSize = Enum.AutomaticSize.X,
-		Text = "1 ONLINE",
-		TextSize = 12,
-		FontFace = Theme.Font(Enum.FontWeight.Bold),
-		LayoutOrder = 2,
-		Parent = onlineChip,
-	})
-
-	keysChip = buildChip("Keys", chipRow, 2, Palette.AccentB)
-	buildKeyIcon(keysChip)
-	keysLabel = Theme.label({
-		Size = UDim2.fromOffset(0, 18),
-		AutomaticSize = Enum.AutomaticSize.X,
-		Text = "0",
-		TextSize = 15,
-		FontFace = Theme.Font(Enum.FontWeight.Heavy),
-		LayoutOrder = 2,
-		Parent = keysChip,
-	})
-	Theme.label({
-		Size = UDim2.fromOffset(0, 16),
-		AutomaticSize = Enum.AutomaticSize.X,
-		Text = "KEYS",
-		TextSize = 11,
-		TextColor3 = Palette.UISubText,
-		FontFace = Theme.Font(Enum.FontWeight.Bold),
-		LayoutOrder = 3,
-		Parent = keysChip,
-	})
-	creditsChip = buildChip("Credits", chipRow, 3, Color3.fromRGB(255, 196, 60))
-	creditsLabel = Theme.label({
-		Size = UDim2.fromOffset(0, 18),
-		AutomaticSize = Enum.AutomaticSize.X,
-		Text = "0",
-		TextSize = 15,
-		FontFace = Theme.Font(Enum.FontWeight.Heavy),
-		LayoutOrder = 1,
-		Parent = creditsChip,
-	})
-	Theme.label({
-		Size = UDim2.fromOffset(0, 16),
-		AutomaticSize = Enum.AutomaticSize.X,
-		Text = "CREDITS",
-		TextSize = 11,
-		TextColor3 = Palette.UISubText,
-		FontFace = Theme.Font(Enum.FontWeight.Bold),
-		LayoutOrder = 2,
-		Parent = creditsChip,
-	})
-	rankChip = buildChip("Rank", chipRow, 4, Palette.UIText)
-	rankStroke = rankChip:FindFirstChildOfClass("UIStroke")
-	rankTier = Theme.label({
-		Size = UDim2.fromOffset(0, 16),
-		AutomaticSize = Enum.AutomaticSize.X,
-		Text = "",
-		TextSize = 12,
-		FontFace = Theme.Font(Enum.FontWeight.Heavy),
-		LayoutOrder = 1,
-		Parent = rankChip,
-	})
-	rankLabel = Theme.label({
-		Size = UDim2.fromOffset(0, 18),
-		AutomaticSize = Enum.AutomaticSize.X,
-		Text = "",
-		TextSize = 15,
-		FontFace = Theme.Font(Enum.FontWeight.Heavy),
-		LayoutOrder = 2,
-		Parent = rankChip,
-	})
-	rankChip.Visible = false
 end
 
+-- Bottom left: mode row, rematch, FIND MATCH hero.
 local function buildStack()
 	stack = group("Actions", Vector2.new(0, 1))
 
+	-- PLAYGROUND / BOT (admins)
+	makeEntry("Playground", stack, { Icon = "flag", TextSize = 14 })
+	makeEntry("BotMatch", stack, { Icon = "bot", TextSize = 14 })
+	playgroundButton = entries.Playground.Button
+
 	-- REMATCH (after a match, for a little while)
-	local rematch = makeEntry("Rematch", stack, { TextSize = 15, Weight = Enum.FontWeight.Heavy })
+	local rematch = makeEntry("Rematch", stack, { TextSize = 15, Weight = Enum.FontWeight.Heavy, Pad = SP.L })
 	rematchButton = rematch.Button
 	rematchButton.Visible = false
 
-	-- FIND MATCH (primary)
+	-- FIND MATCH (hero)
 	primary = makeEntry("FindMatch", stack, {
-		TextSize = 22,
-		KeySize = 14,
-		Radius = 12,
-		LabelY = -8,
+		Icon = "target",
+		IconSize = HERO_ICON,
+		TextSize = 24,
+		KeySize = 13,
+		Radius = 14,
+		LabelY = -9,
+		Pad = SP.L,
 		Weight = Enum.FontWeight.Heavy,
 	})
 	playButton = primary.Button
+	heroStroke = Theme.stroke(playButton, Palette.UIAccent, 1.5, 1)
 	subLabel = Theme.label({
 		Name = "Sub",
 		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, SP.M, 0.5, 12),
-		Size = UDim2.new(1, -SP.M * 2, 0, 16),
+		Position = UDim2.new(0, SP.L, 0.5, 13),
+		Size = UDim2.new(1, -SP.L * 2, 0, 14),
 		TextSize = 12,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		FontFace = Theme.Font(Enum.FontWeight.Bold),
 		Parent = playButton,
 	})
+	-- spinner sits in the icon's slot while searching
 	spinner = Theme.new("Frame", {
 		Name = "Spinner",
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -SP.L, 0.5, 0),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(0, SP.L + HERO_ICON / 2, 0.5, 0),
 		Size = UDim2.fromOffset(22, 22),
 		BackgroundTransparency = 1,
 		Visible = false,
@@ -1002,10 +1067,10 @@ local function buildStack()
 	timeLabel = Theme.label({
 		Name = "Time",
 		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -(SP.L + 22 + SP.M), 0.5, -8),
-		Size = UDim2.fromOffset(60, 22),
+		Position = UDim2.new(1, -SP.L, 0.5, 0),
+		Size = UDim2.fromOffset(TIME_W - SP.XS, 24),
 		Text = "0:00",
-		TextSize = 18,
+		TextSize = 20,
 		TextXAlignment = Enum.TextXAlignment.Right,
 		TextColor3 = Palette.UIAccent,
 		FontFace = Theme.Font(Enum.FontWeight.Heavy),
@@ -1032,18 +1097,11 @@ local function buildStack()
 	Theme.corner(progressFill, 2)
 	shine = Theme.shine(playButton, 1.4, true, 0.22)
 
-	-- secondary actions
-	for i, item in ipairs(SECONDARY) do
-		local entry = makeEntry(item.Id, stack, { TextSize = 15, Hint = item.Hint })
-		entry.Button.LayoutOrder = i
-	end
-	playgroundButton = entries.Playground.Button
-
 	-- status line (compact layout: online / queue / playground)
 	statusLabel = Theme.label({
 		Name = "Status",
 		Size = UDim2.fromOffset(300, 16),
-		TextSize = 12,
+		TextSize = 11,
 		TextColor3 = Palette.UIText,
 		TextTransparency = 0.1,
 		FontFace = Theme.Font(Enum.FontWeight.SemiBold),
@@ -1070,28 +1128,29 @@ function LobbyUI.Start(playerGui)
 		Parent = gui,
 	})
 
-	-- soft gradient scrims behind the panels (never over the centre)
-	scrimLeft = Theme.new("Frame", {
-		Name = "ScrimLeft",
-		Position = UDim2.fromOffset(-60, -60),
-		Size = UDim2.new(0.5, 60, 1, 120),
+	-- soft gradient scrims behind the corners (never over the centre)
+	scrimCorner = Theme.new("Frame", {
+		Name = "ScrimCorner",
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, -60, 1, 60),
+		Size = UDim2.new(0.5, 60, 0.55, 60),
 		BackgroundColor3 = Palette.UIBackground,
 		ZIndex = 0,
 		Parent = root,
 	})
-	Theme.fade(scrimLeft, 0, { { 0, 0.3 }, { 0.45, 0.68 }, { 1, 1 } })
+	Theme.fade(scrimCorner, -35, { { 0, 0.3 }, { 0.5, 0.75 }, { 1, 1 } })
 	scrimTop = Theme.new("Frame", {
 		Name = "ScrimTop",
 		Position = UDim2.fromOffset(-60, -60),
-		Size = UDim2.new(1, 120, 0.22, 60),
+		Size = UDim2.new(1, 120, 0.2, 60),
 		BackgroundColor3 = Palette.UIBackground,
 		ZIndex = 0,
 		Parent = root,
 	})
-	Theme.fade(scrimTop, 90, { { 0, 0.35 }, { 1, 1 } })
+	Theme.fade(scrimTop, 90, { { 0, 0.4 }, { 1, 1 } })
 
 	buildBrand()
-	buildCard()
+	buildProfile()
 	buildStack()
 
 	local function toggleQueue()
@@ -1109,53 +1168,51 @@ function LobbyUI.Start(playerGui)
 		Theme.pop(rematchButton, 0.06)
 		Remotes.Get("Duel"):FireServer("Rematch")
 	end
-	rematchButton.Activated:Connect(requestRematch)
-
 	local function botMatch()
 		Sfx.Play("CardPick", { Volume = 0.6, Pitch = 1.2 })
 		Theme.pop(entries.BotMatch.Button, 0.06)
 		Remotes.Get("AdminCommand"):FireServer("bot")
 	end
+	rematchButton.Activated:Connect(requestRematch)
 	playButton.Activated:Connect(toggleQueue)
 	playgroundButton.Activated:Connect(togglePlayground)
 	entries.BotMatch.Button.Activated:Connect(botMatch)
 
-	-- Lab / Duel / Settings buttons run the same code as their keys
-	entries.PowerUpLab.Button.Activated:Connect(function()
-		Theme.pop(entries.PowerUpLab.Button, 0.06)
-		Keybinds.Press("PowerUpLab", true)
-		Keybinds.Press("PowerUpLab", false)
-	end)
-	entries.BattlePass.Button.Activated:Connect(function()
-		Theme.pop(entries.BattlePass.Button, 0.06)
-		if Controllers and Controllers.BattlePass then
-			Controllers.BattlePass.Toggle()
-		end
-	end)
-	entries.Shop.Button.Activated:Connect(function()
-		Theme.pop(entries.Shop.Button, 0.06)
-		if Controllers and Controllers.Shop then
-			Controllers.Shop.Toggle()
-		end
-	end)
-	entries.Locker.Button.Activated:Connect(function()
-		Theme.pop(entries.Locker.Button, 0.06)
-		if Controllers and Controllers.Locker then
-			Controllers.Locker.Toggle()
-		end
-	end)
-	entries.DuelFriend.Button.Activated:Connect(function()
-		Theme.pop(entries.DuelFriend.Button, 0.06)
-		if Controllers and Controllers.Duel then
-			Controllers.Duel.Open()
-		end
-	end)
-	entries.Settings.Button.Activated:Connect(function()
-		Theme.pop(entries.Settings.Button, 0.06)
-		if Controllers and Controllers.Settings then
-			Controllers.Settings.Toggle()
-		end
-	end)
+	-- nav tiles run the same code as their keys
+	local navActions = {
+		Locker = function()
+			if Controllers and Controllers.Locker then
+				Controllers.Locker.Toggle()
+			end
+		end,
+		Shop = function()
+			if Controllers and Controllers.Shop then
+				Controllers.Shop.Toggle()
+			end
+		end,
+		DuelFriend = function()
+			if Controllers and Controllers.Duel then
+				Controllers.Duel.Open()
+			end
+		end,
+		PowerUpLab = function()
+			Keybinds.Press("PowerUpLab", true)
+			Keybinds.Press("PowerUpLab", false)
+		end,
+		Settings = function()
+			if Controllers and Controllers.Settings then
+				Controllers.Settings.Toggle()
+			end
+		end,
+	}
+	for _, item in ipairs(NAV) do
+		local t = tabs[item.Id]
+		t.Button.Activated:Connect(function()
+			Sfx.Play("CardPick", { Volume = 0.4, Pitch = 1.15 })
+			Theme.pop(t.Button, 0.06)
+			navActions[item.Id]()
+		end)
+	end
 
 	local function onActionInput(input, processed)
 		if processed and UserInputService:GetFocusedTextBox() then
@@ -1196,7 +1253,7 @@ function LobbyUI.Start(playerGui)
 			end
 		else
 			local pulse = (math.sin(t * 3) + 1) / 2
-			playButton.BackgroundColor3 = Palette.UIAccent:Lerp(Color3.new(1, 1, 1), pulse * 0.1)
+			playButton.BackgroundColor3 = Palette.UIAccent:Lerp(Color3.new(1, 1, 1), pulse * 0.08)
 		end
 	end)
 

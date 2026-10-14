@@ -321,26 +321,27 @@ CLIPS.Stab = {
 	},
 }
 
--- Inspect: turn the blade to the light, flip it over, toss it end over end
--- and catch it, roll it into a reverse grip, flip it back.
-local SHOW = aim(V(0.25, -0.42, -1.15), V(-1, 0.25, -0.25), V(0, -1, 0))
-local SHOW_FLIP = SHOW * CFrame.Angles(0, 0, math.pi)
-local TOSS_HOLD = aim(V(0.35, -0.6, -1.25), V(-0.1, 1, -0.25), V(-1, 0, 0))
-local REVERSE = aim(V(0.45, -0.5, -1.1), V(-0.1, -1, -0.3), V(0, 0.3, -1))
+-- Inspect: just handling it. Bring it up and look along the flat, tip it
+-- up to check the edge, a little toss (the knife turns over once in the
+-- air, not your wrist), catch, and back down. Every turn of the hand stays
+-- within what a real wrist does.
+local SHOW = aim(V(0.25, -0.45, -1.15), V(-1, 0.25, -0.3), V(0, -1, 0.15))
+local SHOW_TILT = aim(V(0.22, -0.4, -1.12), V(-1, 0.35, -0.2), V(0, -0.85, 0.5))
+local SHOW_EDGE = aim(V(0.32, -0.42, -1.15), V(-0.2, 1, -0.2), V(-0.45, 0, 0.9))
+local TOSS_HOLD = aim(V(0.35, -0.6, -1.2), V(-0.1, 1, -0.25), V(-1, 0, 0.3))
 CLIPS.Inspect = {
-	Length = 2.9,
-	Toss = { From = 0.29, To = 0.5, Height = 1.25, Spins = -2, Catch = 6 },
+	Length = 2.6,
+	Toss = { From = 0.42, To = 0.6, Height = 0.9, Spins = -1, Catch = 7 },
 	Keys = {
 		{ T = 0, Weapon = "BASE" },
-		{ T = 0.1, Weapon = SHOW, Body = { NeckPitch = -10, NeckYaw = 6 } },
-		{ T = 0.2, Weapon = SHOW_FLIP, Body = { NeckPitch = -10, NeckYaw = 8 } },
-		{ T = 0.26, Weapon = TOSS_HOLD * CFrame.new(0, -0.12, 0), Body = { NeckPitch = -6 } },
-		{ T = 0.29, Weapon = TOSS_HOLD, Body = { NeckPitch = 4 } },
-		{ T = 0.5, Weapon = TOSS_HOLD, Body = { NeckPitch = 8 } },
-		{ T = 0.55, Weapon = TOSS_HOLD * CFrame.new(0, -0.15, 0), Body = { NeckPitch = -2, Dip = 0.05 } },
-		{ T = 0.68, Weapon = REVERSE, Body = { NeckPitch = -8, Yaw = 6 } },
-		{ T = 0.8, Weapon = REVERSE * CFrame.Angles(0, rad(-160), 0), Body = { NeckPitch = -8, Yaw = 8 } },
-		{ T = 0.9, Weapon = KNIFE_IDLE * CFrame.Angles(rad(-25), 0, 0) },
+		{ T = 0.12, Weapon = SHOW, Body = { NeckPitch = -10, NeckYaw = 6 } },
+		{ T = 0.22, Weapon = SHOW_TILT, Body = { NeckPitch = -11, NeckYaw = 8 } },
+		{ T = 0.32, Weapon = SHOW_EDGE, Body = { NeckPitch = -8, NeckYaw = 4 } },
+		{ T = 0.38, Weapon = TOSS_HOLD * CFrame.new(0, -0.12, 0), Body = { NeckPitch = -4 } },
+		{ T = 0.42, Weapon = TOSS_HOLD, Body = { NeckPitch = 4 } },
+		{ T = 0.6, Weapon = TOSS_HOLD, Body = { NeckPitch = 6 } },
+		{ T = 0.67, Weapon = TOSS_HOLD * CFrame.new(0, -0.14, 0), Body = { NeckPitch = -2, Dip = 0.05 } },
+		{ T = 0.84, Weapon = KNIFE_IDLE * CFrame.Angles(rad(-18), 0, 0) },
 		{ T = 1, Weapon = "BASE" },
 	},
 }

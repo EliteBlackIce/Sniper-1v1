@@ -136,7 +136,16 @@ Config.Body = {
 	-- Seen from outside, the same animation is played lower and a little
 	-- further out (weapons at chest / waist height, not up by the face).
 	ThirdPersonOffset = CFrame.new(0, -0.5, -0.15),
-	ShowUpperArms = false, -- first person: also draw your upper arms (they're mostly off screen)
+	-- First person: slim copies of your avatar's arms (skin, shirt and all)
+	-- and of your weapon, drawn on the camera. Everyone else sees your real
+	-- character doing the same moves.
+	FirstPerson = {
+		ArmThickness = 0.4, -- how wide the copied arms are (your real arms are about 1)
+		HandWidth = 0.42,
+		UpperLength = 1.15, -- shoulder to elbow
+		LowerLength = 1.1, -- elbow to wrist
+		Shoulder = Vector3.new(0.95, -1.3, 0.25), -- the right shoulder, from your eyes (the left is mirrored)
+	},
 	MaxDistance = 300, -- other characters further away than this aren't animated
 	PitchSmoothing = 14, -- how quickly other players' aim follows their updates
 }

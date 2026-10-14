@@ -232,7 +232,7 @@ Every key below can be rebound in **Settings (P) > Keyboard** or
 | R | Blink (power-up) |
 | Q | Decoy (power-up) |
 | Space (hold) | Ceiling run under a ceiling (Magnetic Boots) |
-| V | Inspect your rifle (or the knife: toss it up and catch it, or twirl it) |
+| V | Inspect your rifle (or the knife: look it over, toss it and catch it) |
 | 2 / mouse wheel [RB / R1] | **Knife** (1 or the wheel switches back to the rifle) |
 | Left mouse (knife) | Slash, alternating left and right |
 | Right mouse (knife) | Stab with a short lunge |
@@ -414,11 +414,13 @@ Access to API Services"). Rarities, odds, key rewards and the skin list are in
 
 ## Your character does the animations
 
-There's no separate first-person "viewmodel" any more: **your real
-character** holds the rifle and the knife.
-- In first person you see your own forearms and hands (your avatar's real
-  arm parts, with your shirt and skin). The camera sits half a stud behind
-  your eyes (`Config.Body.CameraBack`) so they aren't in your face.
+**Your real character** holds the rifle and the knife, and that's what
+everyone else sees.
+- In first person you see slim copies of your own arms (your avatar's arm
+  parts, with your shirt and skin) holding a copy of your own weapon, drawn
+  on the camera so they never lag. They play exactly the same animation as
+  your real body; full-size arms would fill the screen. Sizes:
+  `Config.Body.FirstPerson`. Code: `FirstPersonView.lua`.
 - Every move bends your actual body: the arms reach for the weapon with
   two-bone IK (elbows bend naturally), the torso twists and leans, the head
   follows your aim, and the legs step into a stab.
@@ -430,7 +432,7 @@ character** holds the rifle and the knife.
 - The rifle and knife are jointed to your right hand, so the knife can be
   flipped, tossed and caught and the bolt really slides.
 - The kill cam uses copies of both real characters: you watch through the
-  killer's eyes with their real arms and weapon, and your copy runs, jumps,
+  killer's eyes (their arms and weapon, in first person), and your copy runs, jumps,
   aims and holds its weapon like you did.
 
 Code: `BodyAnimator.lua` (runs it), `WeaponAnim.lua` (all the moves),
@@ -455,8 +457,9 @@ or scroll again goes back to the rifle. Every life starts with the rifle.
   lean in, dip and step forward, drive it in, twist, and rip it out.
   70 damage, a bit more reach.
 - **Backstab**: any hit from behind is a kill ("BACKSTAB" banner).
-- **Inspect** (V): turn the blade to the light and flip it over, toss it up
-  end over end and catch it, roll it into a reverse grip and spin it back.
+- **Inspect** (V): bring it up and look along the blade, tip it up to check
+  the edge, toss it once and catch it. No wrist spinning: the knife turns
+  over in the air, your hand just handles it.
 - With the knife out you run 8% faster, and the rifle can't fire.
 - Your arms follow the knife (two-bone IK from your shoulders), so slashes
   and stabs move your whole arm. Other players see the knife in your hand,

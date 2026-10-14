@@ -1,10 +1,10 @@
 --[[
 	BodyAnimator.lua  (Client.BodyAnimator)
 
-	Your real character holds and animates the weapons. No separate
-	viewmodel: in first person you see your own forearms and hands (copied
-	from nothing; they're your character's actual parts), and everyone else
-	sees the same animation on your whole character.
+	Your real character holds and animates the weapons: everyone else sees
+	every move on your whole character. In first person you see slim copies
+	of your own arms and weapon playing the same animation
+	(FirstPersonView), so your full-size arms don't fill the screen.
 
 	Every frame (RunService.Stepped, right after Roblox's walk / run
 	animations) for every character near you:
@@ -39,6 +39,7 @@ local Sfx = require(script.Parent.Sfx)
 local Keybinds = require(script.Parent.Keybinds)
 local WeaponAnim = require(script.Parent.WeaponAnim)
 local BodyRig = require(script.Parent.BodyRig)
+local FirstPersonView = require(script.Parent.FirstPersonView)
 
 local B = Config.Body
 local VM = Config.Viewmodel
@@ -209,29 +210,8 @@ local function animate(model, dt, t, camera)
 			if look.Magnitude > 0.05 and free then
 				root.CFrame = CFrame.lookAt(root.Position, root.Position + look)
 			end
-			-- sway (lags behind the mouse) and walk bob
-			local movement = Controllers.Movement
-			local delta = UserInputService:GetMouseDelta()
-			local scope = Controllers.Weapon.GetScopeAlpha()
-			local swayScale = (1 - scope * 0.9) * VM.SwayAmount
-			swaySpring.Target = Vector3.new(
-				math.clamp(-delta.Y * swayScale, -5, 5),
-				math.clamp(-delta.X * swayScale, -5, 5),
-				math.clamp(-delta.X * swayScale * 0.7, -4, 4)
-			)
-			local sway = swaySpring:Update(dt)
-			local speed = movement.GetSpeed()
-			local running = movement.IsGrounded() and speed > 2 and movement.GetMode() == "Ground"
-			if running then
-				bobTime += dt * (7 + speed * 0.2)
-			end
-			local bob = running and math.clamp(speed / Config.Movement.RunSpeed, 0, 1.4) * (1 - scope) * VM.BobAmount or 0
-			sprintAlpha = Util.lerp(sprintAlpha, movement.IsSprinting() and scope < 0.1 and 1 or 0, Util.smooth(10, dt))
-			view = view
-				* CFrame.new(math.sin(bobTime) * 0.05 * bob, math.sin(bobTime * 2) * 0.035 * bob, 0)
-				* CFrame.Angles(rad(sway.X), rad(sway.Y), rad(sway.Z) + math.sin(bobTime) * rad(2) * bob)
 			ctx.Sprint = sprintAlpha
-			ctx.Scope = scope
+			ctx.Scope = Controllers.Weapon.GetScopeAlpha()
 		end
 	else
 		-- seen from outside: the aim they send, smoothed
@@ -293,25 +273,16 @@ local function step(dt)
 	end
 end
 
--- First person: show your own forearms, hands and weapon (Roblox hides your
--- whole character in first person); hide them while scoped or in menus.
-local ARM_PARTS = { "RightLowerArm", "RightHand", "LeftLowerArm", "LeftHand" }
+-- Your real arms and weapon are hidden in first person (Roblox hides your
+-- character there anyway); the kill cam's copy of your killer too, while
+-- you watch through its eyes. You see FirstPersonView's copies instead.
+local ARM_PARTS = { "RightUpperArm", "RightLowerArm", "RightHand", "LeftUpperArm", "LeftLowerArm", "LeftHand" }
 local weaponParts = setmetatable({}, { __mode = "k" }) -- [weapon model] = its parts
-local UPPER_ARMS = { "RightUpperArm", "LeftUpperArm" }
-local function showArms(model, shown)
-	local value = shown and 0 or 1
+local function hideReal(model)
 	for _, name in ipairs(ARM_PARTS) do
 		local part = model:FindFirstChild(name)
 		if part then
-			part.LocalTransparencyModifier = value
-		end
-	end
-	if B.ShowUpperArms then
-		for _, name in ipairs(UPPER_ARMS) do
-			local part = model:FindFirstChild(name)
-			if part then
-				part.LocalTransparencyModifier = value
-			end
+			part.LocalTransparencyModifier = 1
 		end
 	end
 	local state = stateFor(model)
@@ -332,7 +303,7 @@ local function showArms(model, shown)
 			end
 			local held = name == weaponName
 			for _, part in ipairs(cache) do
-				part.LocalTransparencyModifier = (shown and held) and 0 or 1
+				part.LocalTransparencyModifier = 1
 				if isCopy then
 					part.Transparency = held and (part:GetAttribute("BaseTransparency") or 0) or 1
 				end
@@ -341,19 +312,68 @@ local function showArms(model, shown)
 	end
 end
 
-local function updateVisibility()
-	local character = player.Character
-	if puppet and puppet.Character and puppet.Character.Parent then
-		showArms(puppet.Character, next(hiddenBy) == nil)
+-- Sway (the weapon lags behind the mouse) and walk bob, on top of the eyes.
+local function swayAndBob(dt)
+	local movement = Controllers.Movement
+	local delta = UserInputService:GetMouseDelta()
+	local scope = Controllers.Weapon.GetScopeAlpha()
+	local swayScale = (1 - scope * 0.9) * VM.SwayAmount
+	swaySpring.Target = Vector3.new(
+		math.clamp(-delta.Y * swayScale, -5, 5),
+		math.clamp(-delta.X * swayScale, -5, 5),
+		math.clamp(-delta.X * swayScale * 0.7, -4, 4)
+	)
+	local sway = swaySpring:Update(dt)
+	local speed = movement.GetSpeed()
+	local running = movement.IsGrounded() and speed > 2 and movement.GetMode() == "Ground"
+	if running then
+		bobTime += dt * (7 + speed * 0.2)
 	end
-	if not character then
+	local bob = running and math.clamp(speed / Config.Movement.RunSpeed, 0, 1.4) * (1 - scope) * VM.BobAmount or 0
+	sprintAlpha = Util.lerp(sprintAlpha, movement.IsSprinting() and scope < 0.1 and 1 or 0, Util.smooth(10, dt))
+	return CFrame.new(math.sin(bobTime) * 0.05 * bob, math.sin(bobTime * 2) * 0.035 * bob, 0)
+		* CFrame.Angles(rad(sway.X), rad(sway.Y), rad(sway.Z) + math.sin(bobTime) * rad(2) * bob), scope
+end
+
+-- Each frame, after the camera: draw the first-person arms + weapon.
+local function drawFirstPerson(dt)
+	local camera = workspace.CurrentCamera
+	local character = player.Character
+	local source, state, view
+	local ctx = {}
+	if puppet and puppet.Character and puppet.Character.Parent then
+		hideReal(puppet.Character)
+		if next(hiddenBy) == nil then
+			source, state = puppet.Character, puppet.State
+			view = camera.CFrame * CFrame.new(0, 0, -EYE_BACK)
+		end
+	elseif character and Controllers.Camera.IsFirstPerson() then
+		hideReal(character)
+		local offset, scope = swayAndBob(dt)
+		if isAlive(character) and next(hiddenBy) == nil and scope < 0.92 and ClientState.HasGun() then
+			source, state = character, localState
+			view = camera.CFrame * CFrame.new(0, 0, -EYE_BACK) * offset
+			ctx.Sprint, ctx.Scope = sprintAlpha, scope
+		end
+	end
+	local entry = source and getEntry(source)
+	if not entry then
+		FirstPersonView.Hide()
 		return
 	end
-	local firstPerson = Controllers.Camera.IsFirstPerson() and not puppet
-	if firstPerson then
-		local scope = Controllers.Weapon.GetScopeAlpha()
-		local shown = isAlive(character) and next(hiddenBy) == nil and scope < 0.92 and ClientState.HasGun()
-		showArms(character, shown)
+	ctx.Profile = profileFor(entry)
+	local anim = WeaponAnim.Evaluate(state, now(), ctx)
+	FirstPersonView.Draw(source, view, anim, anim.Body, state.Weapon == "Knife" and "WorldKnife" or "WorldGun")
+end
+
+local function updateVisibility(dt)
+	local ok, err = pcall(drawFirstPerson, dt)
+	if not ok then
+		FirstPersonView.Hide()
+		if not warnedErrors[err] then
+			warnedErrors[err] = true
+			warn("[BodyAnimator] first person: " .. tostring(err))
+		end
 	end
 	-- tell everyone when you're aiming down the scope
 	local scoped = Controllers.Weapon.GetScopeAlpha() > 0.5
@@ -413,9 +433,8 @@ function BodyAnimator.PlayKnife(kind)
 		if WeaponAnim.Inspect(state, t) and not puppet then
 			local length = WeaponAnim.Clips.Inspect.Length
 			Sfx.Play("CardHover", { Pitch = 0.8, Volume = 1.2 })
-			task.delay(length * 0.29, Sfx.Play, "CardFlip", { Pitch = 1.1, Volume = 0.8 })
-			task.delay(length * 0.5, Sfx.Play, "Bolt", { Pitch = 1.5, Volume = 0.7 })
-			task.delay(length * 0.62, Sfx.Play, "CardFlip", { Pitch = 1.5, Volume = 0.5 })
+			task.delay(length * 0.42, Sfx.Play, "CardFlip", { Pitch = 1.1, Volume = 0.8 }) -- tossed
+			task.delay(length * 0.6, Sfx.Play, "Bolt", { Pitch = 1.5, Volume = 0.7 }) -- caught
 		end
 		return
 	end
@@ -428,6 +447,10 @@ local function weaponRootOf(model, name)
 end
 
 function BodyAnimator.GetKnifeTip()
+	local tip = FirstPersonView.GetKnifeTip()
+	if tip then
+		return tip
+	end
 	local root = weaponRootOf(puppet and puppet.Character or player.Character, "WorldKnife")
 	if root then
 		return (root.CFrame * CFrame.new(KnifeModel.Tip * Config.Knife.WorldScale)).Position
@@ -436,6 +459,10 @@ function BodyAnimator.GetKnifeTip()
 end
 
 function BodyAnimator.GetMuzzlePosition()
+	local fp = FirstPersonView.GetMuzzle()
+	if fp then
+		return fp
+	end
 	local model = puppet and puppet.Character or player.Character
 	local gun = model and model:FindFirstChild("WorldGun")
 	local barrel = gun and gun:FindFirstChild("Barrel")
@@ -447,6 +474,10 @@ function BodyAnimator.GetMuzzlePosition()
 end
 
 function BodyAnimator.GetLeftHandPosition()
+	local fp = FirstPersonView.GetLeftHand()
+	if fp then
+		return fp
+	end
 	local hand = player.Character and player.Character:FindFirstChild("LeftHand")
 	return hand and hand.Position or workspace.CurrentCamera.CFrame.Position
 end
@@ -454,9 +485,6 @@ end
 -- Kill cam: play through someone's eyes, their real arms in view.
 -- info = { Character = Model, Owned = {...} } or nil to stop.
 function BodyAnimator.SetPuppet(info)
-	if puppet and puppet.Character and puppet.Character.Parent then
-		showArms(puppet.Character, false)
-	end
 	if info and info.Character then
 		local state = WeaponAnim.New()
 		state.Weapon = info.Character:GetAttribute("Weapon") == "Knife" and "Knife" or "Sniper"

@@ -5,7 +5,7 @@
 		1 / 2 / mouse wheel   switch rifle <-> knife (ButtonR1 on a controller)
 		Left click            slash (alternates left / right, leaves a trail)
 		Right click           stab: wind up, then a short lunge forward
-		V                     inspect: toss it up and catch it, or twirl it
+		V                     inspect: look it over, toss it and catch it
 
 	With the knife out you run a little faster (MovementController) and the
 	rifle can't fire (WeaponController / the server both check).

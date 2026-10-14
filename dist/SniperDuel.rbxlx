@@ -477,23 +477,82 @@ Config.Crates = {
 		{ Id = "Legendary", Name = "LEGENDARY", Color = Color3.fromRGB(255, 192, 46), Chance = 3 },
 		{ Id = "Secret", Name = "SECRET", Color = Color3.fromRGB(255, 38, 56), Chance = 1 },
 	},
-	-- Rifle skins you can unlock. Body / Metal / Accent colour the rifle
-	-- (equipping skins comes later; for now they're collected).
+	-- Skins for the rifle and the knife (see Skins.lua for how they're
+	-- painted). Equip them in the LOCKER (lobby, key L).
+	--   Weapon    "Rifle" or "Knife"
+	--   Body      rifle: the main body        knife: the handle
+	--   Metal     rifle: barrel, scope, metal  knife: guard + pommel
+	--   Accent    rifle: bolt + stock trims   knife: (glow colour)
+	--   Blade     knife: the blade
+	--   Finish    "Matte" | "Gloss" | "Metal" | "Chrome" | "Gold" (the body / blade)
+	--   Glow      true: the trims glow (Epic and up)
+	--   Pulse     a second colour the glow pulses to (Legendary)
+	--   Sparkle   true: glittering particles (Legendary)
+	-- Secret skins will be their own models (coming later); until then no
+	-- crate rolls Secret.
 	Skins = {
-		{ Id = "FieldGrey", Name = "Field Grey", Rarity = "Common", Body = Color3.fromRGB(128, 132, 136), Metal = Color3.fromRGB(52, 54, 58), Accent = Color3.fromRGB(190, 194, 198) },
-		{ Id = "Sandstorm", Name = "Sandstorm", Rarity = "Common", Body = Color3.fromRGB(196, 170, 120), Metal = Color3.fromRGB(70, 64, 54), Accent = Color3.fromRGB(230, 214, 176) },
-		{ Id = "Woodland", Name = "Woodland", Rarity = "Common", Body = Color3.fromRGB(92, 110, 70), Metal = Color3.fromRGB(46, 50, 42), Accent = Color3.fromRGB(150, 128, 88) },
-		{ Id = "Arctic", Name = "Arctic", Rarity = "Uncommon", Body = Color3.fromRGB(226, 234, 240), Metal = Color3.fromRGB(96, 110, 124), Accent = Color3.fromRGB(150, 200, 230) },
-		{ Id = "Viper", Name = "Viper", Rarity = "Uncommon", Body = Color3.fromRGB(64, 150, 70), Metal = Color3.fromRGB(30, 36, 32), Accent = Color3.fromRGB(190, 240, 90) },
-		{ Id = "Cobalt", Name = "Cobalt", Rarity = "Rare", Body = Color3.fromRGB(40, 92, 200), Metal = Color3.fromRGB(28, 32, 48), Accent = Color3.fromRGB(110, 190, 255) },
-		{ Id = "DeepSea", Name = "Deep Sea", Rarity = "Rare", Body = Color3.fromRGB(20, 110, 130), Metal = Color3.fromRGB(16, 30, 40), Accent = Color3.fromRGB(80, 230, 220) },
-		{ Id = "Amethyst", Name = "Amethyst", Rarity = "Epic", Body = Color3.fromRGB(120, 60, 200), Metal = Color3.fromRGB(34, 24, 52), Accent = Color3.fromRGB(230, 150, 255) },
-		{ Id = "Synthwave", Name = "Synthwave", Rarity = "Epic", Body = Color3.fromRGB(40, 24, 70), Metal = Color3.fromRGB(20, 16, 32), Accent = Color3.fromRGB(255, 70, 200) },
-		{ Id = "GoldenEagle", Name = "Golden Eagle", Rarity = "Legendary", Body = Color3.fromRGB(232, 182, 60), Metal = Color3.fromRGB(60, 46, 24), Accent = Color3.fromRGB(255, 240, 170) },
-		{ Id = "SolarFlare", Name = "Solar Flare", Rarity = "Legendary", Body = Color3.fromRGB(255, 120, 30), Metal = Color3.fromRGB(50, 30, 20), Accent = Color3.fromRGB(255, 220, 90) },
-		{ Id = "CrimsonPhantom", Name = "Crimson Phantom", Rarity = "Secret", Body = Color3.fromRGB(26, 20, 22), Metal = Color3.fromRGB(12, 10, 12), Accent = Color3.fromRGB(255, 30, 50) },
+		-- RIFLE
+		{ Id = "FieldGrey", Name = "Field Grey", Weapon = "Rifle", Rarity = "Common", Body = Color3.fromRGB(128, 132, 136), Metal = Color3.fromRGB(52, 54, 58), Accent = Color3.fromRGB(190, 194, 198) },
+		{ Id = "Sandstorm", Name = "Sandstorm", Weapon = "Rifle", Rarity = "Common", Body = Color3.fromRGB(196, 170, 120), Metal = Color3.fromRGB(70, 64, 54), Accent = Color3.fromRGB(230, 214, 176) },
+		{ Id = "Woodland", Name = "Woodland", Weapon = "Rifle", Rarity = "Common", Body = Color3.fromRGB(92, 110, 70), Metal = Color3.fromRGB(46, 50, 42), Accent = Color3.fromRGB(150, 128, 88) },
+		{ Id = "Midnight", Name = "Midnight", Weapon = "Rifle", Rarity = "Common", Body = Color3.fromRGB(44, 46, 52), Metal = Color3.fromRGB(26, 27, 30), Accent = Color3.fromRGB(120, 124, 132) },
+		{ Id = "Arctic", Name = "Arctic", Weapon = "Rifle", Rarity = "Uncommon", Body = Color3.fromRGB(226, 234, 240), Metal = Color3.fromRGB(96, 110, 124), Accent = Color3.fromRGB(150, 200, 230), Finish = "Gloss" },
+		{ Id = "Viper", Name = "Viper", Weapon = "Rifle", Rarity = "Uncommon", Body = Color3.fromRGB(64, 150, 70), Metal = Color3.fromRGB(30, 36, 32), Accent = Color3.fromRGB(190, 240, 90), Finish = "Gloss" },
+		{ Id = "Cobalt", Name = "Cobalt", Weapon = "Rifle", Rarity = "Rare", Body = Color3.fromRGB(40, 92, 200), Metal = Color3.fromRGB(28, 32, 48), Accent = Color3.fromRGB(110, 190, 255), Finish = "Metal" },
+		{ Id = "DeepSea", Name = "Deep Sea", Weapon = "Rifle", Rarity = "Rare", Body = Color3.fromRGB(20, 110, 130), Metal = Color3.fromRGB(16, 30, 40), Accent = Color3.fromRGB(80, 230, 220), Finish = "Metal" },
+		{ Id = "Chrome", Name = "Chrome", Weapon = "Rifle", Rarity = "Rare", Body = Color3.fromRGB(196, 202, 210), Metal = Color3.fromRGB(60, 64, 72), Accent = Color3.fromRGB(240, 244, 250), Finish = "Chrome" },
+		{ Id = "Amethyst", Name = "Amethyst", Weapon = "Rifle", Rarity = "Epic", Body = Color3.fromRGB(120, 60, 200), Metal = Color3.fromRGB(34, 24, 52), Accent = Color3.fromRGB(230, 150, 255), Finish = "Metal", Glow = true },
+		{ Id = "Synthwave", Name = "Synthwave", Weapon = "Rifle", Rarity = "Epic", Body = Color3.fromRGB(40, 24, 70), Metal = Color3.fromRGB(20, 16, 32), Accent = Color3.fromRGB(255, 70, 200), Finish = "Gloss", Glow = true },
+		{ Id = "GoldenEagle", Name = "Golden Eagle", Weapon = "Rifle", Rarity = "Legendary", Body = Color3.fromRGB(232, 182, 60), Metal = Color3.fromRGB(60, 46, 24), Accent = Color3.fromRGB(255, 240, 170), Finish = "Gold", Glow = true, Pulse = Color3.fromRGB(255, 170, 40), Sparkle = true },
+		{ Id = "SolarFlare", Name = "Solar Flare", Weapon = "Rifle", Rarity = "Legendary", Body = Color3.fromRGB(255, 120, 30), Metal = Color3.fromRGB(50, 30, 20), Accent = Color3.fromRGB(255, 220, 90), Finish = "Gloss", Glow = true, Pulse = Color3.fromRGB(255, 60, 30), Sparkle = true },
+
+		-- KNIFE
+		{ Id = "KnifeStonewash", Name = "Stonewash", Weapon = "Knife", Rarity = "Common", Blade = Color3.fromRGB(150, 154, 160), Body = Color3.fromRGB(58, 60, 64), Metal = Color3.fromRGB(90, 92, 96), Accent = Color3.fromRGB(200, 200, 200) },
+		{ Id = "KnifeDesert", Name = "Desert", Weapon = "Knife", Rarity = "Common", Blade = Color3.fromRGB(170, 166, 156), Body = Color3.fromRGB(176, 150, 106), Metal = Color3.fromRGB(96, 84, 64), Accent = Color3.fromRGB(230, 214, 176) },
+		{ Id = "KnifeBlackout", Name = "Blackout", Weapon = "Knife", Rarity = "Uncommon", Blade = Color3.fromRGB(40, 42, 46), Body = Color3.fromRGB(22, 22, 24), Metal = Color3.fromRGB(60, 62, 66), Accent = Color3.fromRGB(140, 140, 150), Finish = "Gloss" },
+		{ Id = "KnifeJungle", Name = "Jungle", Weapon = "Knife", Rarity = "Uncommon", Blade = Color3.fromRGB(176, 182, 190), Body = Color3.fromRGB(70, 110, 60), Metal = Color3.fromRGB(40, 50, 36), Accent = Color3.fromRGB(170, 220, 90) },
+		{ Id = "KnifeMirror", Name = "Mirror", Weapon = "Knife", Rarity = "Rare", Blade = Color3.fromRGB(220, 226, 234), Body = Color3.fromRGB(30, 32, 38), Metal = Color3.fromRGB(180, 186, 196), Accent = Color3.fromRGB(240, 244, 250), Finish = "Chrome" },
+		{ Id = "KnifeSapphire", Name = "Sapphire", Weapon = "Knife", Rarity = "Rare", Blade = Color3.fromRGB(70, 120, 220), Body = Color3.fromRGB(24, 30, 52), Metal = Color3.fromRGB(150, 170, 210), Accent = Color3.fromRGB(110, 190, 255), Finish = "Metal" },
+		{ Id = "KnifeToxic", Name = "Toxic", Weapon = "Knife", Rarity = "Epic", Blade = Color3.fromRGB(40, 44, 40), Body = Color3.fromRGB(26, 28, 26), Metal = Color3.fromRGB(60, 70, 60), Accent = Color3.fromRGB(130, 255, 80), Finish = "Gloss", Glow = true },
+		{ Id = "KnifeNeon", Name = "Neon Edge", Weapon = "Knife", Rarity = "Epic", Blade = Color3.fromRGB(46, 30, 70), Body = Color3.fromRGB(20, 16, 32), Metal = Color3.fromRGB(80, 60, 110), Accent = Color3.fromRGB(255, 70, 200), Finish = "Gloss", Glow = true },
+		{ Id = "KnifeGold", Name = "Gilded", Weapon = "Knife", Rarity = "Legendary", Blade = Color3.fromRGB(240, 190, 70), Body = Color3.fromRGB(40, 30, 20), Metal = Color3.fromRGB(255, 220, 120), Accent = Color3.fromRGB(255, 240, 170), Finish = "Gold", Glow = true, Pulse = Color3.fromRGB(255, 170, 40), Sparkle = true },
+		{ Id = "KnifeInferno", Name = "Inferno", Weapon = "Knife", Rarity = "Legendary", Blade = Color3.fromRGB(60, 24, 18), Body = Color3.fromRGB(24, 14, 12), Metal = Color3.fromRGB(120, 50, 30), Accent = Color3.fromRGB(255, 120, 30), Finish = "Gloss", Glow = true, Pulse = Color3.fromRGB(255, 40, 20), Sparkle = true },
 	},
 }
+
+----------------------------------------------------------------------------
+-- RANKED (RankService): every player-vs-player match moves your rating
+-- (Elo: beating someone rated above you is worth more). Matches against
+-- the bot don't count. The lobby's leaderboard wall shows the top players.
+----------------------------------------------------------------------------
+Config.Rank = {
+	StartRating = 1000,
+	K = 32, -- the most a normal match can move your rating
+	PlacementK = 48, -- (bigger swings for your first PlacementMatches matches)
+	PlacementMatches = 5,
+	LeaderboardSize = 10,
+	LeaderboardRefresh = 60, -- seconds between leaderboard updates
+	-- tiers by rating (the highest Min you reach)
+	Tiers = {
+		{ Name = "BRONZE", Min = 0, Color = Color3.fromRGB(196, 128, 82) },
+		{ Name = "SILVER", Min = 900, Color = Color3.fromRGB(190, 198, 210) },
+		{ Name = "GOLD", Min = 1100, Color = Color3.fromRGB(255, 196, 60) },
+		{ Name = "PLATINUM", Min = 1300, Color = Color3.fromRGB(90, 220, 200) },
+		{ Name = "DIAMOND", Min = 1500, Color = Color3.fromRGB(110, 170, 255) },
+		{ Name = "CHAMPION", Min = 1700, Color = Color3.fromRGB(255, 80, 110) },
+	},
+}
+
+-- The tier for a rating.
+function Config.RankTier(rating)
+	local best = Config.Rank.Tiers[1]
+	for _, tier in ipairs(Config.Rank.Tiers) do
+		if (rating or 0) >= tier.Min then
+			best = tier
+		end
+	end
+	return best
+end
 
 ----------------------------------------------------------------------------
 -- MATCH FLOW
@@ -1356,13 +1415,13 @@ GunModel.MeshProfile = {
 -- Studio's importer don't always come through), "Auto" only paints meshes
 -- that arrived without a texture.
 GunModel.MeshPaint = {
-	{ Match = "bodymetal", Color = Color3.fromRGB(58, 60, 60), Material = Enum.Material.Metal },
-	{ Match = "scope", Color = Color3.fromRGB(38, 40, 44), Material = Enum.Material.Metal },
-	{ Match = "barrel", Color = Color3.fromRGB(38, 40, 44), Material = Enum.Material.Metal },
-	{ Match = "bolt", Color = Color3.fromRGB(84, 86, 90), Material = Enum.Material.Metal },
-	{ Match = "stockdetail", Color = Color3.fromRGB(96, 98, 92), Material = Enum.Material.SmoothPlastic },
-	{ Match = "stock", Color = Color3.fromRGB(60, 62, 58), Material = Enum.Material.SmoothPlastic },
-	{ Match = "", Color = Color3.fromRGB(190, 164, 120), Material = Enum.Material.SmoothPlastic }, -- body: desert tan
+	{ Match = "bodymetal", Key = "BodyMetal", Color = Color3.fromRGB(58, 60, 60), Material = Enum.Material.Metal },
+	{ Match = "scope", Key = "Scope", Color = Color3.fromRGB(38, 40, 44), Material = Enum.Material.Metal },
+	{ Match = "barrel", Key = "Barrel", Color = Color3.fromRGB(38, 40, 44), Material = Enum.Material.Metal },
+	{ Match = "bolt", Key = "Bolt", Color = Color3.fromRGB(84, 86, 90), Material = Enum.Material.Metal },
+	{ Match = "stockdetail", Key = "StockDetail", Color = Color3.fromRGB(96, 98, 92), Material = Enum.Material.SmoothPlastic },
+	{ Match = "stock", Key = "Stock", Color = Color3.fromRGB(60, 62, 58), Material = Enum.Material.SmoothPlastic },
+	{ Match = "", Key = "Body", Color = Color3.fromRGB(190, 164, 120), Material = Enum.Material.SmoothPlastic }, -- body: desert tan
 }
 
 local function paintMesh(part)
@@ -1392,6 +1451,17 @@ local function paintMesh(part)
 			return
 		end
 	end
+end
+
+-- Which paint group a mesh belongs to ("Body", "Bolt"...; Skins recolour by it).
+local function meshPaintKey(part)
+	local name = part.Name:lower()
+	for _, paint in ipairs(GunModel.MeshPaint) do
+		if name:find(paint.Match, 1, true) then
+			return paint.Key
+		end
+	end
+	return "Body"
 end
 
 local function templateParts(template)
@@ -1896,6 +1966,7 @@ function GunModel.Build(parent, options)
 			end
 			part.Size = info.Size * scale
 			part.CastShadow = options.CastShadow == true
+			part:SetAttribute("Paint", meshPaintKey(info.Part))
 			paintMesh(part)
 			local offset = info.Offset.Rotation + info.Offset.Position * scale
 			if info.Part.Name:lower():find("bolt") then
@@ -1967,6 +2038,9 @@ function GunModel.Build(parent, options)
 			part.Color = Config.Palette[colorKey] or Color3.new(1, 0, 1)
 		end
 		part.Material = (isGlow or extra.Neon) and Enum.Material.Neon or Enum.Material.SmoothPlastic
+		if typeof(colorKey) == "string" then
+			part:SetAttribute("Paint", colorKey) -- (Skins recolour by it)
+		end
 		part.Transparency = extra.Transparency or 0
 		part.TopSurface = Enum.SurfaceType.Smooth
 		part.BottomSurface = Enum.SurfaceType.Smooth
@@ -2065,8 +2139,8 @@ KnifeModel.Tip = V(0, -0.03, -1.15)
 
 -- flat paint for the meshes (by name)
 KnifeModel.MeshPaint = {
-	{ Match = "blade", Color = Color3.fromRGB(176, 182, 190), Material = Enum.Material.Metal },
-	{ Match = "", Color = Color3.fromRGB(34, 36, 40), Material = Enum.Material.SmoothPlastic }, -- handle + guard
+	{ Match = "blade", Key = "Blade", Color = Color3.fromRGB(176, 182, 190), Material = Enum.Material.Metal },
+	{ Match = "", Key = "Handle", Color = Color3.fromRGB(34, 36, 40), Material = Enum.Material.SmoothPlastic }, -- handle + guard
 }
 
 -- The parts knife: { name, shape, size, position, rotation (degrees), colour, material }
@@ -2086,6 +2160,9 @@ KnifeModel.Parts = {
 for i = 0, 3 do -- grip rings
 	table.insert(KnifeModel.Parts, { "Ring" .. i, "Cylinder", V(0.03, 0.145, 0.145), V(0, -0.01, -0.3 + i * 0.13), V(0, 90, 0), GUARD, "Metal" })
 end
+
+-- paint groups of the parts knife (Skins recolour by them)
+local PARTS_PAINT = { Blade = "Blade", Edge = "Edge", Tip = "Blade", Spine = "Fittings", Guard = "Fittings", Handle = "Handle", Pommel = "Fittings" }
 
 local function templateParts(template)
 	local list = {}
@@ -2230,6 +2307,7 @@ function KnifeModel.Build(parent, options)
 				end
 			end
 			part.Size = info.Size * scale
+			part:SetAttribute("Paint", info.Part.Name:lower():find("blade") and "Blade" or "Handle")
 			paint(part)
 			setup(part, info.Name, info.Offset.Rotation + info.Offset.Position * scale)
 		end
@@ -2244,6 +2322,7 @@ function KnifeModel.Build(parent, options)
 				part.Shape = Enum.PartType[shape]
 			end
 			part.Size = size * scale
+			part:SetAttribute("Paint", PARTS_PAINT[name] or (name:find("Ring") and "Fittings") or "Handle")
 			part.Color = color
 			part.Material = Enum.Material[material]
 			part.TopSurface = Enum.SurfaceType.Smooth
@@ -3305,6 +3384,7 @@ Remotes.Names = {
 	"DuelInvite", -- S->C  someone challenged you / wants a rematch
 	"CrateOpen", -- C->S  open a crate at the lobby altar
 	"Crates", -- S->C  crate results + your keys / skins
+	"SkinEquip", -- C->S  equip a skin: weapon ("Rifle" / "Knife"), skin id (nil = default)
 	"Equip", -- C->S  switch weapon: "Sniper" / "Knife"
 	"Melee", -- C->S  knife swing: kind ("Slash" / "Stab"), what it hit, look direction
 	"Anim", -- C->S  cosmetic animation events others should see ("Inspect", "Scope")
@@ -3421,6 +3501,207 @@ return Signal
       </Item>
       <Item class="ModuleScript" referent="12">
         <Properties>
+          <string name="Name">Skins</string>
+          <string name="Source"><![CDATA[--[[
+	Skins.lua  (ReplicatedStorage.Shared.Skins)
+
+	Paints a rifle or a knife in a skin (Config.Crates.Skins). The same
+	model, new colours and finish: every part of a built weapon carries a
+	"Paint" attribute (GunModel / KnifeModel set it: "Body", "Scope",
+	"Bolt", "Blade", "Handle"...) and each group takes one of the skin's
+	colours.
+
+		Skins.Apply(weaponModel, skin)    -- after GunModel / KnifeModel.Build
+		Skins.Get(id) -> skin or nil
+		Skins.ForWeapon("Rifle" | "Knife") -> list
+
+	Higher rarities add more:
+		Rare       shiny finishes (metal, chrome, gold)
+		Epic       the trims glow (rifle: bolt + stock trims, knife: the edge,
+		           or the grip on the imported knife)
+		Legendary  the glow pulses between two colours (clients animate parts
+		           tagged "SkinPulse") and the weapon glitters
+]]
+
+local CollectionService = game and game:GetService("CollectionService")
+
+local Config = require(script.Parent.Config)
+
+local Skins = {}
+
+local byId = {}
+for _, skin in ipairs(Config.Crates.Skins) do
+	byId[skin.Id] = skin
+end
+
+function Skins.Get(id)
+	return id and byId[id] or nil
+end
+
+function Skins.ForWeapon(weapon)
+	local list = {}
+	for _, skin in ipairs(Config.Crates.Skins) do
+		if skin.Weapon == weapon then
+			table.insert(list, skin)
+		end
+	end
+	return list
+end
+
+local FINISH = {
+	Matte = { Enum.Material.SmoothPlastic, 0 },
+	Gloss = { Enum.Material.SmoothPlastic, 0.12 },
+	Metal = { Enum.Material.Metal, 0.05 },
+	Chrome = { Enum.Material.Metal, 0.35 },
+	Gold = { Enum.Material.Foil, 0.15 },
+}
+
+local WHITE = Color3.new(1, 1, 1)
+
+local function finish(part, name)
+	local f = FINISH[name or "Matte"] or FINISH.Matte
+	part.Material = f[1]
+	part.Reflectance = f[2]
+end
+
+local function metal(part)
+	part.Material = Enum.Material.Metal
+	part.Reflectance = 0
+end
+
+-- Glowing trim: neon in the accent colour (pulsing for Legendary skins).
+local function glow(part, skin)
+	part.Color = skin.Accent
+	part.Material = Enum.Material.Neon
+	part.Reflectance = 0
+	part.CastShadow = false
+	if skin.Pulse then
+		part:SetAttribute("PulseA", skin.Accent)
+		part:SetAttribute("PulseB", skin.Pulse)
+		if CollectionService then
+			CollectionService:AddTag(part, "SkinPulse")
+		end
+	end
+end
+
+local RIFLE = {
+	Body = function(part, skin)
+		part.Color = skin.Body
+		finish(part, skin.Finish)
+	end,
+	Stock = function(part, skin)
+		part.Color = skin.Body:Lerp(skin.Metal, 0.5)
+		finish(part, skin.Finish == "Gold" and "Gloss" or skin.Finish)
+	end,
+	Metal = function(part, skin)
+		part.Color = skin.Metal
+		metal(part)
+	end,
+	MetalLight = function(part, skin)
+		part.Color = skin.Metal:Lerp(skin.Accent, 0.25)
+		metal(part)
+	end,
+	Trim = function(part, skin)
+		if skin.Glow then
+			glow(part, skin)
+		else
+			part.Color = skin.Accent
+			metal(part)
+		end
+	end,
+}
+-- paint group -> how to paint it (GunModel's mesh groups and part colours)
+local RIFLE_GROUPS = {
+	Body = RIFLE.Body,
+	GunShell = RIFLE.Body,
+	Stock = RIFLE.Stock,
+	BodyMetal = RIFLE.Metal,
+	GunMetal = RIFLE.Metal,
+	Scope = RIFLE.Metal,
+	Barrel = RIFLE.Metal,
+	GunMetalLight = RIFLE.MetalLight,
+	Bolt = RIFLE.Trim,
+	StockDetail = RIFLE.Trim,
+}
+
+local KNIFE_GROUPS = {
+	Blade = function(part, skin)
+		part.Color = skin.Blade or skin.Metal
+		finish(part, skin.Finish or "Metal")
+	end,
+	Edge = function(part, skin)
+		if skin.Glow then
+			glow(part, skin)
+		else
+			part.Color = (skin.Blade or skin.Metal):Lerp(WHITE, 0.35)
+			finish(part, skin.Finish or "Metal")
+		end
+	end,
+	Handle = function(part, skin)
+		part.Color = skin.Body
+		part.Material = Enum.Material.SmoothPlastic
+		part.Reflectance = skin.Finish == "Gloss" and 0.1 or 0
+	end,
+	Fittings = function(part, skin)
+		part.Color = skin.Metal
+		metal(part)
+	end,
+}
+
+local function sparkle(part, skin)
+	local emitter = Instance.new("ParticleEmitter")
+	emitter.Name = "SkinSparkle"
+	emitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	emitter.Color = ColorSequence.new(skin.Accent, skin.Pulse or skin.Accent)
+	emitter.LightEmission = 1
+	emitter.Lifetime = NumberRange.new(0.4, 0.8)
+	emitter.Rate = 7
+	emitter.Speed = NumberRange.new(0.2, 0.6)
+	emitter.SpreadAngle = Vector2.new(180, 180)
+	emitter.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.12), NumberSequenceKeypoint.new(1, 0) })
+	emitter.Transparency = NumberSequence.new(0.1)
+	emitter.LockedToPart = true
+	emitter.Parent = part
+end
+
+-- Paints every part of a built weapon (anything with a "Paint" attribute).
+function Skins.Apply(model, skin)
+	if not skin then
+		return
+	end
+	local groups = skin.Weapon == "Knife" and KNIFE_GROUPS or RIFLE_GROUPS
+	local parts, hasEdge = {}, false
+	for _, part in ipairs(model:GetDescendants()) do
+		local key = part:IsA("BasePart") and part:GetAttribute("Paint")
+		if key and groups[key] then
+			table.insert(parts, part)
+			hasEdge = hasEdge or key == "Edge"
+		end
+	end
+	local biggest
+	for _, part in ipairs(parts) do
+		local key = part:GetAttribute("Paint")
+		if skin.Weapon == "Knife" and key == "Handle" and skin.Glow and not hasEdge then
+			glow(part, skin) -- (the imported knife has no separate edge: its grip glows instead)
+		else
+			groups[key](part, skin)
+		end
+		local main = key == "Body" or key == "GunShell" or key == "Blade"
+		if main and (not biggest or part.Size.Magnitude > biggest.Size.Magnitude) then
+			biggest = part
+		end
+	end
+	if skin.Sparkle and biggest then
+		sparkle(biggest, skin)
+	end
+end
+
+return Skins
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="13">
+        <Properties>
           <string name="Name">Util</string>
           <string name="Source"><![CDATA[--[[
 	Util.lua  (ReplicatedStorage.Shared.Util)
@@ -3527,15 +3808,15 @@ return Util
       </Item>
     </Item>
   </Item>
-  <Item class="ServerScriptService" referent="13">
+  <Item class="ServerScriptService" referent="14">
     <Properties>
       <string name="Name">ServerScriptService</string>
     </Properties>
-    <Item class="Folder" referent="14">
+    <Item class="Folder" referent="15">
       <Properties>
         <string name="Name">Server</string>
       </Properties>
-      <Item class="ModuleScript" referent="15">
+      <Item class="ModuleScript" referent="16">
         <Properties>
           <string name="Name">ArenaCrossfire</string>
           <string name="Source"><![CDATA[--[[
@@ -3697,7 +3978,7 @@ return ArenaCrossfire
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="16">
+      <Item class="ModuleScript" referent="17">
         <Properties>
           <string name="Name">ArenaDowntown</string>
           <string name="Source"><![CDATA[--[[
@@ -4877,7 +5158,7 @@ return ArenaDowntown
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="17">
+      <Item class="ModuleScript" referent="18">
         <Properties>
           <string name="Name">ArenaNuketown</string>
           <string name="Source"><![CDATA[--[[
@@ -5327,7 +5608,7 @@ return ArenaNuketown
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="18">
+      <Item class="ModuleScript" referent="19">
         <Properties>
           <string name="Name">ArenaPolygon</string>
           <string name="Source"><![CDATA[--[[
@@ -5495,7 +5776,7 @@ return ArenaPolygon
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="19">
+      <Item class="ModuleScript" referent="20">
         <Properties>
           <string name="Name">ArenaSimple</string>
           <string name="Source"><![CDATA[--[[
@@ -5594,7 +5875,7 @@ return ArenaSimple
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="20">
+      <Item class="ModuleScript" referent="21">
         <Properties>
           <string name="Name">BotService</string>
           <string name="Source"><![CDATA[--[[
@@ -6057,7 +6338,7 @@ return BotService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="21">
+      <Item class="ModuleScript" referent="22">
         <Properties>
           <string name="Name">CharacterService</string>
           <string name="Source"><![CDATA[--[[
@@ -6080,10 +6361,20 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local GunModel = require(ReplicatedStorage.Shared.GunModel)
 local KnifeModel = require(ReplicatedStorage.Shared.KnifeModel)
+local Skins = require(ReplicatedStorage.Shared.Skins)
 local Util = require(ReplicatedStorage.Shared.Util)
 
 local Palette = Config.Palette
 local CharacterService = {}
+
+local gunPowerUps = setmetatable({}, { __mode = "k" }) -- [character] = the power-ups its rifle was built with
+
+-- The skin a player has equipped for "Rifle" / "Knife" (player attributes
+-- RifleSkin / KnifeSkin, set by CrateService), or nil.
+local function skinFor(character, weapon)
+	local player = Players:GetPlayerFromCharacter(character)
+	return player and Skins.Get(player:GetAttribute(weapon .. "Skin"))
+end
 
 -- Called with (player, character) when a character dies. Set by MatchService.
 CharacterService.OnDied = nil
@@ -6146,6 +6437,8 @@ local function addWorldGun(character, powerUps)
 	local gun = Instance.new("Model")
 	gun.Name = "WorldGun"
 	local built = GunModel.Build(gun, { Scale = scale, CastShadow = true, PowerUps = powerUps })
+	gunPowerUps[character] = powerUps
+	Skins.Apply(gun, skinFor(character, "Rifle"))
 
 	local grip = hand.CFrame * CFrame.new(0, -0.15, 0) * CFrame.Angles(math.rad(-90), 0, 0)
 	GunModel.Place(built, grip, scale)
@@ -6213,6 +6506,7 @@ local function addWorldKnife(character)
 	knife.Name = "WorldKnife"
 	local scale = Config.Knife.WorldScale
 	local built = KnifeModel.Build(knife, { Scale = scale, CastShadow = true })
+	Skins.Apply(knife, skinFor(character, "Knife"))
 	local grip = hand.CFrame * CFrame.new(0, -0.15, 0) * CFrame.Angles(math.rad(-90), 0, 0)
 	local origin = grip * CFrame.new(KnifeModel.Grip.Position * -scale)
 	KnifeModel.Place(built, origin)
@@ -6481,6 +6775,16 @@ function CharacterService.RefreshWorldGun(player, powerUps)
 	end
 end
 
+-- Rebuilds both weapons in a player's hands in their equipped skins.
+function CharacterService.RefreshSkins(player)
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if humanoid and humanoid.Health > 0 then
+		addWorldGun(character, gunPowerUps[character])
+		addWorldKnife(character)
+	end
+end
+
 -- Makes a character invisible to everyone for `duration` seconds.
 function CharacterService.MakeInvisible(player, duration)
 	local character = player.Character
@@ -6554,7 +6858,7 @@ return CharacterService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="22">
+      <Item class="ModuleScript" referent="23">
         <Properties>
           <string name="Name">CombatService</string>
           <string name="Source"><![CDATA[--[[
@@ -7635,7 +7939,7 @@ return CombatService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="23">
+      <Item class="ModuleScript" referent="24">
         <Properties>
           <string name="Name">CrateService</string>
           <string name="Source"><![CDATA[--[[
@@ -7651,7 +7955,12 @@ return CombatService
 	    then rolls the rarity (Chance %) and a skin of that rarity.
 	  * The result goes to the client over the "Crates" remote, which plays
 	    the opening animation (CrateController).
-	  * Keys and owned skins are saved in a DataStore. In Studio that needs
+	  * Equipping: the "SkinEquip" remote (the lobby LOCKER) picks one owned
+	    skin per weapon. It's saved, shown to everyone (player attributes
+	    RifleSkin / KnifeSkin) and the weapons in your hands are rebuilt.
+	  * Secret skins will be their own models; until there are any, crates
+	    only roll the rarities that have skins.
+	  * Keys, owned skins and equipped skins are saved in a DataStore. In Studio that needs
 	    Game Settings > Security > "Enable Studio Access to API Services";
 	    without it everything works for the session, it just isn't saved.
 ]]
@@ -7664,18 +7973,20 @@ local RunService = game:GetService("RunService")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Util = require(ReplicatedStorage.Shared.Util)
+local Skins = require(ReplicatedStorage.Shared.Skins)
 
 local CrateService = {}
 
 local CR = Config.Crates
 local MatchService
+local CharacterService
 
 local store
 pcall(function()
 	store = DataStoreService:GetDataStore("Crates_v1")
 end)
 
-local data = {} -- [player] = { Keys = n, Skins = { [skinId] = count }, Opened = n }
+local data = {} -- [player] = { Keys = n, Skins = { [skinId] = count }, Opened = n, Equipped = { Rifle = id, Knife = id } }
 local loaded = {} -- [player] = true once their save has loaded
 local loadFailed = {} -- [player] = true if the DataStore read failed (never overwrite their save)
 local lastOpen = {} -- [player] = os.clock()
@@ -7695,7 +8006,7 @@ end
 local function sendInventory(player)
 	local d = data[player]
 	if d then
-		Remotes.Get("Crates"):FireClient(player, { Type = "Inventory", Keys = d.Keys, Skins = d.Skins })
+		Remotes.Get("Crates"):FireClient(player, { Type = "Inventory", Keys = d.Keys, Skins = d.Skins, Equipped = d.Equipped })
 	end
 end
 
@@ -7716,7 +8027,7 @@ local function save(player)
 	end
 	dirty[player] = nil
 	local ok, err = pcall(function()
-		store:SetAsync("u" .. player.UserId, { Keys = d.Keys, Skins = d.Skins, Opened = d.Opened })
+		store:SetAsync("u" .. player.UserId, { Keys = d.Keys, Skins = d.Skins, Opened = d.Opened, Equipped = d.Equipped })
 	end)
 	if not ok then
 		dirty[player] = true
@@ -7748,7 +8059,7 @@ local function load(player)
 	if not player.Parent then
 		return
 	end
-	local d = { Keys = CR.StartingKeys, Skins = {}, Opened = 0 }
+	local d = { Keys = CR.StartingKeys, Skins = {}, Opened = 0, Equipped = {} }
 	if typeof(saved) == "table" then
 		if typeof(saved.Keys) == "number" then
 			d.Keys = math.max(0, math.floor(saved.Keys))
@@ -7764,25 +8075,44 @@ local function load(player)
 			end
 		end
 	end
+	if typeof(saved) == "table" and typeof(saved.Equipped) == "table" then
+		for _, weapon in ipairs({ "Rifle", "Knife" }) do
+			local id = saved.Equipped[weapon]
+			local skin = typeof(id) == "string" and Skins.Get(id)
+			if skin and skin.Weapon == weapon and (d.Skins[id] or 0) > 0 then
+				d.Equipped[weapon] = id
+			end
+		end
+	end
 	data[player] = d
 	loaded[player] = true
 	player:SetAttribute("Keys", d.Keys)
+	player:SetAttribute("RifleSkin", d.Equipped.Rifle)
+	player:SetAttribute("KnifeSkin", d.Equipped.Knife)
+	if d.Equipped.Rifle or d.Equipped.Knife then
+		CharacterService.RefreshSkins(player)
+	end
 	sendInventory(player)
 end
 
 ----------------------------------------------------------------------------
 -- Opening
 ----------------------------------------------------------------------------
+-- (only rarities that have skins: no Secret until its models are in)
 local function rollRarity()
 	local total = 0
 	for _, rarity in ipairs(CR.Rarities) do
-		total += rarity.Chance
+		if skinsByRarity[rarity.Id] then
+			total += rarity.Chance
+		end
 	end
 	local pick = rng:NextNumber() * total
 	for _, rarity in ipairs(CR.Rarities) do
-		pick -= rarity.Chance
-		if pick <= 0 then
-			return rarity
+		if skinsByRarity[rarity.Id] then
+			pick -= rarity.Chance
+			if pick <= 0 then
+				return rarity
+			end
 		end
 	end
 	return CR.Rarities[1]
@@ -7855,6 +8185,7 @@ function CrateService.Open(player)
 	dirty[player] = true
 	Remotes.Get("Crates"):FireClient(player, {
 		Type = "Result",
+		Equipped = d.Equipped,
 		Rarity = rarity.Id,
 		Skin = skin.Id,
 		New = isNew,
@@ -7864,6 +8195,38 @@ function CrateService.Open(player)
 		Skins = d.Skins,
 	})
 	-- save a little later (opening several in a row = one save)
+	task.delay(8, function()
+		if player.Parent then
+			save(player)
+		end
+	end)
+end
+
+----------------------------------------------------------------------------
+-- Equipping
+----------------------------------------------------------------------------
+-- weapon: "Rifle" / "Knife"; id: an owned skin for it, or nil for the default look
+function CrateService.Equip(player, weapon, id)
+	local d = data[player]
+	if not d or (weapon ~= "Rifle" and weapon ~= "Knife") then
+		return
+	end
+	if id ~= nil then
+		local skin = typeof(id) == "string" and Skins.Get(id)
+		if not skin or skin.Weapon ~= weapon or (d.Skins[id] or 0) <= 0 then
+			return
+		end
+	end
+	if d.Equipped[weapon] == id then
+		return
+	end
+	d.Equipped[weapon] = id
+	dirty[player] = true
+	player:SetAttribute(weapon .. "Skin", id)
+	if not MatchService.GetMatch(player) then
+		CharacterService.RefreshSkins(player) -- (in a match: from the next round)
+	end
+	sendInventory(player)
 	task.delay(8, function()
 		if player.Parent then
 			save(player)
@@ -7891,8 +8254,21 @@ local function onMatchFinished(match)
 	end
 end
 
-function CrateService.Init(matchService)
+function CrateService.Init(matchService, characterService)
 	MatchService = matchService
+	CharacterService = characterService
+
+	local lastEquip = {}
+	Remotes.Get("SkinEquip").OnServerEvent:Connect(function(player, weapon, id)
+		if lastEquip[player] and os.clock() - lastEquip[player] < 0.25 then
+			return
+		end
+		lastEquip[player] = os.clock()
+		CrateService.Equip(player, weapon, id)
+	end)
+	Players.PlayerRemoving:Connect(function(player)
+		lastEquip[player] = nil
+	end)
 
 	Remotes.Get("CrateOpen").OnServerEvent:Connect(function(player)
 		CrateService.Open(player)
@@ -7940,7 +8316,7 @@ return CrateService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="24">
+      <Item class="ModuleScript" referent="25">
         <Properties>
           <string name="Name">DummyService</string>
           <string name="Source"><![CDATA[--[[
@@ -8148,7 +8524,7 @@ return DummyService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="25">
+      <Item class="ModuleScript" referent="26">
         <Properties>
           <string name="Name">LightingSetup</string>
           <string name="Source"><![CDATA[--[[
@@ -8228,7 +8604,7 @@ return LightingSetup
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="26">
+      <Item class="ModuleScript" referent="27">
         <Properties>
           <string name="Name">LobbyBuilder</string>
           <string name="Source"><![CDATA[--[[
@@ -8248,7 +8624,7 @@ return LightingSetup
 	      |  CRATE ====== ( SUNKEN CENTRE ) ====== DUEL |
 	      |  VAULT         (monument,              AREA |
 	       \         /     skylight dome)  \           /
-	         '-.  BENCHES     |      PARKOUR      .-'
+	         '-. LEADERBOARD  |      PARKOUR      .-'
 	              '-.______ STAGE ___________.-'
 
 	  * Centre: a sunken ring with smooth steps down, the monument (the
@@ -8264,7 +8640,7 @@ return LightingSetup
 	    and two light pillars. Lobby.CrateAltar has the "Open Crate" prompt.
 	  * South: the stage with the title sign.
 	  * Diagonals: the Playground portal, an indoor garden, a parkour corner and
-	    a quiet corner with a tree and benches.
+	    the leaderboard wall (top ranked players) with benches.
 
 	Detail parts use builder.decor (no collision), so paths stay smooth.
 ]]
@@ -8371,6 +8747,24 @@ local function light(parts, color, range, brightness)
 		l.Parent = part
 	end
 	return parts
+end
+
+-- A rarity's real odds on the board: rarities with no skins yet (Secret,
+-- until its models are in) aren't rolled, so the rest share their chance.
+local function oddsText(rarity)
+	local hasSkins = {}
+	for _, skin in ipairs(Config.Crates.Skins) do
+		hasSkins[skin.Rarity] = true
+	end
+	if not hasSkins[rarity.Id] then
+		return "SOON"
+	end
+	local total = 0
+	for _, other in ipairs(Config.Crates.Rarities) do
+		total += hasSkins[other.Id] and other.Chance or 0
+	end
+	local pct = rarity.Chance / total * 100
+	return (pct >= 10 and ("%d%%"):format(math.floor(pct + 0.5)) or ("%.1f%%"):format(pct))
 end
 
 local function bar(b, a, c, w, color)
@@ -8917,7 +9311,7 @@ function LobbyBuilder.Build()
 			chance.BackgroundTransparency = 1
 			chance.Position = UDim2.fromScale(0.08, 0.24)
 			chance.Size = UDim2.fromScale(0.84, 0.36)
-			chance.Text = tostring(rarity.Chance) .. "%"
+			chance.Text = oddsText(rarity)
 			chance.TextScaled = true
 			chance.FontFace = Font.new(Config.UI.FontFamily, Enum.FontWeight.Heavy)
 			chance.TextColor3 = rarity.Color
@@ -8993,6 +9387,23 @@ function LobbyBuilder.Build()
 		Subtitle = ("1V1 SNIPER ARENA  -  FIRST TO %d"):format(Config.Match.RoundsToWin),
 	}, 40)
 
+	-- the leaderboard in the south-west corner (RankService writes on it)
+	local leaderboard = Instance.new("Part")
+	leaderboard.Name = "Leaderboard"
+	leaderboard.Anchored = true
+	leaderboard.CanCollide = false
+	leaderboard.CanQuery = false
+	leaderboard.Size = V(17, 12, 0.3)
+	leaderboard.CFrame = facingIn(R - 2.4, 225, 8.6) -- (in front of the pilasters and sconces)
+	leaderboard.Color = P.UIBackground
+	leaderboard.Material = Enum.Material.SmoothPlastic
+	leaderboard.Parent = model
+	b.decor(function()
+		local frameCf = facingIn(R - 2.2, 225, 8.6)
+		b.part(V(17.8, 12.8, 0.2), frameCf, C.Trim)
+		b.part(V(17.8, 0.2, 0.5), frameCf * CFrame.new(0, -6.5, -0.15), P.AccentA)
+	end)
+
 	-- NORTH-EAST: INDOOR GARDEN ------------------------------------------------------------
 	plant(b, polar(52, 55), 1)
 	plant(b, polar(56, 66), 0.85)
@@ -9047,10 +9458,9 @@ function LobbyBuilder.Build()
 		end
 	end)
 
-	-- SOUTH-WEST: a quiet corner, a bench under a tree
-	plant(b, polar(54, 225), 0.9)
-	bench(b, facingIn(46, 215, 0))
-	bench(b, facingIn(46, 235, 0))
+	-- SOUTH-WEST: the leaderboard wall (built above), two benches facing it
+	bench(b, facingIn(46, 217, 0) * CFrame.Angles(0, math.pi, 0))
+	bench(b, facingIn(46, 233, 0) * CFrame.Angles(0, math.pi, 0))
 
 	-- SHOOTING RANGE (north, through the tunnel): a long indoor hall -----------------------
 	-- Walls, a roof with light strips, a firing line with booths, lane markings
@@ -9152,6 +9562,7 @@ function LobbyBuilder.Build()
 		end,
 		KillY = -60,
 		CrateAltar = altar,
+		Leaderboard = leaderboard,
 		DummySpots = {
 			{ Position = V(-10, 0, -110), Motion = "Static" },
 			{ Position = V(8, 0, -135), Motion = "Strafe", Amount = 8, Speed = 0.35 },
@@ -9168,7 +9579,7 @@ return LobbyBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="Script" referent="27">
+      <Item class="Script" referent="28">
         <Properties>
           <string name="Name">Main</string>
           <token name="RunContext">0</token>
@@ -9186,7 +9597,8 @@ return LobbyBuilder
 		MatchService      lobby, queue, matchmaking
 		CombatService     server-side hit validation, damage, abilities
 		BotService        computer opponent for admin "/bot" matches
-		CrateService      crate keys, opening (server-side rolls), owned skins (DataStore)
+		CrateService      crate keys, opening (server-side rolls), owned + equipped skins (DataStore)
+		RankService       ranked rating (Elo, DataStore) + the lobby leaderboard wall
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -9215,6 +9627,7 @@ local MatchService = require(script.Parent.MatchService)
 local CombatService = require(script.Parent.CombatService)
 local BotService = require(script.Parent.BotService)
 local CrateService = require(script.Parent.CrateService)
+local RankService = require(script.Parent.RankService)
 
 LightingSetup.Apply()
 CharacterService.Init()
@@ -9222,13 +9635,14 @@ SettingsService.Init()
 CombatService.Init()
 BotService.Init(CombatService)
 MatchService.Init()
-CrateService.Init(MatchService)
+CrateService.Init(MatchService, CharacterService)
+RankService.Init(MatchService)
 
 print("[Sniper Duel] server ready")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="28">
+      <Item class="ModuleScript" referent="29">
         <Properties>
           <string name="Name">MapBuilder</string>
           <string name="Source"><![CDATA[--[[
@@ -9561,7 +9975,7 @@ return MapBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="29">
+      <Item class="ModuleScript" referent="30">
         <Properties>
           <string name="Name">Match</string>
           <string name="Source"><![CDATA[--[[
@@ -9940,7 +10354,7 @@ return Match
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="30">
+      <Item class="ModuleScript" referent="31">
         <Properties>
           <string name="Name">MatchService</string>
           <string name="Source"><![CDATA[--[[
@@ -10507,7 +10921,383 @@ return MatchService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="31">
+      <Item class="ModuleScript" referent="32">
+        <Properties>
+          <string name="Name">RankService</string>
+          <string name="Source"><![CDATA[--[[
+	RankService.lua  (ServerScriptService.Server.RankService)
+
+	Ranked rating (Config.Rank):
+	  * Every player has a rating (player attributes "Rating", "RankWins",
+	    "RankLosses"), saved in a DataStore. New players start at
+	    Config.Rank.StartRating.
+	  * When a match between two players ends, the winner gains and the
+	    loser loses rating (Elo: the bigger the upset, the bigger the swing).
+	    Leaving a match counts as a loss. Bot matches don't count.
+	  * The leaderboard wall in the lobby (LobbyBuilder's "Leaderboard"
+	    board) shows the top players, from an OrderedDataStore, refreshed
+	    every Config.Rank.LeaderboardRefresh seconds. Without DataStore
+	    access (Studio with API access off) it ranks whoever is online.
+]]
+
+local Players = game:GetService("Players")
+local DataStoreService = game:GetService("DataStoreService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage.Shared.Config)
+local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local Util = require(ReplicatedStorage.Shared.Util)
+
+local RankService = {}
+
+local RK = Config.Rank
+local MatchService
+
+local store, board
+pcall(function()
+	store = DataStoreService:GetDataStore("Rank_v1")
+	board = DataStoreService:GetOrderedDataStore("RankBoard_v1")
+end)
+
+local data = {} -- [player] = { Rating, Wins, Losses, Peak }
+local loadFailed = {} -- [player] = true: never overwrite a save we couldn't read
+local names = {} -- [userId] = display name (cache for the board)
+
+local function notify(player, text)
+	Remotes.Get("Notify"):FireClient(player, text)
+end
+
+local function publish(player)
+	local d = data[player]
+	if d then
+		player:SetAttribute("Rating", d.Rating)
+		player:SetAttribute("RankWins", d.Wins)
+		player:SetAttribute("RankLosses", d.Losses)
+	end
+end
+
+----------------------------------------------------------------------------
+-- Saving
+----------------------------------------------------------------------------
+local function save(player)
+	local d = data[player]
+	if not store or not d or loadFailed[player] then
+		return
+	end
+	local key = "u" .. player.UserId
+	local ok, err = pcall(function()
+		store:SetAsync(key, { Rating = d.Rating, Wins = d.Wins, Losses = d.Losses, Peak = d.Peak })
+	end)
+	if not ok then
+		warn("[RankService] save failed for", player.Name, err)
+	end
+	if board then
+		pcall(function()
+			board:SetAsync(key, math.floor(d.Rating))
+		end)
+	end
+end
+
+local function load(player)
+	local saved
+	if store then
+		local ok, result
+		for attempt = 1, 3 do
+			ok, result = pcall(function()
+				return store:GetAsync("u" .. player.UserId)
+			end)
+			if ok then
+				break
+			end
+			task.wait(attempt)
+		end
+		if ok then
+			saved = result
+		else
+			loadFailed[player] = true
+			warn("[RankService] couldn't load the rating of", player.Name, result)
+		end
+	end
+	if not player.Parent then
+		return
+	end
+	local d = { Rating = RK.StartRating, Wins = 0, Losses = 0, Peak = RK.StartRating }
+	if typeof(saved) == "table" then
+		for _, field in ipairs({ "Rating", "Wins", "Losses", "Peak" }) do
+			if typeof(saved[field]) == "number" then
+				d[field] = math.max(0, math.floor(saved[field]))
+			end
+		end
+	end
+	data[player] = d
+	names[player.UserId] = player.DisplayName
+	publish(player)
+end
+
+-- A player who already left (e.g. forfeited a match): change their saved rating.
+local function adjustOffline(userId, delta)
+	if not store then
+		return
+	end
+	task.spawn(function()
+		local rating
+		pcall(function()
+			store:UpdateAsync("u" .. userId, function(old)
+				old = typeof(old) == "table" and old or { Rating = RK.StartRating, Wins = 0, Losses = 0, Peak = RK.StartRating }
+				old.Rating = math.max(0, math.floor((old.Rating or RK.StartRating) + delta))
+				old.Losses = (old.Losses or 0) + 1
+				rating = old.Rating
+				return old
+			end)
+		end)
+		if board and rating then
+			pcall(function()
+				board:SetAsync("u" .. userId, rating)
+			end)
+		end
+	end)
+end
+
+----------------------------------------------------------------------------
+-- Rating changes
+----------------------------------------------------------------------------
+local lastKnown = {} -- [userId] = { Rating, Played } (so a player who left can still be scored)
+
+local function ratingOf(player)
+	local d = data[player]
+	if d then
+		return d.Rating, d.Wins + d.Losses
+	end
+	local known = lastKnown[player.UserId]
+	if known then
+		return known.Rating, known.Played
+	end
+	return RK.StartRating, 0
+end
+
+-- Elo: how much the winner gains (and the loser loses).
+local function swing(winnerRating, loserRating, played)
+	local expected = 1 / (1 + 10 ^ ((loserRating - winnerRating) / 400))
+	local k = played < RK.PlacementMatches and RK.PlacementK or RK.K
+	return math.max(1, math.floor(k * (1 - expected) + 0.5))
+end
+
+local function onMatchFinished(match)
+	local a, b = match.Players[1], match.Players[2]
+	if not a or not b or Util.isBot(a) or Util.isBot(b) then
+		return -- matches against the bot are unranked
+	end
+	local winner = match.MatchWinner or (match.Aborted and match.ForfeitWinner) or nil
+	if not winner then
+		return -- cancelled
+	end
+	local loser = winner == a and b or a
+	local wr, wPlayed = ratingOf(winner)
+	local lr, lPlayed = ratingOf(loser)
+	local gain = swing(wr, lr, wPlayed)
+	local loss = swing(wr, lr, lPlayed)
+
+	for _, info in ipairs({ { winner, gain, true }, { loser, -loss, false } }) do
+		local player, delta, won = info[1], info[2], info[3]
+		local d = data[player]
+		if d and player.Parent then
+			local before = Config.RankTier(d.Rating)
+			d.Rating = math.max(0, d.Rating + delta)
+			d.Peak = math.max(d.Peak, d.Rating)
+			if won then
+				d.Wins += 1
+			else
+				d.Losses += 1
+			end
+			publish(player)
+			local after = Config.RankTier(d.Rating)
+			local text = ("%s%d RATING  -  %s %d"):format(delta >= 0 and "+" or "", delta, after.Name, d.Rating)
+			if after ~= before then
+				text = (after.Min > before.Min and "RANKED UP!  " or "RANKED DOWN  ") .. text
+			end
+			notify(player, text)
+			task.spawn(save, player)
+		elseif not won then
+			adjustOffline(player.UserId, delta) -- they left the match
+		end
+	end
+end
+
+----------------------------------------------------------------------------
+-- Leaderboard
+----------------------------------------------------------------------------
+local function nameOf(userId)
+	if names[userId] then
+		return names[userId]
+	end
+	local ok, name = pcall(function()
+		return Players:GetNameFromUserIdAsync(userId)
+	end)
+	names[userId] = ok and name or ("Player " .. userId)
+	return names[userId]
+end
+
+-- The top players: { { Name, Rating } } (best first).
+local function topPlayers()
+	local list = {}
+	local seen = {}
+	if board then
+		local ok, pages = pcall(function()
+			return board:GetSortedAsync(false, RK.LeaderboardSize)
+		end)
+		if ok and pages then
+			for _, entry in ipairs(pages:GetCurrentPage()) do
+				local userId = tonumber(tostring(entry.key):sub(2))
+				if userId then
+					seen[userId] = #list + 1
+					table.insert(list, { UserId = userId, Rating = entry.value })
+				end
+			end
+		end
+	end
+	-- online players are always current (the ordered store lags a little)
+	for player, d in pairs(data) do
+		if player.Parent then
+			local index = seen[player.UserId]
+			if index then
+				list[index].Rating = d.Rating
+			else
+				table.insert(list, { UserId = player.UserId, Rating = d.Rating })
+			end
+		end
+	end
+	table.sort(list, function(x, y)
+		return x.Rating > y.Rating
+	end)
+	local top = {}
+	for i = 1, math.min(#list, RK.LeaderboardSize) do
+		top[i] = { Name = nameOf(list[i].UserId), Rating = math.floor(list[i].Rating) }
+	end
+	return top
+end
+
+local function drawBoard(rows, top)
+	for i, row in ipairs(rows) do
+		local entry = top[i]
+		row.Name.Text = entry and entry.Name or "-"
+		row.Rating.Text = entry and tostring(entry.Rating) or ""
+		local tier = entry and Config.RankTier(entry.Rating)
+		row.Tier.Text = tier and tier.Name or ""
+		row.Tier.TextColor3 = tier and tier.Color or Color3.new(1, 1, 1)
+		row.Frame.BackgroundTransparency = entry and (i <= 3 and 0.55 or 0.75) or 0.9
+	end
+end
+
+-- Builds the board's text on the lobby's Leaderboard part.
+local function buildBoard(part)
+	local gui = Instance.new("SurfaceGui")
+	gui.Face = Enum.NormalId.Front
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 40
+	gui.LightInfluence = 0
+	gui.Parent = part
+	local font = Config.UI.FontFamily
+	local title = Instance.new("TextLabel")
+	title.BackgroundTransparency = 1
+	title.Position = UDim2.fromScale(0.05, 0.03)
+	title.Size = UDim2.fromScale(0.9, 0.12)
+	title.Text = "TOP SNIPERS"
+	title.TextScaled = true
+	title.FontFace = Font.new(font, Enum.FontWeight.Heavy)
+	title.TextColor3 = Config.Palette.UIText
+	title.Parent = gui
+	local sub = title:Clone()
+	sub.Position = UDim2.fromScale(0.05, 0.15)
+	sub.Size = UDim2.fromScale(0.9, 0.05)
+	sub.Text = "RANKED RATING  -  WIN DUELS TO CLIMB"
+	sub.FontFace = Font.new(font, Enum.FontWeight.Bold)
+	sub.TextColor3 = Config.Palette.UIAccent
+	sub.Parent = gui
+	local rows = {}
+	local n = RK.LeaderboardSize
+	for i = 1, n do
+		local frame = Instance.new("Frame")
+		frame.BackgroundColor3 = i == 1 and Color3.fromRGB(255, 196, 60) or i == 2 and Color3.fromRGB(200, 206, 216)
+			or i == 3 and Color3.fromRGB(205, 130, 80) or Config.Palette.UIPanelLight
+		frame.BorderSizePixel = 0
+		frame.Position = UDim2.fromScale(0.05, 0.23 + (i - 1) * 0.074)
+		frame.Size = UDim2.fromScale(0.9, 0.064)
+		frame.Parent = gui
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0.25, 0)
+		corner.Parent = frame
+		local function text(x, w, align, weight, color)
+			local label = Instance.new("TextLabel")
+			label.BackgroundTransparency = 1
+			label.Position = UDim2.fromScale(x, 0.12)
+			label.Size = UDim2.fromScale(w, 0.76)
+			label.TextScaled = true
+			label.TextXAlignment = align
+			label.FontFace = Font.new(font, weight)
+			label.TextColor3 = color or Config.Palette.UIText
+			label.Parent = frame
+			return label
+		end
+		text(0.02, 0.08, Enum.TextXAlignment.Center, Enum.FontWeight.Heavy).Text = tostring(i)
+		rows[i] = {
+			Frame = frame,
+			Name = text(0.13, 0.47, Enum.TextXAlignment.Left, Enum.FontWeight.Bold),
+			Tier = text(0.6, 0.2, Enum.TextXAlignment.Right, Enum.FontWeight.Heavy),
+			Rating = text(0.82, 0.16, Enum.TextXAlignment.Right, Enum.FontWeight.Heavy, Config.Palette.UIAccent),
+		}
+	end
+	drawBoard(rows, {})
+	return rows
+end
+
+function RankService.Init(matchService)
+	MatchService = matchService
+	MatchService.MatchFinished:Connect(onMatchFinished)
+
+	Players.PlayerAdded:Connect(load)
+	for _, player in ipairs(Players:GetPlayers()) do
+		task.spawn(load, player)
+	end
+	Players.PlayerRemoving:Connect(function(player)
+		local d = data[player]
+		if d then
+			lastKnown[player.UserId] = { Rating = d.Rating, Played = d.Wins + d.Losses }
+		end
+		save(player)
+		data[player] = nil
+		loadFailed[player] = nil
+	end)
+	game:BindToClose(function()
+		for _, player in ipairs(Players:GetPlayers()) do
+			task.spawn(save, player)
+		end
+		task.wait(2)
+	end)
+
+	local lobby = MatchService.GetLobby()
+	local part = lobby and lobby.Leaderboard
+	if part then
+		local rows = buildBoard(part)
+		task.spawn(function()
+			task.wait(5) -- (let the first players load)
+			while true do
+				local ok, top = pcall(topPlayers)
+				if ok then
+					drawBoard(rows, top)
+				else
+					warn("[RankService] leaderboard:", top)
+				end
+				task.wait(RK.LeaderboardRefresh)
+			end
+		end)
+	end
+end
+
+return RankService
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="33">
         <Properties>
           <string name="Name">SettingsService</string>
           <string name="Source"><![CDATA[--[[
@@ -10628,13 +11418,13 @@ return SettingsService
       </Item>
     </Item>
   </Item>
-  <Item class="SoundService" referent="32">
+  <Item class="SoundService" referent="34">
     <Properties>
       <string name="Name">SoundService</string>
       <bool name="RespectFilteringEnabled">true</bool>
     </Properties>
   </Item>
-  <Item class="StarterPlayer" referent="33">
+  <Item class="StarterPlayer" referent="35">
     <Properties>
       <string name="Name">StarterPlayer</string>
       <float name="CameraMaxZoomDistance">18</float>
@@ -10643,11 +11433,11 @@ return SettingsService
       <token name="GameSettingsAvatar">1</token>
       <bool name="LoadCharacterAppearance">true</bool>
     </Properties>
-    <Item class="StarterCharacterScripts" referent="34">
+    <Item class="StarterCharacterScripts" referent="36">
       <Properties>
         <string name="Name">StarterCharacterScripts</string>
       </Properties>
-      <Item class="Script" referent="35">
+      <Item class="Script" referent="37">
         <Properties>
           <string name="Name">Health</string>
           <token name="RunContext">0</token>
@@ -10662,15 +11452,15 @@ return SettingsService
         </Properties>
       </Item>
     </Item>
-    <Item class="StarterPlayerScripts" referent="36">
+    <Item class="StarterPlayerScripts" referent="38">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="Folder" referent="37">
+      <Item class="Folder" referent="39">
         <Properties>
           <string name="Name">Client</string>
         </Properties>
-        <Item class="ModuleScript" referent="38">
+        <Item class="ModuleScript" referent="40">
           <Properties>
             <string name="Name">AimAssist</string>
             <string name="Source"><![CDATA[--[[
@@ -10851,7 +11641,7 @@ return AimAssist
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="39">
+        <Item class="ModuleScript" referent="41">
           <Properties>
             <string name="Name">BodyAnimator</string>
             <string name="Source"><![CDATA[--[[
@@ -11134,6 +11924,24 @@ end
 -- you watch through its eyes. You see FirstPersonView's copies instead.
 local ARM_PARTS = { "RightUpperArm", "RightLowerArm", "RightHand", "LeftUpperArm", "LeftLowerArm", "LeftHand" }
 local weaponParts = setmetatable({}, { __mode = "k" }) -- [weapon model] = its parts
+local function weaponCache(weapon)
+	local cache = weaponParts[weapon]
+	if not cache then
+		cache = { Parts = {}, Fx = {} }
+		for _, item in ipairs(weapon:GetDescendants()) do
+			if item:IsA("BasePart") then
+				table.insert(cache.Parts, item)
+			elseif item:IsA("ParticleEmitter") or item:IsA("Light") then
+				table.insert(cache.Fx, item) -- (sparkles / glow: hidden parts don't hide these)
+			end
+		end
+		weaponParts[weapon] = cache
+	end
+	return cache
+end
+
+local realHidden = false -- your real weapons' particles are switched off (first person)
+
 local function hideReal(model)
 	for _, name in ipairs(ARM_PARTS) do
 		local part = model:FindFirstChild(name)
@@ -11147,22 +11955,35 @@ local function hideReal(model)
 	for _, name in ipairs({ "WorldGun", "WorldKnife" }) do
 		local weapon = model:FindFirstChild(name)
 		if weapon then
-			local cache = weaponParts[weapon]
-			if not cache then
-				cache = {}
-				for _, part in ipairs(weapon:GetDescendants()) do
-					if part:IsA("BasePart") then
-						table.insert(cache, part)
-					end
-				end
-				weaponParts[weapon] = cache
-			end
+			local cache = weaponCache(weapon)
 			local held = name == weaponName
-			for _, part in ipairs(cache) do
+			for _, part in ipairs(cache.Parts) do
 				part.LocalTransparencyModifier = 1
 				if isCopy then
 					part.Transparency = held and (part:GetAttribute("BaseTransparency") or 0) or 1
 				end
+			end
+			for _, fx in ipairs(cache.Fx) do
+				if fx.Enabled then
+					fx.Enabled = false
+				end
+			end
+		end
+	end
+	if model == player.Character then
+		realHidden = true
+	end
+end
+
+-- Back out of first person: your real weapon's particles on again (the held one).
+local function showRealFx(model)
+	realHidden = false
+	local knifeOut = model:GetAttribute("Weapon") == "Knife"
+	for name, held in pairs({ WorldGun = not knifeOut, WorldKnife = knifeOut }) do
+		local weapon = model:FindFirstChild(name)
+		if weapon then
+			for _, fx in ipairs(weaponCache(weapon).Fx) do
+				fx.Enabled = held and not model:GetAttribute("Invisible")
 			end
 		end
 	end
@@ -11211,6 +12032,8 @@ local function drawFirstPerson(dt)
 			view = camera.CFrame * CFrame.new(0, 0, -EYE_BACK) * offset
 			ctx.Sprint, ctx.Scope = sprintAlpha, scope
 		end
+	elseif character and realHidden then
+		showRealFx(character)
 	end
 	local entry = source and getEntry(source)
 	if not entry then
@@ -11422,7 +12245,7 @@ return BodyAnimator
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="40">
+        <Item class="ModuleScript" referent="42">
           <Properties>
             <string name="Name">BodyRig</string>
             <string name="Source"><![CDATA[--[[
@@ -11799,7 +12622,7 @@ return BodyRig
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="41">
+        <Item class="ModuleScript" referent="43">
           <Properties>
             <string name="Name">CameraController</string>
             <string name="Source"><![CDATA[--[[
@@ -12125,7 +12948,7 @@ return CameraController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="42">
+        <Item class="ModuleScript" referent="44">
           <Properties>
             <string name="Name">ClientState</string>
             <string name="Source"><![CDATA[--[[
@@ -12155,10 +12978,12 @@ ClientState.Owned = {} -- { [powerUpId] = stacks } you have right now (match or 
 ClientState.Settings = table.clone(Config.SettingsDefaults)
 ClientState.MenuOpen = false -- true while a menu needs the mouse (settings / pick / victory)
 ClientState.Weapon = "Sniper" -- what's in your hands: "Sniper" or "Knife" (KnifeController)
+ClientState.OwnedSkins = {} -- { [skinId] = count } (from the server's "Crates" messages)
 
 ClientState.Changed = Signal.new() -- (newSnapshot, oldSnapshot)
 ClientState.SettingsChanged = Signal.new() -- (settings)
 ClientState.MenuChanged = Signal.new() -- (isOpen)
+ClientState.SkinsChanged = Signal.new() -- () your owned skins changed
 
 local menuReasons = {}
 
@@ -12323,7 +13148,7 @@ return ClientState
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="43">
+        <Item class="ModuleScript" referent="45">
           <Properties>
             <string name="Name">CrateController</string>
             <string name="Source"><![CDATA[--[[
@@ -12343,7 +13168,7 @@ return ClientState
 	              then cracks red.
 	  3. BURST    the lid blasts off, a flash, a pillar of light, a shockwave
 	              ring and a shower of sparks in the rarity colour
-	  4. REVEAL   the rifle rises out of the crate in the skin's colours and
+	  4. REVEAL   the rifle (or knife) rises out of the crate in the skin's colours and
 	              spins while ui/CrateReveal shows the rarity + skin
 	Everything is local to you; the roll itself happened on the server.
 ]]
@@ -12360,6 +13185,8 @@ local Config = require(Shared.Config)
 local Remotes = require(Shared.Remotes)
 local CrateModel = require(Shared.CrateModel)
 local GunModel = require(Shared.GunModel)
+local KnifeModel = require(Shared.KnifeModel)
+local Skins = require(Shared.Skins)
 local ClientState = require(script.Parent.ClientState)
 local Sfx = require(script.Parent.Sfx)
 local CrateReveal = require(script.Parent.ui.CrateReveal)
@@ -12503,46 +13330,44 @@ local function idle(dt)
 end
 
 ----------------------------------------------------------------------------
--- Rifle in the skin's colours
+-- The rifle (or knife) in the skin's colours
 ----------------------------------------------------------------------------
 local function buildRifle(skin, rarity)
 	local model = Instance.new("Model")
-	model.Name = "CrateRifle"
-	local scale = 1.7
-	local built = GunModel.Build(model, { Scale = scale, Anchored = true, CastShadow = false, Effects = false })
+	model.Name = "CrateReward"
+	local isKnife = skin.Weapon == "Knife"
+	local scale = isKnife and 2.6 or 1.7
+	local built
+	if isKnife then
+		built = KnifeModel.Build(model, { Scale = scale, Anchored = true })
+	else
+		built = GunModel.Build(model, { Scale = scale, Anchored = true, CastShadow = false, Effects = false })
+	end
 	for _, part in pairs(built.Parts) do
 		part.CanCollide = false
 		part.CanQuery = false
 		part.CanTouch = false
 	end
-	if built.UsesMesh then
-		-- textured meshes can't be recoloured: wash them in the skin colour
-		local highlight = Instance.new("Highlight")
-		highlight.FillColor = skin.Body
-		highlight.FillTransparency = 0.45
-		highlight.OutlineColor = rarity.Color
-		highlight.OutlineTransparency = 0.1
-		highlight.DepthMode = Enum.HighlightDepthMode.Occluded
-		highlight.Parent = model
-	else
-		for _, part in pairs(built.Parts) do
-			local _, s, v = part.Color:ToHSV()
-			if part.Material == Enum.Material.Neon or s > 0.45 then
-				part.Color = skin.Accent
-			elseif v < 0.38 then
-				part.Color = skin.Metal
-			else
-				part.Color = skin.Body
-			end
-		end
-	end
+	Skins.Apply(model, skin)
+	-- a soft outline in the rarity colour
+	local highlight = Instance.new("Highlight")
+	highlight.FillTransparency = 1
+	highlight.OutlineColor = rarity.Color
+	highlight.OutlineTransparency = 0.3
+	highlight.DepthMode = Enum.HighlightDepthMode.Occluded
+	highlight.Parent = model
 	model.Parent = workspace
-	return { Model = model, Built = built, Scale = scale }
+	return { Model = model, Built = built, Scale = scale, IsKnife = isKnife }
 end
 
 local function placeRifle(rifle, cf)
-	-- GunModel's grip is near the back: shift so it spins around its middle
-	GunModel.Place(rifle.Built, cf * CFrame.new(0, 0, 1.4 * rifle.Scale), rifle.Scale)
+	if rifle.IsKnife then
+		-- the knife's origin is mid-handle: shift so it spins around its middle
+		KnifeModel.Place(rifle.Built, cf * CFrame.new(0, 0, 0.47 * rifle.Scale))
+	else
+		-- GunModel's grip is near the back: shift so it spins around its middle
+		GunModel.Place(rifle.Built, cf * CFrame.new(0, 0, 1.4 * rifle.Scale), rifle.Scale)
+	end
 end
 
 ----------------------------------------------------------------------------
@@ -12904,7 +13729,7 @@ local function play(result, continuing)
 			end
 		end
 
-		-- REVEAL: the rifle rises out of the crate and spins
+		-- REVEAL: the rifle (or knife) rises out of the crate and spins
 		if once("reveal", tReveal, t) then
 			rifle = buildRifle(skin, rarity)
 			scene.Rifle = rifle
@@ -12991,6 +13816,10 @@ local function onResult(result)
 	if typeof(result) ~= "table" then
 		return
 	end
+	if typeof(result.Skins) == "table" then
+		ClientState.OwnedSkins = result.Skins -- (the Locker reads these)
+		ClientState.SkinsChanged:Fire()
+	end
 	if result.Type == "Denied" then
 		if waitingAgain then
 			task.spawn(finish)
@@ -13059,7 +13888,7 @@ return CrateController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="44">
+        <Item class="ModuleScript" referent="46">
           <Properties>
             <string name="Name">EffectsController</string>
             <string name="Source"><![CDATA[--[[
@@ -13086,6 +13915,7 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local Debris = game:GetService("Debris")
+local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
@@ -13683,6 +14513,18 @@ local function updateRopes(dt)
 	updateMovementFx(dt)
 end
 
+-- Legendary skins: their glowing trims pulse between two colours (parts
+-- tagged "SkinPulse" by Skins.Apply, with PulseA / PulseB attributes).
+local function pulseSkins()
+	local k = (math.sin(os.clock() * 3) + 1) / 2
+	for _, part in ipairs(CollectionService:GetTagged("SkinPulse")) do
+		local a, b = part:GetAttribute("PulseA"), part:GetAttribute("PulseB")
+		if part:IsA("BasePart") and typeof(a) == "Color3" and typeof(b) == "Color3" then
+			part.Color = a:Lerp(b, k)
+		end
+	end
+end
+
 function Effects.Init(controllers)
 	Controllers = controllers
 end
@@ -13694,13 +14536,14 @@ function Effects.Start()
 	Controllers.Movement.Jumped:Connect(onJumped)
 	RunService:BindToRenderStep("SniperEffects", Enum.RenderPriority.Camera.Value + 3, updateRopes)
 	task.spawn(wallhackLoop)
+	RunService.Heartbeat:Connect(pulseSkins)
 end
 
 return Effects
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="45">
+        <Item class="ModuleScript" referent="47">
           <Properties>
             <string name="Name">FirstPersonView</string>
             <string name="Source"><![CDATA[--[[
@@ -13916,6 +14759,12 @@ local function buildWeapon(source)
 		copy.Parts[i] = item.Part
 	end
 	copy.CFrames = table.create(#copy.Items)
+	copy.Fx = {} -- skin sparkles / power-up particles (switched on only while held)
+	for _, item in ipairs(model:GetDescendants()) do
+		if item:IsA("ParticleEmitter") or item:IsA("Light") then
+			table.insert(copy.Fx, item)
+		end
+	end
 	model.Parent = ensureFolder()
 	return copy
 end
@@ -14019,6 +14868,8 @@ local function setShown(value)
 		for _, part in ipairs(folder:GetDescendants()) do
 			if part:IsA("BasePart") then
 				part.LocalTransparencyModifier = value and 0 or 1
+			elseif not value and (part:IsA("ParticleEmitter") or part:IsA("Light")) then
+				part.Enabled = false -- (Draw turns the held weapon's back on)
 			end
 		end
 	end
@@ -14048,6 +14899,11 @@ function FirstPersonView.Draw(source, view, anim, body, weaponName)
 			local held = name == weaponName
 			for _, part in ipairs(copy.Parts) do
 				part.LocalTransparencyModifier = held and 0 or 1
+			end
+			for _, fx in ipairs(copy.Fx) do
+				if fx.Enabled ~= held then
+					fx.Enabled = held
+				end
 			end
 			if held then
 				current = copy
@@ -14093,7 +14949,7 @@ return FirstPersonView
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="46">
+        <Item class="ModuleScript" referent="48">
           <Properties>
             <string name="Name">Keybinds</string>
             <string name="Source"><![CDATA[--[[
@@ -14153,6 +15009,7 @@ Keybinds.Actions = {
 	{ Id = "Primary", Name = "Sniper", Keyboard = "One", Gamepad = "ButtonR1" },
 	{ Id = "Knife", Name = "Knife", Keyboard = "Two", Gamepad = "ButtonR1" },
 	{ Id = "PowerUpLab", Name = "Power-Up Lab", Keyboard = "B", Gamepad = "DPadLeft" },
+	{ Id = "Locker", Name = "Locker (skins)", Keyboard = "L", Gamepad = "None" },
 	{ Id = "FindMatch", Name = "Find match", Keyboard = "F", Gamepad = "DPadRight" },
 	{ Id = "Playground", Name = "Playground", Keyboard = "G", Gamepad = "ButtonL1" },
 	{ Id = "BotMatch", Name = "Play vs bot (admin)", Keyboard = "N", Gamepad = "None" }, -- (RB is the knife)
@@ -14232,7 +15089,7 @@ return Keybinds
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="47">
+        <Item class="ModuleScript" referent="49">
           <Properties>
             <string name="Name">KillCamController</string>
             <string name="Source"><![CDATA[--[[
@@ -14801,7 +15658,7 @@ return KillCam
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="48">
+        <Item class="ModuleScript" referent="50">
           <Properties>
             <string name="Name">KnifeController</string>
             <string name="Source"><![CDATA[--[[
@@ -15134,7 +15991,7 @@ return KnifeController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="49">
+        <Item class="ModuleScript" referent="51">
           <Properties>
             <string name="Name">LightingController</string>
             <string name="Source"><![CDATA[--[[
@@ -15246,7 +16103,7 @@ return LightingController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="LocalScript" referent="50">
+        <Item class="LocalScript" referent="52">
           <Properties>
             <string name="Name">Main</string>
             <string name="Source"><![CDATA[--[[
@@ -15322,7 +16179,7 @@ end
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="51">
+        <Item class="ModuleScript" referent="53">
           <Properties>
             <string name="Name">MovementController</string>
             <string name="Source"><![CDATA[--[[
@@ -16330,7 +17187,7 @@ return Movement
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="52">
+        <Item class="ModuleScript" referent="54">
           <Properties>
             <string name="Name">Sfx</string>
             <string name="Source"><![CDATA[--[[
@@ -16387,7 +17244,7 @@ return Sfx
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="53">
+        <Item class="ModuleScript" referent="55">
           <Properties>
             <string name="Name">Spring</string>
             <string name="Source"><![CDATA[--[[
@@ -16433,7 +17290,7 @@ return Spring
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="54">
+        <Item class="ModuleScript" referent="56">
           <Properties>
             <string name="Name">UIController</string>
             <string name="Source"><![CDATA[--[[
@@ -16447,6 +17304,7 @@ return Spring
 		LobbyUI       find match / playground / bot buttons
 		SettingsMenu  sliders + keybinds for mouse and controller (P)
 		PowerUpLab    try power-ups solo in the lobby (B)
+		Locker        pick your rifle and knife skins (L)
 		Toast         short server messages (admin commands)
 		DuelUI        challenge a player, duel / rematch invites
 		MobileControls on-screen buttons + look pad for touch screens
@@ -16463,6 +17321,7 @@ local VictoryScreen = require(ui.VictoryScreen)
 local LobbyUI = require(ui.LobbyUI)
 local SettingsMenu = require(ui.SettingsMenu)
 local PowerUpLab = require(ui.PowerUpLab)
+local Locker = require(ui.Locker)
 local Toast = require(ui.Toast)
 local DuelUI = require(ui.DuelUI)
 local MobileControls = require(ui.MobileControls)
@@ -16476,6 +17335,7 @@ function UIController.Init(controllers)
 	controllers.HUD = HUD
 	controllers.Settings = SettingsMenu
 	controllers.Duel = DuelUI
+	controllers.Locker = Locker
 	MobileControls.Init(controllers)
 	HUD.Init(controllers)
 	LobbyUI.Init(controllers)
@@ -16509,6 +17369,7 @@ function UIController.Start()
 	LobbyUI.Start(playerGui)
 	SettingsMenu.Start(playerGui)
 	PowerUpLab.Start(playerGui)
+	Locker.Start(playerGui)
 	Toast.Start(playerGui)
 	DuelUI.Start(playerGui)
 	MobileControls.Start(playerGui)
@@ -16525,7 +17386,7 @@ return UIController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="55">
+        <Item class="ModuleScript" referent="57">
           <Properties>
             <string name="Name">WeaponAnim</string>
             <string name="Source"><![CDATA[--[[
@@ -17018,7 +17879,7 @@ return WeaponAnim
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="56">
+        <Item class="ModuleScript" referent="58">
           <Properties>
             <string name="Name">WeaponController</string>
             <string name="Source"><![CDATA[--[[
@@ -17269,11 +18130,11 @@ return Weapon
 ]]></string>
           </Properties>
         </Item>
-        <Item class="Folder" referent="57">
+        <Item class="Folder" referent="59">
           <Properties>
             <string name="Name">ui</string>
           </Properties>
-          <Item class="ModuleScript" referent="58">
+          <Item class="ModuleScript" referent="60">
             <Properties>
               <string name="Name">CrateReveal</string>
               <string name="Source"><![CDATA[--[[
@@ -17670,8 +18531,9 @@ function CrateReveal.Reveal(info)
 	skinLabel.Text = string.upper(skin.Name)
 	skinLabel.TextColor3 = P.UIText
 	skinLabel.TextTransparency = 1
-	infoLabel.Text = info.New and "RIFLE SKIN  -  ADDED TO YOUR COLLECTION"
-		or ("RIFLE SKIN  -  DUPLICATE  x%d"):format(info.Count or 2)
+	local kind = skin.Weapon == "Knife" and "KNIFE SKIN" or "RIFLE SKIN"
+	infoLabel.Text = info.New and (kind .. "  -  EQUIP IT IN THE LOCKER [L]")
+		or ("%s  -  DUPLICATE  x%d"):format(kind, info.Count or 2)
 	infoLabel.TextTransparency = 1
 	badge.Visible = false
 	buttons.Visible = false
@@ -17770,7 +18632,7 @@ return CrateReveal
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="59">
+          <Item class="ModuleScript" referent="61">
             <Properties>
               <string name="Name">DuelUI</string>
               <string name="Source"><![CDATA[--[[
@@ -18079,7 +18941,7 @@ return DuelUI
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="60">
+          <Item class="ModuleScript" referent="62">
             <Properties>
               <string name="Name">HUD</string>
               <string name="Source"><![CDATA[--[[
@@ -18973,7 +19835,7 @@ return HUD
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="61">
+          <Item class="ModuleScript" referent="63">
             <Properties>
               <string name="Name">Icons</string>
               <string name="Source"><![CDATA[--[[
@@ -19035,7 +19897,7 @@ return Icons
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="62">
+          <Item class="ModuleScript" referent="64">
             <Properties>
               <string name="Name">LobbyUI</string>
               <string name="Source"><![CDATA[--[[
@@ -19046,7 +19908,7 @@ return Icons
 	clear while you walk around the lobby in first person:
 
 		top left      SNIPER DUEL wordmark (+ PLAYGROUND chip in the playground)
-		top right     player card (avatar, name) + ONLINE and KEYS chips
+		top right     player card (avatar, name) + ONLINE, KEYS and RANK chips
 		bottom left   action stack: REMATCH (after a match), FIND MATCH
 		              (animated "searching" state with timer + queue count),
 		              then Playground / Power-Up Lab / Duel / Settings /
@@ -19101,6 +19963,7 @@ local COMPACT_WIDTHS = { Rematch = 132, FindMatch = 184, Playground = 124, BotMa
 local SECONDARY = {
 	{ Id = "Playground", Text = "PLAYGROUND", Hint = "FREE ROAM" },
 	{ Id = "PowerUpLab", Text = "POWER-UP LAB", Hint = "TRY BUILDS" },
+	{ Id = "Locker", Text = "LOCKER", Hint = "SKINS" },
 	{ Id = "DuelFriend", Text = "DUEL A PLAYER", Hint = "INVITE" },
 	{ Id = "Settings", Text = "SETTINGS", Hint = "" },
 	{ Id = "BotMatch", Text = "PLAY VS BOT", Hint = "ADMIN" },
@@ -19110,6 +19973,7 @@ local gui, root
 local scrimLeft, scrimTop
 local brand, brandMark, title, tagline, modeRow, modeChip, subtitle
 local card, cardPanel, avatar, chipRow, onlineChip, onlineLabel, keysChip, keysLabel
+local rankChip, rankLabel, rankTier, rankStroke
 local stack, statusLabel
 local primary, playButton, playgroundButton, rematchButton
 local spinner, progressTrack, progressFill, shine, timeLabel, subLabel
@@ -19590,6 +20454,20 @@ local function refreshInfo(snapshot)
 	statusLabel.Text = table.concat(parts, "  ·  ")
 end
 
+-- RANK chip: your tier + rating (RankService's "Rating" attribute)
+local function refreshRank()
+	local rating = tonumber(player:GetAttribute("Rating"))
+	rankChip.Visible = rating ~= nil
+	if not rating then
+		return
+	end
+	local tier = Config.RankTier(rating)
+	rankTier.Text = tier.Name
+	rankTier.TextColor3 = tier.Color
+	rankStroke.Color = tier.Color
+	rankLabel.Text = tostring(math.floor(rating))
+end
+
 local function refreshKeys()
 	local keys = tonumber(player:GetAttribute("Keys")) or 0
 	keysLabel.Text = tostring(math.floor(keys))
@@ -19937,6 +20815,27 @@ local function buildCard()
 		LayoutOrder = 3,
 		Parent = keysChip,
 	})
+	rankChip = buildChip("Rank", chipRow, 3, Palette.UIText)
+	rankStroke = rankChip:FindFirstChildOfClass("UIStroke")
+	rankTier = Theme.label({
+		Size = UDim2.fromOffset(0, 16),
+		AutomaticSize = Enum.AutomaticSize.X,
+		Text = "",
+		TextSize = 12,
+		FontFace = Theme.Font(Enum.FontWeight.Heavy),
+		LayoutOrder = 1,
+		Parent = rankChip,
+	})
+	rankLabel = Theme.label({
+		Size = UDim2.fromOffset(0, 18),
+		AutomaticSize = Enum.AutomaticSize.X,
+		Text = "",
+		TextSize = 15,
+		FontFace = Theme.Font(Enum.FontWeight.Heavy),
+		LayoutOrder = 2,
+		Parent = rankChip,
+	})
+	rankChip.Visible = false
 end
 
 local function buildStack()
@@ -20106,6 +21005,12 @@ function LobbyUI.Start(playerGui)
 		Keybinds.Press("PowerUpLab", true)
 		Keybinds.Press("PowerUpLab", false)
 	end)
+	entries.Locker.Button.Activated:Connect(function()
+		Theme.pop(entries.Locker.Button, 0.06)
+		if Controllers and Controllers.Locker then
+			Controllers.Locker.Toggle()
+		end
+	end)
 	entries.DuelFriend.Button.Activated:Connect(function()
 		Theme.pop(entries.DuelFriend.Button, 0.06)
 		if Controllers and Controllers.Duel then
@@ -20165,6 +21070,9 @@ function LobbyUI.Start(playerGui)
 	-- KEYS (crates): LocalPlayer attribute "Keys"
 	refreshKeys()
 	player:GetAttributeChangedSignal("Keys"):Connect(refreshKeys)
+	-- RANK: LocalPlayer attribute "Rating"
+	refreshRank()
+	player:GetAttributeChangedSignal("Rating"):Connect(refreshRank)
 
 	local function refreshIfShown()
 		if shown then
@@ -20204,7 +21112,537 @@ return LobbyUI
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="63">
+          <Item class="ModuleScript" referent="65">
+            <Properties>
+              <string name="Name">Locker</string>
+              <string name="Source"><![CDATA[--[[
+	Locker.lua  (Client.ui.Locker)
+
+	Your skins. In the lobby press L (or the LOCKER button) to open it:
+		* RIFLE / KNIFE tabs
+		* every skin for that weapon: the ones you own in full colour, the
+		  rest locked (open crates to get them)
+		* the selected skin spins in a 3D preview; EQUIP puts it in your
+		  hands (everyone sees it), DEFAULT goes back to the stock look
+	The server checks you own a skin before equipping it (CrateService).
+]]
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Config = require(Shared.Config)
+local Remotes = require(Shared.Remotes)
+local GunModel = require(Shared.GunModel)
+local KnifeModel = require(Shared.KnifeModel)
+local Skins = require(Shared.Skins)
+local ClientState = require(script.Parent.Parent.ClientState)
+local Sfx = require(script.Parent.Parent.Sfx)
+local Keybinds = require(script.Parent.Parent.Keybinds)
+local Theme = require(script.Parent.Theme)
+
+local Palette = Config.Palette
+local CR = Config.Crates
+local player = Players.LocalPlayer
+
+local Locker = {}
+
+local W, H = 900, 560
+local gui, panel, unlocker, grid, tabs, viewport, worldModel, previewCam
+local nameLabel, rarityLabel, statusLabel, equipButton, defaultButton
+local isOpen = false
+local weapon = "Rifle" -- the open tab
+local selected -- skin id (nil = default) shown in the preview
+local owned = ClientState.OwnedSkins -- { [id] = count }
+local equipped = {} -- { Rifle = id, Knife = id } (your RifleSkin / KnifeSkin attributes)
+local tiles = {} -- [skin id or "Default"] = { Frame, Stroke, Tag }
+local preview -- { Model, Built, IsKnife, Scale }
+local spin = 0
+
+local rarityOf, tierOf = {}, {}
+for i, rarity in ipairs(CR.Rarities) do
+	rarityOf[rarity.Id] = rarity
+	tierOf[rarity.Id] = i
+end
+
+----------------------------------------------------------------------------
+-- 3D preview
+----------------------------------------------------------------------------
+local function buildPreview()
+	if preview then
+		preview.Model:Destroy()
+		preview = nil
+	end
+	local model = Instance.new("Model")
+	local isKnife = weapon == "Knife"
+	local scale = isKnife and 2.2 or 1
+	local built = isKnife and KnifeModel.Build(model, { Scale = scale, Anchored = true })
+		or GunModel.Build(model, { Scale = scale, Anchored = true, Effects = false })
+	Skins.Apply(model, Skins.Get(selected))
+	model.Parent = worldModel
+	preview = { Model = model, Built = built, IsKnife = isKnife, Scale = scale }
+end
+
+local function placePreview(dt)
+	if not preview then
+		return
+	end
+	spin += dt * 0.6
+	local cf = CFrame.Angles(0, math.pi / 2 + math.sin(spin) * 0.6, 0) * CFrame.Angles(0, 0, math.rad(4))
+	if preview.IsKnife then
+		KnifeModel.Place(preview.Built, cf * CFrame.new(0, 0, 0.47 * preview.Scale))
+	else
+		GunModel.Place(preview.Built, cf * CFrame.new(0, 0, 1.4), 1)
+	end
+	-- a slow pulse for Legendary glow (the game does this for real weapons)
+	local skin = Skins.Get(selected)
+	if skin and skin.Pulse then
+		local k = (math.sin(os.clock() * 3) + 1) / 2
+		for _, part in ipairs(preview.Model:GetDescendants()) do
+			if part:IsA("BasePart") and part:GetAttribute("PulseA") then
+				part.Color = part:GetAttribute("PulseA"):Lerp(part:GetAttribute("PulseB"), k)
+			end
+		end
+	end
+end
+
+----------------------------------------------------------------------------
+-- Tiles + details
+----------------------------------------------------------------------------
+local function skinsForTab()
+	local list = Skins.ForWeapon(weapon)
+	table.sort(list, function(a, b)
+		local ta, tb = tierOf[a.Rarity] or 0, tierOf[b.Rarity] or 0
+		if ta ~= tb then
+			return ta < tb
+		end
+		return a.Name < b.Name
+	end)
+	return list
+end
+
+local function refreshDetails()
+	local skin = Skins.Get(selected)
+	local rarity = skin and rarityOf[skin.Rarity]
+	nameLabel.Text = skin and string.upper(skin.Name) or "STANDARD ISSUE"
+	rarityLabel.Text = rarity and rarity.Name or "DEFAULT"
+	rarityLabel.TextColor3 = rarity and rarity.Color or Palette.UISubText
+	local count = skin and owned[skin.Id] or 0
+	local isEquipped = equipped[weapon] == selected
+	if isEquipped then
+		statusLabel.Text = "EQUIPPED"
+		statusLabel.TextColor3 = Palette.UIAccent
+	elseif skin and count <= 0 then
+		statusLabel.Text = "LOCKED  -  OPEN CRATES IN THE CRATE VAULT"
+		statusLabel.TextColor3 = Palette.UISubText
+	else
+		statusLabel.Text = skin and (count > 1 and ("OWNED  x%d"):format(count) or "OWNED") or "ALWAYS AVAILABLE"
+		statusLabel.TextColor3 = Palette.UIText
+	end
+	local canEquip = not isEquipped and (not skin or count > 0)
+	equipButton.Text = isEquipped and "EQUIPPED" or (canEquip and "EQUIP" or "LOCKED")
+	equipButton.AutoButtonColor = canEquip
+	equipButton.BackgroundColor3 = canEquip and Palette.UIAccent or Palette.UIPanelLight
+	equipButton.TextColor3 = canEquip and Palette.UIBackground or Palette.UISubText
+end
+
+local function refreshTiles()
+	for id, tile in pairs(tiles) do
+		local skinId = id ~= "Default" and id or nil
+		local skin = Skins.Get(skinId)
+		local have = not skin or (owned[skinId] or 0) > 0
+		local isEquipped = equipped[weapon] == skinId
+		local isSelected = selected == skinId
+		tile.Frame.BackgroundColor3 = isSelected and Palette.UIPanelLight or Palette.UIPanel
+		tile.Stroke.Thickness = isSelected and 3 or 1
+		tile.Stroke.Transparency = (isSelected or isEquipped) and 0 or 0.55
+		tile.Tag.Text = isEquipped and "EQUIPPED" or (have and "" or "LOCKED")
+		tile.Tag.TextColor3 = isEquipped and Palette.UIAccent or Palette.UISubText
+		for _, swatch in ipairs(tile.Swatches) do
+			swatch.BackgroundTransparency = have and 0 or 0.75
+		end
+		tile.Name.TextTransparency = have and 0 or 0.45
+	end
+	refreshDetails()
+end
+
+local function select(id)
+	if selected == id and preview then
+		return
+	end
+	selected = id
+	buildPreview()
+	refreshTiles()
+end
+
+local function makeTile(skin, order)
+	local id = skin and skin.Id or "Default"
+	local rarity = skin and rarityOf[skin.Rarity]
+	local color = rarity and rarity.Color or Palette.UISubText
+	local frame = Theme.new("TextButton", {
+		Name = id,
+		Text = "",
+		AutoButtonColor = true,
+		BackgroundColor3 = Palette.UIPanel,
+		LayoutOrder = order,
+		Parent = grid,
+	})
+	Theme.corner(frame, 10)
+	local stroke = Theme.stroke(frame, color, 1, 0.55)
+	-- rarity stripe on the left
+	Theme.new("Frame", {
+		Size = UDim2.new(0, 4, 1, -16),
+		Position = UDim2.fromOffset(6, 8),
+		BackgroundColor3 = color,
+		Parent = frame,
+	})
+	-- colour swatches
+	local swatches = {}
+	local colors = skin and { skin.Body, skin.Weapon == "Knife" and (skin.Blade or skin.Metal) or skin.Metal, skin.Accent }
+		or { Color3.fromRGB(190, 164, 120), Color3.fromRGB(58, 60, 60), Color3.fromRGB(84, 86, 90) }
+	if weapon == "Knife" and not skin then
+		colors = { Color3.fromRGB(34, 36, 40), Color3.fromRGB(176, 182, 190), Color3.fromRGB(70, 74, 82) }
+	end
+	for i, c in ipairs(colors) do
+		local swatch = Theme.new("Frame", {
+			Position = UDim2.fromOffset(18 + (i - 1) * 16, 10),
+			Size = UDim2.fromOffset(13, 13),
+			BackgroundColor3 = c,
+			Parent = frame,
+		})
+		Theme.corner(swatch, 7)
+		Theme.stroke(swatch, Color3.new(0, 0, 0), 1, 0.6)
+		table.insert(swatches, swatch)
+	end
+	if skin and skin.Glow then
+		Theme.label({
+			Position = UDim2.fromOffset(70, 8),
+			Size = UDim2.new(1, -78, 0, 16),
+			Text = skin.Pulse and "GLOW + FX" or "GLOW",
+			TextSize = 10,
+			TextXAlignment = Enum.TextXAlignment.Right,
+			TextColor3 = color,
+			Parent = frame,
+		})
+	end
+	local name = Theme.label({
+		Position = UDim2.fromOffset(18, 28),
+		Size = UDim2.new(1, -26, 0, 20),
+		Text = skin and skin.Name or "Default",
+		TextSize = 15,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		Parent = frame,
+	})
+	Theme.label({
+		Position = UDim2.fromOffset(18, 48),
+		Size = UDim2.new(0.6, 0, 0, 14),
+		Text = rarity and rarity.Name or "STANDARD",
+		TextSize = 10,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextColor3 = color,
+		Parent = frame,
+	})
+	local tag = Theme.label({
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -8, 0, 48),
+		Size = UDim2.new(0.5, 0, 0, 14),
+		TextSize = 10,
+		TextXAlignment = Enum.TextXAlignment.Right,
+		Parent = frame,
+	})
+	frame.Activated:Connect(function()
+		Sfx.Play("CardHover")
+		select(skin and skin.Id or nil)
+	end)
+	tiles[id] = { Frame = frame, Stroke = stroke, Tag = tag, Swatches = swatches, Name = name }
+end
+
+local function buildTab()
+	for _, tile in pairs(tiles) do
+		tile.Frame:Destroy()
+	end
+	table.clear(tiles)
+	makeTile(nil, 0)
+	for i, skin in ipairs(skinsForTab()) do
+		makeTile(skin, i)
+	end
+	for name, button in pairs(tabs) do
+		local on = name == weapon
+		button.BackgroundColor3 = on and Palette.UIAccent or Palette.UIPanelLight
+		button.TextColor3 = on and Palette.UIBackground or Palette.UIText
+	end
+	selected = equipped[weapon]
+	buildPreview()
+	refreshTiles()
+end
+
+----------------------------------------------------------------------------
+-- Open / close
+----------------------------------------------------------------------------
+function Locker.Open()
+	if isOpen or ClientState.InMatch() or ClientState.MenuOpen then
+		return
+	end
+	isOpen = true
+	gui.Enabled = true
+	unlocker.Visible = true
+	ClientState.SetMenu("Locker", true)
+	buildTab()
+	panel.Size = UDim2.fromOffset(W - 40, H - 40)
+	Theme.tween(panel, 0.2, { Size = UDim2.fromOffset(W, H) }, Enum.EasingStyle.Back)
+	Sfx.Play("CardPick", { Pitch = 1.1, Volume = 0.6 })
+end
+
+function Locker.Close()
+	if not isOpen then
+		return
+	end
+	isOpen = false
+	gui.Enabled = false
+	unlocker.Visible = false
+	ClientState.SetMenu("Locker", false)
+	if preview then
+		preview.Model:Destroy()
+		preview = nil
+	end
+end
+
+function Locker.IsOpen()
+	return isOpen
+end
+
+function Locker.Toggle()
+	if isOpen then
+		Locker.Close()
+	else
+		Locker.Open()
+	end
+end
+
+function Locker.Init() end
+
+function Locker.Start(playerGui)
+	gui = Theme.screen("Locker", 9, playerGui)
+	gui.Enabled = false
+	Theme.new("Frame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Palette.UIBackground,
+		BackgroundTransparency = 0.35,
+		Parent = gui,
+	})
+	unlocker = Theme.mouseUnlocker(gui)
+
+	panel = Theme.panel({
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(W, H),
+		BackgroundTransparency = 0,
+		ClipsDescendants = true,
+		Parent = gui,
+	})
+	Theme.padding(panel, 20)
+	local scale = Theme.new("UIScale", { Parent = panel })
+	local function fit()
+		local view = workspace.CurrentCamera.ViewportSize
+		scale.Scale = math.min(1, (view.X - 40) / W, (view.Y - 40) / H)
+	end
+	fit()
+	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(fit)
+
+	Theme.label({
+		Size = UDim2.new(0.5, 0, 0, 34),
+		Text = "LOCKER",
+		TextSize = 30,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		FontFace = Theme.Font(Enum.FontWeight.Heavy),
+		Parent = panel,
+	})
+	Theme.label({
+		Position = UDim2.fromOffset(0, 36),
+		Size = UDim2.new(0.6, 0, 0, 20),
+		Text = "Pick a skin for each weapon. Everyone sees it.  L: close",
+		TextSize = 14,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextColor3 = Palette.UISubText,
+		FontFace = Theme.Font(Enum.FontWeight.Medium),
+		Parent = panel,
+	})
+
+	-- tabs
+	tabs = {}
+	for i, name in ipairs({ "Rifle", "Knife" }) do
+		local button = Theme.button({
+			AnchorPoint = Vector2.new(1, 0),
+			Position = UDim2.new(1, -(2 - i) * 128, 0, 4),
+			Size = UDim2.fromOffset(120, 36),
+			Text = string.upper(name),
+			TextSize = 16,
+			Parent = panel,
+		})
+		button.Activated:Connect(function()
+			if weapon ~= name then
+				weapon = name
+				Sfx.Play("CardHover", { Pitch = 1.2 })
+				buildTab()
+			end
+		end)
+		tabs[name] = button
+	end
+
+	-- left: the preview + details
+	local left = Theme.new("Frame", {
+		Position = UDim2.fromOffset(0, 70),
+		Size = UDim2.new(0.46, -8, 1, -70),
+		BackgroundColor3 = Palette.UIBackground,
+		Parent = panel,
+	})
+	Theme.corner(left, 12)
+	viewport = Theme.new("ViewportFrame", {
+		Size = UDim2.new(1, 0, 1, -128),
+		BackgroundTransparency = 1,
+		Ambient = Color3.fromRGB(150, 155, 170),
+		LightColor = Color3.fromRGB(255, 250, 240),
+		LightDirection = Vector3.new(-0.4, -1, -0.6),
+		Parent = left,
+	})
+	worldModel = Instance.new("WorldModel")
+	worldModel.Parent = viewport
+	previewCam = Instance.new("Camera")
+	previewCam.FieldOfView = 30
+	previewCam.CFrame = CFrame.lookAt(Vector3.new(0, 1.2, 9.5), Vector3.new(0, 0, 0))
+	previewCam.Parent = viewport
+	viewport.CurrentCamera = previewCam
+
+	nameLabel = Theme.label({
+		Position = UDim2.new(0, 16, 1, -124),
+		Size = UDim2.new(1, -32, 0, 30),
+		TextSize = 24,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		FontFace = Theme.Font(Enum.FontWeight.Heavy),
+		Parent = left,
+	})
+	rarityLabel = Theme.label({
+		Position = UDim2.new(0, 16, 1, -94),
+		Size = UDim2.new(0.5, 0, 0, 18),
+		TextSize = 13,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = left,
+	})
+	statusLabel = Theme.label({
+		Position = UDim2.new(0, 16, 1, -74),
+		Size = UDim2.new(1, -32, 0, 16),
+		TextSize = 11,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		FontFace = Theme.Font(Enum.FontWeight.Medium),
+		Parent = left,
+	})
+	equipButton = Theme.button({
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, 16, 1, -12),
+		Size = UDim2.new(1, -32, 0, 42),
+		Text = "EQUIP",
+		TextSize = 18,
+		Parent = left,
+	})
+	equipButton.Activated:Connect(function()
+		local skin = Skins.Get(selected)
+		if equipped[weapon] == selected or (skin and (owned[skin.Id] or 0) <= 0) then
+			return
+		end
+		Sfx.Play("CardPick", { Pitch = 1.2 })
+		Theme.pop(equipButton, 0.06)
+		equipped[weapon] = selected -- (shown now; the server confirms)
+		Remotes.Get("SkinEquip"):FireServer(weapon, selected)
+		refreshTiles()
+	end)
+
+	-- right: every skin for this weapon
+	grid = Theme.new("ScrollingFrame", {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, 0, 0, 70),
+		Size = UDim2.new(0.54, 0, 1, -122),
+		BackgroundTransparency = 1,
+		ScrollBarThickness = 6,
+		ScrollBarImageColor3 = Palette.UISubText,
+		ScrollingDirection = Enum.ScrollingDirection.Y,
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		CanvasSize = UDim2.new(),
+		Parent = panel,
+	}, {
+		Theme.new("UIGridLayout", {
+			CellSize = UDim2.new(0.5, -6, 0, 68),
+			CellPadding = UDim2.fromOffset(8, 8),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+		}),
+		Theme.new("UIPadding", { PaddingRight = UDim.new(0, 8) }),
+	})
+
+	defaultButton = Theme.button({
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.fromScale(1, 1),
+		Size = UDim2.fromOffset(160, 42),
+		Text = "DONE",
+		TextSize = 18,
+		Parent = panel,
+	})
+	defaultButton.Activated:Connect(Locker.Close)
+
+	-- what you own (CrateController hears it from the server) and have on
+	ClientState.SkinsChanged:Connect(function()
+		owned = ClientState.OwnedSkins
+		if isOpen then
+			refreshTiles()
+		end
+	end)
+	for _, name in ipairs({ "Rifle", "Knife" }) do
+		equipped[name] = player:GetAttribute(name .. "Skin")
+		player:GetAttributeChangedSignal(name .. "Skin"):Connect(function()
+			equipped[name] = player:GetAttribute(name .. "Skin")
+			if isOpen then
+				refreshTiles()
+			end
+		end)
+	end
+
+	RunService.RenderStepped:Connect(function(dt)
+		if isOpen then
+			placePreview(dt)
+		end
+	end)
+
+	ClientState.Changed:Connect(function(snapshot)
+		if snapshot.InMatch then
+			Locker.Close()
+		end
+	end)
+
+	local function onActionInput(input, processed)
+		if processed and UserInputService:GetFocusedTextBox() then
+			return
+		end
+		if require(script.Parent.SettingsMenu).IsOpen() then
+			return
+		end
+		if Keybinds.Matches("Locker", input) then
+			if isOpen then
+				Locker.Close()
+			elseif not ClientState.InMatch() then
+				Locker.Open()
+			end
+		end
+	end
+	UserInputService.InputBegan:Connect(onActionInput)
+	Keybinds.VirtualBegan:Connect(onActionInput)
+end
+
+return Locker
+]]></string>
+            </Properties>
+          </Item>
+          <Item class="ModuleScript" referent="66">
             <Properties>
               <string name="Name">MobileControls</string>
               <string name="Source"><![CDATA[--[[
@@ -20219,7 +21657,8 @@ return LobbyUI
 	               FIRE (you can keep dragging on it to aim), SCOPE, JUMP
 	               (hold to bunny hop), SLIDE, SPRINT (toggle) and your
 	               ability buttons (Grapple / Blink / Decoy, when you have them)
-	  top          LAB (Power-Up Lab, in the lobby), DUEL (challenge a player)
+	  top          LAB (Power-Up Lab, in the lobby), DUEL (challenge a player),
+	               SKINS (the Locker)
 	               and a settings button
 
 	Buttons don't do anything themselves: they press the same actions as
@@ -20340,6 +21779,7 @@ local function refresh()
 	buttons.Blink.Visible = stats.Blink == true
 	buttons.Decoy.Visible = stats.Decoy == true
 	buttons.Lab.Visible = not inMatch
+	buttons.Skins.Visible = not inMatch
 	buttons.Duel.Visible = not inMatch
 	buttons.Sprint.BackgroundColor3 = sprintOn and Palette.UIAccent or Palette.UIPanel
 end
@@ -20414,6 +21854,11 @@ function MobileControls.Start(playerGui)
 
 	pill("Lab", "LAB", UDim2.new(0, 60, 0, 120), tap("PowerUpLab"))
 	pill("Duel", "DUEL", UDim2.new(0, 150, 0, 120), tap("DuelFriend"))
+	pill("Skins", "SKINS", UDim2.new(0, 240, 0, 120), function()
+		if Controllers and Controllers.Locker then
+			Controllers.Locker.Toggle()
+		end
+	end)
 	pill("Settings", "MENU", UDim2.new(1, -60, 0, 64), tap("Settings"))
 
 	-- smaller on small screens
@@ -20438,7 +21883,7 @@ return MobileControls
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="64">
+          <Item class="ModuleScript" referent="67">
             <Properties>
               <string name="Name">PickScreen</string>
               <string name="Source"><![CDATA[--[[
@@ -21215,7 +22660,7 @@ return PickScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="65">
+          <Item class="ModuleScript" referent="68">
             <Properties>
               <string name="Name">PowerUpLab</string>
               <string name="Source"><![CDATA[--[[
@@ -21516,7 +22961,7 @@ return PowerUpLab
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="66">
+          <Item class="ModuleScript" referent="69">
             <Properties>
               <string name="Name">SettingsMenu</string>
               <string name="Source"><![CDATA[--[[
@@ -22045,7 +23490,7 @@ return SettingsMenu
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="67">
+          <Item class="ModuleScript" referent="70">
             <Properties>
               <string name="Name">Theme</string>
               <string name="Source"><![CDATA[--[[
@@ -22355,7 +23800,7 @@ return Theme
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="68">
+          <Item class="ModuleScript" referent="71">
             <Properties>
               <string name="Name">Toast</string>
               <string name="Source"><![CDATA[--[[
@@ -22442,7 +23887,7 @@ return Toast
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="69">
+          <Item class="ModuleScript" referent="72">
             <Properties>
               <string name="Name">VictoryScreen</string>
               <string name="Source"><![CDATA[--[[

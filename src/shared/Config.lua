@@ -203,23 +203,82 @@ Config.Crates = {
 		{ Id = "Legendary", Name = "LEGENDARY", Color = Color3.fromRGB(255, 192, 46), Chance = 3 },
 		{ Id = "Secret", Name = "SECRET", Color = Color3.fromRGB(255, 38, 56), Chance = 1 },
 	},
-	-- Rifle skins you can unlock. Body / Metal / Accent colour the rifle
-	-- (equipping skins comes later; for now they're collected).
+	-- Skins for the rifle and the knife (see Skins.lua for how they're
+	-- painted). Equip them in the LOCKER (lobby, key L).
+	--   Weapon    "Rifle" or "Knife"
+	--   Body      rifle: the main body        knife: the handle
+	--   Metal     rifle: barrel, scope, metal  knife: guard + pommel
+	--   Accent    rifle: bolt + stock trims   knife: (glow colour)
+	--   Blade     knife: the blade
+	--   Finish    "Matte" | "Gloss" | "Metal" | "Chrome" | "Gold" (the body / blade)
+	--   Glow      true: the trims glow (Epic and up)
+	--   Pulse     a second colour the glow pulses to (Legendary)
+	--   Sparkle   true: glittering particles (Legendary)
+	-- Secret skins will be their own models (coming later); until then no
+	-- crate rolls Secret.
 	Skins = {
-		{ Id = "FieldGrey", Name = "Field Grey", Rarity = "Common", Body = Color3.fromRGB(128, 132, 136), Metal = Color3.fromRGB(52, 54, 58), Accent = Color3.fromRGB(190, 194, 198) },
-		{ Id = "Sandstorm", Name = "Sandstorm", Rarity = "Common", Body = Color3.fromRGB(196, 170, 120), Metal = Color3.fromRGB(70, 64, 54), Accent = Color3.fromRGB(230, 214, 176) },
-		{ Id = "Woodland", Name = "Woodland", Rarity = "Common", Body = Color3.fromRGB(92, 110, 70), Metal = Color3.fromRGB(46, 50, 42), Accent = Color3.fromRGB(150, 128, 88) },
-		{ Id = "Arctic", Name = "Arctic", Rarity = "Uncommon", Body = Color3.fromRGB(226, 234, 240), Metal = Color3.fromRGB(96, 110, 124), Accent = Color3.fromRGB(150, 200, 230) },
-		{ Id = "Viper", Name = "Viper", Rarity = "Uncommon", Body = Color3.fromRGB(64, 150, 70), Metal = Color3.fromRGB(30, 36, 32), Accent = Color3.fromRGB(190, 240, 90) },
-		{ Id = "Cobalt", Name = "Cobalt", Rarity = "Rare", Body = Color3.fromRGB(40, 92, 200), Metal = Color3.fromRGB(28, 32, 48), Accent = Color3.fromRGB(110, 190, 255) },
-		{ Id = "DeepSea", Name = "Deep Sea", Rarity = "Rare", Body = Color3.fromRGB(20, 110, 130), Metal = Color3.fromRGB(16, 30, 40), Accent = Color3.fromRGB(80, 230, 220) },
-		{ Id = "Amethyst", Name = "Amethyst", Rarity = "Epic", Body = Color3.fromRGB(120, 60, 200), Metal = Color3.fromRGB(34, 24, 52), Accent = Color3.fromRGB(230, 150, 255) },
-		{ Id = "Synthwave", Name = "Synthwave", Rarity = "Epic", Body = Color3.fromRGB(40, 24, 70), Metal = Color3.fromRGB(20, 16, 32), Accent = Color3.fromRGB(255, 70, 200) },
-		{ Id = "GoldenEagle", Name = "Golden Eagle", Rarity = "Legendary", Body = Color3.fromRGB(232, 182, 60), Metal = Color3.fromRGB(60, 46, 24), Accent = Color3.fromRGB(255, 240, 170) },
-		{ Id = "SolarFlare", Name = "Solar Flare", Rarity = "Legendary", Body = Color3.fromRGB(255, 120, 30), Metal = Color3.fromRGB(50, 30, 20), Accent = Color3.fromRGB(255, 220, 90) },
-		{ Id = "CrimsonPhantom", Name = "Crimson Phantom", Rarity = "Secret", Body = Color3.fromRGB(26, 20, 22), Metal = Color3.fromRGB(12, 10, 12), Accent = Color3.fromRGB(255, 30, 50) },
+		-- RIFLE
+		{ Id = "FieldGrey", Name = "Field Grey", Weapon = "Rifle", Rarity = "Common", Body = Color3.fromRGB(128, 132, 136), Metal = Color3.fromRGB(52, 54, 58), Accent = Color3.fromRGB(190, 194, 198) },
+		{ Id = "Sandstorm", Name = "Sandstorm", Weapon = "Rifle", Rarity = "Common", Body = Color3.fromRGB(196, 170, 120), Metal = Color3.fromRGB(70, 64, 54), Accent = Color3.fromRGB(230, 214, 176) },
+		{ Id = "Woodland", Name = "Woodland", Weapon = "Rifle", Rarity = "Common", Body = Color3.fromRGB(92, 110, 70), Metal = Color3.fromRGB(46, 50, 42), Accent = Color3.fromRGB(150, 128, 88) },
+		{ Id = "Midnight", Name = "Midnight", Weapon = "Rifle", Rarity = "Common", Body = Color3.fromRGB(44, 46, 52), Metal = Color3.fromRGB(26, 27, 30), Accent = Color3.fromRGB(120, 124, 132) },
+		{ Id = "Arctic", Name = "Arctic", Weapon = "Rifle", Rarity = "Uncommon", Body = Color3.fromRGB(226, 234, 240), Metal = Color3.fromRGB(96, 110, 124), Accent = Color3.fromRGB(150, 200, 230), Finish = "Gloss" },
+		{ Id = "Viper", Name = "Viper", Weapon = "Rifle", Rarity = "Uncommon", Body = Color3.fromRGB(64, 150, 70), Metal = Color3.fromRGB(30, 36, 32), Accent = Color3.fromRGB(190, 240, 90), Finish = "Gloss" },
+		{ Id = "Cobalt", Name = "Cobalt", Weapon = "Rifle", Rarity = "Rare", Body = Color3.fromRGB(40, 92, 200), Metal = Color3.fromRGB(28, 32, 48), Accent = Color3.fromRGB(110, 190, 255), Finish = "Metal" },
+		{ Id = "DeepSea", Name = "Deep Sea", Weapon = "Rifle", Rarity = "Rare", Body = Color3.fromRGB(20, 110, 130), Metal = Color3.fromRGB(16, 30, 40), Accent = Color3.fromRGB(80, 230, 220), Finish = "Metal" },
+		{ Id = "Chrome", Name = "Chrome", Weapon = "Rifle", Rarity = "Rare", Body = Color3.fromRGB(196, 202, 210), Metal = Color3.fromRGB(60, 64, 72), Accent = Color3.fromRGB(240, 244, 250), Finish = "Chrome" },
+		{ Id = "Amethyst", Name = "Amethyst", Weapon = "Rifle", Rarity = "Epic", Body = Color3.fromRGB(120, 60, 200), Metal = Color3.fromRGB(34, 24, 52), Accent = Color3.fromRGB(230, 150, 255), Finish = "Metal", Glow = true },
+		{ Id = "Synthwave", Name = "Synthwave", Weapon = "Rifle", Rarity = "Epic", Body = Color3.fromRGB(40, 24, 70), Metal = Color3.fromRGB(20, 16, 32), Accent = Color3.fromRGB(255, 70, 200), Finish = "Gloss", Glow = true },
+		{ Id = "GoldenEagle", Name = "Golden Eagle", Weapon = "Rifle", Rarity = "Legendary", Body = Color3.fromRGB(232, 182, 60), Metal = Color3.fromRGB(60, 46, 24), Accent = Color3.fromRGB(255, 240, 170), Finish = "Gold", Glow = true, Pulse = Color3.fromRGB(255, 170, 40), Sparkle = true },
+		{ Id = "SolarFlare", Name = "Solar Flare", Weapon = "Rifle", Rarity = "Legendary", Body = Color3.fromRGB(255, 120, 30), Metal = Color3.fromRGB(50, 30, 20), Accent = Color3.fromRGB(255, 220, 90), Finish = "Gloss", Glow = true, Pulse = Color3.fromRGB(255, 60, 30), Sparkle = true },
+
+		-- KNIFE
+		{ Id = "KnifeStonewash", Name = "Stonewash", Weapon = "Knife", Rarity = "Common", Blade = Color3.fromRGB(150, 154, 160), Body = Color3.fromRGB(58, 60, 64), Metal = Color3.fromRGB(90, 92, 96), Accent = Color3.fromRGB(200, 200, 200) },
+		{ Id = "KnifeDesert", Name = "Desert", Weapon = "Knife", Rarity = "Common", Blade = Color3.fromRGB(170, 166, 156), Body = Color3.fromRGB(176, 150, 106), Metal = Color3.fromRGB(96, 84, 64), Accent = Color3.fromRGB(230, 214, 176) },
+		{ Id = "KnifeBlackout", Name = "Blackout", Weapon = "Knife", Rarity = "Uncommon", Blade = Color3.fromRGB(40, 42, 46), Body = Color3.fromRGB(22, 22, 24), Metal = Color3.fromRGB(60, 62, 66), Accent = Color3.fromRGB(140, 140, 150), Finish = "Gloss" },
+		{ Id = "KnifeJungle", Name = "Jungle", Weapon = "Knife", Rarity = "Uncommon", Blade = Color3.fromRGB(176, 182, 190), Body = Color3.fromRGB(70, 110, 60), Metal = Color3.fromRGB(40, 50, 36), Accent = Color3.fromRGB(170, 220, 90) },
+		{ Id = "KnifeMirror", Name = "Mirror", Weapon = "Knife", Rarity = "Rare", Blade = Color3.fromRGB(220, 226, 234), Body = Color3.fromRGB(30, 32, 38), Metal = Color3.fromRGB(180, 186, 196), Accent = Color3.fromRGB(240, 244, 250), Finish = "Chrome" },
+		{ Id = "KnifeSapphire", Name = "Sapphire", Weapon = "Knife", Rarity = "Rare", Blade = Color3.fromRGB(70, 120, 220), Body = Color3.fromRGB(24, 30, 52), Metal = Color3.fromRGB(150, 170, 210), Accent = Color3.fromRGB(110, 190, 255), Finish = "Metal" },
+		{ Id = "KnifeToxic", Name = "Toxic", Weapon = "Knife", Rarity = "Epic", Blade = Color3.fromRGB(40, 44, 40), Body = Color3.fromRGB(26, 28, 26), Metal = Color3.fromRGB(60, 70, 60), Accent = Color3.fromRGB(130, 255, 80), Finish = "Gloss", Glow = true },
+		{ Id = "KnifeNeon", Name = "Neon Edge", Weapon = "Knife", Rarity = "Epic", Blade = Color3.fromRGB(46, 30, 70), Body = Color3.fromRGB(20, 16, 32), Metal = Color3.fromRGB(80, 60, 110), Accent = Color3.fromRGB(255, 70, 200), Finish = "Gloss", Glow = true },
+		{ Id = "KnifeGold", Name = "Gilded", Weapon = "Knife", Rarity = "Legendary", Blade = Color3.fromRGB(240, 190, 70), Body = Color3.fromRGB(40, 30, 20), Metal = Color3.fromRGB(255, 220, 120), Accent = Color3.fromRGB(255, 240, 170), Finish = "Gold", Glow = true, Pulse = Color3.fromRGB(255, 170, 40), Sparkle = true },
+		{ Id = "KnifeInferno", Name = "Inferno", Weapon = "Knife", Rarity = "Legendary", Blade = Color3.fromRGB(60, 24, 18), Body = Color3.fromRGB(24, 14, 12), Metal = Color3.fromRGB(120, 50, 30), Accent = Color3.fromRGB(255, 120, 30), Finish = "Gloss", Glow = true, Pulse = Color3.fromRGB(255, 40, 20), Sparkle = true },
 	},
 }
+
+----------------------------------------------------------------------------
+-- RANKED (RankService): every player-vs-player match moves your rating
+-- (Elo: beating someone rated above you is worth more). Matches against
+-- the bot don't count. The lobby's leaderboard wall shows the top players.
+----------------------------------------------------------------------------
+Config.Rank = {
+	StartRating = 1000,
+	K = 32, -- the most a normal match can move your rating
+	PlacementK = 48, -- (bigger swings for your first PlacementMatches matches)
+	PlacementMatches = 5,
+	LeaderboardSize = 10,
+	LeaderboardRefresh = 60, -- seconds between leaderboard updates
+	-- tiers by rating (the highest Min you reach)
+	Tiers = {
+		{ Name = "BRONZE", Min = 0, Color = Color3.fromRGB(196, 128, 82) },
+		{ Name = "SILVER", Min = 900, Color = Color3.fromRGB(190, 198, 210) },
+		{ Name = "GOLD", Min = 1100, Color = Color3.fromRGB(255, 196, 60) },
+		{ Name = "PLATINUM", Min = 1300, Color = Color3.fromRGB(90, 220, 200) },
+		{ Name = "DIAMOND", Min = 1500, Color = Color3.fromRGB(110, 170, 255) },
+		{ Name = "CHAMPION", Min = 1700, Color = Color3.fromRGB(255, 80, 110) },
+	},
+}
+
+-- The tier for a rating.
+function Config.RankTier(rating)
+	local best = Config.Rank.Tiers[1]
+	for _, tier in ipairs(Config.Rank.Tiers) do
+		if (rating or 0) >= tier.Min then
+			best = tier
+		end
+	end
+	return best
+end
 
 ----------------------------------------------------------------------------
 -- MATCH FLOW

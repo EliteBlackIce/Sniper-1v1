@@ -38,6 +38,7 @@ Remotes.Names = {
 	"DuelInvite", -- S->C  someone challenged you / wants a rematch
 	"CrateOpen", -- C->S  open a crate at the lobby altar
 	"Crates", -- S->C  crate results + your keys / skins
+	"SkinEquip", -- C->S  equip a skin: weapon ("Rifle" / "Knife"), skin id (nil = default)
 	"Equip", -- C->S  switch weapon: "Sniper" / "Knife"
 	"Melee", -- C->S  knife swing: kind ("Slash" / "Stab"), what it hit, look direction
 	"Anim", -- C->S  cosmetic animation events others should see ("Inspect", "Scope")

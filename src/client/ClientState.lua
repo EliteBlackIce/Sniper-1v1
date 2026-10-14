@@ -25,10 +25,12 @@ ClientState.Owned = {} -- { [powerUpId] = stacks } you have right now (match or 
 ClientState.Settings = table.clone(Config.SettingsDefaults)
 ClientState.MenuOpen = false -- true while a menu needs the mouse (settings / pick / victory)
 ClientState.Weapon = "Sniper" -- what's in your hands: "Sniper" or "Knife" (KnifeController)
+ClientState.OwnedSkins = {} -- { [skinId] = count } (from the server's "Crates" messages)
 
 ClientState.Changed = Signal.new() -- (newSnapshot, oldSnapshot)
 ClientState.SettingsChanged = Signal.new() -- (settings)
 ClientState.MenuChanged = Signal.new() -- (isOpen)
+ClientState.SkinsChanged = Signal.new() -- () your owned skins changed
 
 local menuReasons = {}
 

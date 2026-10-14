@@ -11,7 +11,12 @@
 	    then rolls the rarity (Chance %) and a skin of that rarity.
 	  * The result goes to the client over the "Crates" remote, which plays
 	    the opening animation (CrateController).
-	  * Keys and owned skins are saved in a DataStore. In Studio that needs
+	  * Equipping: the "SkinEquip" remote (the lobby LOCKER) picks one owned
+	    skin per weapon. It's saved, shown to everyone (player attributes
+	    RifleSkin / KnifeSkin) and the weapons in your hands are rebuilt.
+	  * Secret skins will be their own models; until there are any, crates
+	    only roll the rarities that have skins.
+	  * Keys, owned skins and equipped skins are saved in a DataStore. In Studio that needs
 	    Game Settings > Security > "Enable Studio Access to API Services";
 	    without it everything works for the session, it just isn't saved.
 ]]
@@ -24,18 +29,20 @@ local RunService = game:GetService("RunService")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Util = require(ReplicatedStorage.Shared.Util)
+local Skins = require(ReplicatedStorage.Shared.Skins)
 
 local CrateService = {}
 
 local CR = Config.Crates
 local MatchService
+local CharacterService
 
 local store
 pcall(function()
 	store = DataStoreService:GetDataStore("Crates_v1")
 end)
 
-local data = {} -- [player] = { Keys = n, Skins = { [skinId] = count }, Opened = n }
+local data = {} -- [player] = { Keys = n, Skins = { [skinId] = count }, Opened = n, Equipped = { Rifle = id, Knife = id } }
 local loaded = {} -- [player] = true once their save has loaded
 local loadFailed = {} -- [player] = true if the DataStore read failed (never overwrite their save)
 local lastOpen = {} -- [player] = os.clock()
@@ -55,7 +62,7 @@ end
 local function sendInventory(player)
 	local d = data[player]
 	if d then
-		Remotes.Get("Crates"):FireClient(player, { Type = "Inventory", Keys = d.Keys, Skins = d.Skins })
+		Remotes.Get("Crates"):FireClient(player, { Type = "Inventory", Keys = d.Keys, Skins = d.Skins, Equipped = d.Equipped })
 	end
 end
 
@@ -76,7 +83,7 @@ local function save(player)
 	end
 	dirty[player] = nil
 	local ok, err = pcall(function()
-		store:SetAsync("u" .. player.UserId, { Keys = d.Keys, Skins = d.Skins, Opened = d.Opened })
+		store:SetAsync("u" .. player.UserId, { Keys = d.Keys, Skins = d.Skins, Opened = d.Opened, Equipped = d.Equipped })
 	end)
 	if not ok then
 		dirty[player] = true
@@ -108,7 +115,7 @@ local function load(player)
 	if not player.Parent then
 		return
 	end
-	local d = { Keys = CR.StartingKeys, Skins = {}, Opened = 0 }
+	local d = { Keys = CR.StartingKeys, Skins = {}, Opened = 0, Equipped = {} }
 	if typeof(saved) == "table" then
 		if typeof(saved.Keys) == "number" then
 			d.Keys = math.max(0, math.floor(saved.Keys))
@@ -124,25 +131,44 @@ local function load(player)
 			end
 		end
 	end
+	if typeof(saved) == "table" and typeof(saved.Equipped) == "table" then
+		for _, weapon in ipairs({ "Rifle", "Knife" }) do
+			local id = saved.Equipped[weapon]
+			local skin = typeof(id) == "string" and Skins.Get(id)
+			if skin and skin.Weapon == weapon and (d.Skins[id] or 0) > 0 then
+				d.Equipped[weapon] = id
+			end
+		end
+	end
 	data[player] = d
 	loaded[player] = true
 	player:SetAttribute("Keys", d.Keys)
+	player:SetAttribute("RifleSkin", d.Equipped.Rifle)
+	player:SetAttribute("KnifeSkin", d.Equipped.Knife)
+	if d.Equipped.Rifle or d.Equipped.Knife then
+		CharacterService.RefreshSkins(player)
+	end
 	sendInventory(player)
 end
 
 ----------------------------------------------------------------------------
 -- Opening
 ----------------------------------------------------------------------------
+-- (only rarities that have skins: no Secret until its models are in)
 local function rollRarity()
 	local total = 0
 	for _, rarity in ipairs(CR.Rarities) do
-		total += rarity.Chance
+		if skinsByRarity[rarity.Id] then
+			total += rarity.Chance
+		end
 	end
 	local pick = rng:NextNumber() * total
 	for _, rarity in ipairs(CR.Rarities) do
-		pick -= rarity.Chance
-		if pick <= 0 then
-			return rarity
+		if skinsByRarity[rarity.Id] then
+			pick -= rarity.Chance
+			if pick <= 0 then
+				return rarity
+			end
 		end
 	end
 	return CR.Rarities[1]
@@ -215,6 +241,7 @@ function CrateService.Open(player)
 	dirty[player] = true
 	Remotes.Get("Crates"):FireClient(player, {
 		Type = "Result",
+		Equipped = d.Equipped,
 		Rarity = rarity.Id,
 		Skin = skin.Id,
 		New = isNew,
@@ -224,6 +251,38 @@ function CrateService.Open(player)
 		Skins = d.Skins,
 	})
 	-- save a little later (opening several in a row = one save)
+	task.delay(8, function()
+		if player.Parent then
+			save(player)
+		end
+	end)
+end
+
+----------------------------------------------------------------------------
+-- Equipping
+----------------------------------------------------------------------------
+-- weapon: "Rifle" / "Knife"; id: an owned skin for it, or nil for the default look
+function CrateService.Equip(player, weapon, id)
+	local d = data[player]
+	if not d or (weapon ~= "Rifle" and weapon ~= "Knife") then
+		return
+	end
+	if id ~= nil then
+		local skin = typeof(id) == "string" and Skins.Get(id)
+		if not skin or skin.Weapon ~= weapon or (d.Skins[id] or 0) <= 0 then
+			return
+		end
+	end
+	if d.Equipped[weapon] == id then
+		return
+	end
+	d.Equipped[weapon] = id
+	dirty[player] = true
+	player:SetAttribute(weapon .. "Skin", id)
+	if not MatchService.GetMatch(player) then
+		CharacterService.RefreshSkins(player) -- (in a match: from the next round)
+	end
+	sendInventory(player)
 	task.delay(8, function()
 		if player.Parent then
 			save(player)
@@ -251,8 +310,21 @@ local function onMatchFinished(match)
 	end
 end
 
-function CrateService.Init(matchService)
+function CrateService.Init(matchService, characterService)
 	MatchService = matchService
+	CharacterService = characterService
+
+	local lastEquip = {}
+	Remotes.Get("SkinEquip").OnServerEvent:Connect(function(player, weapon, id)
+		if lastEquip[player] and os.clock() - lastEquip[player] < 0.25 then
+			return
+		end
+		lastEquip[player] = os.clock()
+		CrateService.Equip(player, weapon, id)
+	end)
+	Players.PlayerRemoving:Connect(function(player)
+		lastEquip[player] = nil
+	end)
 
 	Remotes.Get("CrateOpen").OnServerEvent:Connect(function(player)
 		CrateService.Open(player)

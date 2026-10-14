@@ -9,6 +9,7 @@
 		LobbyUI       find match / playground / bot buttons
 		SettingsMenu  sliders + keybinds for mouse and controller (P)
 		PowerUpLab    try power-ups solo in the lobby (B)
+		Locker        pick your rifle and knife skins (L)
 		Toast         short server messages (admin commands)
 		DuelUI        challenge a player, duel / rematch invites
 		MobileControls on-screen buttons + look pad for touch screens
@@ -25,6 +26,7 @@ local VictoryScreen = require(ui.VictoryScreen)
 local LobbyUI = require(ui.LobbyUI)
 local SettingsMenu = require(ui.SettingsMenu)
 local PowerUpLab = require(ui.PowerUpLab)
+local Locker = require(ui.Locker)
 local Toast = require(ui.Toast)
 local DuelUI = require(ui.DuelUI)
 local MobileControls = require(ui.MobileControls)
@@ -38,6 +40,7 @@ function UIController.Init(controllers)
 	controllers.HUD = HUD
 	controllers.Settings = SettingsMenu
 	controllers.Duel = DuelUI
+	controllers.Locker = Locker
 	MobileControls.Init(controllers)
 	HUD.Init(controllers)
 	LobbyUI.Init(controllers)
@@ -71,6 +74,7 @@ function UIController.Start()
 	LobbyUI.Start(playerGui)
 	SettingsMenu.Start(playerGui)
 	PowerUpLab.Start(playerGui)
+	Locker.Start(playerGui)
 	Toast.Start(playerGui)
 	DuelUI.Start(playerGui)
 	MobileControls.Start(playerGui)

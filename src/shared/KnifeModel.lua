@@ -33,8 +33,8 @@ KnifeModel.Tip = V(0, -0.03, -1.15)
 
 -- flat paint for the meshes (by name)
 KnifeModel.MeshPaint = {
-	{ Match = "blade", Color = Color3.fromRGB(176, 182, 190), Material = Enum.Material.Metal },
-	{ Match = "", Color = Color3.fromRGB(34, 36, 40), Material = Enum.Material.SmoothPlastic }, -- handle + guard
+	{ Match = "blade", Key = "Blade", Color = Color3.fromRGB(176, 182, 190), Material = Enum.Material.Metal },
+	{ Match = "", Key = "Handle", Color = Color3.fromRGB(34, 36, 40), Material = Enum.Material.SmoothPlastic }, -- handle + guard
 }
 
 -- The parts knife: { name, shape, size, position, rotation (degrees), colour, material }
@@ -54,6 +54,9 @@ KnifeModel.Parts = {
 for i = 0, 3 do -- grip rings
 	table.insert(KnifeModel.Parts, { "Ring" .. i, "Cylinder", V(0.03, 0.145, 0.145), V(0, -0.01, -0.3 + i * 0.13), V(0, 90, 0), GUARD, "Metal" })
 end
+
+-- paint groups of the parts knife (Skins recolour by them)
+local PARTS_PAINT = { Blade = "Blade", Edge = "Edge", Tip = "Blade", Spine = "Fittings", Guard = "Fittings", Handle = "Handle", Pommel = "Fittings" }
 
 local function templateParts(template)
 	local list = {}
@@ -198,6 +201,7 @@ function KnifeModel.Build(parent, options)
 				end
 			end
 			part.Size = info.Size * scale
+			part:SetAttribute("Paint", info.Part.Name:lower():find("blade") and "Blade" or "Handle")
 			paint(part)
 			setup(part, info.Name, info.Offset.Rotation + info.Offset.Position * scale)
 		end
@@ -212,6 +216,7 @@ function KnifeModel.Build(parent, options)
 				part.Shape = Enum.PartType[shape]
 			end
 			part.Size = size * scale
+			part:SetAttribute("Paint", PARTS_PAINT[name] or (name:find("Ring") and "Fittings") or "Handle")
 			part.Color = color
 			part.Material = Enum.Material[material]
 			part.TopSurface = Enum.SurfaceType.Smooth

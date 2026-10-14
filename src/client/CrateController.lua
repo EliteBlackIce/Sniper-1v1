@@ -15,7 +15,7 @@
 	              then cracks red.
 	  3. BURST    the lid blasts off, a flash, a pillar of light, a shockwave
 	              ring and a shower of sparks in the rarity colour
-	  4. REVEAL   the rifle rises out of the crate in the skin's colours and
+	  4. REVEAL   the rifle (or knife) rises out of the crate in the skin's colours and
 	              spins while ui/CrateReveal shows the rarity + skin
 	Everything is local to you; the roll itself happened on the server.
 ]]
@@ -32,6 +32,8 @@ local Config = require(Shared.Config)
 local Remotes = require(Shared.Remotes)
 local CrateModel = require(Shared.CrateModel)
 local GunModel = require(Shared.GunModel)
+local KnifeModel = require(Shared.KnifeModel)
+local Skins = require(Shared.Skins)
 local ClientState = require(script.Parent.ClientState)
 local Sfx = require(script.Parent.Sfx)
 local CrateReveal = require(script.Parent.ui.CrateReveal)
@@ -175,46 +177,44 @@ local function idle(dt)
 end
 
 ----------------------------------------------------------------------------
--- Rifle in the skin's colours
+-- The rifle (or knife) in the skin's colours
 ----------------------------------------------------------------------------
 local function buildRifle(skin, rarity)
 	local model = Instance.new("Model")
-	model.Name = "CrateRifle"
-	local scale = 1.7
-	local built = GunModel.Build(model, { Scale = scale, Anchored = true, CastShadow = false, Effects = false })
+	model.Name = "CrateReward"
+	local isKnife = skin.Weapon == "Knife"
+	local scale = isKnife and 2.6 or 1.7
+	local built
+	if isKnife then
+		built = KnifeModel.Build(model, { Scale = scale, Anchored = true })
+	else
+		built = GunModel.Build(model, { Scale = scale, Anchored = true, CastShadow = false, Effects = false })
+	end
 	for _, part in pairs(built.Parts) do
 		part.CanCollide = false
 		part.CanQuery = false
 		part.CanTouch = false
 	end
-	if built.UsesMesh then
-		-- textured meshes can't be recoloured: wash them in the skin colour
-		local highlight = Instance.new("Highlight")
-		highlight.FillColor = skin.Body
-		highlight.FillTransparency = 0.45
-		highlight.OutlineColor = rarity.Color
-		highlight.OutlineTransparency = 0.1
-		highlight.DepthMode = Enum.HighlightDepthMode.Occluded
-		highlight.Parent = model
-	else
-		for _, part in pairs(built.Parts) do
-			local _, s, v = part.Color:ToHSV()
-			if part.Material == Enum.Material.Neon or s > 0.45 then
-				part.Color = skin.Accent
-			elseif v < 0.38 then
-				part.Color = skin.Metal
-			else
-				part.Color = skin.Body
-			end
-		end
-	end
+	Skins.Apply(model, skin)
+	-- a soft outline in the rarity colour
+	local highlight = Instance.new("Highlight")
+	highlight.FillTransparency = 1
+	highlight.OutlineColor = rarity.Color
+	highlight.OutlineTransparency = 0.3
+	highlight.DepthMode = Enum.HighlightDepthMode.Occluded
+	highlight.Parent = model
 	model.Parent = workspace
-	return { Model = model, Built = built, Scale = scale }
+	return { Model = model, Built = built, Scale = scale, IsKnife = isKnife }
 end
 
 local function placeRifle(rifle, cf)
-	-- GunModel's grip is near the back: shift so it spins around its middle
-	GunModel.Place(rifle.Built, cf * CFrame.new(0, 0, 1.4 * rifle.Scale), rifle.Scale)
+	if rifle.IsKnife then
+		-- the knife's origin is mid-handle: shift so it spins around its middle
+		KnifeModel.Place(rifle.Built, cf * CFrame.new(0, 0, 0.47 * rifle.Scale))
+	else
+		-- GunModel's grip is near the back: shift so it spins around its middle
+		GunModel.Place(rifle.Built, cf * CFrame.new(0, 0, 1.4 * rifle.Scale), rifle.Scale)
+	end
 end
 
 ----------------------------------------------------------------------------
@@ -576,7 +576,7 @@ local function play(result, continuing)
 			end
 		end
 
-		-- REVEAL: the rifle rises out of the crate and spins
+		-- REVEAL: the rifle (or knife) rises out of the crate and spins
 		if once("reveal", tReveal, t) then
 			rifle = buildRifle(skin, rarity)
 			scene.Rifle = rifle
@@ -662,6 +662,10 @@ end
 local function onResult(result)
 	if typeof(result) ~= "table" then
 		return
+	end
+	if typeof(result.Skins) == "table" then
+		ClientState.OwnedSkins = result.Skins -- (the Locker reads these)
+		ClientState.SkinsChanged:Fire()
 	end
 	if result.Type == "Denied" then
 		if waitingAgain then

@@ -15,7 +15,7 @@
 	      |  CRATE ====== ( SUNKEN CENTRE ) ====== DUEL |
 	      |  VAULT         (monument,              AREA |
 	       \         /     skylight dome)  \           /
-	         '-.  BENCHES     |      PARKOUR      .-'
+	         '-. LEADERBOARD  |      PARKOUR      .-'
 	              '-.______ STAGE ___________.-'
 
 	  * Centre: a sunken ring with smooth steps down, the monument (the
@@ -31,7 +31,7 @@
 	    and two light pillars. Lobby.CrateAltar has the "Open Crate" prompt.
 	  * South: the stage with the title sign.
 	  * Diagonals: the Playground portal, an indoor garden, a parkour corner and
-	    a quiet corner with a tree and benches.
+	    the leaderboard wall (top ranked players) with benches.
 
 	Detail parts use builder.decor (no collision), so paths stay smooth.
 ]]
@@ -138,6 +138,24 @@ local function light(parts, color, range, brightness)
 		l.Parent = part
 	end
 	return parts
+end
+
+-- A rarity's real odds on the board: rarities with no skins yet (Secret,
+-- until its models are in) aren't rolled, so the rest share their chance.
+local function oddsText(rarity)
+	local hasSkins = {}
+	for _, skin in ipairs(Config.Crates.Skins) do
+		hasSkins[skin.Rarity] = true
+	end
+	if not hasSkins[rarity.Id] then
+		return "SOON"
+	end
+	local total = 0
+	for _, other in ipairs(Config.Crates.Rarities) do
+		total += hasSkins[other.Id] and other.Chance or 0
+	end
+	local pct = rarity.Chance / total * 100
+	return (pct >= 10 and ("%d%%"):format(math.floor(pct + 0.5)) or ("%.1f%%"):format(pct))
 end
 
 local function bar(b, a, c, w, color)
@@ -684,7 +702,7 @@ function LobbyBuilder.Build()
 			chance.BackgroundTransparency = 1
 			chance.Position = UDim2.fromScale(0.08, 0.24)
 			chance.Size = UDim2.fromScale(0.84, 0.36)
-			chance.Text = tostring(rarity.Chance) .. "%"
+			chance.Text = oddsText(rarity)
 			chance.TextScaled = true
 			chance.FontFace = Font.new(Config.UI.FontFamily, Enum.FontWeight.Heavy)
 			chance.TextColor3 = rarity.Color
@@ -760,6 +778,23 @@ function LobbyBuilder.Build()
 		Subtitle = ("1V1 SNIPER ARENA  -  FIRST TO %d"):format(Config.Match.RoundsToWin),
 	}, 40)
 
+	-- the leaderboard in the south-west corner (RankService writes on it)
+	local leaderboard = Instance.new("Part")
+	leaderboard.Name = "Leaderboard"
+	leaderboard.Anchored = true
+	leaderboard.CanCollide = false
+	leaderboard.CanQuery = false
+	leaderboard.Size = V(17, 12, 0.3)
+	leaderboard.CFrame = facingIn(R - 2.4, 225, 8.6) -- (in front of the pilasters and sconces)
+	leaderboard.Color = P.UIBackground
+	leaderboard.Material = Enum.Material.SmoothPlastic
+	leaderboard.Parent = model
+	b.decor(function()
+		local frameCf = facingIn(R - 2.2, 225, 8.6)
+		b.part(V(17.8, 12.8, 0.2), frameCf, C.Trim)
+		b.part(V(17.8, 0.2, 0.5), frameCf * CFrame.new(0, -6.5, -0.15), P.AccentA)
+	end)
+
 	-- NORTH-EAST: INDOOR GARDEN ------------------------------------------------------------
 	plant(b, polar(52, 55), 1)
 	plant(b, polar(56, 66), 0.85)
@@ -814,10 +849,9 @@ function LobbyBuilder.Build()
 		end
 	end)
 
-	-- SOUTH-WEST: a quiet corner, a bench under a tree
-	plant(b, polar(54, 225), 0.9)
-	bench(b, facingIn(46, 215, 0))
-	bench(b, facingIn(46, 235, 0))
+	-- SOUTH-WEST: the leaderboard wall (built above), two benches facing it
+	bench(b, facingIn(46, 217, 0) * CFrame.Angles(0, math.pi, 0))
+	bench(b, facingIn(46, 233, 0) * CFrame.Angles(0, math.pi, 0))
 
 	-- SHOOTING RANGE (north, through the tunnel): a long indoor hall -----------------------
 	-- Walls, a roof with light strips, a firing line with booths, lane markings
@@ -919,6 +953,7 @@ function LobbyBuilder.Build()
 		end,
 		KillY = -60,
 		CrateAltar = altar,
+		Leaderboard = leaderboard,
 		DummySpots = {
 			{ Position = V(-10, 0, -110), Motion = "Static" },
 			{ Position = V(8, 0, -135), Motion = "Strafe", Amount = 8, Speed = 0.35 },

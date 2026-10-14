@@ -6,7 +6,7 @@
 	clear while you walk around the lobby in first person:
 
 		top left      SNIPER DUEL wordmark (+ PLAYGROUND chip in the playground)
-		top right     player card (avatar, name) + ONLINE and KEYS chips
+		top right     player card (avatar, name) + ONLINE, KEYS and RANK chips
 		bottom left   action stack: REMATCH (after a match), FIND MATCH
 		              (animated "searching" state with timer + queue count),
 		              then Playground / Power-Up Lab / Duel / Settings /
@@ -61,6 +61,7 @@ local COMPACT_WIDTHS = { Rematch = 132, FindMatch = 184, Playground = 124, BotMa
 local SECONDARY = {
 	{ Id = "Playground", Text = "PLAYGROUND", Hint = "FREE ROAM" },
 	{ Id = "PowerUpLab", Text = "POWER-UP LAB", Hint = "TRY BUILDS" },
+	{ Id = "Locker", Text = "LOCKER", Hint = "SKINS" },
 	{ Id = "DuelFriend", Text = "DUEL A PLAYER", Hint = "INVITE" },
 	{ Id = "Settings", Text = "SETTINGS", Hint = "" },
 	{ Id = "BotMatch", Text = "PLAY VS BOT", Hint = "ADMIN" },
@@ -70,6 +71,7 @@ local gui, root
 local scrimLeft, scrimTop
 local brand, brandMark, title, tagline, modeRow, modeChip, subtitle
 local card, cardPanel, avatar, chipRow, onlineChip, onlineLabel, keysChip, keysLabel
+local rankChip, rankLabel, rankTier, rankStroke
 local stack, statusLabel
 local primary, playButton, playgroundButton, rematchButton
 local spinner, progressTrack, progressFill, shine, timeLabel, subLabel
@@ -550,6 +552,20 @@ local function refreshInfo(snapshot)
 	statusLabel.Text = table.concat(parts, "  ·  ")
 end
 
+-- RANK chip: your tier + rating (RankService's "Rating" attribute)
+local function refreshRank()
+	local rating = tonumber(player:GetAttribute("Rating"))
+	rankChip.Visible = rating ~= nil
+	if not rating then
+		return
+	end
+	local tier = Config.RankTier(rating)
+	rankTier.Text = tier.Name
+	rankTier.TextColor3 = tier.Color
+	rankStroke.Color = tier.Color
+	rankLabel.Text = tostring(math.floor(rating))
+end
+
 local function refreshKeys()
 	local keys = tonumber(player:GetAttribute("Keys")) or 0
 	keysLabel.Text = tostring(math.floor(keys))
@@ -897,6 +913,27 @@ local function buildCard()
 		LayoutOrder = 3,
 		Parent = keysChip,
 	})
+	rankChip = buildChip("Rank", chipRow, 3, Palette.UIText)
+	rankStroke = rankChip:FindFirstChildOfClass("UIStroke")
+	rankTier = Theme.label({
+		Size = UDim2.fromOffset(0, 16),
+		AutomaticSize = Enum.AutomaticSize.X,
+		Text = "",
+		TextSize = 12,
+		FontFace = Theme.Font(Enum.FontWeight.Heavy),
+		LayoutOrder = 1,
+		Parent = rankChip,
+	})
+	rankLabel = Theme.label({
+		Size = UDim2.fromOffset(0, 18),
+		AutomaticSize = Enum.AutomaticSize.X,
+		Text = "",
+		TextSize = 15,
+		FontFace = Theme.Font(Enum.FontWeight.Heavy),
+		LayoutOrder = 2,
+		Parent = rankChip,
+	})
+	rankChip.Visible = false
 end
 
 local function buildStack()
@@ -1066,6 +1103,12 @@ function LobbyUI.Start(playerGui)
 		Keybinds.Press("PowerUpLab", true)
 		Keybinds.Press("PowerUpLab", false)
 	end)
+	entries.Locker.Button.Activated:Connect(function()
+		Theme.pop(entries.Locker.Button, 0.06)
+		if Controllers and Controllers.Locker then
+			Controllers.Locker.Toggle()
+		end
+	end)
 	entries.DuelFriend.Button.Activated:Connect(function()
 		Theme.pop(entries.DuelFriend.Button, 0.06)
 		if Controllers and Controllers.Duel then
@@ -1125,6 +1168,9 @@ function LobbyUI.Start(playerGui)
 	-- KEYS (crates): LocalPlayer attribute "Keys"
 	refreshKeys()
 	player:GetAttributeChangedSignal("Keys"):Connect(refreshKeys)
+	-- RANK: LocalPlayer attribute "Rating"
+	refreshRank()
+	player:GetAttributeChangedSignal("Rating"):Connect(refreshRank)
 
 	local function refreshIfShown()
 		if shown then

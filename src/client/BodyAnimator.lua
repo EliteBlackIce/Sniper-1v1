@@ -278,6 +278,24 @@ end
 -- you watch through its eyes. You see FirstPersonView's copies instead.
 local ARM_PARTS = { "RightUpperArm", "RightLowerArm", "RightHand", "LeftUpperArm", "LeftLowerArm", "LeftHand" }
 local weaponParts = setmetatable({}, { __mode = "k" }) -- [weapon model] = its parts
+local function weaponCache(weapon)
+	local cache = weaponParts[weapon]
+	if not cache then
+		cache = { Parts = {}, Fx = {} }
+		for _, item in ipairs(weapon:GetDescendants()) do
+			if item:IsA("BasePart") then
+				table.insert(cache.Parts, item)
+			elseif item:IsA("ParticleEmitter") or item:IsA("Light") then
+				table.insert(cache.Fx, item) -- (sparkles / glow: hidden parts don't hide these)
+			end
+		end
+		weaponParts[weapon] = cache
+	end
+	return cache
+end
+
+local realHidden = false -- your real weapons' particles are switched off (first person)
+
 local function hideReal(model)
 	for _, name in ipairs(ARM_PARTS) do
 		local part = model:FindFirstChild(name)
@@ -291,22 +309,35 @@ local function hideReal(model)
 	for _, name in ipairs({ "WorldGun", "WorldKnife" }) do
 		local weapon = model:FindFirstChild(name)
 		if weapon then
-			local cache = weaponParts[weapon]
-			if not cache then
-				cache = {}
-				for _, part in ipairs(weapon:GetDescendants()) do
-					if part:IsA("BasePart") then
-						table.insert(cache, part)
-					end
-				end
-				weaponParts[weapon] = cache
-			end
+			local cache = weaponCache(weapon)
 			local held = name == weaponName
-			for _, part in ipairs(cache) do
+			for _, part in ipairs(cache.Parts) do
 				part.LocalTransparencyModifier = 1
 				if isCopy then
 					part.Transparency = held and (part:GetAttribute("BaseTransparency") or 0) or 1
 				end
+			end
+			for _, fx in ipairs(cache.Fx) do
+				if fx.Enabled then
+					fx.Enabled = false
+				end
+			end
+		end
+	end
+	if model == player.Character then
+		realHidden = true
+	end
+end
+
+-- Back out of first person: your real weapon's particles on again (the held one).
+local function showRealFx(model)
+	realHidden = false
+	local knifeOut = model:GetAttribute("Weapon") == "Knife"
+	for name, held in pairs({ WorldGun = not knifeOut, WorldKnife = knifeOut }) do
+		local weapon = model:FindFirstChild(name)
+		if weapon then
+			for _, fx in ipairs(weaponCache(weapon).Fx) do
+				fx.Enabled = held and not model:GetAttribute("Invisible")
 			end
 		end
 	end
@@ -355,6 +386,8 @@ local function drawFirstPerson(dt)
 			view = camera.CFrame * CFrame.new(0, 0, -EYE_BACK) * offset
 			ctx.Sprint, ctx.Scope = sprintAlpha, scope
 		end
+	elseif character and realHidden then
+		showRealFx(character)
 	end
 	local entry = source and getEntry(source)
 	if not entry then

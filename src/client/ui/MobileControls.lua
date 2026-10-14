@@ -10,7 +10,8 @@
 	               FIRE (you can keep dragging on it to aim), SCOPE, JUMP
 	               (hold to bunny hop), SLIDE, SPRINT (toggle) and your
 	               ability buttons (Grapple / Blink / Decoy, when you have them)
-	  top          LAB (Power-Up Lab, in the lobby), DUEL (challenge a player)
+	  top          LAB (Power-Up Lab, in the lobby), DUEL (challenge a player),
+	               SKINS (the Locker)
 	               and a settings button
 
 	Buttons don't do anything themselves: they press the same actions as
@@ -131,6 +132,7 @@ local function refresh()
 	buttons.Blink.Visible = stats.Blink == true
 	buttons.Decoy.Visible = stats.Decoy == true
 	buttons.Lab.Visible = not inMatch
+	buttons.Skins.Visible = not inMatch
 	buttons.Duel.Visible = not inMatch
 	buttons.Sprint.BackgroundColor3 = sprintOn and Palette.UIAccent or Palette.UIPanel
 end
@@ -205,6 +207,11 @@ function MobileControls.Start(playerGui)
 
 	pill("Lab", "LAB", UDim2.new(0, 60, 0, 120), tap("PowerUpLab"))
 	pill("Duel", "DUEL", UDim2.new(0, 150, 0, 120), tap("DuelFriend"))
+	pill("Skins", "SKINS", UDim2.new(0, 240, 0, 120), function()
+		if Controllers and Controllers.Locker then
+			Controllers.Locker.Toggle()
+		end
+	end)
 	pill("Settings", "MENU", UDim2.new(1, -60, 0, 64), tap("Settings"))
 
 	-- smaller on small screens

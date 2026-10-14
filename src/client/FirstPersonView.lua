@@ -211,6 +211,12 @@ local function buildWeapon(source)
 		copy.Parts[i] = item.Part
 	end
 	copy.CFrames = table.create(#copy.Items)
+	copy.Fx = {} -- skin sparkles / power-up particles (switched on only while held)
+	for _, item in ipairs(model:GetDescendants()) do
+		if item:IsA("ParticleEmitter") or item:IsA("Light") then
+			table.insert(copy.Fx, item)
+		end
+	end
 	model.Parent = ensureFolder()
 	return copy
 end
@@ -314,6 +320,8 @@ local function setShown(value)
 		for _, part in ipairs(folder:GetDescendants()) do
 			if part:IsA("BasePart") then
 				part.LocalTransparencyModifier = value and 0 or 1
+			elseif not value and (part:IsA("ParticleEmitter") or part:IsA("Light")) then
+				part.Enabled = false -- (Draw turns the held weapon's back on)
 			end
 		end
 	end
@@ -343,6 +351,11 @@ function FirstPersonView.Draw(source, view, anim, body, weaponName)
 			local held = name == weaponName
 			for _, part in ipairs(copy.Parts) do
 				part.LocalTransparencyModifier = held and 0 or 1
+			end
+			for _, fx in ipairs(copy.Fx) do
+				if fx.Enabled ~= held then
+					fx.Enabled = held
+				end
 			end
 			if held then
 				current = copy

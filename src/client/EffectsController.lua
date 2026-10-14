@@ -22,6 +22,7 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local Debris = game:GetService("Debris")
+local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
@@ -619,6 +620,18 @@ local function updateRopes(dt)
 	updateMovementFx(dt)
 end
 
+-- Legendary skins: their glowing trims pulse between two colours (parts
+-- tagged "SkinPulse" by Skins.Apply, with PulseA / PulseB attributes).
+local function pulseSkins()
+	local k = (math.sin(os.clock() * 3) + 1) / 2
+	for _, part in ipairs(CollectionService:GetTagged("SkinPulse")) do
+		local a, b = part:GetAttribute("PulseA"), part:GetAttribute("PulseB")
+		if part:IsA("BasePart") and typeof(a) == "Color3" and typeof(b) == "Color3" then
+			part.Color = a:Lerp(b, k)
+		end
+	end
+end
+
 function Effects.Init(controllers)
 	Controllers = controllers
 end
@@ -630,6 +643,7 @@ function Effects.Start()
 	Controllers.Movement.Jumped:Connect(onJumped)
 	RunService:BindToRenderStep("SniperEffects", Enum.RenderPriority.Camera.Value + 3, updateRopes)
 	task.spawn(wallhackLoop)
+	RunService.Heartbeat:Connect(pulseSkins)
 end
 
 return Effects

@@ -18,10 +18,20 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local GunModel = require(ReplicatedStorage.Shared.GunModel)
 local KnifeModel = require(ReplicatedStorage.Shared.KnifeModel)
+local Skins = require(ReplicatedStorage.Shared.Skins)
 local Util = require(ReplicatedStorage.Shared.Util)
 
 local Palette = Config.Palette
 local CharacterService = {}
+
+local gunPowerUps = setmetatable({}, { __mode = "k" }) -- [character] = the power-ups its rifle was built with
+
+-- The skin a player has equipped for "Rifle" / "Knife" (player attributes
+-- RifleSkin / KnifeSkin, set by CrateService), or nil.
+local function skinFor(character, weapon)
+	local player = Players:GetPlayerFromCharacter(character)
+	return player and Skins.Get(player:GetAttribute(weapon .. "Skin"))
+end
 
 -- Called with (player, character) when a character dies. Set by MatchService.
 CharacterService.OnDied = nil
@@ -84,6 +94,8 @@ local function addWorldGun(character, powerUps)
 	local gun = Instance.new("Model")
 	gun.Name = "WorldGun"
 	local built = GunModel.Build(gun, { Scale = scale, CastShadow = true, PowerUps = powerUps })
+	gunPowerUps[character] = powerUps
+	Skins.Apply(gun, skinFor(character, "Rifle"))
 
 	local grip = hand.CFrame * CFrame.new(0, -0.15, 0) * CFrame.Angles(math.rad(-90), 0, 0)
 	GunModel.Place(built, grip, scale)
@@ -151,6 +163,7 @@ local function addWorldKnife(character)
 	knife.Name = "WorldKnife"
 	local scale = Config.Knife.WorldScale
 	local built = KnifeModel.Build(knife, { Scale = scale, CastShadow = true })
+	Skins.Apply(knife, skinFor(character, "Knife"))
 	local grip = hand.CFrame * CFrame.new(0, -0.15, 0) * CFrame.Angles(math.rad(-90), 0, 0)
 	local origin = grip * CFrame.new(KnifeModel.Grip.Position * -scale)
 	KnifeModel.Place(built, origin)
@@ -416,6 +429,16 @@ function CharacterService.RefreshWorldGun(player, powerUps)
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	if humanoid and humanoid.Health > 0 then
 		addWorldGun(character, powerUps)
+	end
+end
+
+-- Rebuilds both weapons in a player's hands in their equipped skins.
+function CharacterService.RefreshSkins(player)
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if humanoid and humanoid.Health > 0 then
+		addWorldGun(character, gunPowerUps[character])
+		addWorldKnife(character)
 	end
 end
 

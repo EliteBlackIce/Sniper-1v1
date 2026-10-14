@@ -392,8 +392,9 @@ function CrateReveal.Reveal(info)
 	skinLabel.Text = string.upper(skin.Name)
 	skinLabel.TextColor3 = P.UIText
 	skinLabel.TextTransparency = 1
-	infoLabel.Text = info.New and "RIFLE SKIN  -  ADDED TO YOUR COLLECTION"
-		or ("RIFLE SKIN  -  DUPLICATE  x%d"):format(info.Count or 2)
+	local kind = skin.Weapon == "Knife" and "KNIFE SKIN" or "RIFLE SKIN"
+	infoLabel.Text = info.New and (kind .. "  -  EQUIP IT IN THE LOCKER [L]")
+		or ("%s  -  DUPLICATE  x%d"):format(kind, info.Count or 2)
 	infoLabel.TextTransparency = 1
 	badge.Visible = false
 	buttons.Visible = false

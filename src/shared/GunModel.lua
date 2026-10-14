@@ -201,13 +201,13 @@ GunModel.MeshProfile = {
 -- Studio's importer don't always come through), "Auto" only paints meshes
 -- that arrived without a texture.
 GunModel.MeshPaint = {
-	{ Match = "bodymetal", Color = Color3.fromRGB(58, 60, 60), Material = Enum.Material.Metal },
-	{ Match = "scope", Color = Color3.fromRGB(38, 40, 44), Material = Enum.Material.Metal },
-	{ Match = "barrel", Color = Color3.fromRGB(38, 40, 44), Material = Enum.Material.Metal },
-	{ Match = "bolt", Color = Color3.fromRGB(84, 86, 90), Material = Enum.Material.Metal },
-	{ Match = "stockdetail", Color = Color3.fromRGB(96, 98, 92), Material = Enum.Material.SmoothPlastic },
-	{ Match = "stock", Color = Color3.fromRGB(60, 62, 58), Material = Enum.Material.SmoothPlastic },
-	{ Match = "", Color = Color3.fromRGB(190, 164, 120), Material = Enum.Material.SmoothPlastic }, -- body: desert tan
+	{ Match = "bodymetal", Key = "BodyMetal", Color = Color3.fromRGB(58, 60, 60), Material = Enum.Material.Metal },
+	{ Match = "scope", Key = "Scope", Color = Color3.fromRGB(38, 40, 44), Material = Enum.Material.Metal },
+	{ Match = "barrel", Key = "Barrel", Color = Color3.fromRGB(38, 40, 44), Material = Enum.Material.Metal },
+	{ Match = "bolt", Key = "Bolt", Color = Color3.fromRGB(84, 86, 90), Material = Enum.Material.Metal },
+	{ Match = "stockdetail", Key = "StockDetail", Color = Color3.fromRGB(96, 98, 92), Material = Enum.Material.SmoothPlastic },
+	{ Match = "stock", Key = "Stock", Color = Color3.fromRGB(60, 62, 58), Material = Enum.Material.SmoothPlastic },
+	{ Match = "", Key = "Body", Color = Color3.fromRGB(190, 164, 120), Material = Enum.Material.SmoothPlastic }, -- body: desert tan
 }
 
 local function paintMesh(part)
@@ -237,6 +237,17 @@ local function paintMesh(part)
 			return
 		end
 	end
+end
+
+-- Which paint group a mesh belongs to ("Body", "Bolt"...; Skins recolour by it).
+local function meshPaintKey(part)
+	local name = part.Name:lower()
+	for _, paint in ipairs(GunModel.MeshPaint) do
+		if name:find(paint.Match, 1, true) then
+			return paint.Key
+		end
+	end
+	return "Body"
 end
 
 local function templateParts(template)
@@ -741,6 +752,7 @@ function GunModel.Build(parent, options)
 			end
 			part.Size = info.Size * scale
 			part.CastShadow = options.CastShadow == true
+			part:SetAttribute("Paint", meshPaintKey(info.Part))
 			paintMesh(part)
 			local offset = info.Offset.Rotation + info.Offset.Position * scale
 			if info.Part.Name:lower():find("bolt") then
@@ -812,6 +824,9 @@ function GunModel.Build(parent, options)
 			part.Color = Config.Palette[colorKey] or Color3.new(1, 0, 1)
 		end
 		part.Material = (isGlow or extra.Neon) and Enum.Material.Neon or Enum.Material.SmoothPlastic
+		if typeof(colorKey) == "string" then
+			part:SetAttribute("Paint", colorKey) -- (Skins recolour by it)
+		end
 		part.Transparency = extra.Transparency or 0
 		part.TopSurface = Enum.SurfaceType.Smooth
 		part.BottomSurface = Enum.SurfaceType.Smooth

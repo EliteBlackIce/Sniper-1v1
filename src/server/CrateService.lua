@@ -247,12 +247,14 @@ local function load(player)
 	end
 	-- some countries don't allow buying paid random items (crates with keys
 	-- bought for Robux): the SHOP hides the key pack for these players
+	-- (if the check itself fails, assume restricted, except in Studio)
 	task.spawn(function()
 		local ok, policy = pcall(PolicyService.GetPolicyInfoForPlayerAsync, PolicyService, player)
-		if ok and policy and policy.ArePaidRandomItemsRestricted then
+		if (ok and policy and policy.ArePaidRandomItemsRestricted) or (not ok and not RunService:IsStudio()) then
 			player:SetAttribute("PaidRandomBlocked", true)
 		end
 	end)
+	CharacterService.RefreshTag(player) -- (the saved title, now it's loaded)
 	player:SetAttribute("Keys", d.Keys)
 	player:SetAttribute("Credits", d.Credits)
 	player:SetAttribute("WagerKeys", d.Keys - d.PaidKeys)
@@ -326,7 +328,11 @@ local function canOpen(player, typeName)
 	if lastOpen[player] and os.clock() - lastOpen[player] < CR.Cooldown then
 		return false, nil
 	end
-	if not isFree() and (d[crateType.Currency] or 0) < crateType.Cost then
+	local usable = d[crateType.Currency] or 0
+	if crateType.Currency == "Keys" and player:GetAttribute("PaidRandomBlocked") then
+		usable -= d.PaidKeys or 0 -- (bought keys can't open crates in these countries)
+	end
+	if not isFree() and usable < crateType.Cost then
 		if crateType.Currency == "Keys" then
 			return false, ("You need %d keys - win matches to earn more (or get keys in the SHOP)"):format(crateType.Cost)
 		end
@@ -354,7 +360,12 @@ function CrateService.Open(player, typeName)
 		if crateType.Currency == "Credits" then
 			setCredits(player, d.Credits - crateType.Cost)
 		else
-			spendKeys(player, crateType.Cost)
+			if player:GetAttribute("PaidRandomBlocked") then
+				setKeys(player, d.Keys - crateType.Cost) -- (earned keys only)
+				player:SetAttribute("WagerKeys", d.Keys - (d.PaidKeys or 0))
+			else
+				spendKeys(player, crateType.Cost)
+			end
 		end
 	end
 	local rarity, skin = rollSkin(typeName)
@@ -434,13 +445,18 @@ end
 ----------------------------------------------------------------------------
 -- reward = { Keys = n } | { Credits = n } | { Skin = id } | { Cosmetic = id }
 -- Returns a short text for the toast, or nil if it couldn't be given.
-function CrateService.Grant(player, reward)
+-- paid = true: it came from something bought with Robux (the Premium pass),
+-- so keys from it can't be wagered
+function CrateService.Grant(player, reward, paid)
 	local d = data[player]
 	if not d or not loaded[player] or typeof(reward) ~= "table" then
 		return nil
 	end
 	local text
 	if reward.Keys then
+		if paid then
+			d.PaidKeys = (d.PaidKeys or 0) + reward.Keys
+		end
 		setKeys(player, d.Keys + reward.Keys)
 		player:SetAttribute("WagerKeys", d.Keys - (d.PaidKeys or 0))
 		text = ("+%d KEYS"):format(reward.Keys)
@@ -500,7 +516,12 @@ end
 function CrateService.BuyFeatured(player, id)
 	local d = data[player]
 	local skin = typeof(id) == "string" and Skins.Get(id)
-	if not d or not loaded[player] or not skin or not table.find(CrateService.FeaturedToday(), id) then
+	if not d or not loaded[player] or not skin then
+		return
+	end
+	if not table.find(CrateService.FeaturedToday(), id) then
+		notify(player, "The featured skins have changed - here are today's")
+		sendInventory(player)
 		return
 	end
 	if (d.Skins[id] or 0) > 0 then
@@ -587,13 +608,13 @@ end
 -- Keys a player can wager: the ones they earned (bought keys can't be bet).
 function CrateService.GetKeys(player)
 	local d = data[player]
-	return d and loaded[player] and (d.Keys - (d.PaidKeys or 0)) or 0
+	return d and loaded[player] and not loadFailed[player] and (d.Keys - (d.PaidKeys or 0)) or 0
 end
 
 -- Takes `amount` earned keys for a wager; false (and nothing taken) if they don't have them.
 function CrateService.TakeKeys(player, amount)
 	local d = data[player]
-	if not d or not loaded[player] or d.Keys - (d.PaidKeys or 0) < amount then
+	if not d or not loaded[player] or loadFailed[player] or d.Keys - (d.PaidKeys or 0) < amount then
 		return false
 	end
 	setKeys(player, d.Keys - amount)
@@ -625,10 +646,13 @@ local function onMatchFinished(match)
 	for _, player in ipairs(match.Players) do
 		if not Util.isBot(player) and player.Parent and data[player] then
 			local gain = player == winner and CR.KeysPerWin or CR.KeysPerLoss
+			local vipBonus = 0
 			if player:GetAttribute("VIP") then
-				gain *= 2 -- (the VIP pass)
+				vipBonus = gain -- (the VIP pass doubles it; that half counts as bought: not wagerable)
+				gain *= 2
 			end
 			if gain > 0 then
+				data[player].PaidKeys = (data[player].PaidKeys or 0) + vipBonus
 				setKeys(player, data[player].Keys + gain)
 				player:SetAttribute("WagerKeys", data[player].Keys - (data[player].PaidKeys or 0))
 				notify(player, ("+%d KEY%s  -  open crates in the crate vault"):format(gain, gain == 1 and "" or "S"))
@@ -694,6 +718,9 @@ function CrateService.Init(matchService, characterService)
 			CrateService.BuyFeatured(player, id)
 		end
 	end)
+	Players.PlayerRemoving:Connect(function(player)
+		lastBuy[player] = nil
+	end)
 
 	local lobby = MatchService.GetLobby()
 	local prompt = lobby and lobby.CrateAltar and lobby.CrateAltar:FindFirstChildOfClass("ProximityPrompt")
@@ -731,6 +758,7 @@ function CrateService.Init(matchService, characterService)
 		dirty[player] = nil
 	end)
 	game:BindToClose(function()
+		pcall(MatchService.RefundAllWagers) -- (before the saves below)
 		local pending = 0
 		for _, player in ipairs(Players:GetPlayers()) do
 			pending += 1

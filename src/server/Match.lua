@@ -354,6 +354,13 @@ function Match:Finish()
 		self.MatchWinner = self.ForfeitWinner
 	end
 	self.Finished = true
+	-- the result is in: pay out now, before the victory screen (someone might leave during it)
+	if self.OnDecided then
+		local ok, err = pcall(self.OnDecided, self)
+		if not ok then
+			warn("[Match] OnDecided:", err)
+		end
+	end
 
 	if self.MatchWinner then
 		self:SetAllFrozen(true)

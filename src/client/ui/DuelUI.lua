@@ -222,7 +222,7 @@ local function showInvite(data)
 			close()
 		end
 		if closed then
-			connection.Disconnect()
+			connection:Disconnect()
 		end
 	end)
 end

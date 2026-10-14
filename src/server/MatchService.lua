@@ -175,9 +175,10 @@ end
 -- (Whoever leaves forfeits: their stake is already gone.)
 local function settleWager(match)
 	local stake = match.Wager or 0
-	if stake <= 0 then
+	if stake <= 0 or match.WagerSettled then
 		return
 	end
+	match.WagerSettled = true
 	local CrateService = require(script.Parent.CrateService)
 	local winner = match.MatchWinner or (match.Aborted and match.ForfeitWinner) or nil
 	if winner then
@@ -199,7 +200,7 @@ end
 
 local function onMatchFinished(match)
 	arenaInUse[match.Arena.Index] = nil
-	settleWager(match)
+	settleWager(match) -- (normally already done by OnDecided)
 	MatchService.MatchFinished:Fire(match)
 	-- remember who you just played so you can ask for a rematch
 	local a, b = match.Players[1], match.Players[2]
@@ -231,7 +232,28 @@ end
 -- Creates a match; its state snapshot also carries the map name (MapName)
 -- so the HUD can show it.
 local function newMatch(p1, p2, arena)
-	return Match.new(p1, p2, arena, onMatchFinished)
+	local match = Match.new(p1, p2, arena, onMatchFinished)
+	match.OnDecided = settleWager
+	return match
+end
+
+-- The server is shutting down: give every wager still in play back.
+function MatchService.RefundAllWagers()
+	local done = {}
+	for _, match in pairs(matchByPlayer) do
+		if not done[match] then
+			done[match] = true
+			if (match.Wager or 0) > 0 and not match.WagerSettled then
+				match.WagerSettled = true
+				local CrateService = require(script.Parent.CrateService)
+				for _, player in ipairs(match.Players) do
+					if not Util.isBot(player) and player.Parent then
+						CrateService.GiveKeys(player, match.Wager)
+					end
+				end
+			end
+		end
+	end
 end
 
 local function tryStartMatches()

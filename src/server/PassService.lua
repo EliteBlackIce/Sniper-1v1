@@ -81,7 +81,7 @@ local function grantRewards(player)
 	if premium[player] then
 		while pass.Premium < tier do
 			pass.Premium += 1
-			local text = CrateService.Grant(player, BP.Tiers[pass.Premium].Premium)
+			local text = CrateService.Grant(player, BP.Tiers[pass.Premium].Premium, true) -- (bought: not wagerable)
 			if text then
 				table.insert(given, text)
 			end
@@ -107,6 +107,16 @@ end
 local function onMatchFinished(match)
 	if match.Aborted and not match.ForfeitWinner then
 		return -- cancelled
+	end
+	if match.Aborted then
+		-- a forfeit only counts once a round has been played (no XP farming with an alt)
+		local rounds = 0
+		for _, wins in pairs(match.Wins or {}) do
+			rounds += wins
+		end
+		if rounds < 1 then
+			return
+		end
 	end
 	local winner = match.MatchWinner or match.ForfeitWinner
 	for _, player in ipairs(match.Players) do

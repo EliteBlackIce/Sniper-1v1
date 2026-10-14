@@ -160,7 +160,7 @@ local function syncEvents(entry, model, t)
 
 	local inspect = model:GetAttribute("Inspect")
 	if seen.Inspect ~= nil and inspect ~= seen.Inspect then
-		WeaponAnim.Inspect(state, t)
+		WeaponAnim.Inspect(state, t, model:GetAttribute("InspectVariant"))
 	end
 	seen.Inspect = inspect
 end
@@ -441,6 +441,15 @@ end
 
 function BodyAnimator.PlayKill() end
 
+-- The victory pose on a tracked model (the kill cam's copy of the winner).
+function BodyAnimator.PlayVictory(model)
+	local entry = getEntry(model)
+	if entry then
+		entry.State.Weapon = model:GetAttribute("Weapon") == "Knife" and "Knife" or "Sniper"
+		WeaponAnim.Victory(entry.State, now())
+	end
+end
+
 function BodyAnimator.SetWeapon(name)
 	local state = activeState()
 	if WeaponAnim.SetWeapon(state, name, now()) and not puppet then
@@ -579,9 +588,19 @@ function BodyAnimator.Start()
 			if state.Weapon == "Knife" then
 				BodyAnimator.PlayKnife("Inspect")
 				Remotes.Get("Anim"):FireServer("Inspect", "Knife")
-			elseif WeaponAnim.Inspect(state, now()) then
-				Sfx.Play("CardHover", { Pitch = 0.8, Volume = 1.2 })
-				Remotes.Get("Anim"):FireServer("Inspect", "Rifle")
+			else
+				local ok, variant = WeaponAnim.Inspect(state, now())
+				if ok then
+					Sfx.Play("CardHover", { Pitch = 0.8, Volume = 1.2 })
+					if variant == 3 then -- the bolt, eased open and shut
+						task.delay(0.6, Sfx.Play, "Bolt", { Pitch = 0.9, Volume = 0.5 })
+						task.delay(1.7, Sfx.Play, "Bolt", { Pitch = 1.1, Volume = 0.5 })
+					elseif variant == 2 then -- two taps on the scope
+						task.delay(1.05, Sfx.Play, "CardFlip", { Pitch = 1.6, Volume = 0.4 })
+						task.delay(1.25, Sfx.Play, "CardFlip", { Pitch = 1.7, Volume = 0.4 })
+					end
+					Remotes.Get("Anim"):FireServer("Inspect", "Rifle", variant)
+				end
 			end
 		end
 	end

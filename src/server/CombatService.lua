@@ -987,7 +987,7 @@ end
 -- "Inspect" (with the variant) and "Scope" (true / false).
 local lastAnim = {}
 local INSPECT_VARIANTS = { Rifle = true, Knife = true }
-local function onAnim(player, kind, value)
+local function onAnim(player, kind, value, variant)
 	local character = player.Character
 	if not character or typeof(kind) ~= "string" then
 		return
@@ -1006,6 +1006,9 @@ local function onAnim(player, kind, value)
 	end
 	lastAnim[player][kind] = now
 	if kind == "Inspect" and INSPECT_VARIANTS[value] then
+		-- which rifle inspect (1-3): set before the counter so others read it with it
+		local ok = typeof(variant) == "number" and variant == variant -- (not NaN)
+		character:SetAttribute("InspectVariant", ok and math.clamp(math.floor(variant), 1, 3) or 1)
 		character:SetAttribute("Inspect", ((character:GetAttribute("Inspect") or 0) + 1) % 1000)
 	end
 end

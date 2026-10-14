@@ -27,11 +27,13 @@ src/shared/                -> ReplicatedStorage.Shared   (server + client)
   Logo.lua                    the SNIPER DUEL logo (crosshair mark + wordmark, GUI frames)
   CrateModel.lua              the loot crate model (hinged lid, rarity glow)
   KnifeModel.lua              the combat knife (imported mesh or built from parts)
+  Skins.lua                   paints the rifle / knife in a skin (colours, finish, glow, sparkles)
 
 src/server/                -> ServerScriptService.Server
   Main.server.lua             entry point, starts every service
   LightingSetup.lua           Future lighting + post effects (arena profile)
-  CrateService.lua            crate keys, server-side rolls, owned skins (DataStore)
+  CrateService.lua            crate keys, server-side rolls, owned + equipped skins (DataStore)
+  RankService.lua             ranked rating (Elo, DataStore) + the lobby leaderboard wall
   MapBuilder.lua              builds the lobby and the arena from parts
   ArenaPolygon.lua            the default map: compact Rivals-style arena, tall walls + ramps
   ArenaNuketown.lua           optional Nuketown cul-de-sac (Config.Match.Map = "Nuketown")
@@ -60,6 +62,8 @@ src/client/                -> StarterPlayerScripts.Client
   BodyAnimator.lua            your real character holds + animates the weapons (everyone's, every frame)
   WeaponAnim.lua              every weapon animation (rifle + knife moves, spline keyframes)
   BodyRig.lua                 bends a real R15 character: torso twist, arm IK, weapon joint
+  FirstPersonView.lua         first person: slim copies of your arms + weapon on the camera
+  KillCamController.lua       the kill cam replay + the winner's victory pose
   UIController.lua            creates all screens
   Sfx.lua, Spring.lua         sound + spring helpers
   ui/
@@ -73,6 +77,7 @@ src/client/                -> StarterPlayerScripts.Client
     SettingsMenu.lua          General / Keyboard / Controller tabs: sliders, toggles, keybinds
     Toast.lua                 short messages from the server (admin commands)
     PowerUpLab.lua            try any power-up solo in the lobby (B)
+    Locker.lua                pick your rifle and knife skins (L)
 
 assets/SniperRifle.glb        PGM 338 rifle, ready for Studio's 3D Importer (CC-BY-4.0, see Quick start)
 
@@ -232,11 +237,12 @@ Every key below can be rebound in **Settings (P) > Keyboard** or
 | R | Blink (power-up) |
 | Q | Decoy (power-up) |
 | Space (hold) | Ceiling run under a ceiling (Magnetic Boots) |
-| V | Inspect your rifle (or the knife: look it over, toss it and catch it) |
+| V | Inspect your rifle (one of three: show it off, scope check, chamber check) or the knife (look it over, toss it and catch it) |
 | 2 / mouse wheel [RB / R1] | **Knife** (1 or the wheel switches back to the rifle) |
 | Left mouse (knife) | Slash, alternating left and right |
 | Right mouse (knife) | Stab with a short lunge |
 | B | **Power-Up Lab** (lobby / playground): try any power-up solo |
+| L | **Locker** (lobby): equip rifle and knife skins |
 | G | **Playground** (lobby): free roam on the match map with dummies |
 | F [D-pad right] | Find a match / leave the queue (lobby) |
 | U [R-stick click] | Duel a player: challenge someone in the server (lobby) |
@@ -290,7 +296,9 @@ Files: `ViewmodelController`, `WeaponController`, `Ballistics`, `CombatService`,
       appears and the crosshair hides. Scoped sensitivity is used.
 - [ ] Left click: recoil kick, a tracer from the muzzle, a bolt-action animation
       with a click sound, and you can't fire again until it finishes (bar under the crosshair).
-- [ ] Hit the enemy: white hitmarker + ping. Headshot: red hitmarker and instant kill.
+- [ ] Hit the enemy: a white X snaps in with a ping and a crisp tick. Headshot:
+      red X and a ding. Kill: a bigger red X with a wider one flying out, a
+      low thump under the kill sound (and the ding on a headshot kill).
       A body shot does 72 damage, so it takes two.
 - [ ] The enemy sees your tracer coming from your third-person gun.
 - [ ] Server validation: firing faster than the bolt (e.g. with a modified client)
@@ -375,8 +383,7 @@ from the centre to alcoves around the curved wall:
   sconces; the ceiling has beam rings and hanging lights. A glass railing
   runs round the sunken centre, the centre floor has a tiled star, the
   columns are fluted with potted shrubs, the planters between the paths
-  hold rows of round leafy bushes, and there are vending machines and
-  bins. Lights are kept soft (`LIGHT_SCALE` in `LobbyBuilder.lua`).
+  hold rows of round leafy bushes, and there are bins by the paths. Lights are kept soft (`LIGHT_SCALE` in `LobbyBuilder.lua`).
 
 It's built in `src/server/LobbyBuilder.lua`.
 
@@ -386,16 +393,29 @@ It's built in `src/server/LobbyBuilder.lua`.
 
 Walk up to the crate in the crate vault (west side of the lobby) and press
 **X** (or tap the prompt) to open it for a key. Each crate unlocks a rifle
-skin of one of six rarities:
+or knife skin:
 
-| Rarity | Colour | Chance |
-|---|---|---|
-| Common | grey | 50% |
-| Uncommon | green | 25% |
-| Rare | blue | 14% |
-| Epic | purple | 7% |
-| Legendary | gold | 3% |
-| Secret | red | 1% |
+| Rarity | Colour | Chance | What you get |
+|---|---|---|---|
+| Common | grey | 50.5% | plain recolours |
+| Uncommon | green | 25.3% | two-tone, glossy |
+| Rare | blue | 14.1% | shiny metal, chrome |
+| Epic | purple | 7.1% | glowing trims (rifle bolt + stock trims, knife edge or grip) |
+| Legendary | gold | 3% | gold / gloss, the glow pulses between two colours, glitter |
+| Secret | red | soon | their own weapon models (coming later) |
+
+Until the Secret models are in, no crate rolls Secret; the other rarities
+share its 1% (the odds board in the vault shows the real numbers).
+
+Skins are the same rifle and knife models in new paint: every part belongs
+to a paint group (body, metal, scope, bolt, trims, blade, handle) and the
+skin colours each group (`Skins.lua`, the list is `Config.Crates.Skins`).
+
+**Locker**: press **L** in the lobby (or the LOCKER button, SKINS on
+touch) to see every skin for each weapon, owned or locked, with a spinning
+3D preview. EQUIP puts it in your hands; the server checks you own it,
+saves it, and everyone sees it. Changes made during a match apply from
+the next round.
 
 **Keys**: new players start with 5. Winning a match gives 2, losing gives 1.
 Your key count shows at the top right of the lobby screen. In Studio, opening
@@ -406,7 +426,7 @@ as you like.
 shakes while sparks are sucked into it. Its glow climbs the rarity ladder
 (COMMON, UNCOMMON, RARE...) and stops on what you got. Then the lid blasts
 off with a flash, a pillar of light, a shockwave and sparks in the rarity
-colour, and the rifle rises out of the crate in the skin's colours. The
+colour, and the rifle (or knife) rises out of the crate in the skin's colours. The
 rarity name slams in over spinning light rays. Legendary and Secret rain
 confetti. Secret fakes you out first: the climb stalls on Legendary and goes
 dark, then cracks red, and the title glitches. Press **X** to open another,
@@ -416,7 +436,29 @@ The roll happens on the server (`CrateService.lua`), which checks that you're
 in the lobby, near the altar and have a key. Keys and owned skins are saved
 in a DataStore (in Studio this needs Game Settings > Security > "Enable Studio
 Access to API Services"). Rarities, odds, key rewards and the skin list are in
-`Config.Crates`. Skins are collected for now; equipping them is the next step.
+`Config.Crates`.
+
+## Ranked and the leaderboard
+
+Every match between two players is ranked (matches against the bot are
+not). Your rating starts at 1000; win and it goes up, lose and it goes down.
+Beating someone rated above you is worth more (Elo), and your first 5
+matches swing more. Leaving a match counts as a loss.
+
+| Tier | Rating |
+|---|---|
+| Bronze | 0+ |
+| Silver | 900+ |
+| Gold | 1100+ |
+| Platinum | 1300+ |
+| Diamond | 1500+ |
+| Champion | 1700+ |
+
+Your tier and rating show in the RANK chip at the top right of the lobby,
+and after each match you get a message with the change ("RANKED UP!" when
+you cross a tier). The **TOP SNIPERS** board on the south-west wall of the
+lobby lists the 10 best players, refreshed every minute. Ratings are saved
+in a DataStore (`RankService.lua`, tune in `Config.Rank`).
 
 ## Your character does the animations
 
@@ -494,9 +536,11 @@ All the numbers are in `Config.Knife`. Code: `KnifeController.lua`
   arms (copied from their avatar) holding THEIR rifle with their power-up
   attachments, kicking and cycling the bolt on each shot. You are a copy of
   your real character: it runs, stands and falls with Roblox's normal
-  animations, holds the rifle and aims where you were aiming. Press Space or tap to
-  skip. Tune it in `Config.KillCam` (the pause after a kill,
-  `Config.Match.RoundEndTime`, is long enough for it).
+  animations, holds the rifle and aims where you were aiming. Then the
+  camera cuts round to face the winner, who strikes a **victory pose**:
+  rifle swung up onto the shoulder (or the knife raised) and a fist in the
+  air. Press Space or tap to skip. Tune it in `Config.KillCam` (the pause
+  after a kill, `Config.Match.RoundEndTime`, is long enough for it).
 
 ## Playing on mobile
 

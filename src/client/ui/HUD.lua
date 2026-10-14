@@ -105,17 +105,18 @@ local function buildCrosshair()
 		Parent = gui,
 	})
 	for i = 0, 3 do
-		local angle = math.rad(45 + i * 90)
-		Theme.new("Frame", {
+		local tick = Theme.new("Frame", {
 			Name = "Tick",
 			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.new(0.5, math.cos(angle) * 11, 0.5, math.sin(angle) * 11),
-			Size = UDim2.fromOffset(9, 2),
+			Size = UDim2.fromOffset(10, 3),
 			Rotation = 45 + i * 90,
 			BackgroundColor3 = Palette.UIHitmarker,
+			BackgroundTransparency = 1,
 			ZIndex = 5,
 			Parent = hitmarker,
 		})
+		tick:SetAttribute("Angle", math.rad(45 + i * 90))
+		Theme.new("UIStroke", { Thickness = 1, Color = Color3.new(0, 0, 0), Transparency = 0.5, Parent = tick })
 	end
 end
 
@@ -544,17 +545,59 @@ end
 ----------------------------------------------------------------------------
 -- Hits and damage
 ----------------------------------------------------------------------------
+-- The X on a hit: the four ticks snap in from further out, hold for a
+-- moment and fade. Headshots are red, kills are bigger and red, with a
+-- second, wider X that flies out.
+local hitToken = 0
 function HUD.Hitmarker(headshot, killed)
-	local color = headshot and Palette.UIHeadshot or Palette.UIHitmarker
+	hitToken += 1
+	local token = hitToken
+	local color = (headshot or killed) and Palette.UIHeadshot or Palette.UIHitmarker
+	local length, thick = killed and 15 or 10, killed and 4 or 3
+	local radius = killed and 13 or 10
 	for _, tick in ipairs(hitmarker:GetChildren()) do
-		tick.BackgroundColor3 = color
-		tick.BackgroundTransparency = 0
-		tick.Size = UDim2.fromOffset(killed and 14 or 9, killed and 3 or 2)
-		Theme.tween(tick, 0.35, { BackgroundTransparency = 1 })
+		local angle = tick:GetAttribute("Angle")
+		if angle then
+			tick.BackgroundColor3 = color
+			tick.BackgroundTransparency = 0
+			tick.Size = UDim2.fromOffset(length * 1.4, thick)
+			tick.Position = UDim2.new(0.5, math.cos(angle) * (radius + 9), 0.5, math.sin(angle) * (radius + 9))
+			Theme.tween(tick, 0.07, {
+				Position = UDim2.new(0.5, math.cos(angle) * radius, 0.5, math.sin(angle) * radius),
+				Size = UDim2.fromOffset(length, thick),
+			})
+		end
 	end
 	hitmarker.Visible = true
-	hitmarker.Size = UDim2.fromOffset(killed and 44 or 30, killed and 44 or 30)
-	Theme.tween(hitmarker, 0.2, { Size = UDim2.fromOffset(30, 30) })
+	hitmarker.Rotation = killed and -12 or 0
+	Theme.tween(hitmarker, 0.15, { Rotation = 0 }, Enum.EasingStyle.Back)
+	task.delay(killed and 0.32 or 0.2, function()
+		if token ~= hitToken then
+			return -- a newer hit took over
+		end
+		for _, tick in ipairs(hitmarker:GetChildren()) do
+			if tick:GetAttribute("Angle") then
+				Theme.tween(tick, 0.25, { BackgroundTransparency = 1 })
+			end
+		end
+	end)
+	if killed then
+		-- the wide X flying out
+		for _, tick in ipairs(hitmarker:GetChildren()) do
+			local angle = tick:GetAttribute("Angle")
+			if angle then
+				local ghost = tick:Clone()
+				ghost:SetAttribute("Angle", nil)
+				ghost.BackgroundTransparency = 0.2
+				ghost.Parent = hitmarker
+				Theme.tween(ghost, 0.35, {
+					Position = UDim2.new(0.5, math.cos(angle) * 34, 0.5, math.sin(angle) * 34),
+					BackgroundTransparency = 1,
+				}, Enum.EasingStyle.Quint)
+				task.delay(0.4, ghost.Destroy, ghost)
+			end
+		end
+	end
 end
 
 local function onDamaged(data)
@@ -624,6 +667,11 @@ local function onHitConfirm(data)
 		Theme.burst(gui, viewport / 2, data.Headshot and Palette.UIHeadshot or Palette.UIAccent, 18, 120, 7)
 		Theme.ring(gui, viewport / 2, data.Headshot and Palette.UIHeadshot or Color3.new(1, 1, 1), 160, 5)
 		Sfx.Play("Kill")
+		Sfx.Play("KillThump")
+		Sfx.Play("HitTick", { Pitch = 0.85 })
+		if data.Headshot then
+			task.delay(0.05, Sfx.Play, "Ding")
+		end
 		if data.Backstab then
 			showBanner("BACKSTAB", nil, Palette.AccentB, 1.4)
 		elseif data.Melee then
@@ -633,8 +681,11 @@ local function onHitConfirm(data)
 		end
 	elseif data.Headshot then
 		Sfx.Play("Headshot")
+		Sfx.Play("Ding")
+		Sfx.Play("HitTick")
 	else
 		Sfx.Play("Hit", { Pitch = data.Splash and 0.8 or 1 })
+		Sfx.Play("HitTick", { Pitch = data.Splash and 0.8 or 1 })
 	end
 end
 

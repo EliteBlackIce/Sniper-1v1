@@ -193,6 +193,10 @@ local function boltState(profile, t)
 	return bolt, hand, roll
 end
 
+-- Rifle inspects (V): 1 show it off, 2 scope check, 3 chamber check.
+local RIFLE_INSPECT_TIME = 2.4
+WeaponAnim.RifleInspects = 3
+
 local function rifle(state, t, ctx)
 	local profile = ctx.Profile
 	local base = RIFLE_HIP:Lerp(RIFLE_SPRINT, ctx.Sprint or 0)
@@ -205,18 +209,43 @@ local function rifle(state, t, ctx)
 		local kick = math.exp(-f * 11) * (1 - math.exp(-f * 90))
 		pose = pose * CFrame.new(0, 0.03 * kick, 0.28 * kick) * CFrame.Angles(rad(12) * kick, 0, rad(3) * kick)
 	end
-	-- inspect (V): turn it to show both sides
+	-- inspect (V): one of RIFLE_INSPECTS
 	local body = { Yaw = -8, Pitch = 0 }
-	local it = (t - state.InspectStart) / 2.4
+	local bolt, hand, roll = CFrame.new(), RIGHT_ON_GRIP, 0
+	local left = rifleLeft(profile)
+	local it = (t - state.InspectStart) / RIFLE_INSPECT_TIME
 	if it >= 0 and it < 1 and state.InspectKind == "Rifle" then
 		local w = math.sin(it * math.pi) ^ 0.7
-		local turn = math.sin(it * math.pi * 2)
-		pose = pose * CFrame.new(-0.35 * w, 0.2 * w, 0.3 * w) * CFrame.Angles(rad(12) * w, rad(60) * turn * w, rad(-30) * w)
-		body.NeckPitch = -8 * w
+		local variant = state.InspectVariant or 1
+		if variant == 2 then
+			-- scope check: tip it toward you, tap the scope twice
+			pose = pose * CFrame.new(-0.25 * w, 0.22 * w, 0.25 * w) * CFrame.Angles(rad(8) * w, rad(32) * w, rad(-38) * w)
+			local eye = profile.ScopeEye * G
+			local tap = CFrame.new(0.02, eye.Y + 0.11 + math.max(0, math.sin(seg(it, 0.4, 0.7) * math.pi * 4)) * 0.05, eye.Z - 0.55)
+				* CFrame.Angles(0, 0, rad(90))
+			left = left:Lerp(tap, smoothstep(seg(it, 0.25, 0.38)) - smoothstep(seg(it, 0.72, 0.86)))
+			body.NeckPitch = -6 * w
+			body.NeckYaw = 8 * w
+		elseif variant == 3 then
+			-- chamber check: lift the bolt, ease it half open, look in, close it
+			pose = pose * CFrame.new(-0.12 * w, 0.12 * w, 0.1 * w) * CFrame.Angles(rad(6) * w, rad(10) * w, rad(-24) * w)
+			local lift = smoothstep(seg(it, 0.15, 0.28)) - smoothstep(seg(it, 0.74, 0.84))
+			local pull = (smoothstep(seg(it, 0.28, 0.42)) - smoothstep(seg(it, 0.62, 0.74))) * 0.55
+			bolt = CFrame.new(0, 0, pull * profile.BoltTravel * G) * CFrame.Angles(0, 0, rad(profile.BoltLift) * lift)
+			local knob = CFrame.new(profile.BoltPivot.Position * G) * bolt * CFrame.new(profile.KnobHold.Position * G)
+				* CFrame.Angles(rad(60), 0, rad(-25))
+			hand = RIGHT_ON_GRIP:Lerp(knob, smoothstep(seg(it, 0.04, 0.15)) - smoothstep(seg(it, 0.84, 0.96)))
+			body.NeckPitch = -8 * w
+			body.NeckYaw = 10 * w
+		else
+			-- show it off: turn it to show both sides
+			local turn = math.sin(it * math.pi * 2)
+			pose = pose * CFrame.new(-0.35 * w, 0.2 * w, 0.3 * w) * CFrame.Angles(rad(12) * w, rad(60) * turn * w, rad(-30) * w)
+			body.NeckPitch = -8 * w
+		end
 	end
 	-- bolt
 	local bt = state.BoltLength > 0 and (t - state.BoltStart) / state.BoltLength or 1
-	local bolt, hand, roll = CFrame.new(), RIGHT_ON_GRIP, 0
 	if bt >= 0 and bt < 1 then
 		bolt, hand, roll = boltState(profile, bt)
 		pose = pose * CFrame.Angles(0, 0, -roll)
@@ -234,7 +263,7 @@ local function rifle(state, t, ctx)
 	return {
 		Weapon = pose,
 		Right = pose * hand,
-		Left = pose * rifleLeft(profile),
+		Left = pose * left,
 		Body = body,
 		Bolt = bolt,
 	}
@@ -401,6 +430,33 @@ local function knife(state, t, ctx)
 end
 
 ----------------------------------------------------------------------------
+-- VICTORY: the round winner's pose at the end of the kill cam. The rifle
+-- swings up onto the shoulder (or the knife comes up blade-high) and the
+-- free hand punches the air.
+----------------------------------------------------------------------------
+local VICTORY_RIFLE = aim(V(1.0, -0.95, 0.05), V(0.22, 1, 0.3), V(0.2, -0.3, -1))
+local VICTORY_KNIFE = aim(V(1.15, -0.55, -0.55), V(0.35, 1, -0.2), V(-1, 0, 0.1))
+local FIST_UP = CFrame.new(-1.2, 2.1, 0.15) * CFrame.Angles(0, 0, math.pi) * CFrame.Angles(0, rad(90), 0)
+
+local function victory(anim, state, t)
+	local v = t - state.VictoryStart
+	if v < 0 or v > 6 then
+		return anim
+	end
+	local w = easeOutBack(seg(v, 0, 0.45))
+	local pump = easeOutBack(seg(v, 0.25, 0.6)) - 0.12 * math.sin(seg(v, 0.6, 1.4) * math.pi * 2)
+	local knifeOut = state.Weapon == "Knife"
+	local weapon = anim.Weapon:Lerp(knifeOut and VICTORY_KNIFE or VICTORY_RIFLE, w)
+	return {
+		Weapon = weapon,
+		Right = weapon * (knifeOut and HAND_ON_KNIFE or RIGHT_ON_GRIP),
+		Left = anim.Left:Lerp(FIST_UP, pump),
+		Body = { Yaw = 12 * w, Lean = -7 * w, NeckPitch = -10 * w, NeckYaw = -8 * w },
+		Bolt = CFrame.new(),
+	}
+end
+
+----------------------------------------------------------------------------
 -- State + public API
 ----------------------------------------------------------------------------
 function WeaponAnim.New()
@@ -412,6 +468,8 @@ function WeaponAnim.New()
 		BoltLength = 0,
 		InspectStart = -10,
 		InspectKind = nil,
+		InspectVariant = nil, -- which rifle inspect (1-3)
+		VictoryStart = -10,
 		Action = nil, -- knife clip { Clip, Start }
 		SwingSide = 1,
 	}
@@ -451,21 +509,38 @@ function WeaponAnim.Knife(state, kind, t, side)
 	end
 end
 
--- Returns false if something else is playing.
-function WeaponAnim.Inspect(state, t)
+-- Returns false if something else is playing. variant: which rifle inspect
+-- (1-3); nil picks one at random (never the same twice in a row).
+-- Returns true and the variant played.
+function WeaponAnim.Inspect(state, t, variant)
 	if state.Weapon == "Knife" then
 		if state.Action then
 			return false
 		end
 		state.Action = { Clip = "Inspect", Start = t }
 	else
-		if t - state.InspectStart < 2.4 or t - state.BoltStart < state.BoltLength then
+		if t - state.InspectStart < RIFLE_INSPECT_TIME or t - state.BoltStart < state.BoltLength then
 			return false
 		end
+		if not variant and state.InspectVariant then
+			variant = math.random(1, WeaponAnim.RifleInspects - 1)
+			if variant >= state.InspectVariant then
+				variant += 1 -- (skip the one you just did)
+			end
+		end
+		variant = variant or math.random(1, WeaponAnim.RifleInspects)
 		state.InspectStart = t
 		state.InspectKind = "Rifle"
+		state.InspectVariant = math.clamp(math.floor(variant), 1, WeaponAnim.RifleInspects)
 	end
-	return true
+	return true, state.InspectVariant
+end
+
+-- The victory pose (holds until the state is reset).
+function WeaponAnim.Victory(state, t)
+	state.VictoryStart = t
+	state.Action = nil
+	state.BoltLength = 0
 end
 
 function WeaponAnim.IsBusy(state, t)
@@ -474,10 +549,8 @@ end
 
 -- ctx: { Sprint = 0..1, Scope = 0..1, Profile = gun profile }
 function WeaponAnim.Evaluate(state, t, ctx)
-	if state.Weapon == "Knife" then
-		return knife(state, t, ctx)
-	end
-	return rifle(state, t, ctx)
+	local anim = state.Weapon == "Knife" and knife(state, t, ctx) or rifle(state, t, ctx)
+	return victory(anim, state, t)
 end
 
 -- (for previews / tests)

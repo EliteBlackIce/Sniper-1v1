@@ -560,7 +560,7 @@ end
 Config.Match = {
 	RoundsToWin = 5, -- first to 5 round wins (best of 9)
 	CountdownTime = 3, -- "3, 2, 1, GO"
-	RoundEndTime = 4.5, -- pause after a kill before the pick screen (the loser watches the kill cam)
+	RoundEndTime = 6, -- pause after a kill before the pick screen (the loser watches the kill cam + victory pose)
 	PickTime = 15, -- seconds the loser has to pick a card
 	PickRevealTime = 1.6, -- how long the chosen card is shown before the next round
 	VictoryTime = 7, -- victory screen length before returning to lobby
@@ -580,9 +580,10 @@ Config.KillCam = {
 	Enabled = true,
 	Delay = 0.35, -- seconds after the kill before it starts
 	Length = 2.6, -- seconds of replay
-	SlowMoTime = 0.7, -- the last part plays in slow motion...
+	SlowMoTime = 0.55, -- the last part plays in slow motion...
 	SlowMoSpeed = 0.35, -- ...at this speed
 	FieldOfView = 70,
+	VictoryTime = 1.7, -- then the camera cuts to the winner striking a victory pose
 }
 
 ----------------------------------------------------------------------------
@@ -919,6 +920,9 @@ Config.Sounds = {
 	Hit = { Id = "rbxasset://sounds/electronicpingshort.wav", Volume = 0.5, Pitch = 1.4 },
 	Headshot = { Id = "rbxasset://sounds/electronicpingshort.wav", Volume = 0.7, Pitch = 1.9 },
 	Kill = { Id = "rbxasset://sounds/electronicpingshort.wav", Volume = 0.9, Pitch = 0.75 },
+	HitTick = { Id = "rbxasset://sounds/clickfast.wav", Volume = 0.55, Pitch = 2.3 }, -- the crisp tick layered on every hit
+	Ding = { Id = "rbxasset://sounds/electronicpingshort.wav", Volume = 0.55, Pitch = 2.7 }, -- headshots ring
+	KillThump = { Id = "rbxasset://sounds/collide.wav", Volume = 0.6, Pitch = 0.55 }, -- the low punch under a kill
 	Hurt = { Id = "rbxasset://sounds/swordslash.wav", Volume = 0.5, Pitch = 0.7 },
 	Dash = { Id = "rbxasset://sounds/swordlunge.wav", Volume = 0.45, Pitch = 1.2 },
 	Jump = { Id = "rbxasset://sounds/action_jump.mp3", Volume = 0.35, Pitch = 1.1 },
@@ -7850,7 +7854,7 @@ end
 -- "Inspect" (with the variant) and "Scope" (true / false).
 local lastAnim = {}
 local INSPECT_VARIANTS = { Rifle = true, Knife = true }
-local function onAnim(player, kind, value)
+local function onAnim(player, kind, value, variant)
 	local character = player.Character
 	if not character or typeof(kind) ~= "string" then
 		return
@@ -7869,6 +7873,9 @@ local function onAnim(player, kind, value)
 	end
 	lastAnim[player][kind] = now
 	if kind == "Inspect" and INSPECT_VARIANTS[value] then
+		-- which rifle inspect (1-3): set before the counter so others read it with it
+		local ok = typeof(variant) == "number" and variant == variant -- (not NaN)
+		character:SetAttribute("InspectVariant", ok and math.clamp(math.floor(variant), 1, 3) or 1)
 		character:SetAttribute("Inspect", ((character:GetAttribute("Inspect") or 0) + 1) % 1000)
 	end
 end
@@ -9334,23 +9341,7 @@ function LobbyBuilder.Build()
 	end)
 	sign(model, V(16, 3.2, 0.5), CFrame.lookAt(V(-60.4, 15.4, 0), V(0, 15.4, 0)), "CRATE VAULT", "OPEN CRATES  -  UNLOCK RIFLE SKINS", P.AccentB)
 
-	-- VENDING MACHINES + BINS ---------------------------------------------------------------
-	local function vending(cf, color)
-		b.part(V(4, 7, 3), cf * CFrame.new(0, 3.5, 0), color)
-		b.decor(function()
-			b.material(b.part(V(2.6, 4, 0.2), cf * CFrame.new(-0.4, 4.2, -1.55), C.Glass), Enum.Material.Glass, 0.2)
-			for row = 0, 3 do
-				for col = 0, 2 do
-					b.part(V(0.5, 0.6, 0.3), cf * CFrame.new(-1.2 + col * 0.8, 2.8 + row * 0.9, -1.35), C.Awning[((row + col) % 3) + 1])
-				end
-			end
-			b.part(V(0.6, 2, 0.2), cf * CFrame.new(1.4, 4.4, -1.55), C.Dark) -- keypad
-			light(neon(b, b.part(V(3.6, 0.6, 0.2), cf * CFrame.new(0, 6.5, -1.55), C.LampLight)), color, 10, 0.6)
-		end)
-	end
-	vending(facingIn(R - 3, 243, 0), P.PlayerB)
-	vending(facingIn(R - 3, 297, 0), P.AccentA)
-	vending(facingIn(R - 3, 117, 0), P.PlayerA)
+	-- BINS ---------------------------------------------------------------------------------
 	for _, deg in ipairs({ 20, 160, 200, 340 }) do -- bins by the paths
 		local pos = polar(31, deg, 0)
 		b.decor(function()
@@ -11806,7 +11797,7 @@ local function syncEvents(entry, model, t)
 
 	local inspect = model:GetAttribute("Inspect")
 	if seen.Inspect ~= nil and inspect ~= seen.Inspect then
-		WeaponAnim.Inspect(state, t)
+		WeaponAnim.Inspect(state, t, model:GetAttribute("InspectVariant"))
 	end
 	seen.Inspect = inspect
 end
@@ -12087,6 +12078,15 @@ end
 
 function BodyAnimator.PlayKill() end
 
+-- The victory pose on a tracked model (the kill cam's copy of the winner).
+function BodyAnimator.PlayVictory(model)
+	local entry = getEntry(model)
+	if entry then
+		entry.State.Weapon = model:GetAttribute("Weapon") == "Knife" and "Knife" or "Sniper"
+		WeaponAnim.Victory(entry.State, now())
+	end
+end
+
 function BodyAnimator.SetWeapon(name)
 	local state = activeState()
 	if WeaponAnim.SetWeapon(state, name, now()) and not puppet then
@@ -12225,9 +12225,19 @@ function BodyAnimator.Start()
 			if state.Weapon == "Knife" then
 				BodyAnimator.PlayKnife("Inspect")
 				Remotes.Get("Anim"):FireServer("Inspect", "Knife")
-			elseif WeaponAnim.Inspect(state, now()) then
-				Sfx.Play("CardHover", { Pitch = 0.8, Volume = 1.2 })
-				Remotes.Get("Anim"):FireServer("Inspect", "Rifle")
+			else
+				local ok, variant = WeaponAnim.Inspect(state, now())
+				if ok then
+					Sfx.Play("CardHover", { Pitch = 0.8, Volume = 1.2 })
+					if variant == 3 then -- the bolt, eased open and shut
+						task.delay(0.6, Sfx.Play, "Bolt", { Pitch = 0.9, Volume = 0.5 })
+						task.delay(1.7, Sfx.Play, "Bolt", { Pitch = 1.1, Volume = 0.5 })
+					elseif variant == 2 then -- two taps on the scope
+						task.delay(1.05, Sfx.Play, "CardFlip", { Pitch = 1.6, Volume = 0.4 })
+						task.delay(1.25, Sfx.Play, "CardFlip", { Pitch = 1.7, Volume = 0.4 })
+					end
+					Remotes.Get("Anim"):FireServer("Inspect", "Rifle", variant)
+				end
 			end
 		end
 	end
@@ -15097,7 +15107,9 @@ return Keybinds
 
 	When your opponent kills you in a match, you watch the last few seconds
 	again through THEIR eyes: where they were, where they were aiming, their
-	shot flying at a ghost of you, ending in slow motion on the kill.
+	shot flying at a ghost of you, ending in slow motion on the kill. Then
+	the camera cuts round to face the winner, who strikes a victory pose
+	(rifle up on the shoulder or knife raised, fist in the air).
 
 	How it works (all on your client, nothing extra is sent):
 	  * Every frame of a round we record your opponent's head position,
@@ -15429,6 +15441,7 @@ local function play(deathTime, killerName)
 	end
 	local replayT = deathTime - K.Length
 	local finish = deathTime + 0.5
+	local victoryAt -- os.clock() when the victory pose started
 	local rate = 1
 	local current -- the sample for this frame
 
@@ -15471,7 +15484,38 @@ local function play(deathTime, killerName)
 			stop()
 		end
 	end)
+	-- the cut to the winner's victory pose (their copy, seen from the front)
+	local function startVictory()
+		victoryAt = os.clock()
+		pcall(Controllers.Viewmodel.SetPuppet, nil) -- (now it's seen from outside)
+		for _, part in ipairs(killerCopy:GetDescendants()) do
+			if part:IsA("BasePart") then
+				part.LocalTransparencyModifier = 0
+			elseif part:IsA("Decal") then
+				part.Transparency = 0
+			end
+		end
+		killerCopy:SetAttribute("AimPitch", 0)
+		Controllers.Viewmodel.PlayVictory(killerCopy)
+		vignette.BackgroundTransparency = 0.8
+		killerLabel.Text = string.upper(killerName or "YOUR OPPONENT") .. " TAKES THE ROUND"
+	end
+
 	frame = function(dt)
+		if victoryAt then
+			local v = os.clock() - victoryAt
+			local root = killerCopy:GetPivot()
+			local head = root.Position + Vector3.new(0, 1.3, 0)
+			local a = math.min(v / K.VictoryTime, 1)
+			local from = root * CFrame.new(2.2 - a * 0.6, 2.2 - a * 0.3, -7.5 + a * 1.4) -- in front, slowly pushing in
+			camera.CFrame = CFrame.lookAt(from.Position, head)
+			camera.FieldOfView = 50
+			local phase = ClientState.Snapshot.Phase
+			if v >= K.VictoryTime or stopRequested or not ClientState.InMatch() or (phase ~= "RoundEnd" and phase ~= "Fight") then
+				stop()
+			end
+			return
+		end
 		local slow = replayT > deathTime - K.SlowMoTime and replayT < deathTime + 0.3
 		rate = slow and K.SlowMoSpeed or 1
 		replayT += dt * rate
@@ -15526,7 +15570,9 @@ local function play(deathTime, killerName)
 			end
 		end
 		local phase = ClientState.Snapshot.Phase
-		if replayT >= finish or stopRequested or not ClientState.InMatch() or (phase ~= "RoundEnd" and phase ~= "Fight") then
+		if killerCopy and not stopRequested and replayT >= deathTime + 0.15 and (K.VictoryTime or 0) > 0 then
+			startVictory()
+		elseif replayT >= finish or stopRequested or not ClientState.InMatch() or (phase ~= "RoundEnd" and phase ~= "Fight") then
 			stop()
 		end
 	end
@@ -17584,6 +17630,10 @@ local function boltState(profile, t)
 	return bolt, hand, roll
 end
 
+-- Rifle inspects (V): 1 show it off, 2 scope check, 3 chamber check.
+local RIFLE_INSPECT_TIME = 2.4
+WeaponAnim.RifleInspects = 3
+
 local function rifle(state, t, ctx)
 	local profile = ctx.Profile
 	local base = RIFLE_HIP:Lerp(RIFLE_SPRINT, ctx.Sprint or 0)
@@ -17596,18 +17646,43 @@ local function rifle(state, t, ctx)
 		local kick = math.exp(-f * 11) * (1 - math.exp(-f * 90))
 		pose = pose * CFrame.new(0, 0.03 * kick, 0.28 * kick) * CFrame.Angles(rad(12) * kick, 0, rad(3) * kick)
 	end
-	-- inspect (V): turn it to show both sides
+	-- inspect (V): one of RIFLE_INSPECTS
 	local body = { Yaw = -8, Pitch = 0 }
-	local it = (t - state.InspectStart) / 2.4
+	local bolt, hand, roll = CFrame.new(), RIGHT_ON_GRIP, 0
+	local left = rifleLeft(profile)
+	local it = (t - state.InspectStart) / RIFLE_INSPECT_TIME
 	if it >= 0 and it < 1 and state.InspectKind == "Rifle" then
 		local w = math.sin(it * math.pi) ^ 0.7
-		local turn = math.sin(it * math.pi * 2)
-		pose = pose * CFrame.new(-0.35 * w, 0.2 * w, 0.3 * w) * CFrame.Angles(rad(12) * w, rad(60) * turn * w, rad(-30) * w)
-		body.NeckPitch = -8 * w
+		local variant = state.InspectVariant or 1
+		if variant == 2 then
+			-- scope check: tip it toward you, tap the scope twice
+			pose = pose * CFrame.new(-0.25 * w, 0.22 * w, 0.25 * w) * CFrame.Angles(rad(8) * w, rad(32) * w, rad(-38) * w)
+			local eye = profile.ScopeEye * G
+			local tap = CFrame.new(0.02, eye.Y + 0.11 + math.max(0, math.sin(seg(it, 0.4, 0.7) * math.pi * 4)) * 0.05, eye.Z - 0.55)
+				* CFrame.Angles(0, 0, rad(90))
+			left = left:Lerp(tap, smoothstep(seg(it, 0.25, 0.38)) - smoothstep(seg(it, 0.72, 0.86)))
+			body.NeckPitch = -6 * w
+			body.NeckYaw = 8 * w
+		elseif variant == 3 then
+			-- chamber check: lift the bolt, ease it half open, look in, close it
+			pose = pose * CFrame.new(-0.12 * w, 0.12 * w, 0.1 * w) * CFrame.Angles(rad(6) * w, rad(10) * w, rad(-24) * w)
+			local lift = smoothstep(seg(it, 0.15, 0.28)) - smoothstep(seg(it, 0.74, 0.84))
+			local pull = (smoothstep(seg(it, 0.28, 0.42)) - smoothstep(seg(it, 0.62, 0.74))) * 0.55
+			bolt = CFrame.new(0, 0, pull * profile.BoltTravel * G) * CFrame.Angles(0, 0, rad(profile.BoltLift) * lift)
+			local knob = CFrame.new(profile.BoltPivot.Position * G) * bolt * CFrame.new(profile.KnobHold.Position * G)
+				* CFrame.Angles(rad(60), 0, rad(-25))
+			hand = RIGHT_ON_GRIP:Lerp(knob, smoothstep(seg(it, 0.04, 0.15)) - smoothstep(seg(it, 0.84, 0.96)))
+			body.NeckPitch = -8 * w
+			body.NeckYaw = 10 * w
+		else
+			-- show it off: turn it to show both sides
+			local turn = math.sin(it * math.pi * 2)
+			pose = pose * CFrame.new(-0.35 * w, 0.2 * w, 0.3 * w) * CFrame.Angles(rad(12) * w, rad(60) * turn * w, rad(-30) * w)
+			body.NeckPitch = -8 * w
+		end
 	end
 	-- bolt
 	local bt = state.BoltLength > 0 and (t - state.BoltStart) / state.BoltLength or 1
-	local bolt, hand, roll = CFrame.new(), RIGHT_ON_GRIP, 0
 	if bt >= 0 and bt < 1 then
 		bolt, hand, roll = boltState(profile, bt)
 		pose = pose * CFrame.Angles(0, 0, -roll)
@@ -17625,7 +17700,7 @@ local function rifle(state, t, ctx)
 	return {
 		Weapon = pose,
 		Right = pose * hand,
-		Left = pose * rifleLeft(profile),
+		Left = pose * left,
 		Body = body,
 		Bolt = bolt,
 	}
@@ -17792,6 +17867,33 @@ local function knife(state, t, ctx)
 end
 
 ----------------------------------------------------------------------------
+-- VICTORY: the round winner's pose at the end of the kill cam. The rifle
+-- swings up onto the shoulder (or the knife comes up blade-high) and the
+-- free hand punches the air.
+----------------------------------------------------------------------------
+local VICTORY_RIFLE = aim(V(1.0, -0.95, 0.05), V(0.22, 1, 0.3), V(0.2, -0.3, -1))
+local VICTORY_KNIFE = aim(V(1.15, -0.55, -0.55), V(0.35, 1, -0.2), V(-1, 0, 0.1))
+local FIST_UP = CFrame.new(-1.2, 2.1, 0.15) * CFrame.Angles(0, 0, math.pi) * CFrame.Angles(0, rad(90), 0)
+
+local function victory(anim, state, t)
+	local v = t - state.VictoryStart
+	if v < 0 or v > 6 then
+		return anim
+	end
+	local w = easeOutBack(seg(v, 0, 0.45))
+	local pump = easeOutBack(seg(v, 0.25, 0.6)) - 0.12 * math.sin(seg(v, 0.6, 1.4) * math.pi * 2)
+	local knifeOut = state.Weapon == "Knife"
+	local weapon = anim.Weapon:Lerp(knifeOut and VICTORY_KNIFE or VICTORY_RIFLE, w)
+	return {
+		Weapon = weapon,
+		Right = weapon * (knifeOut and HAND_ON_KNIFE or RIGHT_ON_GRIP),
+		Left = anim.Left:Lerp(FIST_UP, pump),
+		Body = { Yaw = 12 * w, Lean = -7 * w, NeckPitch = -10 * w, NeckYaw = -8 * w },
+		Bolt = CFrame.new(),
+	}
+end
+
+----------------------------------------------------------------------------
 -- State + public API
 ----------------------------------------------------------------------------
 function WeaponAnim.New()
@@ -17803,6 +17905,8 @@ function WeaponAnim.New()
 		BoltLength = 0,
 		InspectStart = -10,
 		InspectKind = nil,
+		InspectVariant = nil, -- which rifle inspect (1-3)
+		VictoryStart = -10,
 		Action = nil, -- knife clip { Clip, Start }
 		SwingSide = 1,
 	}
@@ -17842,21 +17946,38 @@ function WeaponAnim.Knife(state, kind, t, side)
 	end
 end
 
--- Returns false if something else is playing.
-function WeaponAnim.Inspect(state, t)
+-- Returns false if something else is playing. variant: which rifle inspect
+-- (1-3); nil picks one at random (never the same twice in a row).
+-- Returns true and the variant played.
+function WeaponAnim.Inspect(state, t, variant)
 	if state.Weapon == "Knife" then
 		if state.Action then
 			return false
 		end
 		state.Action = { Clip = "Inspect", Start = t }
 	else
-		if t - state.InspectStart < 2.4 or t - state.BoltStart < state.BoltLength then
+		if t - state.InspectStart < RIFLE_INSPECT_TIME or t - state.BoltStart < state.BoltLength then
 			return false
 		end
+		if not variant and state.InspectVariant then
+			variant = math.random(1, WeaponAnim.RifleInspects - 1)
+			if variant >= state.InspectVariant then
+				variant += 1 -- (skip the one you just did)
+			end
+		end
+		variant = variant or math.random(1, WeaponAnim.RifleInspects)
 		state.InspectStart = t
 		state.InspectKind = "Rifle"
+		state.InspectVariant = math.clamp(math.floor(variant), 1, WeaponAnim.RifleInspects)
 	end
-	return true
+	return true, state.InspectVariant
+end
+
+-- The victory pose (holds until the state is reset).
+function WeaponAnim.Victory(state, t)
+	state.VictoryStart = t
+	state.Action = nil
+	state.BoltLength = 0
 end
 
 function WeaponAnim.IsBusy(state, t)
@@ -17865,10 +17986,8 @@ end
 
 -- ctx: { Sprint = 0..1, Scope = 0..1, Profile = gun profile }
 function WeaponAnim.Evaluate(state, t, ctx)
-	if state.Weapon == "Knife" then
-		return knife(state, t, ctx)
-	end
-	return rifle(state, t, ctx)
+	local anim = state.Weapon == "Knife" and knife(state, t, ctx) or rifle(state, t, ctx)
+	return victory(anim, state, t)
 end
 
 -- (for previews / tests)
@@ -19051,17 +19170,18 @@ local function buildCrosshair()
 		Parent = gui,
 	})
 	for i = 0, 3 do
-		local angle = math.rad(45 + i * 90)
-		Theme.new("Frame", {
+		local tick = Theme.new("Frame", {
 			Name = "Tick",
 			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.new(0.5, math.cos(angle) * 11, 0.5, math.sin(angle) * 11),
-			Size = UDim2.fromOffset(9, 2),
+			Size = UDim2.fromOffset(10, 3),
 			Rotation = 45 + i * 90,
 			BackgroundColor3 = Palette.UIHitmarker,
+			BackgroundTransparency = 1,
 			ZIndex = 5,
 			Parent = hitmarker,
 		})
+		tick:SetAttribute("Angle", math.rad(45 + i * 90))
+		Theme.new("UIStroke", { Thickness = 1, Color = Color3.new(0, 0, 0), Transparency = 0.5, Parent = tick })
 	end
 end
 
@@ -19490,17 +19610,59 @@ end
 ----------------------------------------------------------------------------
 -- Hits and damage
 ----------------------------------------------------------------------------
+-- The X on a hit: the four ticks snap in from further out, hold for a
+-- moment and fade. Headshots are red, kills are bigger and red, with a
+-- second, wider X that flies out.
+local hitToken = 0
 function HUD.Hitmarker(headshot, killed)
-	local color = headshot and Palette.UIHeadshot or Palette.UIHitmarker
+	hitToken += 1
+	local token = hitToken
+	local color = (headshot or killed) and Palette.UIHeadshot or Palette.UIHitmarker
+	local length, thick = killed and 15 or 10, killed and 4 or 3
+	local radius = killed and 13 or 10
 	for _, tick in ipairs(hitmarker:GetChildren()) do
-		tick.BackgroundColor3 = color
-		tick.BackgroundTransparency = 0
-		tick.Size = UDim2.fromOffset(killed and 14 or 9, killed and 3 or 2)
-		Theme.tween(tick, 0.35, { BackgroundTransparency = 1 })
+		local angle = tick:GetAttribute("Angle")
+		if angle then
+			tick.BackgroundColor3 = color
+			tick.BackgroundTransparency = 0
+			tick.Size = UDim2.fromOffset(length * 1.4, thick)
+			tick.Position = UDim2.new(0.5, math.cos(angle) * (radius + 9), 0.5, math.sin(angle) * (radius + 9))
+			Theme.tween(tick, 0.07, {
+				Position = UDim2.new(0.5, math.cos(angle) * radius, 0.5, math.sin(angle) * radius),
+				Size = UDim2.fromOffset(length, thick),
+			})
+		end
 	end
 	hitmarker.Visible = true
-	hitmarker.Size = UDim2.fromOffset(killed and 44 or 30, killed and 44 or 30)
-	Theme.tween(hitmarker, 0.2, { Size = UDim2.fromOffset(30, 30) })
+	hitmarker.Rotation = killed and -12 or 0
+	Theme.tween(hitmarker, 0.15, { Rotation = 0 }, Enum.EasingStyle.Back)
+	task.delay(killed and 0.32 or 0.2, function()
+		if token ~= hitToken then
+			return -- a newer hit took over
+		end
+		for _, tick in ipairs(hitmarker:GetChildren()) do
+			if tick:GetAttribute("Angle") then
+				Theme.tween(tick, 0.25, { BackgroundTransparency = 1 })
+			end
+		end
+	end)
+	if killed then
+		-- the wide X flying out
+		for _, tick in ipairs(hitmarker:GetChildren()) do
+			local angle = tick:GetAttribute("Angle")
+			if angle then
+				local ghost = tick:Clone()
+				ghost:SetAttribute("Angle", nil)
+				ghost.BackgroundTransparency = 0.2
+				ghost.Parent = hitmarker
+				Theme.tween(ghost, 0.35, {
+					Position = UDim2.new(0.5, math.cos(angle) * 34, 0.5, math.sin(angle) * 34),
+					BackgroundTransparency = 1,
+				}, Enum.EasingStyle.Quint)
+				task.delay(0.4, ghost.Destroy, ghost)
+			end
+		end
+	end
 end
 
 local function onDamaged(data)
@@ -19570,6 +19732,11 @@ local function onHitConfirm(data)
 		Theme.burst(gui, viewport / 2, data.Headshot and Palette.UIHeadshot or Palette.UIAccent, 18, 120, 7)
 		Theme.ring(gui, viewport / 2, data.Headshot and Palette.UIHeadshot or Color3.new(1, 1, 1), 160, 5)
 		Sfx.Play("Kill")
+		Sfx.Play("KillThump")
+		Sfx.Play("HitTick", { Pitch = 0.85 })
+		if data.Headshot then
+			task.delay(0.05, Sfx.Play, "Ding")
+		end
 		if data.Backstab then
 			showBanner("BACKSTAB", nil, Palette.AccentB, 1.4)
 		elseif data.Melee then
@@ -19579,8 +19746,11 @@ local function onHitConfirm(data)
 		end
 	elseif data.Headshot then
 		Sfx.Play("Headshot")
+		Sfx.Play("Ding")
+		Sfx.Play("HitTick")
 	else
 		Sfx.Play("Hit", { Pitch = data.Splash and 0.8 or 1 })
+		Sfx.Play("HitTick", { Pitch = data.Splash and 0.8 or 1 })
 	end
 end
 

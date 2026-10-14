@@ -286,7 +286,7 @@ end
 Config.Match = {
 	RoundsToWin = 5, -- first to 5 round wins (best of 9)
 	CountdownTime = 3, -- "3, 2, 1, GO"
-	RoundEndTime = 4.5, -- pause after a kill before the pick screen (the loser watches the kill cam)
+	RoundEndTime = 6, -- pause after a kill before the pick screen (the loser watches the kill cam + victory pose)
 	PickTime = 15, -- seconds the loser has to pick a card
 	PickRevealTime = 1.6, -- how long the chosen card is shown before the next round
 	VictoryTime = 7, -- victory screen length before returning to lobby
@@ -306,9 +306,10 @@ Config.KillCam = {
 	Enabled = true,
 	Delay = 0.35, -- seconds after the kill before it starts
 	Length = 2.6, -- seconds of replay
-	SlowMoTime = 0.7, -- the last part plays in slow motion...
+	SlowMoTime = 0.55, -- the last part plays in slow motion...
 	SlowMoSpeed = 0.35, -- ...at this speed
 	FieldOfView = 70,
+	VictoryTime = 1.7, -- then the camera cuts to the winner striking a victory pose
 }
 
 ----------------------------------------------------------------------------
@@ -645,6 +646,9 @@ Config.Sounds = {
 	Hit = { Id = "rbxasset://sounds/electronicpingshort.wav", Volume = 0.5, Pitch = 1.4 },
 	Headshot = { Id = "rbxasset://sounds/electronicpingshort.wav", Volume = 0.7, Pitch = 1.9 },
 	Kill = { Id = "rbxasset://sounds/electronicpingshort.wav", Volume = 0.9, Pitch = 0.75 },
+	HitTick = { Id = "rbxasset://sounds/clickfast.wav", Volume = 0.55, Pitch = 2.3 }, -- the crisp tick layered on every hit
+	Ding = { Id = "rbxasset://sounds/electronicpingshort.wav", Volume = 0.55, Pitch = 2.7 }, -- headshots ring
+	KillThump = { Id = "rbxasset://sounds/collide.wav", Volume = 0.6, Pitch = 0.55 }, -- the low punch under a kill
 	Hurt = { Id = "rbxasset://sounds/swordslash.wav", Volume = 0.5, Pitch = 0.7 },
 	Dash = { Id = "rbxasset://sounds/swordlunge.wav", Volume = 0.45, Pitch = 1.2 },
 	Jump = { Id = "rbxasset://sounds/action_jump.mp3", Volume = 0.35, Pitch = 1.1 },

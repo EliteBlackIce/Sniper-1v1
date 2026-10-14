@@ -725,23 +725,7 @@ function LobbyBuilder.Build()
 	end)
 	sign(model, V(16, 3.2, 0.5), CFrame.lookAt(V(-60.4, 15.4, 0), V(0, 15.4, 0)), "CRATE VAULT", "OPEN CRATES  -  UNLOCK RIFLE SKINS", P.AccentB)
 
-	-- VENDING MACHINES + BINS ---------------------------------------------------------------
-	local function vending(cf, color)
-		b.part(V(4, 7, 3), cf * CFrame.new(0, 3.5, 0), color)
-		b.decor(function()
-			b.material(b.part(V(2.6, 4, 0.2), cf * CFrame.new(-0.4, 4.2, -1.55), C.Glass), Enum.Material.Glass, 0.2)
-			for row = 0, 3 do
-				for col = 0, 2 do
-					b.part(V(0.5, 0.6, 0.3), cf * CFrame.new(-1.2 + col * 0.8, 2.8 + row * 0.9, -1.35), C.Awning[((row + col) % 3) + 1])
-				end
-			end
-			b.part(V(0.6, 2, 0.2), cf * CFrame.new(1.4, 4.4, -1.55), C.Dark) -- keypad
-			light(neon(b, b.part(V(3.6, 0.6, 0.2), cf * CFrame.new(0, 6.5, -1.55), C.LampLight)), color, 10, 0.6)
-		end)
-	end
-	vending(facingIn(R - 3, 243, 0), P.PlayerB)
-	vending(facingIn(R - 3, 297, 0), P.AccentA)
-	vending(facingIn(R - 3, 117, 0), P.PlayerA)
+	-- BINS ---------------------------------------------------------------------------------
 	for _, deg in ipairs({ 20, 160, 200, 340 }) do -- bins by the paths
 		local pos = polar(31, deg, 0)
 		b.decor(function()

@@ -3,7 +3,9 @@
 
 	When your opponent kills you in a match, you watch the last few seconds
 	again through THEIR eyes: where they were, where they were aiming, their
-	shot flying at a ghost of you, ending in slow motion on the kill.
+	shot flying at a ghost of you, ending in slow motion on the kill. Then
+	the camera cuts round to face the winner, who strikes a victory pose
+	(rifle up on the shoulder or knife raised, fist in the air).
 
 	How it works (all on your client, nothing extra is sent):
 	  * Every frame of a round we record your opponent's head position,
@@ -335,6 +337,7 @@ local function play(deathTime, killerName)
 	end
 	local replayT = deathTime - K.Length
 	local finish = deathTime + 0.5
+	local victoryAt -- os.clock() when the victory pose started
 	local rate = 1
 	local current -- the sample for this frame
 
@@ -377,7 +380,38 @@ local function play(deathTime, killerName)
 			stop()
 		end
 	end)
+	-- the cut to the winner's victory pose (their copy, seen from the front)
+	local function startVictory()
+		victoryAt = os.clock()
+		pcall(Controllers.Viewmodel.SetPuppet, nil) -- (now it's seen from outside)
+		for _, part in ipairs(killerCopy:GetDescendants()) do
+			if part:IsA("BasePart") then
+				part.LocalTransparencyModifier = 0
+			elseif part:IsA("Decal") then
+				part.Transparency = 0
+			end
+		end
+		killerCopy:SetAttribute("AimPitch", 0)
+		Controllers.Viewmodel.PlayVictory(killerCopy)
+		vignette.BackgroundTransparency = 0.8
+		killerLabel.Text = string.upper(killerName or "YOUR OPPONENT") .. " TAKES THE ROUND"
+	end
+
 	frame = function(dt)
+		if victoryAt then
+			local v = os.clock() - victoryAt
+			local root = killerCopy:GetPivot()
+			local head = root.Position + Vector3.new(0, 1.3, 0)
+			local a = math.min(v / K.VictoryTime, 1)
+			local from = root * CFrame.new(2.2 - a * 0.6, 2.2 - a * 0.3, -7.5 + a * 1.4) -- in front, slowly pushing in
+			camera.CFrame = CFrame.lookAt(from.Position, head)
+			camera.FieldOfView = 50
+			local phase = ClientState.Snapshot.Phase
+			if v >= K.VictoryTime or stopRequested or not ClientState.InMatch() or (phase ~= "RoundEnd" and phase ~= "Fight") then
+				stop()
+			end
+			return
+		end
 		local slow = replayT > deathTime - K.SlowMoTime and replayT < deathTime + 0.3
 		rate = slow and K.SlowMoSpeed or 1
 		replayT += dt * rate
@@ -432,7 +466,9 @@ local function play(deathTime, killerName)
 			end
 		end
 		local phase = ClientState.Snapshot.Phase
-		if replayT >= finish or stopRequested or not ClientState.InMatch() or (phase ~= "RoundEnd" and phase ~= "Fight") then
+		if killerCopy and not stopRequested and replayT >= deathTime + 0.15 and (K.VictoryTime or 0) > 0 then
+			startVictory()
+		elseif replayT >= finish or stopRequested or not ClientState.InMatch() or (phase ~= "RoundEnd" and phase ~= "Fight") then
 			stop()
 		end
 	end

@@ -139,11 +139,23 @@ local function spawnInLobby(player)
 	sendLobbyState(player)
 end
 
+-- Each new match picks a random map (never the last one played on this
+-- server when there is a choice). A slot that still holds a different map
+-- is torn down and rebuilt with the new one.
+local lastMapName = nil
+
 local function getFreeArena()
 	for i = 1, Config.Match.MaxArenas do
 		if not arenaInUse[i] then
+			local mapName = MapBuilder.PickMap(lastMapName)
+			lastMapName = mapName
+			local arena = arenas[i]
+			if arena and arena.MapName ~= mapName then
+				arena.Model:Destroy()
+				arenas[i] = nil
+			end
 			if not arenas[i] then
-				arenas[i] = MapBuilder.BuildArena(i)
+				arenas[i] = MapBuilder.BuildArena(i, mapName)
 			end
 			arenaInUse[i] = true
 			return arenas[i]
@@ -185,6 +197,19 @@ local function onMatchFinished(match)
 	broadcastLobby()
 end
 
+-- Creates a match; its state snapshot also carries the map name (MapName)
+-- so the HUD can show it.
+local function newMatch(p1, p2, arena)
+	local match = Match.new(p1, p2, arena, onMatchFinished)
+	local baseSnapshot = match.Snapshot
+	function match:Snapshot()
+		local snapshot = baseSnapshot(self)
+		snapshot.MapName = self.Arena.MapName
+		return snapshot
+	end
+	return match
+end
+
 local function tryStartMatches()
 	-- drop anyone who left
 	for i = #queue, 1, -1 do
@@ -199,7 +224,7 @@ local function tryStartMatches()
 		end
 		local p1 = table.remove(queue, 1)
 		local p2 = table.remove(queue, 1)
-		local match = Match.new(p1, p2, arena, onMatchFinished)
+		local match = newMatch(p1, p2, arena)
 		inPlayground[p1] = nil
 		inPlayground[p2] = nil
 		matchByPlayer[p1] = match
@@ -264,7 +289,7 @@ function MatchService.StartBotMatch(player, difficulty)
 	difficulty = difficultyName(difficulty)
 	local bot = BotService.Create(difficulty)
 	inPlayground[player] = nil
-	local match = Match.new(player, bot, arena, onMatchFinished)
+	local match = newMatch(player, bot, arena)
 	matchByPlayer[player] = match
 	matchByPlayer[bot] = match
 	BotService.Attach(bot, match)
@@ -359,7 +384,7 @@ local function startPrivateMatch(p1, p2)
 		invites[p] = nil
 		rematches[p] = nil
 	end
-	local match = Match.new(p1, p2, arena, onMatchFinished)
+	local match = newMatch(p1, p2, arena)
 	matchByPlayer[p1] = match
 	matchByPlayer[p2] = match
 	match:Start()

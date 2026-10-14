@@ -187,7 +187,8 @@ local ARENA_LENGTH = 360 -- X
 local ARENA_WIDTH = 250 -- Z
 local WALL_HEIGHT = 70
 
--- The original simple arena ("Classic"). Set Config.Match.Map = "Classic" to use it.
+-- The original simple arena ("Classic"). Add "Classic" to Config.Match.Maps (or set
+-- Config.Match.Maps = false and Config.Match.Map = "Classic") to use it.
 local function buildClassicArena(index)
 	local origin = Vector3.new(0, 0, index * Config.Match.ArenaSpacing)
 	local model = Instance.new("Model")
@@ -280,15 +281,65 @@ local function buildClassicArena(index)
 	}
 end
 
--- Builds the arena for match slot `index` (each slot gets its own copy).
-function MapBuilder.BuildArena(index)
-	if Config.Match.Map == "Classic" then
-		return buildClassicArena(index)
+----------------------------------------------------------------------------
+-- MAP ROTATION
+-- Config.Match.Maps = { "Polygon", "Canyon", ... }  each match picks one at
+--                                                    random (never the same
+--                                                    map twice in a row)
+-- Config.Match.Maps = nil                            same, with DEFAULT_MAPS
+-- Config.Match.Maps = false                          always Config.Match.Map
+----------------------------------------------------------------------------
+local DEFAULT_MAPS = { "Polygon", "Crossfire", "Nuketown", "Canyon", "Pillars", "Bridges", "Ziggurat", "Quarry" }
+
+local function mapExists(name)
+	return name == "Classic" or script.Parent:FindFirstChild("Arena" .. tostring(name)) ~= nil
+end
+
+-- The maps a match can be played on (only ones that actually exist).
+function MapBuilder.GetMapList()
+	local list = Config.Match.Maps
+	if list == nil then
+		list = DEFAULT_MAPS
+	elseif type(list) ~= "table" then
+		list = { Config.Match.Map }
 	end
-	-- Config.Match.Map picks the module ArenaCrossfire / ArenaSimple / ArenaDowntown
-	-- (each returns its spawns and playground dummy spots)
-	local mapName = Config.Match.Map
-	if not script.Parent:FindFirstChild("Arena" .. tostring(mapName)) then
+	local maps = {}
+	for _, name in ipairs(list) do
+		if mapExists(name) and not table.find(maps, name) then
+			table.insert(maps, name)
+		end
+	end
+	if #maps == 0 then
+		table.insert(maps, mapExists(Config.Match.Map) and Config.Match.Map or "Crossfire")
+	end
+	return maps
+end
+
+-- Picks a random map for the next match, avoiding `previous` when there is a choice.
+function MapBuilder.PickMap(previous)
+	local maps = MapBuilder.GetMapList()
+	if #maps > 1 and previous then
+		local index = table.find(maps, previous)
+		if index then
+			table.remove(maps, index)
+		end
+	end
+	return maps[math.random(1, #maps)]
+end
+
+-- Builds the arena for match slot `index` (each slot gets its own copy) using
+-- map `mapName` (default: the first map in the rotation). The returned info
+-- has the map's name in MapName.
+function MapBuilder.BuildArena(index, mapName)
+	mapName = mapName or MapBuilder.GetMapList()[1]
+	if mapName == "Classic" then
+		local arena = buildClassicArena(index)
+		arena.MapName = "Classic"
+		return arena
+	end
+	-- each map is a module ArenaPolygon / ArenaCanyon / ... that returns its
+	-- spawns and playground dummy spots
+	if not mapExists(mapName) then
 		mapName = "Crossfire"
 	end
 	local mapModule = require(script.Parent["Arena" .. mapName])
@@ -309,6 +360,7 @@ function MapBuilder.BuildArena(index)
 	return {
 		Model = model,
 		Index = index,
+		MapName = mapName,
 		Origin = origin,
 		FloorY = origin.Y,
 		Spawns = { base * spawns[1], base * spawns[2] },

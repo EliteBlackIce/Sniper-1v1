@@ -200,6 +200,25 @@ local function makeCard(index, def, ownedStacks)
 	})
 	Theme.corner(disc, UDim.new(0.5, 0))
 	Theme.stroke(disc, color, 1.5, 0.55)
+	-- soft inner halo + a drop shadow so the icon floats on the disc
+	local halo = Theme.new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(96, 96),
+		BackgroundColor3 = color:Lerp(Color3.new(1, 1, 1), 0.35),
+		BackgroundTransparency = 0.8,
+		Parent = disc,
+	})
+	Theme.corner(halo, UDim.new(0.5, 0))
+	local iconShadow = Theme.new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(0.5, 0, 0.5, 5),
+		Size = UDim2.fromOffset(76, 76),
+		BackgroundColor3 = Palette.UIBackground,
+		BackgroundTransparency = 0.45,
+		Parent = disc,
+	})
+	Theme.corner(iconShadow, 17)
 	local icon = Icons.Create(def, 74)
 	icon.AnchorPoint = Vector2.new(0.5, 0.5)
 	icon.Position = UDim2.fromScale(0.5, 0.5)

@@ -457,25 +457,44 @@ Config.Knife = {
 }
 
 ----------------------------------------------------------------------------
--- CRATES (lobby crate vault). Open one with a key at the altar in the lobby
--- to unlock a rifle skin. Rarities are listed lowest to highest; Chance is a
--- percentage (they add up to 100).
+-- CRATES (lobby crate vault + the SHOP). Each crate unlocks a rifle or knife
+-- skin. Rarities are listed lowest to highest; each crate type has its odds.
 ----------------------------------------------------------------------------
 Config.Crates = {
-	StartingKeys = 5, -- keys a brand-new player starts with
-	KeysPerWin = 2, -- keys for winning a match
+	StartingKeys = 10, -- keys a brand-new player starts with (one free crate)
+	KeysPerWin = 3, -- keys for winning a match
 	KeysPerLoss = 1, -- keys for finishing a match you lost
-	Cost = 1, -- keys per crate
 	FreeInStudio = true, -- opening is free when testing in Studio
-	MaxDistance = 26, -- how close to the altar you have to be (studs)
 	Cooldown = 1.5, -- seconds between opens (stops spam; the animation is longer)
+	-- The two crates (open them at the crate vault's altar or from the SHOP):
+	--   Standard  paid with Keys you earn by playing
+	--   Elite     paid with Credits (bought with Robux in the SHOP). Better
+	--             odds, and the only place the Elite-only skins and the
+	--             Secrets drop.
+	-- Odds are percentages per rarity.
+	Types = {
+		Standard = {
+			Name = "STANDARD CRATE",
+			Currency = "Keys",
+			Cost = 10,
+			Odds = { Common = 50, Uncommon = 26, Rare = 15, Epic = 7, Legendary = 2 },
+			EliteSkins = false,
+		},
+		Elite = {
+			Name = "ELITE CRATE",
+			Currency = "Credits",
+			Cost = 100,
+			Odds = { Rare = 45, Epic = 30, Legendary = 19, Secret = 6 },
+			EliteSkins = true,
+		},
+	},
 	Rarities = {
-		{ Id = "Common", Name = "COMMON", Color = Color3.fromRGB(176, 182, 192), Chance = 50 },
-		{ Id = "Uncommon", Name = "UNCOMMON", Color = Color3.fromRGB(82, 214, 104), Chance = 25 },
-		{ Id = "Rare", Name = "RARE", Color = Color3.fromRGB(60, 146, 255), Chance = 14 },
-		{ Id = "Epic", Name = "EPIC", Color = Color3.fromRGB(176, 84, 255), Chance = 7 },
-		{ Id = "Legendary", Name = "LEGENDARY", Color = Color3.fromRGB(255, 192, 46), Chance = 3 },
-		{ Id = "Secret", Name = "SECRET", Color = Color3.fromRGB(255, 38, 56), Chance = 1 },
+		{ Id = "Common", Name = "COMMON", Color = Color3.fromRGB(176, 182, 192) },
+		{ Id = "Uncommon", Name = "UNCOMMON", Color = Color3.fromRGB(82, 214, 104) },
+		{ Id = "Rare", Name = "RARE", Color = Color3.fromRGB(60, 146, 255) },
+		{ Id = "Epic", Name = "EPIC", Color = Color3.fromRGB(176, 84, 255) },
+		{ Id = "Legendary", Name = "LEGENDARY", Color = Color3.fromRGB(255, 192, 46) },
+		{ Id = "Secret", Name = "SECRET", Color = Color3.fromRGB(255, 38, 56) },
 	},
 	-- Skins for the rifle and the knife (see Skins.lua for how they're
 	-- painted). Equip them in the LOCKER (lobby, key L).
@@ -492,8 +511,12 @@ Config.Crates = {
 	--   Glow      true: the trims glow (Epic and up)
 	--   Pulse     a second colour the glow pulses to (Legendary)
 	--   Sparkle   true: glittering particles (Legendary)
-	-- Secret skins will be their own models (coming later); until then no
-	-- crate rolls Secret.
+	--   Elite     true: only drops from the Elite crate
+	--   Aura      true: a flickering aura of particles round the weapon
+	--   Template  Secret skins: the name of a model in Workspace.SecretWeapons
+	--             (moved to ReplicatedStorage at start) to use instead of
+	--             the normal rifle / knife. Until it's there, the skin's
+	--             colours and effects are used on the normal model.
 	Skins = {
 		-- RIFLE
 		{ Id = "FieldGrey", Name = "Field Grey", Weapon = "Rifle", Rarity = "Common", Body = Color3.fromRGB(128, 132, 136), Metal = Color3.fromRGB(52, 54, 58), Accent = Color3.fromRGB(190, 194, 198) },
@@ -536,6 +559,27 @@ Config.Crates = {
 		{ Id = "Aurora", Name = "Aurora", Weapon = "Rifle", Rarity = "Legendary", Body = Color3.fromRGB(24, 40, 60), Metal = Color3.fromRGB(16, 24, 36), Accent = Color3.fromRGB(80, 255, 170), Pulse = Color3.fromRGB(190, 90, 255), Finish = "Pearl", Glow = true, Sparkle = true },
 		{ Id = "Midas", Name = "Midas", Weapon = "Rifle", Rarity = "Legendary", Body = Color3.fromRGB(240, 190, 70), Stock = Color3.fromRGB(230, 176, 60), Metal = Color3.fromRGB(200, 150, 50), Accent = Color3.fromRGB(255, 244, 190), Pulse = Color3.fromRGB(255, 190, 60), Finish = "Gold", StockFinish = "Gold", MetalFinish = "Gold", Glow = true, Sparkle = true },
 
+		{ Id = "Slate", Name = "Slate", Weapon = "Rifle", Rarity = "Common", Body = Color3.fromRGB(110, 116, 124), Metal = Color3.fromRGB(46, 48, 54), Accent = Color3.fromRGB(170, 176, 186), Finish = "Stone" },
+		{ Id = "Tundra", Name = "Tundra", Weapon = "Rifle", Rarity = "Common", Body = Color3.fromRGB(196, 200, 190), Metal = Color3.fromRGB(70, 74, 70), Accent = Color3.fromRGB(230, 232, 226) },
+		{ Id = "Crimson", Name = "Crimson", Weapon = "Rifle", Rarity = "Common", Body = Color3.fromRGB(130, 30, 36), Metal = Color3.fromRGB(36, 30, 32), Accent = Color3.fromRGB(200, 170, 170) },
+		{ Id = "Lime", Name = "Lime", Weapon = "Rifle", Rarity = "Uncommon", Body = Color3.fromRGB(170, 230, 60), Stock = Color3.fromRGB(40, 44, 40), Metal = Color3.fromRGB(30, 34, 30), Accent = Color3.fromRGB(230, 255, 170), Finish = "Gloss" },
+		{ Id = "Royal", Name = "Royal", Weapon = "Rifle", Rarity = "Uncommon", Body = Color3.fromRGB(60, 40, 140), Stock = Color3.fromRGB(220, 190, 90), Metal = Color3.fromRGB(30, 26, 50), Accent = Color3.fromRGB(230, 200, 110), Finish = "Gloss" },
+		{ Id = "Sunset", Name = "Sunset", Weapon = "Rifle", Rarity = "Uncommon", Body = Color3.fromRGB(255, 110, 90), Stock = Color3.fromRGB(110, 50, 130), Metal = Color3.fromRGB(40, 26, 40), Accent = Color3.fromRGB(255, 200, 120), Finish = "Gloss" },
+		{ Id = "Copper", Name = "Copper", Weapon = "Rifle", Rarity = "Rare", Body = Color3.fromRGB(196, 110, 64), Metal = Color3.fromRGB(80, 50, 36), Accent = Color3.fromRGB(255, 190, 140), Finish = "Metal", MetalFinish = "Metal" },
+		{ Id = "Granite", Name = "Granite", Weapon = "Rifle", Rarity = "Rare", Body = Color3.fromRGB(120, 116, 112), Stock = Color3.fromRGB(60, 58, 56), Metal = Color3.fromRGB(30, 30, 32), Accent = Color3.fromRGB(220, 90, 60), Finish = "Stone" },
+		{ Id = "Glacier", Name = "Glacier", Weapon = "Rifle", Rarity = "Rare", Body = Color3.fromRGB(120, 200, 240), Stock = Color3.fromRGB(240, 250, 255), Metal = Color3.fromRGB(60, 90, 120), Accent = Color3.fromRGB(240, 250, 255), Finish = "Frost", StockFinish = "Pearl" },
+		{ Id = "Ghost", Name = "Ghost", Weapon = "Rifle", Rarity = "Epic", Body = Color3.fromRGB(230, 236, 244), Metal = Color3.fromRGB(140, 150, 166), Accent = Color3.fromRGB(160, 230, 255), Finish = "Pearl", Glow = true },
+		{ Id = "Venom", Name = "Venom", Weapon = "Rifle", Rarity = "Epic", Body = Color3.fromRGB(20, 24, 20), Stock = Color3.fromRGB(70, 160, 40), Metal = Color3.fromRGB(14, 16, 14), Accent = Color3.fromRGB(170, 255, 60), Finish = "Gloss", Glow = true },
+		{ Id = "Magma", Name = "Magma", Weapon = "Rifle", Rarity = "Legendary", Body = Color3.fromRGB(40, 22, 18), Metal = Color3.fromRGB(26, 16, 14), Accent = Color3.fromRGB(255, 110, 20), Pulse = Color3.fromRGB(255, 40, 10), Finish = "Stone", Glow = true, Sparkle = true, Aura = true },
+		{ Id = "Galaxy", Name = "Galaxy", Weapon = "Rifle", Rarity = "Epic", Body = Color3.fromRGB(40, 20, 90), Stock = Color3.fromRGB(20, 10, 50), Metal = Color3.fromRGB(14, 10, 30), Accent = Color3.fromRGB(190, 120, 255), Finish = "Hologram", StockFinish = "Pearl", Glow = true, Sparkle = true, Elite = true },
+		{ Id = "Plasma", Name = "Plasma", Weapon = "Rifle", Rarity = "Epic", Body = Color3.fromRGB(20, 30, 60), Metal = Color3.fromRGB(10, 14, 30), Accent = Color3.fromRGB(60, 200, 255), Finish = "Chrome", Glow = true, Elite = true, Aura = true },
+		{ Id = "Diamond", Name = "Diamond", Weapon = "Rifle", Rarity = "Legendary", Body = Color3.fromRGB(235, 245, 255), Stock = Color3.fromRGB(220, 235, 250), Metal = Color3.fromRGB(200, 210, 225), Accent = Color3.fromRGB(255, 255, 255), Pulse = Color3.fromRGB(150, 220, 255), Finish = "Crystal", StockFinish = "Crystal", MetalFinish = "Chrome", Glow = true, Sparkle = true, Elite = true },
+		{ Id = "Glitch", Name = "Glitch", Weapon = "Rifle", Rarity = "Legendary", Body = Color3.fromRGB(10, 10, 14), Stock = Color3.fromRGB(255, 40, 180), Metal = Color3.fromRGB(10, 10, 14), Accent = Color3.fromRGB(40, 255, 230), Pulse = Color3.fromRGB(255, 40, 180), Finish = "Hologram", StockFinish = "Hologram", Glow = true, Sparkle = true, Elite = true, Aura = true },
+		{ Id = "Phoenix", Name = "Phoenix", Weapon = "Rifle", Rarity = "Legendary", Body = Color3.fromRGB(255, 140, 30), Stock = Color3.fromRGB(200, 40, 20), Metal = Color3.fromRGB(60, 20, 10), Accent = Color3.fromRGB(255, 220, 80), Pulse = Color3.fromRGB(255, 60, 20), Finish = "Gold", Glow = true, Sparkle = true, Elite = true, Aura = true },
+		{ Id = "SecretDragonfire", Name = "Dragonfire", Weapon = "Rifle", Rarity = "Secret", Body = Color3.fromRGB(30, 10, 8), Stock = Color3.fromRGB(120, 20, 10), Metal = Color3.fromRGB(20, 8, 6), Accent = Color3.fromRGB(255, 90, 20), Pulse = Color3.fromRGB(255, 30, 10), Finish = "Stone", Template = "Dragonfire", Glow = true, Sparkle = true, Elite = true, Aura = true },
+		{ Id = "SecretVoidReaper", Name = "Void Reaper", Weapon = "Rifle", Rarity = "Secret", Body = Color3.fromRGB(8, 6, 14), Stock = Color3.fromRGB(40, 10, 70), Metal = Color3.fromRGB(4, 4, 8), Accent = Color3.fromRGB(170, 60, 255), Pulse = Color3.fromRGB(60, 0, 140), Finish = "Hologram", StockFinish = "Hologram", Template = "VoidReaper", Glow = true, Sparkle = true, Elite = true, Aura = true },
+		{ Id = "SecretCelestial", Name = "Celestial", Weapon = "Rifle", Rarity = "Secret", Body = Color3.fromRGB(250, 248, 240), Stock = Color3.fromRGB(255, 220, 120), Metal = Color3.fromRGB(230, 200, 120), Accent = Color3.fromRGB(255, 250, 220), Pulse = Color3.fromRGB(140, 200, 255), Finish = "Pearl", StockFinish = "Gold", MetalFinish = "Gold", Template = "Celestial", Glow = true, Sparkle = true, Elite = true, Aura = true },
+
 		-- KNIFE
 		{ Id = "KnifeStonewash", Name = "Stonewash", Weapon = "Knife", Rarity = "Common", Blade = Color3.fromRGB(150, 154, 160), Body = Color3.fromRGB(58, 60, 64), Metal = Color3.fromRGB(90, 92, 96), Accent = Color3.fromRGB(200, 200, 200) },
 		{ Id = "KnifeDesert", Name = "Desert", Weapon = "Knife", Rarity = "Common", Blade = Color3.fromRGB(170, 166, 156), Body = Color3.fromRGB(176, 150, 106), Metal = Color3.fromRGB(96, 84, 64), Accent = Color3.fromRGB(230, 214, 176) },
@@ -566,6 +610,44 @@ Config.Crates = {
 		{ Id = "KnifeCrystal", Name = "Crystal", Weapon = "Knife", Rarity = "Legendary", Blade = Color3.fromRGB(190, 230, 255), Body = Color3.fromRGB(120, 150, 190), Metal = Color3.fromRGB(220, 235, 250), Accent = Color3.fromRGB(240, 250, 255), Pulse = Color3.fromRGB(150, 200, 255), Finish = "Crystal", MetalFinish = "Chrome", Glow = true, Sparkle = true },
 		{ Id = "KnifeAurora", Name = "Aurora", Weapon = "Knife", Rarity = "Legendary", Blade = Color3.fromRGB(40, 60, 90), Body = Color3.fromRGB(20, 28, 40), Metal = Color3.fromRGB(80, 255, 170), Accent = Color3.fromRGB(80, 255, 170), Pulse = Color3.fromRGB(190, 90, 255), Finish = "Pearl", Glow = true, Sparkle = true },
 		{ Id = "KnifeMidas", Name = "Midas", Weapon = "Knife", Rarity = "Legendary", Blade = Color3.fromRGB(240, 190, 70), Body = Color3.fromRGB(200, 150, 50), Metal = Color3.fromRGB(255, 220, 120), Accent = Color3.fromRGB(255, 244, 190), Pulse = Color3.fromRGB(255, 190, 60), Finish = "Gold", MetalFinish = "Gold", HandleFinish = "Gold", Glow = true, Sparkle = true },
+		{ Id = "KnifeSlate", Name = "Slate", Weapon = "Knife", Rarity = "Common", Blade = Color3.fromRGB(120, 124, 130), Body = Color3.fromRGB(110, 116, 124), Metal = Color3.fromRGB(60, 62, 68), Accent = Color3.fromRGB(180, 180, 190), HandleFinish = "Stone" },
+		{ Id = "KnifeCrimsonGrip", Name = "Crimson Grip", Weapon = "Knife", Rarity = "Common", Blade = Color3.fromRGB(176, 182, 190), Body = Color3.fromRGB(130, 30, 36), Metal = Color3.fromRGB(60, 40, 42), Accent = Color3.fromRGB(220, 180, 180) },
+		{ Id = "KnifeLime", Name = "Lime", Weapon = "Knife", Rarity = "Uncommon", Blade = Color3.fromRGB(200, 206, 214), Body = Color3.fromRGB(170, 230, 60), Metal = Color3.fromRGB(40, 44, 40), Accent = Color3.fromRGB(230, 255, 170), Finish = "Gloss" },
+		{ Id = "KnifeRoyal", Name = "Royal", Weapon = "Knife", Rarity = "Uncommon", Blade = Color3.fromRGB(220, 200, 120), Body = Color3.fromRGB(60, 40, 140), Metal = Color3.fromRGB(220, 190, 90), Accent = Color3.fromRGB(240, 220, 140), Finish = "Gloss" },
+		{ Id = "KnifeCopper", Name = "Copper", Weapon = "Knife", Rarity = "Rare", Blade = Color3.fromRGB(196, 110, 64), Body = Color3.fromRGB(40, 30, 26), Metal = Color3.fromRGB(160, 90, 50), Accent = Color3.fromRGB(255, 190, 140), Finish = "Metal" },
+		{ Id = "KnifeGlacier", Name = "Glacier", Weapon = "Knife", Rarity = "Rare", Blade = Color3.fromRGB(150, 215, 245), Body = Color3.fromRGB(240, 250, 255), Metal = Color3.fromRGB(120, 170, 210), Accent = Color3.fromRGB(240, 250, 255), Finish = "Frost", HandleFinish = "Pearl" },
+		{ Id = "KnifeGhost", Name = "Ghost", Weapon = "Knife", Rarity = "Epic", Blade = Color3.fromRGB(230, 236, 244), Body = Color3.fromRGB(200, 210, 224), Metal = Color3.fromRGB(160, 170, 186), Accent = Color3.fromRGB(160, 230, 255), Finish = "Pearl", Glow = true },
+		{ Id = "KnifeMagma", Name = "Magma", Weapon = "Knife", Rarity = "Legendary", Blade = Color3.fromRGB(40, 22, 18), Body = Color3.fromRGB(26, 16, 14), Metal = Color3.fromRGB(80, 30, 16), Accent = Color3.fromRGB(255, 110, 20), Pulse = Color3.fromRGB(255, 40, 10), Finish = "Stone", Glow = true, Sparkle = true, Aura = true },
+		{ Id = "KnifeGalaxy", Name = "Galaxy", Weapon = "Knife", Rarity = "Epic", Blade = Color3.fromRGB(60, 30, 120), Body = Color3.fromRGB(20, 10, 50), Metal = Color3.fromRGB(120, 80, 200), Accent = Color3.fromRGB(190, 120, 255), Finish = "Hologram", Glow = true, Sparkle = true, Elite = true },
+		{ Id = "KnifeDiamond", Name = "Diamond", Weapon = "Knife", Rarity = "Legendary", Blade = Color3.fromRGB(235, 245, 255), Body = Color3.fromRGB(200, 210, 225), Metal = Color3.fromRGB(255, 255, 255), Accent = Color3.fromRGB(255, 255, 255), Pulse = Color3.fromRGB(150, 220, 255), Finish = "Crystal", MetalFinish = "Chrome", Glow = true, Sparkle = true, Elite = true },
+		{ Id = "KnifeGlitch", Name = "Glitch", Weapon = "Knife", Rarity = "Legendary", Blade = Color3.fromRGB(10, 10, 14), Body = Color3.fromRGB(255, 40, 180), Metal = Color3.fromRGB(40, 255, 230), Accent = Color3.fromRGB(40, 255, 230), Pulse = Color3.fromRGB(255, 40, 180), Finish = "Hologram", HandleFinish = "Hologram", Glow = true, Sparkle = true, Elite = true, Aura = true },
+		{ Id = "KnifePhoenix", Name = "Phoenix", Weapon = "Knife", Rarity = "Legendary", Blade = Color3.fromRGB(255, 140, 30), Body = Color3.fromRGB(200, 40, 20), Metal = Color3.fromRGB(255, 200, 80), Accent = Color3.fromRGB(255, 220, 80), Pulse = Color3.fromRGB(255, 60, 20), Finish = "Gold", Glow = true, Sparkle = true, Elite = true, Aura = true },
+		{ Id = "SecretKarambit", Name = "Shadow Karambit", Weapon = "Knife", Rarity = "Secret", Blade = Color3.fromRGB(20, 16, 30), Body = Color3.fromRGB(8, 6, 12), Metal = Color3.fromRGB(120, 40, 200), Accent = Color3.fromRGB(170, 60, 255), Pulse = Color3.fromRGB(60, 0, 140), Finish = "Hologram", Template = "ShadowKarambit", Glow = true, Sparkle = true, Elite = true, Aura = true },
+		{ Id = "SecretBloodfang", Name = "Bloodfang", Weapon = "Knife", Rarity = "Secret", Blade = Color3.fromRGB(120, 10, 16), Body = Color3.fromRGB(20, 8, 8), Metal = Color3.fromRGB(60, 10, 12), Accent = Color3.fromRGB(255, 30, 40), Pulse = Color3.fromRGB(120, 0, 10), Finish = "Chrome", Template = "Bloodfang", Glow = true, Sparkle = true, Elite = true, Aura = true },
+		{ Id = "SecretStarforged", Name = "Starforged", Weapon = "Knife", Rarity = "Secret", Blade = Color3.fromRGB(250, 248, 240), Body = Color3.fromRGB(255, 220, 120), Metal = Color3.fromRGB(230, 200, 120), Accent = Color3.fromRGB(255, 250, 220), Pulse = Color3.fromRGB(140, 200, 255), Finish = "Pearl", MetalFinish = "Gold", HandleFinish = "Gold", Template = "Starforged", Glow = true, Sparkle = true, Elite = true, Aura = true },
+	},
+}
+
+----------------------------------------------------------------------------
+-- SHOP (Robux). Create the products on the Roblox website (Creator Hub >
+-- your experience > Monetization > Developer Products / Passes) and paste
+-- their ids here. Id 0 = not set up yet (the shop shows it, but can't sell).
+----------------------------------------------------------------------------
+Config.Shop = {
+	-- Credit packs (Developer Products): Credits open Elite crates
+	CreditPacks = {
+		{ Id = 0, Credits = 100, Robux = 79, Name = "HANDFUL" },
+		{ Id = 0, Credits = 550, Robux = 399, Name = "STACK", Tag = "+10%" },
+		{ Id = 0, Credits = 1200, Robux = 799, Name = "CRATE LOAD", Tag = "+20%" },
+		{ Id = 0, Credits = 2600, Robux = 1499, Name = "VAULT", Tag = "BEST VALUE" },
+	},
+	-- Key packs for people who'd rather not grind (Developer Products)
+	KeyPacks = {
+		{ Id = 0, Keys = 30, Robux = 49, Name = "KEY RING" },
+	},
+	-- Game Passes
+	Passes = {
+		VIP = { Id = 0, Robux = 299, Name = "VIP", Perks = "2x keys from every match and a gold VIP tag over your head" },
 	},
 }
 
@@ -615,6 +697,8 @@ Config.Match = {
 	VictoryTime = 7, -- victory screen length before returning to lobby
 	MaxRoundTime = 150, -- if nobody dies, higher health % wins the round (tie = replay)
 	CardsPerPick = 5,
+	-- a random map each match (never the same twice in a row); false = always use Map
+	Maps = { "Polygon", "Crossfire", "Nuketown", "Canyon", "Pillars", "Bridges", "Ziggurat", "Quarry" },
 	Map = "Polygon", -- "Polygon" (compact Rivals-style arena, lots of cover), "Nuketown" (the classic cul-de-sac), "Crossfire" (compact Rivals-style), "Simple" (open ramps arena), "Downtown" (detailed city) or "Classic"
 	MaxArenas = 4, -- how many matches can run at the same time in one server
 	ArenaSpacing = 2000, -- distance between arena copies
@@ -1609,6 +1693,15 @@ local function meshLayout(template)
 			Offset = CFrame.new(B.Min + (cf.Position - mn) * k) * cf.Rotation,
 		})
 	end
+	-- a Secret model can mark where the right hand holds it with an
+	-- Attachment named "Grip": line that up with the normal rifle's grip
+	local grip = template:FindFirstChild("Grip", true)
+	if grip and grip:IsA("Attachment") then
+		local at = B.Min + ((rot * CFrame.new(grip.WorldPosition)).Position - mn) * k
+		for _, info in ipairs(layout) do
+			info.Offset = info.Offset - at
+		end
+	end
 	layoutCache[template] = layout
 	return layout
 end
@@ -1980,7 +2073,8 @@ function GunModel.Build(parent, options)
 	local scale = options.Scale or 1
 	local owned = options.PowerUps or {}
 	local glowColor = GunModel.GlowColor(owned)
-	local template = options.UseMesh ~= false and GunModel.FindTemplate() or nil
+	-- options.Template: a Secret skin's own model (an Instance) instead of the rifle
+	local template = options.Template or (options.UseMesh ~= false and GunModel.FindTemplate() or nil)
 	local profile = template and GunModel.MeshProfile or GunModel.PartsProfile
 	local result = {
 		Parts = {},
@@ -2020,7 +2114,9 @@ function GunModel.Build(parent, options)
 			part.Size = info.Size * scale
 			part.CastShadow = options.CastShadow == true
 			part:SetAttribute("Paint", meshPaintKey(info.Part))
-			paintMesh(part)
+			if not options.KeepTextures then
+				paintMesh(part)
+			end
 			local offset = info.Offset.Rotation + info.Offset.Position * scale
 			if info.Part.Name:lower():find("bolt") then
 				-- the bolt handle moves with the bolt pivot (see Place / the viewmodel)
@@ -2300,6 +2396,15 @@ local function meshLayout(template)
 			Offset = CFrame.new(B.Min + (cf.Position - mn) * k) * cf.Rotation,
 		})
 	end
+	-- a Secret model can mark the middle of its handle with an Attachment
+	-- named "Grip": line that up with the normal knife's grip
+	local grip = template:FindFirstChild("Grip", true)
+	if grip and grip:IsA("Attachment") then
+		local at = B.Min + ((rot * CFrame.new(grip.WorldPosition)).Position - mn) * k
+		for _, info in ipairs(layout) do
+			info.Offset = info.Offset - at + KnifeModel.Grip.Position
+		end
+	end
 	layoutCache[template] = { Layout = layout, Count = #parts }
 	return layout
 end
@@ -2349,7 +2454,8 @@ function KnifeModel.Build(parent, options)
 		result.Parts[name] = part
 		result.Offsets[name] = offset
 	end
-	local template = KnifeModel.FindTemplate()
+	-- options.Template: a Secret skin's own model (an Instance) instead of the knife
+	local template = options.Template or KnifeModel.FindTemplate()
 	if template then
 		result.UsesMesh = true
 		for _, info in ipairs(meshLayout(template)) do
@@ -2361,7 +2467,9 @@ function KnifeModel.Build(parent, options)
 			end
 			part.Size = info.Size * scale
 			part:SetAttribute("Paint", info.Part.Name:lower():find("blade") and "Blade" or "Handle")
-			paint(part)
+			if not options.KeepTextures then
+				paint(part)
+			end
 			setup(part, info.Name, info.Offset.Rotation + info.Offset.Position * scale)
 		end
 	else
@@ -3573,7 +3681,10 @@ return Signal
 		Epic       the trims glow (rifle: bolt + stock trims, knife: the edge,
 		           or the grip on the imported knife)
 		Legendary  the glow pulses between two colours (clients animate parts
-		           tagged "SkinPulse") and the weapon glitters
+		           tagged "SkinPulse") and the weapon glitters (Aura: flames)
+		Secret     their own weapon model (Template), dropped from the Elite crate
+
+		Skins.Build("Rifle" | "Knife", model, skin, buildOptions)  -- build + paint
 ]]
 
 local CollectionService = game and game:GetService("CollectionService")
@@ -3736,10 +3847,32 @@ local function sparkle(part, skin)
 end
 
 -- Paints every part of a built weapon (anything with a "Paint" attribute).
+-- A flickering aura of particles round the weapon (Aura skins).
+local function aura(part, skin)
+	local emitter = Instance.new("ParticleEmitter")
+	emitter.Name = "SkinAura"
+	emitter.Texture = "rbxasset://textures/particles/fire_main.dds"
+	emitter.Color = ColorSequence.new(skin.Accent, skin.Pulse or skin.Accent)
+	emitter.LightEmission = 1
+	emitter.LightInfluence = 0
+	emitter.Lifetime = NumberRange.new(0.3, 0.6)
+	emitter.Rate = 16
+	emitter.Speed = NumberRange.new(0.3, 1)
+	emitter.Acceleration = Vector3.new(0, 2.5, 0)
+	emitter.SpreadAngle = Vector2.new(180, 180)
+	emitter.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.18), NumberSequenceKeypoint.new(1, 0) })
+	emitter.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.35), NumberSequenceKeypoint.new(1, 1) })
+	emitter.Parent = part
+end
+
+-- Paints every part of a built weapon (anything with a "Paint" attribute)
+-- and adds the skin's effects. A Secret's own model keeps its own look and
+-- only gets the effects.
 function Skins.Apply(model, skin)
 	if not skin then
 		return
 	end
+	local ownModel = model:GetAttribute("SecretModel") ~= nil
 	local groups = skin.Weapon == "Knife" and KNIFE_GROUPS or RIFLE_GROUPS
 	local parts, hasEdge = {}, false
 	for _, part in ipairs(model:GetDescendants()) do
@@ -3750,27 +3883,65 @@ function Skins.Apply(model, skin)
 		end
 	end
 	local biggest
-	for _, part in ipairs(model:GetDescendants()) do
-		-- the parts-built rifle (no imported mesh): its glow lines take the skin's glow
-		if skin.Glow and skin.Weapon ~= "Knife" and part:IsA("BasePart") and part:GetAttribute("Paint") == "GunGlow" then
-			glow(part, skin)
+	if not ownModel then
+		for _, part in ipairs(model:GetDescendants()) do
+			-- the parts-built rifle (no imported mesh): its glow lines take the skin's glow
+			if skin.Glow and skin.Weapon ~= "Knife" and part:IsA("BasePart") and part:GetAttribute("Paint") == "GunGlow" then
+				glow(part, skin)
+			end
 		end
 	end
 	for _, part in ipairs(parts) do
 		local key = part:GetAttribute("Paint")
-		if skin.Weapon == "Knife" and key == "Handle" and skin.Glow and not hasEdge then
+		if ownModel then
+			-- (keep the Secret model's own colours and textures)
+		elseif skin.Weapon == "Knife" and key == "Handle" and skin.Glow and not hasEdge then
 			glow(part, skin) -- (the imported knife has no separate edge: its grip glows instead)
 		else
 			groups[key](part, skin)
 		end
-		local main = key == "Body" or key == "GunShell" or key == "Blade"
-		if main and (not biggest or part.Size.Magnitude > biggest.Size.Magnitude) then
+		if not biggest or part.Size.Magnitude > biggest.Size.Magnitude then
 			biggest = part
 		end
 	end
 	if skin.Sparkle and biggest then
 		sparkle(biggest, skin)
 	end
+	if skin.Aura and biggest then
+		aura(biggest, skin)
+	end
+end
+
+-- A Secret skin's own model (ReplicatedStorage.SecretWeapons[skin.Template]), or nil.
+function Skins.FindTemplate(skin)
+	if not (skin and skin.Template and game) then
+		return nil
+	end
+	local folder = game:GetService("ReplicatedStorage"):FindFirstChild("SecretWeapons")
+	local template = folder and folder:FindFirstChild(skin.Template)
+	if template and template:FindFirstChildWhichIsA("BasePart", true) then
+		return template
+	end
+	return nil
+end
+
+--[[
+	Builds a weapon in a skin: GunModel / KnifeModel.Build (with a Secret's
+	own model when there is one) + Apply. weapon = "Rifle" | "Knife";
+	skin may be nil (the default look). Returns what Build returns.
+]]
+function Skins.Build(weapon, parent, skin, options)
+	options = table.clone(options or {})
+	local template = Skins.FindTemplate(skin)
+	if template then
+		options.Template = template
+		options.KeepTextures = true
+		parent:SetAttribute("SecretModel", skin.Template)
+	end
+	local builder = require(script.Parent[weapon == "Knife" and "KnifeModel" or "GunModel"])
+	local built = builder.Build(parent, options)
+	Skins.Apply(parent, skin)
+	return built
 end
 
 return Skins
@@ -3894,6 +4065,255 @@ return Util
         <string name="Name">Server</string>
       </Properties>
       <Item class="ModuleScript" referent="16">
+        <Properties>
+          <string name="Name">ArenaBridges</string>
+          <string name="Source"><![CDATA[--[[
+	ArenaBridges.lua  (ServerScriptService.Server.ArenaBridges)
+
+	"Bridges": two raised plateaus (one per spawn) joined by three wide
+	bridges that cross a low pit. Fight across the bridges for the long
+	sightlines, or drop into the pit and run underneath them; ramps lead
+	back up to the plateaus. Mirrored across X and Z (pit cover is
+	point-symmetric).
+
+	TOP VIEW (X = long axis)
+
+	   +----------------------------------------------------------+
+	   |  PLATEAU  [====== side bridge (wall on it) ======] PLATEAU|
+	   |  block  <ramp     pit: runwall, cover       ramp>  block  |
+	   |  SPAWN shield [======= centre bridge =======] shield SPAWN|
+	   |  block  <ramp     pit: runwall, cover       ramp>  block  |
+	   |           [====== side bridge (wall on it) ======]        |
+	   +----------------------------------------------------------+
+]]
+
+local Config = require(game:GetService("ReplicatedStorage").Shared.Config)
+
+local P = Config.Palette
+local C = Config.MapPalette
+local V = Vector3.new
+
+local ArenaBridges = {}
+
+local LENGTH, WIDTH = 330, 230 -- floor (X, Z)
+local WALL_H = 50
+local TOP = 16 -- plateau + bridge height
+local PIT_X = 80 -- the pit spans x = -80..80
+
+function ArenaBridges.Build(b)
+	local X, Z, XZ, R = "X", "Z", "XZ", "R"
+	local halfL, halfW = LENGTH / 2, WIDTH / 2
+
+	local FLOOR = C.Concrete
+	local WALL = C.BuildingA
+	local PLATEAU = C.BuildingB
+	local BRIDGE = P.Light
+	local COVER = P.Mid
+	local RAMP = P.AccentB
+
+	local function capped(size, pos, color, cap, m)
+		b.block(size, pos, color, m)
+		b.decor(function()
+			b.block(V(size.X + 0.3, 0.6, size.Z + 0.3), pos + V(0, size.Y / 2 + 0.3, 0), cap, m)
+		end)
+	end
+
+	-- FLOOR (the pit) + OUTER WALLS ------------------------------------------------
+	b.block(V(LENGTH + 10, 4, WIDTH + 10), V(0, -2, 0), FLOOR)
+	b.block(V(LENGTH + 10, WALL_H, 4), V(0, WALL_H / 2, halfW + 2), WALL, Z)
+	b.block(V(4, WALL_H, WIDTH + 10), V(halfL + 2, WALL_H / 2, 0), WALL, X)
+	b.decor(function()
+		b.block(V(LENGTH + 10, 1, 4.6), V(0, WALL_H + 0.5, halfW + 2), P.AccentA, Z)
+		b.block(V(4.6, 1, WIDTH + 10), V(halfL + 2, WALL_H + 0.5, 0), P.AccentA, X)
+		b.block(V(2 * PIT_X, 1.2, 0.6), V(0, 0.6, halfW - 0.3), C.Trim, Z) -- pit skirting
+	end)
+
+	-- PLATEAUS -------------------------------------------------------------------
+	local plateauLen = halfL - PIT_X
+	b.block(V(plateauLen, TOP, WIDTH), V(-(PIT_X + plateauLen / 2), TOP / 2, 0), PLATEAU, X)
+	b.decor(function()
+		b.block(V(0.6, 1, WIDTH), V(-(PIT_X - 0.1), TOP - 0.8, 0), P.AccentA, X) -- edge band
+	end)
+	-- ramps from the pit up to the plateau (between the bridges)
+	b.ramp(V(-(PIT_X - 34), 0, 38), V(-1, 0, 0), 34, TOP, 16, RAMP, XZ)
+
+	-- BRIDGES (top flush with the plateaus) --------------------------------------
+	local span = 2 * PIT_X
+	b.block(V(span, 2, 24), V(0, TOP - 1, 0), BRIDGE) -- centre bridge
+	b.block(V(span, 2, 16), V(0, TOP - 1, 75), BRIDGE, Z) -- side bridges
+	b.block(V(6, TOP - 2, 6), V(0, (TOP - 2) / 2, 75), C.Trim, Z) -- supports
+	b.block(V(6, TOP - 2, 6), V(-45, (TOP - 2) / 2, 0), C.Trim, X)
+	b.decor(function()
+		b.block(V(span, 0.6, 24.4), V(0, TOP - 1.4, 0), P.AccentB)
+		b.block(V(span, 0.6, 16.4), V(0, TOP - 1.4, 75), P.AccentB, Z)
+	end)
+	-- centre bridge: a block in the middle (no spawn-to-spawn shots) + low rails
+	capped(V(6, 8, 10), V(0, TOP + 4, 0), C.BuildingC, P.AccentA)
+	b.block(V(30, 3, 1), V(-40, TOP + 1.5, 11.5), COVER, XZ)
+	-- side bridges: a long wall along the outer edge to run on, plus cover
+	b.runWall(V(60, 12, 1.5), V(0, TOP + 6, 82.25), Z)
+	capped(V(4, 6, 8), V(-40, TOP + 3, 73), COVER, P.AccentA, XZ)
+
+	-- THE PIT ------------------------------------------------------------------------
+	b.runWall(V(50, 12, 2), V(0, 6, 50), Z)
+	capped(V(10, 10, 16), V(-25, 5, 34), COVER, P.AccentA, R)
+	capped(V(8, 8, 8), V(-20, 4, -4), C.BuildingC, P.AccentB, R) -- under the centre bridge
+	capped(V(14, 8, 14), V(-40, 4, 100), COVER, P.AccentA, R)
+
+	-- PLATEAU COVER ---------------------------------------------------------------------
+	capped(V(4, 14, 22), V(-102, TOP + 7, 0), C.BuildingC, P.AccentB, X) -- spawn shield
+	capped(V(24, 16, 30), V(-130, TOP + 8, 70), C.BuildingC, P.AccentB, XZ) -- big blocks
+	capped(V(8, 5, 8), V(-92, TOP + 2.5, 52), COVER, P.AccentA, XZ)
+	b.runWall(V(40, 16, 2), V(-120, TOP + 8, 40), XZ)
+	b.decor(function()
+		b.block(V(14, 0.1, 22), V(-150, TOP + 0.05, 0), P.PlayerA)
+		b.block(V(14, 0.1, 22), V(150, TOP + 0.05, 0), P.PlayerB)
+	end)
+
+	local spawnHeight = TOP + 3.2
+	local spawns = {
+		CFrame.lookAt(V(-150, spawnHeight, 0), V(0, spawnHeight, 0)),
+		CFrame.lookAt(V(150, spawnHeight, 0), V(0, spawnHeight, 0)),
+	}
+	local dummies = {
+		{ Position = V(-10, TOP, 0), Face = V(-1, 0, 0) },
+		{ Position = V(-55, TOP, 75), Face = V(1, 0, 0) },
+		{ Position = V(0, 0, 4), Motion = "Strafe", Amount = 6, Speed = 0.3, Face = V(-1, 0, 0) },
+		{ Position = V(-60, 0, 62), Motion = "Strafe", Amount = 6, Speed = 0.35, Face = V(1, 0, 0) },
+		{ Position = V(40, 0, -60), Motion = "Bob", Amount = 6, Speed = 0.5, Face = V(-1, 0, 0) },
+		{ Position = V(100, TOP, -70), Face = V(-1, 0, 0) },
+		{ Position = V(150, TOP, 0), Face = V(-1, 0, 0) },
+	}
+	return spawns, dummies
+end
+
+return ArenaBridges
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="17">
+        <Properties>
+          <string name="Name">ArenaCanyon</string>
+          <string name="Source"><![CDATA[--[[
+	ArenaCanyon.lua  (ServerScriptService.Server.ArenaCanyon)
+
+	"Canyon": two long raised ridges run down both sides of the map with a
+	wide trench between them. Big, simple shapes: ramps up onto the ridges
+	from each spawn and from the trench, one bridge across the middle, a few
+	large cover blocks in the trench and long walls to wall run along.
+	Mirrored across X and Z (trench cover is point-symmetric).
+
+	TOP VIEW (X = long axis, spawns left / right)
+
+	   +------------------------------------------------------------+
+	   | ramp> [=============== RIDGE (runwall on top) =========] <ramp|
+	   |          ramp^            |bridge|           ^ramp          |
+	   | SPAWN  shield  runwall  cover  [ ]  cover  runwall shield SPAWN|
+	   |          rampv            |bridge|           vramp          |
+	   | ramp> [=============== RIDGE ===========================] <ramp|
+	   +------------------------------------------------------------+
+]]
+
+local Config = require(game:GetService("ReplicatedStorage").Shared.Config)
+
+local P = Config.Palette
+local C = Config.MapPalette
+local V = Vector3.new
+
+local ArenaCanyon = {}
+
+local LENGTH, WIDTH = 340, 220 -- floor (X, Z)
+local WALL_H = 50
+local RIDGE_H = 14
+
+function ArenaCanyon.Build(b)
+	local X, Z, XZ, R = "X", "Z", "XZ", "R"
+	local halfL, halfW = LENGTH / 2, WIDTH / 2
+
+	local FLOOR = C.Stone
+	local WALL = C.BuildingA
+	local RIDGE = C.BuildingC
+	local COVER = P.Mid
+	local RAMP = P.AccentB
+
+	-- a block with a coloured cap on top (decor)
+	local function capped(size, pos, color, cap, m)
+		b.block(size, pos, color, m)
+		b.decor(function()
+			b.block(V(size.X + 0.3, 0.6, size.Z + 0.3), pos + V(0, size.Y / 2 + 0.3, 0), cap, m)
+		end)
+	end
+
+	-- FLOOR + OUTER WALLS ------------------------------------------------------
+	b.block(V(LENGTH + 10, 4, WIDTH + 10), V(0, -2, 0), FLOOR)
+	b.block(V(LENGTH + 10, WALL_H, 4), V(0, WALL_H / 2, halfW + 2), WALL, Z)
+	b.block(V(4, WALL_H, WIDTH + 10), V(halfL + 2, WALL_H / 2, 0), WALL, X)
+	b.decor(function()
+		b.block(V(LENGTH + 10, 1, 4.6), V(0, WALL_H + 0.5, halfW + 2), P.AccentB, Z)
+		b.block(V(4.6, 1, WIDTH + 10), V(halfL + 2, WALL_H + 0.5, 0), P.AccentB, X)
+		b.block(V(0.6, 1.2, WIDTH), V(halfL - 0.3, 0.6, 0), C.Trim, X) -- skirting at the spawn ends
+	end)
+
+	-- RIDGES (one along each side wall) -----------------------------------------
+	b.block(V(220, RIDGE_H, 66), V(0, RIDGE_H / 2, 77), RIDGE, Z) -- x -110..110, z 44..110
+	b.decor(function()
+		b.block(V(220.4, 1, 0.6), V(0, RIDGE_H - 0.8, 43.9), C.Trim, Z) -- edge band
+		b.block(V(0.6, 1, 66.4), V(-110.1, RIDGE_H - 0.8, 77), C.Trim, XZ)
+	end)
+	-- ramps up from each spawn onto the ridge ends
+	b.ramp(V(-140, 0, 77), V(1, 0, 0), 30, RIDGE_H, 20, RAMP, XZ)
+	-- ramps up from the trench onto the ridges
+	b.ramp(V(-40, 0, 14), V(0, 0, 1), 30, RIDGE_H, 14, P.AccentA, XZ)
+
+	-- ridge-top cover and a long wall to run along
+	capped(V(6, 8, 22), V(-70, RIDGE_H + 4, 78), COVER, P.AccentA, XZ)
+	capped(V(28, 6, 3), V(-30, RIDGE_H + 3, 52), COVER, P.AccentA, XZ)
+	b.runWall(V(80, 16, 2), V(0, RIDGE_H + 8, 96), Z)
+
+	-- BRIDGE across the middle of the trench -------------------------------------
+	b.block(V(18, 2, 88), V(0, RIDGE_H - 1, 0), C.Concrete) -- top flush with the ridges
+	b.block(V(1, 3, 36), V(-8.5, RIDGE_H + 1.5, 0), COVER, X) -- half walls on the bridge
+	b.block(V(6, RIDGE_H - 2, 6), V(0, (RIDGE_H - 2) / 2, 38), C.Trim, Z) -- supports
+	b.decor(function()
+		b.block(V(1.4, 0.4, 36.4), V(-8.5, RIDGE_H + 3.2, 0), P.AccentB, X)
+	end)
+
+	-- TRENCH COVER (big blocks, point-symmetric) ---------------------------------
+	capped(V(10, 10, 20), V(-16, 5, 6), C.BuildingB, P.AccentB, R) -- blocks the spawn-to-spawn line
+	capped(V(14, 8, 10), V(-60, 4, -24), COVER, P.AccentA, R)
+	capped(V(8, 12, 8), V(-95, 6, 22), C.BuildingB, P.AccentB, R)
+	b.runWall(V(44, 18, 2), V(-70, 9, 0), X) -- long wall down the trench
+
+	-- SPAWN ENDS ----------------------------------------------------------------
+	capped(V(4, 12, 16), V(-122, 6, 0), C.BuildingB, P.AccentB, X) -- spawn shield
+	capped(V(12, 7, 12), V(-150, 3.5, -30), COVER, P.AccentA, R)
+	b.decor(function()
+		b.block(V(14, 0.1, 22), V(-152, 0.05, 0), P.PlayerA)
+		b.block(V(14, 0.1, 22), V(152, 0.05, 0), P.PlayerB)
+	end)
+
+	local spawnHeight = 3.2
+	local spawns = {
+		CFrame.lookAt(V(-152, spawnHeight, 0), V(0, spawnHeight, 0)),
+		CFrame.lookAt(V(152, spawnHeight, 0), V(0, spawnHeight, 0)),
+	}
+	local dummies = {
+		{ Position = V(0, RIDGE_H, -12), Face = V(-1, 0, 0) },
+		{ Position = V(-60, RIDGE_H, 70), Face = V(1, 0, 0) },
+		{ Position = V(30, RIDGE_H, -80), Face = V(-1, 0, 0) },
+		{ Position = V(60, 0, -10), Motion = "Strafe", Amount = 6, Speed = 0.35, Face = V(-1, 0, 0) },
+		{ Position = V(-30, 0, -6), Motion = "Strafe", Amount = 6, Speed = 0.3, Face = V(1, 0, 0) },
+		{ Position = V(100, 0, 6), Motion = "Bob", Amount = 6, Speed = 0.5, Face = V(-1, 0, 0) },
+		{ Position = V(152, 0, 0), Face = V(-1, 0, 0) },
+	}
+	return spawns, dummies
+end
+
+return ArenaCanyon
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="18">
         <Properties>
           <string name="Name">ArenaCrossfire</string>
           <string name="Source"><![CDATA[--[[
@@ -4055,7 +4475,7 @@ return ArenaCrossfire
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="17">
+      <Item class="ModuleScript" referent="19">
         <Properties>
           <string name="Name">ArenaDowntown</string>
           <string name="Source"><![CDATA[--[[
@@ -5235,7 +5655,7 @@ return ArenaDowntown
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="18">
+      <Item class="ModuleScript" referent="20">
         <Properties>
           <string name="Name">ArenaNuketown</string>
           <string name="Source"><![CDATA[--[[
@@ -5685,7 +6105,146 @@ return ArenaNuketown
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="19">
+      <Item class="ModuleScript" referent="21">
+        <Properties>
+          <string name="Name">ArenaPillars</string>
+          <string name="Source"><![CDATA[--[[
+	ArenaPillars.lua  (ServerScriptService.Server.ArenaPillars)
+
+	"Pillars": a huge open floor with a grid of giant square pillars. The two
+	outer rows are walkable platforms (ramps up at the corners and in the
+	middle) with bridges between some of their tops; the middle row is tall
+	pillars to hide behind (and grapple to). Wide lanes between the rows for
+	sliding and bunny hopping, plus long walls to wall run.
+	Point-symmetric bridges, everything else mirrored across X and Z.
+
+	TOP VIEW (X = long axis)
+
+	   +--------------------------------------------------------+
+	   | ramp>[P]===[P]    [P]===[P]    [P]       <ramp          |
+	   |        runwall   ^ramp          runwall                 |
+	   | SPAWN | (low)    [T]     [T]     [T]     (low) | SPAWN  |
+	   |        runwall   vramp          runwall                 |
+	   | ramp>[P]    [P]===[P]    [P]===[P]       <ramp          |
+	   +--------------------------------------------------------+
+	   [P] platform pillar   [T] tall pillar   === bridge
+]]
+
+local Config = require(game:GetService("ReplicatedStorage").Shared.Config)
+
+local P = Config.Palette
+local C = Config.MapPalette
+local V = Vector3.new
+
+local ArenaPillars = {}
+
+local LENGTH, WIDTH = 320, 230 -- floor (X, Z)
+local WALL_H = 50
+local PLAT_H = 18 -- walkable pillar tops
+local TALL_H = 44
+local SIZE = 20 -- pillar width
+local ROW_Z = 65
+
+function ArenaPillars.Build(b)
+	local X, Z, XZ, R = "X", "Z", "XZ", "R"
+	local halfL, halfW = LENGTH / 2, WIDTH / 2
+
+	local FLOOR = C.Concrete
+	local WALL = C.BuildingB
+	local PLAT = P.Light
+	local TALL = C.BuildingD
+	local RAMP = P.AccentB
+
+	-- FLOOR + OUTER WALLS ------------------------------------------------------
+	b.block(V(LENGTH + 10, 4, WIDTH + 10), V(0, -2, 0), FLOOR)
+	b.block(V(LENGTH + 10, WALL_H, 4), V(0, WALL_H / 2, halfW + 2), WALL, Z)
+	b.block(V(4, WALL_H, WIDTH + 10), V(halfL + 2, WALL_H / 2, 0), WALL, X)
+	b.decor(function()
+		b.block(V(LENGTH + 10, 1, 4.6), V(0, WALL_H + 0.5, halfW + 2), P.AccentA, Z)
+		b.block(V(4.6, 1, WIDTH + 10), V(halfL + 2, WALL_H + 0.5, 0), P.AccentA, X)
+		b.block(V(LENGTH, 1.2, 0.6), V(0, 0.6, halfW - 0.3), C.Trim, Z)
+		b.block(V(0.6, 1.2, WIDTH), V(halfL - 0.3, 0.6, 0), C.Trim, X)
+	end)
+
+	-- a platform pillar with a band just under its (walkable) top
+	local function platform(pos, m)
+		b.block(V(SIZE, PLAT_H, SIZE), V(pos.X, PLAT_H / 2, pos.Z), PLAT, m)
+		b.decor(function()
+			b.block(V(SIZE + 0.4, 1, SIZE + 0.4), V(pos.X, PLAT_H - 0.8, pos.Z), P.AccentA, m)
+			b.block(V(SIZE + 0.3, 1, SIZE + 0.3), V(pos.X, 0.5, pos.Z), C.Trim, m)
+		end)
+	end
+
+	-- a tall pillar with a cap
+	local function tall(pos, height, m)
+		b.block(V(SIZE, height, SIZE), V(pos.X, height / 2, pos.Z), TALL, m)
+		b.decor(function()
+			b.block(V(SIZE + 0.4, 1, SIZE + 0.4), V(pos.X, height + 0.5, pos.Z), P.AccentB, m)
+			b.block(V(SIZE + 0.3, 1, SIZE + 0.3), V(pos.X, 0.5, pos.Z), C.Trim, m)
+		end)
+	end
+
+	-- OUTER ROWS: platforms ---------------------------------------------------------
+	platform(V(-100, 0, ROW_Z), XZ)
+	platform(V(-50, 0, ROW_Z), XZ)
+	platform(V(0, 0, ROW_Z), Z)
+
+	-- MIDDLE ROW: tall pillars + a low one in front of each spawn ---------------------
+	tall(V(0, 0, 0), TALL_H)
+	tall(V(-50, 0, 0), TALL_H, X)
+	b.block(V(SIZE, 6, SIZE), V(-100, 3, 0), C.BuildingB, X)
+	b.decor(function()
+		b.block(V(SIZE + 0.4, 0.8, SIZE + 0.4), V(-100, 5.4, 0), P.AccentA, X)
+	end)
+
+	-- BRIDGES between some platform tops (point-symmetric, so both sides match):
+	-- north row: -100 <-> -50 and 0 <-> 50; south row: the rotated copies
+	local function bridge(x)
+		b.block(V(30, 2, 8), V(x, PLAT_H - 1, ROW_Z), C.Concrete, R)
+		b.block(V(30, 2.5, 0.8), V(x, PLAT_H + 1.25, ROW_Z + 3.6), C.Trim, R) -- low edges
+		b.block(V(30, 2.5, 0.8), V(x, PLAT_H + 1.25, ROW_Z - 3.6), C.Trim, R)
+	end
+	bridge(-75)
+	bridge(25)
+
+	-- RAMPS ----------------------------------------------------------------------------
+	b.ramp(V(-146, 0, ROW_Z), V(1, 0, 0), 36, PLAT_H, 12, RAMP, XZ) -- spawn side -> corner platforms
+	b.ramp(V(0, 0, 25), V(0, 0, 1), 30, PLAT_H, 12, RAMP, Z) -- middle lane -> centre platforms
+
+	-- WALL-RUN WALLS ---------------------------------------------------------------------
+	b.runWall(V(36, 16, 2), V(-75, 8, 32), XZ) -- between the rows
+	b.runWall(V(40, 20, 2), V(-25, 10, 100), XZ) -- outer lanes
+
+	-- SPAWN SHIELD -------------------------------------------------------------------------
+	b.block(V(3, 12, 14), V(-126, 6, 0), C.BuildingB, X)
+	b.decor(function()
+		b.block(V(3.4, 0.6, 14.4), V(-126, 12.3, 0), P.AccentB, X)
+		b.block(V(14, 0.1, 22), V(-147, 0.05, 0), P.PlayerA)
+		b.block(V(14, 0.1, 22), V(147, 0.05, 0), P.PlayerB)
+	end)
+
+	local spawnHeight = 3.2
+	local spawns = {
+		CFrame.lookAt(V(-147, spawnHeight, 0), V(0, spawnHeight, 0)),
+		CFrame.lookAt(V(147, spawnHeight, 0), V(0, spawnHeight, 0)),
+	}
+	local dummies = {
+		{ Position = V(0, PLAT_H, ROW_Z), Face = V(0, 0, -1) },
+		{ Position = V(-100, PLAT_H, -ROW_Z), Face = V(1, 0, 0) },
+		{ Position = V(-75, PLAT_H, ROW_Z), Face = V(1, 0, 0) },
+		{ Position = V(0, 0, -30), Motion = "Strafe", Amount = 8, Speed = 0.3, Face = V(-1, 0, 0) },
+		{ Position = V(75, 0, -45), Motion = "Strafe", Amount = 6, Speed = 0.35, Face = V(-1, 0, 0) },
+		{ Position = V(100, 6, 0), Face = V(-1, 0, 0) },
+		{ Position = V(130, 0, 40), Motion = "Bob", Amount = 6, Speed = 0.5, Face = V(-1, 0, 0) },
+	}
+	return spawns, dummies
+end
+
+return ArenaPillars
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="22">
         <Properties>
           <string name="Name">ArenaPolygon</string>
           <string name="Source"><![CDATA[--[[
@@ -5853,7 +6412,137 @@ return ArenaPolygon
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="20">
+      <Item class="ModuleScript" referent="23">
+        <Properties>
+          <string name="Name">ArenaQuarry</string>
+          <string name="Source"><![CDATA[--[[
+	ArenaQuarry.lua  (ServerScriptService.Server.ArenaQuarry)
+
+	"Quarry": big L-shaped blocks with walkable rooftops (a ramp up from the
+	sheltered courtyard inside the L and one from outside), a tall wall right
+	in the middle to wall run along, long free-standing walls and a raised
+	overlook near each spawn. Point-symmetric (each side is the other turned
+	180 degrees), so the two halves look different but play the same.
+
+	TOP VIEW (X = long axis)
+
+	   +----------------------------------------------------------+
+	   |  runwall       ramp v                                     |
+	   |   |       [====L roof====]      runwall ======            |
+	   |   |        [L]  ^ramp                                     |
+	   | SPAWN shield         cover  | centre |  cover   shield SPAWN|
+	   |                             | wall   |      ramp v  [L]   |
+	   |  ====== runwall              [====L roof====]       |     |
+	   | [overlook]                          ramp ^      runwall   |
+	   +----------------------------------------------------------+
+]]
+
+local Config = require(game:GetService("ReplicatedStorage").Shared.Config)
+
+local P = Config.Palette
+local C = Config.MapPalette
+local V = Vector3.new
+
+local ArenaQuarry = {}
+
+local LENGTH, WIDTH = 320, 220 -- floor (X, Z)
+local WALL_H = 50
+local ROOF = 16 -- L-block height
+
+function ArenaQuarry.Build(b)
+	local X, Z, R = "X", "Z", "R"
+	local halfL, halfW = LENGTH / 2, WIDTH / 2
+
+	local FLOOR = C.Concrete
+	local WALL = C.BuildingE
+	local BLOCK = C.BuildingE
+	local COVER = P.Mid
+	local RAMP = P.AccentB
+
+	local function capped(size, pos, color, cap, m)
+		b.block(size, pos, color, m)
+		b.decor(function()
+			b.block(V(size.X + 0.3, 0.6, size.Z + 0.3), pos + V(0, size.Y / 2 + 0.3, 0), cap, m)
+		end)
+	end
+	-- a walkable block: a band just under the top instead of a cap
+	local function banded(size, pos, color, band, m)
+		b.block(size, pos, color, m)
+		b.decor(function()
+			b.block(V(size.X + 0.4, 1, size.Z + 0.4), pos + V(0, size.Y / 2 - 0.8, 0), band, m)
+		end)
+	end
+
+	-- FLOOR + OUTER WALLS ------------------------------------------------------
+	b.block(V(LENGTH + 10, 4, WIDTH + 10), V(0, -2, 0), FLOOR)
+	b.block(V(LENGTH + 10, WALL_H, 4), V(0, WALL_H / 2, halfW + 2), WALL, Z)
+	b.block(V(4, WALL_H, WIDTH + 10), V(halfL + 2, WALL_H / 2, 0), WALL, X)
+	b.decor(function()
+		b.block(V(LENGTH + 10, 1, 4.6), V(0, WALL_H + 0.5, halfW + 2), P.AccentA, Z)
+		b.block(V(4.6, 1, WIDTH + 10), V(halfL + 2, WALL_H + 0.5, 0), P.AccentA, X)
+		b.block(V(LENGTH, 1.2, 0.6), V(0, 0.6, halfW - 0.3), C.Trim, Z)
+		b.block(V(0.6, 1.2, WIDTH), V(halfL - 0.3, 0.6, 0), C.Trim, X)
+	end)
+
+	-- L-BLOCKS with walkable roofs -------------------------------------------------
+	-- long arm x -70..-10 (z 40..60), short arm z 10..40 (x -70..-50)
+	b.block(V(60, ROOF, 20), V(-40, ROOF / 2, 50), BLOCK, R)
+	b.block(V(20, ROOF, 30), V(-60, ROOF / 2, 25), BLOCK, R)
+	b.decor(function()
+		b.block(V(60.4, 1, 20.4), V(-40, ROOF - 0.8, 50), P.AccentA, R)
+		b.block(V(20.4, 1, 30.2), V(-60, ROOF - 0.8, 24.9), P.AccentA, R)
+	end)
+	b.ramp(V(-28, 0, 8), V(0, 0, 1), 32, ROOF, 12, RAMP, R) -- from the courtyard
+	b.ramp(V(-40, 0, 92), V(0, 0, -1), 32, ROOF, 12, RAMP, R) -- from outside
+	-- roof cover
+	capped(V(1.5, 4, 14), V(-12, ROOF + 2, 50), COVER, P.AccentB, R)
+	capped(V(14, 6, 2), V(-58, ROOF + 3, 58), COVER, P.AccentB, R)
+
+	-- CENTRE: one tall wall to wall run along (blocks the spawn-to-spawn line) ---
+	b.runWall(V(2, 24, 48), V(0, 12, 0))
+	capped(V(12, 8, 12), V(-25, 4, -20), C.BuildingC, P.AccentB, R)
+
+	-- LONG FREE-STANDING WALLS --------------------------------------------------------
+	b.runWall(V(60, 20, 2), V(-90, 10, -45), R)
+	b.runWall(V(2, 20, 50), V(-110, 10, 60), R)
+
+	-- OVERLOOK near each spawn (raised platform, ramp up) -------------------------------
+	banded(V(30, 10, 30), V(-130, 5, -80), C.BuildingB, P.AccentB, R)
+	b.ramp(V(-130, 0, -39), V(0, 0, -1), 26, 10, 12, RAMP, R)
+	capped(V(1.5, 4, 12), V(-115.75, 12, -82), COVER, P.AccentA, R) -- low wall on the edge
+
+	-- COVER ---------------------------------------------------------------------------------
+	capped(V(8, 6, 8), V(-70, 3, -15), COVER, P.AccentA, R)
+	capped(V(10, 7, 10), V(-40, 3.5, -85), C.BuildingC, P.AccentB, R)
+	capped(V(10, 26, 10), V(-25, 13, -60), C.BuildingB, P.AccentA, R) -- tall pillar
+	capped(V(4, 12, 18), V(-125, 6, 8), C.BuildingB, P.AccentB, R) -- spawn shield
+	b.decor(function()
+		b.block(V(14, 0.1, 22), V(-148, 0.05, 0), P.PlayerA)
+		b.block(V(14, 0.1, 22), V(148, 0.05, 0), P.PlayerB)
+	end)
+
+	local spawnHeight = 3.2
+	local spawns = {
+		CFrame.lookAt(V(-148, spawnHeight, 0), V(0, spawnHeight, 0)),
+		CFrame.lookAt(V(148, spawnHeight, 0), V(0, spawnHeight, 0)),
+	}
+	local dummies = {
+		{ Position = V(-30, ROOF, 50), Face = V(1, 0, 0) },
+		{ Position = V(130, 10, 80), Face = V(-1, 0, 0) },
+		{ Position = V(0, 0, -35), Motion = "Strafe", Amount = 8, Speed = 0.3, Face = V(0, 0, 1) },
+		{ Position = V(60, 0, 20), Motion = "Strafe", Amount = 6, Speed = 0.35, Face = V(-1, 0, 0) },
+		{ Position = V(-90, 0, 20), Motion = "Strafe", Amount = 6, Speed = 0.3, Face = V(1, 0, 0) },
+		{ Position = V(100, 0, -20), Motion = "Bob", Amount = 6, Speed = 0.5, Face = V(-1, 0, 0) },
+		{ Position = V(148, 0, 0), Face = V(-1, 0, 0) },
+	}
+	return spawns, dummies
+end
+
+return ArenaQuarry
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="24">
         <Properties>
           <string name="Name">ArenaSimple</string>
           <string name="Source"><![CDATA[--[[
@@ -5952,7 +6641,139 @@ return ArenaSimple
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="21">
+      <Item class="ModuleScript" referent="25">
+        <Properties>
+          <string name="Name">ArenaZiggurat</string>
+          <string name="Source"><![CDATA[--[[
+	ArenaZiggurat.lua  (ServerScriptService.Server.ArenaZiggurat)
+
+	"Ziggurat": a big stepped pyramid in the middle of a wide, open floor.
+	Three tiers, each with ramps up, and a crown of low walls on top for the
+	king of the hill. The corners are open, with big L-shaped walls and a
+	raised corner ledge; long walls along the sides to wall run.
+	Mirrored across X and Z.
+
+	TOP VIEW (X = long axis)
+
+	   +---------------------------------------------------------+
+	   | [ledge]<ramp  L        ======runwall======        L      |
+	   |               ^ramp   ____________   ^ramp               |
+	   | SPAWN shield   ramp> |  tier 1-3  | <ramp  shield  SPAWN |
+	   |               vramp   ¯¯¯¯¯¯¯¯¯¯¯¯   vramp               |
+	   | [ledge]<ramp  L        ======runwall======        L      |
+	   +---------------------------------------------------------+
+]]
+
+local Config = require(game:GetService("ReplicatedStorage").Shared.Config)
+
+local P = Config.Palette
+local C = Config.MapPalette
+local V = Vector3.new
+
+local ArenaZiggurat = {}
+
+local LENGTH, WIDTH = 300, 240 -- floor (X, Z)
+local WALL_H = 50
+local STEP = 8 -- tier height
+
+function ArenaZiggurat.Build(b)
+	local X, Z, XZ = "X", "Z", "XZ"
+	local halfL, halfW = LENGTH / 2, WIDTH / 2
+
+	local FLOOR = C.Sidewalk
+	local WALL = C.BuildingA
+	local RAMP = P.AccentB
+
+	local function capped(size, pos, color, cap, m)
+		b.block(size, pos, color, m)
+		b.decor(function()
+			b.block(V(size.X + 0.3, 0.6, size.Z + 0.3), pos + V(0, size.Y / 2 + 0.3, 0), cap, m)
+		end)
+	end
+
+	-- FLOOR + OUTER WALLS ------------------------------------------------------
+	b.block(V(LENGTH + 10, 4, WIDTH + 10), V(0, -2, 0), FLOOR)
+	b.block(V(LENGTH + 10, WALL_H, 4), V(0, WALL_H / 2, halfW + 2), WALL, Z)
+	b.block(V(4, WALL_H, WIDTH + 10), V(halfL + 2, WALL_H / 2, 0), WALL, X)
+	b.decor(function()
+		b.block(V(LENGTH + 10, 1, 4.6), V(0, WALL_H + 0.5, halfW + 2), P.AccentB, Z)
+		b.block(V(4.6, 1, WIDTH + 10), V(halfL + 2, WALL_H + 0.5, 0), P.AccentB, X)
+		b.block(V(LENGTH, 1.2, 0.6), V(0, 0.6, halfW - 0.3), C.Trim, Z)
+		b.block(V(0.6, 1.2, WIDTH), V(halfL - 0.3, 0.6, 0), C.Trim, X)
+	end)
+
+	-- THE ZIGGURAT: three tiers ---------------------------------------------------
+	local tiers = {
+		{ size = 96, color = C.BuildingC },
+		{ size = 60, color = C.Stone },
+		{ size = 28, color = C.BuildingC },
+	}
+	for i, tier in ipairs(tiers) do
+		local top = i * STEP
+		b.block(V(tier.size, STEP, tier.size), V(0, top - STEP / 2, 0), tier.color)
+		b.decor(function()
+			b.block(V(tier.size + 0.4, 1, tier.size + 0.4), V(0, top - 0.8, 0), i == 2 and P.AccentA or C.Trim)
+		end)
+	end
+	-- tier 1: ramps from the floor on every side
+	b.ramp(V(-72, 0, 0), V(1, 0, 0), 24, STEP, 18, RAMP, X)
+	b.ramp(V(-28, 0, 72), V(0, 0, -1), 24, STEP, 14, RAMP, XZ)
+	-- tier 2: ramps on the north / south faces
+	b.ramp(V(0, STEP, 48), V(0, 0, -1), 18, STEP, 14, P.AccentA, Z)
+	-- tier 3: ramps on the east / west faces
+	b.ramp(V(-30, 2 * STEP, 0), V(1, 0, 0), 16, STEP, 12, RAMP, X)
+	-- crown: low corner walls on the top
+	b.block(V(9, 4, 1.5), V(-9.5, 3 * STEP + 2, -13.25), P.Mid, XZ)
+	b.block(V(1.5, 4, 6.5), V(-13.25, 3 * STEP + 2, -9.25), P.Mid, XZ)
+	b.decor(function()
+		b.block(V(9.3, 0.4, 1.8), V(-9.5, 3 * STEP + 4.2, -13.25), P.AccentB, XZ)
+		b.block(V(1.8, 0.4, 6.8), V(-13.25, 3 * STEP + 4.2, -9.25), P.AccentB, XZ)
+	end)
+	-- tier-1 cover (so the ring isn't a shooting gallery)
+	capped(V(10, 5, 3), V(-38, STEP + 2.5, 38), P.Mid, P.AccentA, XZ)
+
+	-- CORNERS: L-shaped walls and a raised ledge ---------------------------------------
+	capped(V(40, 22, 4), V(-100, 11, -62), P.Light, P.AccentA, XZ)
+	capped(V(4, 22, 40), V(-78, 11, -84), P.Light, P.AccentA, XZ)
+	b.block(V(30, 12, 30), V(-135, 6, -105), C.BuildingB, XZ)
+	b.decor(function()
+		b.block(V(30.4, 1, 30.4), V(-135, 11.2, -105), P.AccentA, XZ)
+	end)
+	b.ramp(V(-94, 0, -105), V(-1, 0, 0), 26, 12, 12, RAMP, XZ)
+
+	-- SIDES: long walls to wall run ------------------------------------------------------
+	b.runWall(V(70, 22, 2), V(0, 11, 92), Z)
+
+	-- SPAWN SHIELDS + floor cover ----------------------------------------------------------
+	capped(V(4, 14, 16), V(-112, 7, 0), C.BuildingB, P.AccentB, X)
+	capped(V(8, 6, 8), V(-90, 3, 30), P.Mid, P.AccentA, XZ)
+	b.decor(function()
+		b.block(V(14, 0.1, 22), V(-135, 0.05, 0), P.PlayerA)
+		b.block(V(14, 0.1, 22), V(135, 0.05, 0), P.PlayerB)
+	end)
+
+	local spawnHeight = 3.2
+	local spawns = {
+		CFrame.lookAt(V(-135, spawnHeight, 0), V(0, spawnHeight, 0)),
+		CFrame.lookAt(V(135, spawnHeight, 0), V(0, spawnHeight, 0)),
+	}
+	local dummies = {
+		{ Position = V(0, 3 * STEP, 0), Face = V(-1, 0, 0) },
+		{ Position = V(-40, STEP, 20), Face = V(1, 0, 0) },
+		{ Position = V(20, 2 * STEP, -20), Face = V(-1, 0, 0) },
+		{ Position = V(60, 0, -72), Motion = "Strafe", Amount = 8, Speed = 0.3, Face = V(-1, 0, 0) },
+		{ Position = V(-100, 0, 40), Motion = "Strafe", Amount = 6, Speed = 0.35, Face = V(1, 0, 0) },
+		{ Position = V(-135, 12, -105), Face = V(1, 0, 0) },
+		{ Position = V(110, 0, 40), Motion = "Bob", Amount = 6, Speed = 0.5, Face = V(-1, 0, 0) },
+	}
+	return spawns, dummies
+end
+
+return ArenaZiggurat
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="26">
         <Properties>
           <string name="Name">BotService</string>
           <string name="Source"><![CDATA[--[[
@@ -6415,7 +7236,7 @@ return BotService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="22">
+      <Item class="ModuleScript" referent="27">
         <Properties>
           <string name="Name">CharacterService</string>
           <string name="Source"><![CDATA[--[[
@@ -6513,9 +7334,8 @@ local function addWorldGun(character, powerUps)
 	local scale = Config.Body.GunScale
 	local gun = Instance.new("Model")
 	gun.Name = "WorldGun"
-	local built = GunModel.Build(gun, { Scale = scale, CastShadow = true, PowerUps = powerUps })
+	local built = Skins.Build("Rifle", gun, skinFor(character, "Rifle"), { Scale = scale, CastShadow = true, PowerUps = powerUps })
 	gunPowerUps[character] = powerUps
-	Skins.Apply(gun, skinFor(character, "Rifle"))
 
 	local grip = hand.CFrame * CFrame.new(0, -0.15, 0) * CFrame.Angles(math.rad(-90), 0, 0)
 	GunModel.Place(built, grip, scale)
@@ -6582,8 +7402,7 @@ local function addWorldKnife(character)
 	local knife = Instance.new("Model")
 	knife.Name = "WorldKnife"
 	local scale = Config.Knife.WorldScale
-	local built = KnifeModel.Build(knife, { Scale = scale, CastShadow = true })
-	Skins.Apply(knife, skinFor(character, "Knife"))
+	local built = Skins.Build("Knife", knife, skinFor(character, "Knife"), { Scale = scale, CastShadow = true })
 	local grip = hand.CFrame * CFrame.new(0, -0.15, 0) * CFrame.Angles(math.rad(-90), 0, 0)
 	local origin = grip * CFrame.new(KnifeModel.Grip.Position * -scale)
 	KnifeModel.Place(built, origin)
@@ -6800,6 +7619,30 @@ function CharacterService.Spawn(player, cframe, options)
 		))
 	end
 	CharacterService.Style(character, options.Color or Palette.LobbyPlayer, player)
+	if not Util.isBot(player) and player:GetAttribute("VIP") then
+		-- the VIP pass: a gold tag over your head
+		local head = character:FindFirstChild("Head")
+		if head then
+			local tag = Instance.new("BillboardGui")
+			tag.Name = "VipTag"
+			tag.Size = UDim2.fromOffset(60, 24)
+			tag.StudsOffset = Vector3.new(0, 2.2, 0)
+			tag.MaxDistance = 80
+			tag.Adornee = head
+			local label = Instance.new("TextLabel")
+			label.Size = UDim2.fromScale(1, 1)
+			label.BackgroundColor3 = Color3.fromRGB(255, 196, 60)
+			label.Text = "VIP"
+			label.TextScaled = true
+			label.FontFace = Font.new(Config.UI.FontFamily, Enum.FontWeight.Heavy)
+			label.TextColor3 = Color3.fromRGB(30, 24, 10)
+			label.Parent = tag
+			local corner = Instance.new("UICorner")
+			corner.CornerRadius = UDim.new(0.3, 0)
+			corner.Parent = label
+			tag.Parent = head
+		end
+	end
 	character:SetAttribute("Weapon", "Sniper") -- every life starts with the rifle out
 	addHitboxes(character)
 	addWorldGun(character, options.PowerUps)
@@ -6935,7 +7778,7 @@ return CharacterService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="23">
+      <Item class="ModuleScript" referent="28">
         <Properties>
           <string name="Name">CombatService</string>
           <string name="Source"><![CDATA[--[[
@@ -8019,7 +8862,7 @@ return CombatService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="24">
+      <Item class="ModuleScript" referent="29">
         <Properties>
           <string name="Name">CrateService</string>
           <string name="Source"><![CDATA[--[[
@@ -8029,23 +8872,29 @@ return CombatService
 	  * Every player has Keys (the "Keys" attribute on the Player). New
 	    players start with Config.Crates.StartingKeys; finishing a match
 	    gives KeysPerWin / KeysPerLoss.
-	  * Opening a crate (the altar's "Open Crate" prompt, or the "CrateOpen"
-	    remote from the reveal screen's OPEN ANOTHER button) costs a key. The
-	    server checks you're in the lobby, near the altar and not spamming,
-	    then rolls the rarity (Chance %) and a skin of that rarity.
+	  * Opening a crate (the altar's "Open Crate" prompt, the SHOP, or the
+	    reveal screen's OPEN ANOTHER button: the "CrateOpen" remote) costs
+	    that crate's price. The server checks you're in the lobby, can pay
+	    and aren't spamming, then rolls the rarity (the crate's Odds) and a
+	    skin of that rarity.
 	  * The result goes to the client over the "Crates" remote, which plays
 	    the opening animation (CrateController).
 	  * Equipping: the "SkinEquip" remote (the lobby LOCKER) picks one owned
 	    skin per weapon. It's saved, shown to everyone (player attributes
 	    RifleSkin / KnifeSkin) and the weapons in your hands are rebuilt.
-	  * Secret skins will be their own models; until there are any, crates
-	    only roll the rarities that have skins.
-	  * Keys, owned skins and equipped skins are saved in a DataStore. In Studio that needs
+	  * Two crates (Config.Crates.Types): Standard for Keys, Elite for Credits
+	    (better odds, the Elite-only skins and the Secrets).
+	  * Robux: Credit / Key packs (Developer Products, Config.Shop) are
+	    granted in ProcessReceipt, once each (purchase ids are kept in the
+	    save) and only reported as granted after the save went through.
+	    The VIP pass (2x keys) is checked on join.
+	  * Keys, credits, owned skins and equipped skins are saved in a DataStore. In Studio that needs
 	    Game Settings > Security > "Enable Studio Access to API Services";
 	    without it everything works for the session, it just isn't saved.
 ]]
 
 local Players = game:GetService("Players")
+local MarketplaceService = game:GetService("MarketplaceService")
 local DataStoreService = game:GetService("DataStoreService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -8066,17 +8915,28 @@ pcall(function()
 	store = DataStoreService:GetDataStore("Crates_v1")
 end)
 
-local data = {} -- [player] = { Keys = n, Skins = { [skinId] = count }, Opened = n, Equipped = { Rifle = id, Knife = id } }
+-- [player] = { Keys, Credits, Skins = { [skinId] = count }, Opened, Equipped = { Rifle, Knife }, Receipts = { purchaseId... } }
+local data = {}
 local loaded = {} -- [player] = true once their save has loaded
 local loadFailed = {} -- [player] = true if the DataStore read failed (never overwrite their save)
 local lastOpen = {} -- [player] = os.clock()
 local dirty = {} -- [player] = true when there are unsaved changes
 local rng = Random.new()
 
-local skinsByRarity = {}
-for _, skin in ipairs(CR.Skins) do
-	skinsByRarity[skin.Rarity] = skinsByRarity[skin.Rarity] or {}
-	table.insert(skinsByRarity[skin.Rarity], skin)
+-- the skins each crate can drop, by rarity (Elite-only skins only in the Elite crate)
+local pools = {} -- [crateType][rarity] = { skins }
+for typeName, crateType in pairs(CR.Types) do
+	pools[typeName] = {}
+	for _, skin in ipairs(CR.Skins) do
+		if (crateType.Odds[skin.Rarity] or 0) > 0 and (crateType.EliteSkins or not skin.Elite) then
+			pools[typeName][skin.Rarity] = pools[typeName][skin.Rarity] or {}
+			table.insert(pools[typeName][skin.Rarity], skin)
+		end
+	end
+end
+local rarityById = {}
+for _, rarity in ipairs(CR.Rarities) do
+	rarityById[rarity.Id] = rarity
 end
 
 local function notify(player, text)
@@ -8086,7 +8946,7 @@ end
 local function sendInventory(player)
 	local d = data[player]
 	if d then
-		Remotes.Get("Crates"):FireClient(player, { Type = "Inventory", Keys = d.Keys, Skins = d.Skins, Equipped = d.Equipped })
+		Remotes.Get("Crates"):FireClient(player, { Type = "Inventory", Keys = d.Keys, Credits = d.Credits, Skins = d.Skins, Equipped = d.Equipped })
 	end
 end
 
@@ -8097,22 +8957,41 @@ local function setKeys(player, keys)
 	dirty[player] = true
 end
 
+local function setCredits(player, credits)
+	local d = data[player]
+	d.Credits = math.max(0, math.floor(credits))
+	player:SetAttribute("Credits", d.Credits)
+	dirty[player] = true
+end
+
 ----------------------------------------------------------------------------
 -- Saving
 ----------------------------------------------------------------------------
+-- Returns false only if a write was needed and couldn't happen.
 local function save(player)
 	local d = data[player]
-	if not store or not d or not loaded[player] or loadFailed[player] or not dirty[player] then
-		return
+	if loadFailed[player] then
+		return false -- (never overwrite a save we couldn't read)
+	end
+	if not store or not d or not loaded[player] or not dirty[player] then
+		return true
 	end
 	dirty[player] = nil
 	local ok, err = pcall(function()
-		store:SetAsync("u" .. player.UserId, { Keys = d.Keys, Skins = d.Skins, Opened = d.Opened, Equipped = d.Equipped })
+		store:SetAsync("u" .. player.UserId, {
+			Keys = d.Keys,
+			Credits = d.Credits,
+			Skins = d.Skins,
+			Opened = d.Opened,
+			Equipped = d.Equipped,
+			Receipts = d.Receipts,
+		})
 	end)
 	if not ok then
 		dirty[player] = true
 		warn("[CrateService] save failed for", player.Name, err)
 	end
+	return ok
 end
 
 local function load(player)
@@ -8139,10 +9018,20 @@ local function load(player)
 	if not player.Parent then
 		return
 	end
-	local d = { Keys = CR.StartingKeys, Skins = {}, Opened = 0, Equipped = {} }
+	local d = { Keys = CR.StartingKeys, Credits = 0, Skins = {}, Opened = 0, Equipped = {}, Receipts = {} }
 	if typeof(saved) == "table" then
 		if typeof(saved.Keys) == "number" then
 			d.Keys = math.max(0, math.floor(saved.Keys))
+		end
+		if typeof(saved.Credits) == "number" then
+			d.Credits = math.max(0, math.floor(saved.Credits))
+		end
+		if typeof(saved.Receipts) == "table" then
+			for _, id in ipairs(saved.Receipts) do
+				if typeof(id) == "string" then
+					table.insert(d.Receipts, id)
+				end
+			end
 		end
 		if typeof(saved.Opened) == "number" then
 			d.Opened = saved.Opened
@@ -8167,6 +9056,7 @@ local function load(player)
 	data[player] = d
 	loaded[player] = true
 	player:SetAttribute("Keys", d.Keys)
+	player:SetAttribute("Credits", d.Credits)
 	player:SetAttribute("RifleSkin", d.Equipped.Rifle)
 	player:SetAttribute("KnifeSkin", d.Equipped.Knife)
 	if d.Equipped.Rifle or d.Equipped.Knife then
@@ -8194,52 +9084,42 @@ end
 ----------------------------------------------------------------------------
 -- Opening
 ----------------------------------------------------------------------------
--- (only rarities that have skins: no Secret until its models are in)
-local function rollRarity()
+-- A rarity by the crate's odds (only rarities it has skins for), then a skin of it.
+local function rollSkin(typeName)
+	local crateType = CR.Types[typeName]
+	local pool = pools[typeName]
 	local total = 0
 	for _, rarity in ipairs(CR.Rarities) do
-		if skinsByRarity[rarity.Id] then
-			total += rarity.Chance
+		if pool[rarity.Id] then
+			total += crateType.Odds[rarity.Id] or 0
 		end
 	end
 	local pick = rng:NextNumber() * total
 	for _, rarity in ipairs(CR.Rarities) do
-		if skinsByRarity[rarity.Id] then
-			pick -= rarity.Chance
+		local list = pool[rarity.Id]
+		if list then
+			pick -= crateType.Odds[rarity.Id] or 0
 			if pick <= 0 then
-				return rarity
+				return rarity, list[rng:NextInteger(1, #list)]
 			end
 		end
 	end
-	return CR.Rarities[1]
-end
-
-local function rollSkin()
-	-- re-roll the (very unlikely) case of a rarity with no skins
-	for _ = 1, 10 do
-		local rarity = rollRarity()
-		local list = skinsByRarity[rarity.Id]
-		if list and #list > 0 then
-			return rarity, list[rng:NextInteger(1, #list)]
-		end
-	end
 	local skin = CR.Skins[1]
-	for _, rarity in ipairs(CR.Rarities) do
-		if rarity.Id == skin.Rarity then
-			return rarity, skin
-		end
-	end
-	return CR.Rarities[1], skin
+	return rarityById[skin.Rarity], skin
 end
 
 local function isFree()
 	return CR.FreeInStudio and RunService:IsStudio()
 end
 
-local function canOpen(player)
+local function canOpen(player, typeName)
 	local d = data[player]
+	local crateType = CR.Types[typeName]
 	if not d then
 		return false, "Your crates are still loading"
+	end
+	if not crateType then
+		return false, nil
 	end
 	if MatchService.GetMatch(player) then
 		return false, nil -- in a match: ignore quietly
@@ -8247,47 +9127,54 @@ local function canOpen(player)
 	if lastOpen[player] and os.clock() - lastOpen[player] < CR.Cooldown then
 		return false, nil
 	end
-	local lobby = MatchService.GetLobby()
-	local altar = lobby and lobby.CrateAltar
-	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-	if not altar or not root or (root.Position - altar.Position).Magnitude > CR.MaxDistance then
-		return false, "Go to the crate vault to open crates"
-	end
-	if not isFree() and d.Keys < CR.Cost then
-		return false, "No keys left - play matches to earn more"
+	if not isFree() and (d[crateType.Currency] or 0) < crateType.Cost then
+		if crateType.Currency == "Keys" then
+			return false, ("You need %d keys - win matches to earn more (or get keys in the SHOP)"):format(crateType.Cost)
+		end
+		return false, ("You need %d credits - get them in the SHOP"):format(crateType.Cost)
 	end
 	return true
 end
 
-function CrateService.Open(player)
-	local ok, reason = canOpen(player)
+-- typeName: "Standard" (keys) or "Elite" (credits)
+function CrateService.Open(player, typeName)
+	typeName = CR.Types[typeName] and typeName or "Standard"
+	local ok, reason = canOpen(player, typeName)
 	if not ok then
 		if reason then
 			notify(player, reason)
 		end
 		-- lets the reveal screen give the view back straight away
-		Remotes.Get("Crates"):FireClient(player, { Type = "Denied", Reason = reason })
+		Remotes.Get("Crates"):FireClient(player, { Type = "Denied", Reason = reason, CrateType = typeName })
 		return
 	end
 	lastOpen[player] = os.clock()
 	local d = data[player]
+	local crateType = CR.Types[typeName]
 	if not isFree() then
-		setKeys(player, d.Keys - CR.Cost)
+		if crateType.Currency == "Credits" then
+			setCredits(player, d.Credits - crateType.Cost)
+		else
+			setKeys(player, d.Keys - crateType.Cost)
+		end
 	end
-	local rarity, skin = rollSkin()
+	local rarity, skin = rollSkin(typeName)
 	local isNew = (d.Skins[skin.Id] or 0) == 0
 	d.Skins[skin.Id] = (d.Skins[skin.Id] or 0) + 1
 	d.Opened += 1
 	dirty[player] = true
 	Remotes.Get("Crates"):FireClient(player, {
 		Type = "Result",
+		CrateType = typeName,
 		Equipped = d.Equipped,
 		Rarity = rarity.Id,
 		Skin = skin.Id,
 		New = isNew,
 		Count = d.Skins[skin.Id],
 		Keys = d.Keys,
+		Credits = d.Credits,
 		Free = isFree(),
+		CanAgain = isFree() or (d[crateType.Currency] or 0) >= crateType.Cost,
 		Skins = d.Skins,
 	})
 	scheduleSave(player) -- (opening several in a row = one save)
@@ -8322,6 +9209,63 @@ function CrateService.Equip(player, weapon, id)
 end
 
 ----------------------------------------------------------------------------
+-- Robux: credit / key packs (Developer Products) and the VIP pass
+----------------------------------------------------------------------------
+local products = {} -- [productId] = { Credits = n } or { Keys = n }
+for _, pack in ipairs(Config.Shop.CreditPacks) do
+	if pack.Id ~= 0 then
+		products[pack.Id] = { Credits = pack.Credits }
+	end
+end
+for _, pack in ipairs(Config.Shop.KeyPacks) do
+	if pack.Id ~= 0 then
+		products[pack.Id] = { Keys = pack.Keys }
+	end
+end
+
+-- Roblox calls this for every purchase (again and again until we say it's
+-- granted, so it must never give the same purchase twice).
+local function processReceipt(info)
+	local player = Players:GetPlayerByUserId(info.PlayerId)
+	local d = player and data[player]
+	local product = products[info.ProductId]
+	if not player or not d or not loaded[player] or loadFailed[player] or not product then
+		return Enum.ProductPurchaseDecision.NotProcessedYet -- (try again when they're back / loaded)
+	end
+	if not table.find(d.Receipts, info.PurchaseId) then
+		if product.Credits then
+			setCredits(player, d.Credits + product.Credits)
+		end
+		if product.Keys then
+			setKeys(player, d.Keys + product.Keys)
+		end
+		table.insert(d.Receipts, info.PurchaseId)
+		while #d.Receipts > 50 do
+			table.remove(d.Receipts, 1)
+		end
+		dirty[player] = true
+		notify(player, product.Credits and ("+%d CREDITS"):format(product.Credits) or ("+%d KEYS"):format(product.Keys))
+		sendInventory(player)
+	end
+	-- only tell Roblox it's done once it's saved
+	if save(player) then
+		return Enum.ProductPurchaseDecision.PurchaseGranted
+	end
+	return Enum.ProductPurchaseDecision.NotProcessedYet
+end
+
+local function checkVip(player)
+	local pass = Config.Shop.Passes.VIP
+	if pass.Id == 0 then
+		return
+	end
+	local ok, owns = pcall(MarketplaceService.UserOwnsGamePassAsync, MarketplaceService, player.UserId, pass.Id)
+	if ok and owns then
+		player:SetAttribute("VIP", true)
+	end
+end
+
+----------------------------------------------------------------------------
 -- Keys for playing
 ----------------------------------------------------------------------------
 local function onMatchFinished(match)
@@ -8332,6 +9276,9 @@ local function onMatchFinished(match)
 	for _, player in ipairs(match.Players) do
 		if not Util.isBot(player) and player.Parent and data[player] then
 			local gain = player == winner and CR.KeysPerWin or CR.KeysPerLoss
+			if player:GetAttribute("VIP") then
+				gain *= 2 -- (the VIP pass)
+			end
 			if gain > 0 then
 				setKeys(player, data[player].Keys + gain)
 				notify(player, ("+%d KEY%s  -  open crates in the crate vault"):format(gain, gain == 1 and "" or "S"))
@@ -8384,19 +9331,31 @@ function CrateService.Init(matchService, characterService)
 		saveScheduled[player] = nil
 	end)
 
-	Remotes.Get("CrateOpen").OnServerEvent:Connect(function(player)
-		CrateService.Open(player)
+	Remotes.Get("CrateOpen").OnServerEvent:Connect(function(player, typeName)
+		CrateService.Open(player, typeName)
 	end)
 
 	local lobby = MatchService.GetLobby()
 	local prompt = lobby and lobby.CrateAltar and lobby.CrateAltar:FindFirstChildOfClass("ProximityPrompt")
 	if prompt then
 		prompt.Triggered:Connect(function(player)
-			CrateService.Open(player)
+			CrateService.Open(player, "Standard")
 		end)
 	end
 
 	MatchService.MatchFinished:Connect(onMatchFinished)
+
+	MarketplaceService.ProcessReceipt = processReceipt
+	MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passId, bought)
+		if bought and passId == Config.Shop.Passes.VIP.Id then
+			player:SetAttribute("VIP", true)
+			notify(player, "VIP UNLOCKED  -  2x keys from every match")
+		end
+	end)
+	Players.PlayerAdded:Connect(checkVip)
+	for _, player in ipairs(Players:GetPlayers()) do
+		task.spawn(checkVip, player)
+	end
 
 	Players.PlayerAdded:Connect(load)
 	for _, player in ipairs(Players:GetPlayers()) do
@@ -8430,7 +9389,7 @@ return CrateService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="25">
+      <Item class="ModuleScript" referent="30">
         <Properties>
           <string name="Name">DummyService</string>
           <string name="Source"><![CDATA[--[[
@@ -8638,7 +9597,7 @@ return DummyService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="26">
+      <Item class="ModuleScript" referent="31">
         <Properties>
           <string name="Name">LightingSetup</string>
           <string name="Source"><![CDATA[--[[
@@ -8718,7 +9677,7 @@ return LightingSetup
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="27">
+      <Item class="ModuleScript" referent="32">
         <Properties>
           <string name="Name">LobbyBuilder</string>
           <string name="Source"><![CDATA[--[[
@@ -8863,21 +9822,18 @@ local function light(parts, color, range, brightness)
 	return parts
 end
 
--- A rarity's real odds on the board: rarities with no skins yet (Secret,
--- until its models are in) aren't rolled, so the rest share their chance.
+-- A rarity's odds in the Standard crate (the one the altar opens); what
+-- only drops from the Elite crate says so.
 local function oddsText(rarity)
-	local hasSkins = {}
-	for _, skin in ipairs(Config.Crates.Skins) do
-		hasSkins[skin.Rarity] = true
-	end
-	if not hasSkins[rarity.Id] then
-		return "SOON"
+	local odds = Config.Crates.Types.Standard.Odds
+	if (odds[rarity.Id] or 0) <= 0 then
+		return "ELITE"
 	end
 	local total = 0
-	for _, other in ipairs(Config.Crates.Rarities) do
-		total += hasSkins[other.Id] and other.Chance or 0
+	for _, chance in pairs(odds) do
+		total += chance
 	end
-	local pct = rarity.Chance / total * 100
+	local pct = odds[rarity.Id] / total * 100
 	return (pct >= 10 and ("%d%%"):format(math.floor(pct + 0.5)) or ("%.1f%%"):format(pct))
 end
 
@@ -9479,7 +10435,7 @@ function LobbyBuilder.Build()
 		b.part(V(0.4, 9.8, 0.5), frame * CFrame.new(-11.2, 0, 0), C.Metal)
 		b.part(V(0.4, 9.8, 0.5), frame * CFrame.new(11.2, 0, 0), C.Metal)
 	end)
-	sign(model, V(16, 3.2, 0.5), CFrame.lookAt(V(-60.4, 15.4, 0), V(0, 15.4, 0)), "CRATE VAULT", "OPEN CRATES  -  UNLOCK RIFLE SKINS", P.AccentB)
+	sign(model, V(16, 3.2, 0.5), CFrame.lookAt(V(-60.4, 15.4, 0), V(0, 15.4, 0)), "CRATE VAULT", "OPEN CRATES  -  SKINS  -  SHOP [M]", P.AccentB)
 
 	-- BINS ---------------------------------------------------------------------------------
 	for _, deg in ipairs({ 20, 160, 200, 340 }) do -- bins by the paths
@@ -9710,7 +10666,7 @@ return LobbyBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="Script" referent="28">
+      <Item class="Script" referent="33">
         <Properties>
           <string name="Name">Main</string>
           <token name="RunContext">0</token>
@@ -9750,6 +10706,12 @@ local importedKnife = workspace:FindFirstChild(knifeName)
 if importedKnife and not ReplicatedStorage:FindFirstChild(knifeName) then
 	importedKnife.Parent = ReplicatedStorage
 end
+-- Secret skins' own models: a folder "SecretWeapons" in the Workspace, one
+-- model per Secret (named like the skin's Template in Config.Crates.Skins)
+local secrets = workspace:FindFirstChild("SecretWeapons")
+if secrets and not ReplicatedStorage:FindFirstChild("SecretWeapons") then
+	secrets.Parent = ReplicatedStorage
+end
 
 local LightingSetup = require(script.Parent.LightingSetup)
 local CharacterService = require(script.Parent.CharacterService)
@@ -9773,7 +10735,7 @@ print("[Sniper Duel] server ready")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="29">
+      <Item class="ModuleScript" referent="34">
         <Properties>
           <string name="Name">MapBuilder</string>
           <string name="Source"><![CDATA[--[[
@@ -9965,7 +10927,8 @@ local ARENA_LENGTH = 360 -- X
 local ARENA_WIDTH = 250 -- Z
 local WALL_HEIGHT = 70
 
--- The original simple arena ("Classic"). Set Config.Match.Map = "Classic" to use it.
+-- The original simple arena ("Classic"). Add "Classic" to Config.Match.Maps (or set
+-- Config.Match.Maps = false and Config.Match.Map = "Classic") to use it.
 local function buildClassicArena(index)
 	local origin = Vector3.new(0, 0, index * Config.Match.ArenaSpacing)
 	local model = Instance.new("Model")
@@ -10058,15 +11021,65 @@ local function buildClassicArena(index)
 	}
 end
 
--- Builds the arena for match slot `index` (each slot gets its own copy).
-function MapBuilder.BuildArena(index)
-	if Config.Match.Map == "Classic" then
-		return buildClassicArena(index)
+----------------------------------------------------------------------------
+-- MAP ROTATION
+-- Config.Match.Maps = { "Polygon", "Canyon", ... }  each match picks one at
+--                                                    random (never the same
+--                                                    map twice in a row)
+-- Config.Match.Maps = nil                            same, with DEFAULT_MAPS
+-- Config.Match.Maps = false                          always Config.Match.Map
+----------------------------------------------------------------------------
+local DEFAULT_MAPS = { "Polygon", "Crossfire", "Nuketown", "Canyon", "Pillars", "Bridges", "Ziggurat", "Quarry" }
+
+local function mapExists(name)
+	return name == "Classic" or script.Parent:FindFirstChild("Arena" .. tostring(name)) ~= nil
+end
+
+-- The maps a match can be played on (only ones that actually exist).
+function MapBuilder.GetMapList()
+	local list = Config.Match.Maps
+	if list == nil then
+		list = DEFAULT_MAPS
+	elseif type(list) ~= "table" then
+		list = { Config.Match.Map }
 	end
-	-- Config.Match.Map picks the module ArenaCrossfire / ArenaSimple / ArenaDowntown
-	-- (each returns its spawns and playground dummy spots)
-	local mapName = Config.Match.Map
-	if not script.Parent:FindFirstChild("Arena" .. tostring(mapName)) then
+	local maps = {}
+	for _, name in ipairs(list) do
+		if mapExists(name) and not table.find(maps, name) then
+			table.insert(maps, name)
+		end
+	end
+	if #maps == 0 then
+		table.insert(maps, mapExists(Config.Match.Map) and Config.Match.Map or "Crossfire")
+	end
+	return maps
+end
+
+-- Picks a random map for the next match, avoiding `previous` when there is a choice.
+function MapBuilder.PickMap(previous)
+	local maps = MapBuilder.GetMapList()
+	if #maps > 1 and previous then
+		local index = table.find(maps, previous)
+		if index then
+			table.remove(maps, index)
+		end
+	end
+	return maps[math.random(1, #maps)]
+end
+
+-- Builds the arena for match slot `index` (each slot gets its own copy) using
+-- map `mapName` (default: the first map in the rotation). The returned info
+-- has the map's name in MapName.
+function MapBuilder.BuildArena(index, mapName)
+	mapName = mapName or MapBuilder.GetMapList()[1]
+	if mapName == "Classic" then
+		local arena = buildClassicArena(index)
+		arena.MapName = "Classic"
+		return arena
+	end
+	-- each map is a module ArenaPolygon / ArenaCanyon / ... that returns its
+	-- spawns and playground dummy spots
+	if not mapExists(mapName) then
 		mapName = "Crossfire"
 	end
 	local mapModule = require(script.Parent["Arena" .. mapName])
@@ -10087,6 +11100,7 @@ function MapBuilder.BuildArena(index)
 	return {
 		Model = model,
 		Index = index,
+		MapName = mapName,
 		Origin = origin,
 		FloorY = origin.Y,
 		Spawns = { base * spawns[1], base * spawns[2] },
@@ -10106,7 +11120,7 @@ return MapBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="30">
+      <Item class="ModuleScript" referent="35">
         <Properties>
           <string name="Name">Match</string>
           <string name="Source"><![CDATA[--[[
@@ -10207,6 +11221,7 @@ function Match:Snapshot()
 	return {
 		InMatch = true,
 		MatchId = self.Id,
+		MapName = self.Arena and self.Arena.MapName, -- (rotates every match)
 		Phase = self.Phase,
 		Round = self.Round,
 		RoundsToWin = Config.Match.RoundsToWin,
@@ -10485,7 +11500,7 @@ return Match
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="31">
+      <Item class="ModuleScript" referent="36">
         <Properties>
           <string name="Name">MatchService</string>
           <string name="Source"><![CDATA[--[[
@@ -10629,11 +11644,23 @@ local function spawnInLobby(player)
 	sendLobbyState(player)
 end
 
+-- Each new match picks a random map (never the last one played on this
+-- server when there is a choice). A slot that still holds a different map
+-- is torn down and rebuilt with the new one.
+local lastMapName = nil
+
 local function getFreeArena()
 	for i = 1, Config.Match.MaxArenas do
 		if not arenaInUse[i] then
+			local mapName = MapBuilder.PickMap(lastMapName)
+			lastMapName = mapName
+			local arena = arenas[i]
+			if arena and arena.MapName ~= mapName then
+				arena.Model:Destroy()
+				arenas[i] = nil
+			end
 			if not arenas[i] then
-				arenas[i] = MapBuilder.BuildArena(i)
+				arenas[i] = MapBuilder.BuildArena(i, mapName)
 			end
 			arenaInUse[i] = true
 			return arenas[i]
@@ -10675,6 +11702,12 @@ local function onMatchFinished(match)
 	broadcastLobby()
 end
 
+-- Creates a match; its state snapshot also carries the map name (MapName)
+-- so the HUD can show it.
+local function newMatch(p1, p2, arena)
+	return Match.new(p1, p2, arena, onMatchFinished)
+end
+
 local function tryStartMatches()
 	-- drop anyone who left
 	for i = #queue, 1, -1 do
@@ -10689,7 +11722,7 @@ local function tryStartMatches()
 		end
 		local p1 = table.remove(queue, 1)
 		local p2 = table.remove(queue, 1)
-		local match = Match.new(p1, p2, arena, onMatchFinished)
+		local match = newMatch(p1, p2, arena)
 		inPlayground[p1] = nil
 		inPlayground[p2] = nil
 		matchByPlayer[p1] = match
@@ -10754,7 +11787,7 @@ function MatchService.StartBotMatch(player, difficulty)
 	difficulty = difficultyName(difficulty)
 	local bot = BotService.Create(difficulty)
 	inPlayground[player] = nil
-	local match = Match.new(player, bot, arena, onMatchFinished)
+	local match = newMatch(player, bot, arena)
 	matchByPlayer[player] = match
 	matchByPlayer[bot] = match
 	BotService.Attach(bot, match)
@@ -10849,7 +11882,7 @@ local function startPrivateMatch(p1, p2)
 		invites[p] = nil
 		rematches[p] = nil
 	end
-	local match = Match.new(p1, p2, arena, onMatchFinished)
+	local match = newMatch(p1, p2, arena)
 	matchByPlayer[p1] = match
 	matchByPlayer[p2] = match
 	match:Start()
@@ -11052,7 +12085,7 @@ return MatchService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="32">
+      <Item class="ModuleScript" referent="37">
         <Properties>
           <string name="Name">RankService</string>
           <string name="Source"><![CDATA[--[[
@@ -11447,7 +12480,7 @@ return RankService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="33">
+      <Item class="ModuleScript" referent="38">
         <Properties>
           <string name="Name">SettingsService</string>
           <string name="Source"><![CDATA[--[[
@@ -11568,13 +12601,13 @@ return SettingsService
       </Item>
     </Item>
   </Item>
-  <Item class="SoundService" referent="34">
+  <Item class="SoundService" referent="39">
     <Properties>
       <string name="Name">SoundService</string>
       <bool name="RespectFilteringEnabled">true</bool>
     </Properties>
   </Item>
-  <Item class="StarterPlayer" referent="35">
+  <Item class="StarterPlayer" referent="40">
     <Properties>
       <string name="Name">StarterPlayer</string>
       <float name="CameraMaxZoomDistance">18</float>
@@ -11583,11 +12616,11 @@ return SettingsService
       <token name="GameSettingsAvatar">1</token>
       <bool name="LoadCharacterAppearance">true</bool>
     </Properties>
-    <Item class="StarterCharacterScripts" referent="36">
+    <Item class="StarterCharacterScripts" referent="41">
       <Properties>
         <string name="Name">StarterCharacterScripts</string>
       </Properties>
-      <Item class="Script" referent="37">
+      <Item class="Script" referent="42">
         <Properties>
           <string name="Name">Health</string>
           <token name="RunContext">0</token>
@@ -11602,15 +12635,15 @@ return SettingsService
         </Properties>
       </Item>
     </Item>
-    <Item class="StarterPlayerScripts" referent="38">
+    <Item class="StarterPlayerScripts" referent="43">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="Folder" referent="39">
+      <Item class="Folder" referent="44">
         <Properties>
           <string name="Name">Client</string>
         </Properties>
-        <Item class="ModuleScript" referent="40">
+        <Item class="ModuleScript" referent="45">
           <Properties>
             <string name="Name">AimAssist</string>
             <string name="Source"><![CDATA[--[[
@@ -11791,7 +12824,7 @@ return AimAssist
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="41">
+        <Item class="ModuleScript" referent="46">
           <Properties>
             <string name="Name">BodyAnimator</string>
             <string name="Source"><![CDATA[--[[
@@ -12414,7 +13447,7 @@ return BodyAnimator
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="42">
+        <Item class="ModuleScript" referent="47">
           <Properties>
             <string name="Name">BodyRig</string>
             <string name="Source"><![CDATA[--[[
@@ -12791,7 +13824,7 @@ return BodyRig
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="43">
+        <Item class="ModuleScript" referent="48">
           <Properties>
             <string name="Name">CameraController</string>
             <string name="Source"><![CDATA[--[[
@@ -13117,7 +14150,7 @@ return CameraController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="44">
+        <Item class="ModuleScript" referent="49">
           <Properties>
             <string name="Name">ClientState</string>
             <string name="Source"><![CDATA[--[[
@@ -13317,7 +14350,7 @@ return ClientState
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="45">
+        <Item class="ModuleScript" referent="50">
           <Properties>
             <string name="Name">CrateController</string>
             <string name="Source"><![CDATA[--[[
@@ -13394,6 +14427,7 @@ local pendingResult -- a result that arrived while we were busy
 local waitingAgain = false
 local finishing = false
 local againToken = 0
+local lastCrateType = "Standard"
 
 ----------------------------------------------------------------------------
 -- Helpers
@@ -13497,7 +14531,7 @@ local function idle(dt)
 	if prompt then
 		local keys = player:GetAttribute("Keys") or 0
 		prompt.ObjectText = (CR.FreeInStudio and RunService:IsStudio()) and "Free in Studio"
-			or ("%d key%s"):format(keys, keys == 1 and "" or "s")
+			or ("Standard crate: %d keys (you have %d)"):format(CR.Types.Standard.Cost, keys)
 	end
 end
 
@@ -13509,18 +14543,12 @@ local function buildRifle(skin, rarity)
 	model.Name = "CrateReward"
 	local isKnife = skin.Weapon == "Knife"
 	local scale = isKnife and 2.6 or 1.7
-	local built
-	if isKnife then
-		built = KnifeModel.Build(model, { Scale = scale, Anchored = true })
-	else
-		built = GunModel.Build(model, { Scale = scale, Anchored = true, CastShadow = false, Effects = false })
-	end
+	local built = Skins.Build(skin.Weapon or "Rifle", model, skin, { Scale = scale, Anchored = true, CastShadow = false, Effects = false })
 	for _, part in pairs(built.Parts) do
 		part.CanCollide = false
 		part.CanQuery = false
 		part.CanTouch = false
 	end
-	Skins.Apply(model, skin)
 	-- a soft outline in the rarity colour
 	local highlight = Instance.new("Highlight")
 	highlight.FillTransparency = 1
@@ -13721,10 +14749,12 @@ local function play(result, continuing)
 	local tIntro = continuing and 0.45 or 1.3
 	local steps = {} -- { time, rarity, final }
 	local climbTo = isSecret and 5 or tier
-	local stepCount = math.max(climbTo, 2) -- always build a little suspense
+	-- (the Elite crate has no Common / Uncommon: its climb starts at Rare)
+	local firstTier = result.CrateType == "Elite" and math.min(3, climbTo) or 1
+	local stepCount = math.max(climbTo - firstTier + 1, 2) -- always build a little suspense
 	local stepT = tIntro
 	for k = 1, stepCount do
-		local r = CR.Rarities[math.min(k, climbTo)]
+		local r = CR.Rarities[math.min(firstTier + k - 1, climbTo)]
 		table.insert(steps, { T = stepT, Rarity = r, Final = (k == stepCount) and not isSecret })
 		stepT += 0.55 + k * 0.14
 	end
@@ -13957,8 +14987,10 @@ local function play(result, continuing)
 				New = result.New,
 				Count = result.Count,
 				Keys = result.Keys,
+				Credits = result.Credits,
+				CrateType = result.CrateType,
 				Free = result.Free,
-				CanAgain = result.Free or (result.Keys or 0) >= CR.Cost,
+				CanAgain = result.CanAgain == true,
 			})
 			Sfx.Play(isSecret and "Victory" or "CardPick", { Pitch = 1, Volume = 1.2 })
 		end
@@ -14019,7 +15051,7 @@ local function openAgain()
 	CrateReveal.HideCard()
 	clearScene()
 	crate.Model:PivotTo(restPose(idleT))
-	Remotes.Get("CrateOpen"):FireServer()
+	Remotes.Get("CrateOpen"):FireServer(lastCrateType)
 	-- no answer at all: give the view back (a stale timer can't end a later opening)
 	againToken += 1
 	local token = againToken
@@ -14033,6 +15065,9 @@ end
 local function onResult(result)
 	if typeof(result) ~= "table" then
 		return
+	end
+	if result.CrateType then
+		lastCrateType = result.CrateType -- (OPEN ANOTHER opens the same kind)
 	end
 	if typeof(result.Skins) == "table" then
 		ClientState.OwnedSkins = result.Skins -- (the Locker reads these)
@@ -14106,7 +15141,7 @@ return CrateController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="46">
+        <Item class="ModuleScript" referent="51">
           <Properties>
             <string name="Name">EffectsController</string>
             <string name="Source"><![CDATA[--[[
@@ -14761,7 +15796,7 @@ return Effects
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="47">
+        <Item class="ModuleScript" referent="52">
           <Properties>
             <string name="Name">FirstPersonView</string>
             <string name="Source"><![CDATA[--[[
@@ -15167,7 +16202,7 @@ return FirstPersonView
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="48">
+        <Item class="ModuleScript" referent="53">
           <Properties>
             <string name="Name">Keybinds</string>
             <string name="Source"><![CDATA[--[[
@@ -15228,6 +16263,7 @@ Keybinds.Actions = {
 	{ Id = "Knife", Name = "Knife", Keyboard = "Two", Gamepad = "ButtonR1" },
 	{ Id = "PowerUpLab", Name = "Power-Up Lab", Keyboard = "B", Gamepad = "DPadLeft" },
 	{ Id = "Locker", Name = "Locker (skins)", Keyboard = "L", Gamepad = "None" },
+	{ Id = "Shop", Name = "Shop (crates, credits, VIP)", Keyboard = "M", Gamepad = "None" },
 	{ Id = "FindMatch", Name = "Find match", Keyboard = "F", Gamepad = "DPadRight" },
 	{ Id = "Playground", Name = "Playground", Keyboard = "G", Gamepad = "ButtonL1" },
 	{ Id = "BotMatch", Name = "Play vs bot (admin)", Keyboard = "N", Gamepad = "None" }, -- (RB is the knife)
@@ -15307,7 +16343,7 @@ return Keybinds
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="49">
+        <Item class="ModuleScript" referent="54">
           <Properties>
             <string name="Name">KillCamController</string>
             <string name="Source"><![CDATA[--[[
@@ -15912,7 +16948,7 @@ return KillCam
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="50">
+        <Item class="ModuleScript" referent="55">
           <Properties>
             <string name="Name">KnifeController</string>
             <string name="Source"><![CDATA[--[[
@@ -16245,7 +17281,7 @@ return KnifeController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="51">
+        <Item class="ModuleScript" referent="56">
           <Properties>
             <string name="Name">LightingController</string>
             <string name="Source"><![CDATA[--[[
@@ -16357,7 +17393,7 @@ return LightingController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="LocalScript" referent="52">
+        <Item class="LocalScript" referent="57">
           <Properties>
             <string name="Name">Main</string>
             <string name="Source"><![CDATA[--[[
@@ -16433,7 +17469,7 @@ end
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="53">
+        <Item class="ModuleScript" referent="58">
           <Properties>
             <string name="Name">MovementController</string>
             <string name="Source"><![CDATA[--[[
@@ -17441,7 +18477,7 @@ return Movement
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="54">
+        <Item class="ModuleScript" referent="59">
           <Properties>
             <string name="Name">Sfx</string>
             <string name="Source"><![CDATA[--[[
@@ -17498,7 +18534,7 @@ return Sfx
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="55">
+        <Item class="ModuleScript" referent="60">
           <Properties>
             <string name="Name">Spring</string>
             <string name="Source"><![CDATA[--[[
@@ -17544,7 +18580,7 @@ return Spring
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="56">
+        <Item class="ModuleScript" referent="61">
           <Properties>
             <string name="Name">UIController</string>
             <string name="Source"><![CDATA[--[[
@@ -17559,6 +18595,7 @@ return Spring
 		SettingsMenu  sliders + keybinds for mouse and controller (P)
 		PowerUpLab    try power-ups solo in the lobby (B)
 		Locker        pick your rifle and knife skins (L)
+		Shop          crates, credit packs, VIP (M)
 		Toast         short server messages (admin commands)
 		DuelUI        challenge a player, duel / rematch invites
 		MobileControls on-screen buttons + look pad for touch screens
@@ -17576,6 +18613,7 @@ local LobbyUI = require(ui.LobbyUI)
 local SettingsMenu = require(ui.SettingsMenu)
 local PowerUpLab = require(ui.PowerUpLab)
 local Locker = require(ui.Locker)
+local Shop = require(ui.Shop)
 local Toast = require(ui.Toast)
 local DuelUI = require(ui.DuelUI)
 local MobileControls = require(ui.MobileControls)
@@ -17590,6 +18628,7 @@ function UIController.Init(controllers)
 	controllers.Settings = SettingsMenu
 	controllers.Duel = DuelUI
 	controllers.Locker = Locker
+	controllers.Shop = Shop
 	MobileControls.Init(controllers)
 	HUD.Init(controllers)
 	LobbyUI.Init(controllers)
@@ -17624,6 +18663,7 @@ function UIController.Start()
 	SettingsMenu.Start(playerGui)
 	PowerUpLab.Start(playerGui)
 	Locker.Start(playerGui)
+	Shop.Start(playerGui)
 	Toast.Start(playerGui)
 	DuelUI.Start(playerGui)
 	MobileControls.Start(playerGui)
@@ -17640,7 +18680,7 @@ return UIController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="57">
+        <Item class="ModuleScript" referent="62">
           <Properties>
             <string name="Name">WeaponAnim</string>
             <string name="Source"><![CDATA[--[[
@@ -17918,12 +18958,33 @@ end
 -- KNIFE (knife space: origin = middle of the handle, blade -Z, edge -Y)
 ----------------------------------------------------------------------------
 local KS = KN.WorldScale
-local KNIFE_IDLE = aim(V(0.5, -0.88, -1.05), V(-0.35, 0.5, -0.8), V(-0.35, -0.8, 0.3))
-local KNIFE_SPRINT = aim(V(0.6, -1.15, -0.8), V(-0.2, -0.1, -1), V(0, -1, 0.1))
--- the fist closes round the handle, the thumb on the spine side; the
--- forearm runs back from the pommel, angled a little toward the edge (like
--- a real wrist), so turning the knife never twists the arm round
-local HAND_ON_KNIFE = CFrame.new(KnifeModel.Grip.Position * KS) * CFrame.Angles(rad(125), 0, 0)
+
+-- A knife pose from where the handle is and where the blade points. The
+-- roll round the blade is worked out so the spine faces your right shoulder:
+-- the fist closes on the handle with the forearm running back from it to the
+-- elbow (a real hammer grip), so the arm and the knife always move as one
+-- and the handle never cuts through the wrist. `twist` (degrees) rolls it
+-- a little more when a move wants the flat or the edge shown.
+local KNIFE_SHOULDER = V(0.95, -1.3, 0.35)
+local function kaim(pos, forward, twist)
+	local f = forward.Unit
+	local toShoulder = KNIFE_SHOULDER - pos
+	local spine = toShoulder - f * toShoulder:Dot(f)
+	if spine.Magnitude < 1e-3 then
+		spine = V(0, -1, 0) + f * f.Y -- (pointing straight at the shoulder: spine down)
+	end
+	local cf = aim(pos, f, -spine)
+	if twist then
+		cf = cf * CFrame.Angles(0, 0, rad(twist))
+	end
+	return cf
+end
+local KNIFE_IDLE = kaim(V(0.5, -0.88, -1.05), V(-0.35, 0.5, -0.8))
+local KNIFE_SPRINT = kaim(V(0.6, -1.15, -0.8), V(-0.2, -0.1, -1))
+-- the fist closes round the handle, thumb by the guard; the forearm leaves
+-- the fist on the spine side (kaim points the spine at the shoulder), tipped
+-- a touch toward the pommel like a real wrist
+local HAND_ON_KNIFE = CFrame.new(KnifeModel.Grip.Position * KS) * CFrame.Angles(rad(8), 0, 0)
 
 -- left hand: up in a guard, fist loose
 local GUARD = LEFT_GUARD_KNIFE
@@ -17937,9 +18998,9 @@ CLIPS.Equip = {
 	Length = 0.75,
 	Toss = { From = 0.2, To = 0.52, Height = 0.55, Spins = -1, Catch = 3 },
 	Keys = {
-		{ T = 0, Weapon = aim(V(0.75, -1.7, -0.45), V(0, -1, 0.3), V(-1, 0, 0)), Left = GUARD_BACK },
-		{ T = 0.2, Weapon = aim(V(0.55, -0.85, -1.05), V(-0.1, 0.25, -1), V(0, -1, 0)), Body = { Yaw = 8, NeckPitch = -6 } },
-		{ T = 0.52, Weapon = aim(V(0.5, -0.62, -1.2), V(-0.3, 0.5, -0.8), V(-0.3, -0.8, 0.3)), Body = { Yaw = 4, NeckPitch = -4 } },
+		{ T = 0, Weapon = kaim(V(0.75, -1.7, -0.45), V(0, -1, 0.3)), Left = GUARD_BACK },
+		{ T = 0.2, Weapon = kaim(V(0.55, -0.85, -1.05), V(-0.1, 0.25, -1)), Body = { Yaw = 8, NeckPitch = -6 } },
+		{ T = 0.52, Weapon = kaim(V(0.5, -0.62, -1.2), V(-0.3, 0.5, -0.8)), Body = { Yaw = 4, NeckPitch = -4 } },
 		{ T = 0.75, Weapon = "BASE" },
 	},
 }
@@ -17951,13 +19012,13 @@ CLIPS.SlashA = {
 	Length = KN.SlashTime,
 	Keys = {
 		{ T = 0, Weapon = "BASE" },
-		{ T = 0.18, Weapon = aim(V(0.85, -0.3, -0.9), V(0.45, 0.6, -0.65), V(-0.9, 0.1, -0.1)), Left = GUARD_OUT, Ease = "Wind",
+		{ T = 0.18, Weapon = kaim(V(0.85, -0.3, -0.9), V(0.45, 0.6, -0.65)), Left = GUARD_OUT, Ease = "Wind",
 			Body = { Yaw = 12, Roll = -3 } },
-		{ T = 0.34, Weapon = aim(V(0.1, -0.45, -1.35), V(-0.85, 0.15, -0.55), V(-0.5, -0.8, 0.2)), Ease = "Snap",
+		{ T = 0.34, Weapon = kaim(V(0.1, -0.45, -1.35), V(-0.85, 0.15, -0.55)), Ease = "Snap",
 			Body = { Yaw = -6, Lean = 4, Dip = 0.05 } },
-		{ T = 0.48, Weapon = aim(V(-0.75, -0.8, -1.05), V(-0.92, -0.25, -0.3), V(-0.3, -0.95, 0.1)), Left = GUARD_BACK,
+		{ T = 0.48, Weapon = kaim(V(-0.75, -0.8, -1.05), V(-0.92, -0.25, -0.3)), Left = GUARD_BACK,
 			Body = { Yaw = -16, Roll = 3, Lean = 6, Dip = 0.08 } },
-		{ T = 0.64, Weapon = aim(V(-0.8, -0.88, -0.95), V(-0.88, -0.3, -0.35), V(-0.3, -0.95, 0.15)),
+		{ T = 0.64, Weapon = kaim(V(-0.8, -0.88, -0.95), V(-0.88, -0.3, -0.35)),
 			Body = { Yaw = -17, Roll = 3, Lean = 5, Dip = 0.07 } },
 		{ T = 1, Weapon = "BASE" },
 	},
@@ -17969,13 +19030,13 @@ CLIPS.SlashB = {
 	Length = KN.SlashTime,
 	Keys = {
 		{ T = 0, Weapon = "BASE" },
-		{ T = 0.18, Weapon = aim(V(-0.3, -0.35, -0.95), V(-0.55, 0.55, -0.6), V(0.9, 0.1, -0.1)), Left = GUARD_BACK, Ease = "Wind",
+		{ T = 0.18, Weapon = kaim(V(-0.3, -0.35, -0.95), V(-0.55, 0.55, -0.6)), Left = GUARD_BACK, Ease = "Wind",
 			Body = { Yaw = -12, Roll = 3 } },
-		{ T = 0.34, Weapon = aim(V(0.4, -0.45, -1.35), V(0.85, 0.15, -0.55), V(0.5, -0.8, 0.2)), Ease = "Snap",
+		{ T = 0.34, Weapon = kaim(V(0.4, -0.45, -1.35), V(0.85, 0.15, -0.55)), Ease = "Snap",
 			Body = { Yaw = 6, Lean = 4, Dip = 0.05 } },
-		{ T = 0.48, Weapon = aim(V(1.15, -0.8, -1.0), V(0.92, -0.25, -0.3), V(0.3, -0.95, 0.1)), Left = GUARD_OUT,
+		{ T = 0.48, Weapon = kaim(V(1.15, -0.8, -1.0), V(0.92, -0.25, -0.3)), Left = GUARD_OUT,
 			Body = { Yaw = 15, Roll = -3, Lean = 5, Dip = 0.07 } },
-		{ T = 0.64, Weapon = aim(V(1.2, -0.88, -0.9), V(0.88, -0.3, -0.35), V(0.3, -0.95, 0.15)),
+		{ T = 0.64, Weapon = kaim(V(1.2, -0.88, -0.9), V(0.88, -0.3, -0.35)),
 			Body = { Yaw = 16, Roll = -3, Lean = 4, Dip = 0.06 } },
 		{ T = 1, Weapon = "BASE" },
 	},
@@ -17987,13 +19048,13 @@ CLIPS.Stab = {
 	Length = KN.StabTime,
 	Keys = {
 		{ T = 0, Weapon = "BASE" },
-		{ T = 0.24, Weapon = aim(V(0.95, -0.6, -0.9), V(-0.05, 0.3, -1), V(0, -1, 0)), Left = GUARD_OUT, Ease = "Wind",
+		{ T = 0.24, Weapon = kaim(V(0.95, -0.6, -0.9), V(-0.05, 0.3, -1)), Left = GUARD_OUT, Ease = "Wind",
 			Body = { Yaw = 22, Lean = -8, Dip = 0.05 } },
-		{ T = 0.37, Weapon = aim(V(0.12, -0.25, -2.25), V(-0.12, 0.04, -1), V(0, -1, 0)), Left = GUARD_BACK, Ease = "Snap",
+		{ T = 0.37, Weapon = kaim(V(0.12, -0.25, -2.25), V(-0.12, 0.04, -1)), Left = GUARD_BACK, Ease = "Snap",
 			Body = { Yaw = -14, Lean = 22, Dip = 0.5, Forward = 0.6, Step = 1 } },
-		{ T = 0.5, Weapon = aim(V(0.14, -0.28, -2.2), V(-0.12, 0.04, -1), V(-1, -0.4, 0)),
+		{ T = 0.5, Weapon = kaim(V(0.14, -0.28, -2.2), V(-0.12, 0.04, -1)),
 			Body = { Yaw = -16, Lean = 22, Dip = 0.5, Forward = 0.6, Step = 1 } },
-		{ T = 0.64, Weapon = aim(V(0.45, -0.4, -1.4), V(-0.2, 0.25, -1), V(-0.4, -1, 0)),
+		{ T = 0.64, Weapon = kaim(V(0.45, -0.4, -1.4), V(-0.2, 0.25, -1)),
 			Body = { Yaw = -6, Lean = 10, Dip = 0.25, Forward = 0.3, Step = 0.5 } },
 		{ T = 1, Weapon = "BASE" },
 	},
@@ -18003,10 +19064,10 @@ CLIPS.Stab = {
 -- up to check the edge, a little toss (the knife turns over once in the
 -- air, not your wrist), catch, and back down. Every turn of the hand stays
 -- within what a real wrist does.
-local SHOW = aim(V(0.25, -0.45, -1.15), V(-1, 0.25, -0.3), V(0, -1, 0.15))
-local SHOW_TILT = aim(V(0.22, -0.4, -1.12), V(-1, 0.35, -0.2), V(0, -0.85, 0.5))
-local SHOW_EDGE = aim(V(0.32, -0.42, -1.15), V(-0.2, 1, -0.2), V(-0.45, 0, 0.9))
-local TOSS_HOLD = aim(V(0.35, -0.6, -1.2), V(-0.1, 1, -0.25), V(-1, 0, 0.3))
+local SHOW = kaim(V(0.25, -0.45, -1.15), V(-1, 0.25, -0.3))
+local SHOW_TILT = kaim(V(0.22, -0.4, -1.12), V(-1, 0.35, -0.2))
+local SHOW_EDGE = kaim(V(0.32, -0.42, -1.15), V(-0.2, 1, -0.2))
+local TOSS_HOLD = kaim(V(0.35, -0.6, -1.2), V(-0.1, 1, -0.25))
 CLIPS.Inspect = {
 	Length = 2.6,
 	Toss = { From = 0.42, To = 0.6, Height = 0.9, Spins = -1, Catch = 7 },
@@ -18079,8 +19140,8 @@ end
 -- swings up onto the shoulder (or the knife comes up blade-high) and the
 -- free hand punches the air.
 ----------------------------------------------------------------------------
-local VICTORY_RIFLE = aim(V(1.0, -0.95, 0.05), V(0.22, 1, 0.3), V(0.2, -0.3, -1))
-local VICTORY_KNIFE = aim(V(1.15, -0.55, -0.55), V(0.35, 1, -0.2), V(-1, 0, 0.1))
+local VICTORY_RIFLE = kaim(V(1.0, -0.95, 0.05), V(0.22, 1, 0.3))
+local VICTORY_KNIFE = kaim(V(1.15, -0.55, -0.55), V(0.35, 1, -0.2))
 local FIST_UP = CFrame.new(-1.2, 2.1, 0.15) * CFrame.Angles(0, 0, math.pi) * CFrame.Angles(0, rad(90), 0)
 
 local function victory(anim, state, t)
@@ -18206,7 +19267,7 @@ return WeaponAnim
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="58">
+        <Item class="ModuleScript" referent="63">
           <Properties>
             <string name="Name">WeaponController</string>
             <string name="Source"><![CDATA[--[[
@@ -18457,11 +19518,11 @@ return Weapon
 ]]></string>
           </Properties>
         </Item>
-        <Item class="Folder" referent="59">
+        <Item class="Folder" referent="64">
           <Properties>
             <string name="Name">ui</string>
           </Properties>
-          <Item class="ModuleScript" referent="60">
+          <Item class="ModuleScript" referent="65">
             <Properties>
               <string name="Name">CrateReveal</string>
               <string name="Source"><![CDATA[--[[
@@ -18864,7 +19925,13 @@ function CrateReveal.Reveal(info)
 	infoLabel.TextTransparency = 1
 	badge.Visible = false
 	buttons.Visible = false
-	keysLabel.Text = info.Free and "FREE OPENS IN STUDIO" or ("%d KEY%s LEFT"):format(info.Keys or 0, info.Keys == 1 and "" or "S")
+	if info.Free then
+		keysLabel.Text = "FREE OPENS IN STUDIO"
+	elseif info.CrateType == "Elite" then
+		keysLabel.Text = ("%d CREDITS LEFT"):format(info.Credits or 0)
+	else
+		keysLabel.Text = ("%d KEY%s LEFT"):format(info.Keys or 0, info.Keys == 1 and "" or "S")
+	end
 	keysLabel.TextTransparency = 1
 
 	task.delay(0.35, function()
@@ -18959,7 +20026,7 @@ return CrateReveal
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="61">
+          <Item class="ModuleScript" referent="66">
             <Properties>
               <string name="Name">DuelUI</string>
               <string name="Source"><![CDATA[--[[
@@ -19268,7 +20335,7 @@ return DuelUI
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="62">
+          <Item class="ModuleScript" referent="67">
             <Properties>
               <string name="Name">HUD</string>
               <string name="Source"><![CDATA[--[[
@@ -20105,7 +21172,8 @@ function HUD.OnState(snapshot, old)
 	if phase ~= old.Phase or snapshot.Round ~= old.Round then
 		if phase == "Countdown" then
 			lastCountdownNumber = nil
-			showBanner("", "ROUND " .. tostring(snapshot.Round), Palette.UIText)
+			local map = snapshot.MapName and ("   -   " .. string.upper(snapshot.MapName)) or ""
+			showBanner("", "ROUND " .. tostring(snapshot.Round) .. map, Palette.UIText)
 		elseif phase == "Fight" then
 			Sfx.Play("Go")
 			showBanner("GO", nil, Palette.UIAccent, 0.7)
@@ -20221,7 +21289,7 @@ return HUD
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="63">
+          <Item class="ModuleScript" referent="68">
             <Properties>
               <string name="Name">Icons</string>
               <string name="Source"><![CDATA[--[[
@@ -20283,7 +21351,7 @@ return Icons
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="64">
+          <Item class="ModuleScript" referent="69">
             <Properties>
               <string name="Name">LobbyUI</string>
               <string name="Source"><![CDATA[--[[
@@ -20294,7 +21362,7 @@ return Icons
 	clear while you walk around the lobby in first person:
 
 		top left      SNIPER DUEL wordmark (+ PLAYGROUND chip in the playground)
-		top right     player card (avatar, name) + ONLINE, KEYS and RANK chips
+		top right     player card (avatar, name) + ONLINE, KEYS, CREDITS and RANK chips
 		bottom left   action stack: REMATCH (after a match), FIND MATCH
 		              (animated "searching" state with timer + queue count),
 		              then Playground / Power-Up Lab / Duel / Settings /
@@ -20350,6 +21418,7 @@ local SECONDARY = {
 	{ Id = "Playground", Text = "PLAYGROUND", Hint = "FREE ROAM" },
 	{ Id = "PowerUpLab", Text = "POWER-UP LAB", Hint = "TRY BUILDS" },
 	{ Id = "Locker", Text = "LOCKER", Hint = "SKINS" },
+	{ Id = "Shop", Text = "SHOP", Hint = "CRATES + CREDITS" },
 	{ Id = "DuelFriend", Text = "DUEL A PLAYER", Hint = "INVITE" },
 	{ Id = "Settings", Text = "SETTINGS", Hint = "" },
 	{ Id = "BotMatch", Text = "PLAY VS BOT", Hint = "ADMIN" },
@@ -20360,6 +21429,7 @@ local scrimLeft, scrimTop
 local brand, brandMark, title, tagline, modeRow, modeChip, subtitle
 local card, cardPanel, avatar, chipRow, onlineChip, onlineLabel, keysChip, keysLabel
 local rankChip, rankLabel, rankTier, rankStroke
+local creditsChip, creditsLabel
 local stack, statusLabel
 local primary, playButton, playgroundButton, rematchButton
 local spinner, progressTrack, progressFill, shine, timeLabel, subLabel
@@ -21201,7 +22271,27 @@ local function buildCard()
 		LayoutOrder = 3,
 		Parent = keysChip,
 	})
-	rankChip = buildChip("Rank", chipRow, 3, Palette.UIText)
+	creditsChip = buildChip("Credits", chipRow, 3, Color3.fromRGB(255, 196, 60))
+	creditsLabel = Theme.label({
+		Size = UDim2.fromOffset(0, 18),
+		AutomaticSize = Enum.AutomaticSize.X,
+		Text = "0",
+		TextSize = 15,
+		FontFace = Theme.Font(Enum.FontWeight.Heavy),
+		LayoutOrder = 1,
+		Parent = creditsChip,
+	})
+	Theme.label({
+		Size = UDim2.fromOffset(0, 16),
+		AutomaticSize = Enum.AutomaticSize.X,
+		Text = "CREDITS",
+		TextSize = 11,
+		TextColor3 = Palette.UISubText,
+		FontFace = Theme.Font(Enum.FontWeight.Bold),
+		LayoutOrder = 2,
+		Parent = creditsChip,
+	})
+	rankChip = buildChip("Rank", chipRow, 4, Palette.UIText)
 	rankStroke = rankChip:FindFirstChildOfClass("UIStroke")
 	rankTier = Theme.label({
 		Size = UDim2.fromOffset(0, 16),
@@ -21391,6 +22481,12 @@ function LobbyUI.Start(playerGui)
 		Keybinds.Press("PowerUpLab", true)
 		Keybinds.Press("PowerUpLab", false)
 	end)
+	entries.Shop.Button.Activated:Connect(function()
+		Theme.pop(entries.Shop.Button, 0.06)
+		if Controllers and Controllers.Shop then
+			Controllers.Shop.Toggle()
+		end
+	end)
 	entries.Locker.Button.Activated:Connect(function()
 		Theme.pop(entries.Locker.Button, 0.06)
 		if Controllers and Controllers.Locker then
@@ -21456,6 +22552,12 @@ function LobbyUI.Start(playerGui)
 	-- KEYS (crates): LocalPlayer attribute "Keys"
 	refreshKeys()
 	player:GetAttributeChangedSignal("Keys"):Connect(refreshKeys)
+	-- CREDITS (bought in the SHOP): LocalPlayer attribute "Credits"
+	local function refreshCredits()
+		creditsLabel.Text = tostring(math.floor(tonumber(player:GetAttribute("Credits")) or 0))
+	end
+	refreshCredits()
+	player:GetAttributeChangedSignal("Credits"):Connect(refreshCredits)
 	-- RANK: LocalPlayer attribute "Rating"
 	refreshRank()
 	player:GetAttributeChangedSignal("Rating"):Connect(refreshRank)
@@ -21498,7 +22600,7 @@ return LobbyUI
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="65">
+          <Item class="ModuleScript" referent="70">
             <Properties>
               <string name="Name">Locker</string>
               <string name="Source"><![CDATA[--[[
@@ -21565,9 +22667,7 @@ local function buildPreview()
 	local model = Instance.new("Model")
 	local isKnife = weapon == "Knife"
 	local scale = isKnife and 2.2 or 1
-	local built = isKnife and KnifeModel.Build(model, { Scale = scale, Anchored = true })
-		or GunModel.Build(model, { Scale = scale, Anchored = true, Effects = false })
-	Skins.Apply(model, Skins.Get(selected))
+	local built = Skins.Build(weapon, model, Skins.Get(selected), { Scale = scale, Anchored = true, Effects = false })
 	model.Parent = worldModel
 	preview = { Model = model, Built = built, IsKnife = isKnife, Scale = scale }
 end
@@ -21626,7 +22726,7 @@ local function refreshDetails()
 		statusLabel.Text = "EQUIPPED"
 		statusLabel.TextColor3 = Palette.UIAccent
 	elseif skin and count <= 0 then
-		statusLabel.Text = "LOCKED  -  OPEN CRATES IN THE CRATE VAULT"
+		statusLabel.Text = skin.Elite and "LOCKED  -  ONLY IN THE ELITE CRATE (SHOP)" or "LOCKED  -  OPEN CRATES (SHOP OR CRATE VAULT)"
 		statusLabel.TextColor3 = Palette.UISubText
 	else
 		statusLabel.Text = skin and (count > 1 and ("OWNED  x%d"):format(count) or "OWNED") or "ALWAYS AVAILABLE"
@@ -21711,7 +22811,7 @@ local function makeTile(skin, order)
 		Theme.label({
 			Position = UDim2.fromOffset(70, 8),
 			Size = UDim2.new(1, -78, 0, 16),
-			Text = skin.Pulse and "GLOW + FX" or "GLOW",
+			Text = (skin.Elite and "ELITE  " or "") .. (skin.Pulse and "GLOW + FX" or "GLOW"),
 			TextSize = 10,
 			TextXAlignment = Enum.TextXAlignment.Right,
 			TextColor3 = color,
@@ -22047,7 +23147,7 @@ return Locker
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="66">
+          <Item class="ModuleScript" referent="71">
             <Properties>
               <string name="Name">MobileControls</string>
               <string name="Source"><![CDATA[--[[
@@ -22185,6 +23285,7 @@ local function refresh()
 	buttons.Decoy.Visible = stats.Decoy == true
 	buttons.Lab.Visible = not inMatch
 	buttons.Skins.Visible = not inMatch
+	buttons.Shop.Visible = not inMatch
 	buttons.Duel.Visible = not inMatch
 	buttons.Sprint.BackgroundColor3 = sprintOn and Palette.UIAccent or Palette.UIPanel
 end
@@ -22259,6 +23360,11 @@ function MobileControls.Start(playerGui)
 
 	pill("Lab", "LAB", UDim2.new(0, 60, 0, 120), tap("PowerUpLab"))
 	pill("Duel", "DUEL", UDim2.new(0, 150, 0, 120), tap("DuelFriend"))
+	pill("Shop", "SHOP", UDim2.new(0, 330, 0, 120), function()
+		if Controllers and Controllers.Shop then
+			Controllers.Shop.Toggle()
+		end
+	end)
 	pill("Skins", "SKINS", UDim2.new(0, 240, 0, 120), function()
 		if Controllers and Controllers.Locker then
 			Controllers.Locker.Toggle()
@@ -22288,7 +23394,7 @@ return MobileControls
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="67">
+          <Item class="ModuleScript" referent="72">
             <Properties>
               <string name="Name">PickScreen</string>
               <string name="Source"><![CDATA[--[[
@@ -23065,7 +24171,7 @@ return PickScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="68">
+          <Item class="ModuleScript" referent="73">
             <Properties>
               <string name="Name">PowerUpLab</string>
               <string name="Source"><![CDATA[--[[
@@ -23366,7 +24472,7 @@ return PowerUpLab
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="69">
+          <Item class="ModuleScript" referent="74">
             <Properties>
               <string name="Name">SettingsMenu</string>
               <string name="Source"><![CDATA[--[[
@@ -23895,7 +25001,485 @@ return SettingsMenu
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="70">
+          <Item class="ModuleScript" referent="75">
+            <Properties>
+              <string name="Name">Shop</string>
+              <string name="Source"><![CDATA[--[[
+	Shop.lua  (Client.ui.Shop)
+
+	The SHOP (lobby, key M or the SHOP button):
+		CRATES    the Standard crate (Keys, earned by playing) and the Elite
+		          crate (Credits: better odds, Elite-only skins, Secrets).
+		          OPEN plays the opening at the crate vault.
+		CREDITS   Credit packs (and a Key pack) for Robux
+		VIP       the VIP pass (2x keys)
+	Purchases are Roblox prompts; the server grants them (CrateService).
+	Product ids live in Config.Shop (0 = not set up yet).
+]]
+
+local Players = game:GetService("Players")
+local MarketplaceService = game:GetService("MarketplaceService")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Config = require(Shared.Config)
+local Remotes = require(Shared.Remotes)
+local ClientState = require(script.Parent.Parent.ClientState)
+local Sfx = require(script.Parent.Parent.Sfx)
+local Keybinds = require(script.Parent.Parent.Keybinds)
+local Theme = require(script.Parent.Theme)
+
+local Palette = Config.Palette
+local CR = Config.Crates
+local SHOP = Config.Shop
+local player = Players.LocalPlayer
+
+local Shop = {}
+
+local W, H = 920, 580
+local GOLD = Color3.fromRGB(255, 196, 60)
+local gui, panel, unlocker, pages, tabs, balance
+local isOpen = false
+local current = "Crates"
+
+local rarityById = {}
+for _, rarity in ipairs(CR.Rarities) do
+	rarityById[rarity.Id] = rarity
+end
+
+local function notSetUp()
+	Sfx.Play("CardHover", { Pitch = 0.6 })
+	local note = panel:FindFirstChild("Note")
+	if note then
+		note.Text = "This item isn't set up yet: add its id in Config.Shop (Creator Hub > Monetization)."
+		note.TextTransparency = 0
+		task.delay(3, function()
+			Theme.tween(note, 0.4, { TextTransparency = 1 })
+		end)
+	end
+end
+
+local function refreshBalance()
+	if balance then
+		balance.Text = ("%d KEYS    %d CREDITS%s"):format(
+			player:GetAttribute("Keys") or 0,
+			player:GetAttribute("Credits") or 0,
+			player:GetAttribute("VIP") and "    VIP" or ""
+		)
+	end
+end
+
+----------------------------------------------------------------------------
+-- Pages
+----------------------------------------------------------------------------
+local function card(parent, props)
+	local frame = Theme.new("Frame", {
+		BackgroundColor3 = Palette.UIPanelLight,
+		Position = props.Position,
+		Size = props.Size,
+		Parent = parent,
+	})
+	Theme.corner(frame, 14)
+	Theme.stroke(frame, props.Color or Palette.UIText, props.Color and 2 or 1, props.Color and 0.2 or 0.85)
+	Theme.padding(frame, 16)
+	return frame
+end
+
+local function oddsLines(odds)
+	local lines = {}
+	for _, rarity in ipairs(CR.Rarities) do
+		local chance = odds[rarity.Id]
+		if chance and chance > 0 then
+			table.insert(lines, ('<font color="#%s">%s</font>  %s%%'):format(rarity.Color:ToHex(), rarity.Name, tostring(chance)))
+		end
+	end
+	return table.concat(lines, "\n")
+end
+
+local function crateCard(parent, typeName, x, color, blurb)
+	local crateType = CR.Types[typeName]
+	local frame = card(parent, {
+		Position = UDim2.new(x, x > 0 and 8 or 0, 0, 0),
+		Size = UDim2.new(0.5, -8, 1, 0),
+		Color = color,
+	})
+	Theme.label({
+		Size = UDim2.new(1, 0, 0, 34),
+		Text = crateType.Name,
+		TextSize = 28,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextColor3 = color,
+		FontFace = Theme.Font(Enum.FontWeight.Heavy),
+		Parent = frame,
+	})
+	Theme.label({
+		Position = UDim2.fromOffset(0, 38),
+		Size = UDim2.new(1, 0, 0, 40),
+		Text = blurb,
+		TextSize = 14,
+		TextWrapped = true,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextYAlignment = Enum.TextYAlignment.Top,
+		TextColor3 = Palette.UISubText,
+		FontFace = Theme.Font(Enum.FontWeight.Medium),
+		Parent = frame,
+	})
+	Theme.label({
+		Position = UDim2.fromOffset(0, 90),
+		Size = UDim2.new(1, 0, 0, 150),
+		RichText = true,
+		Text = oddsLines(crateType.Odds),
+		TextSize = 17,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextYAlignment = Enum.TextYAlignment.Top,
+		LineHeight = 1.25,
+		Parent = frame,
+	})
+	local open = Theme.button({
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.fromScale(0, 1),
+		Size = UDim2.new(1, 0, 0, 52),
+		Text = ("OPEN  -  %d %s"):format(crateType.Cost, string.upper(crateType.Currency)),
+		TextSize = 20,
+		BackgroundColor3 = color,
+		Parent = frame,
+	})
+	open.Activated:Connect(function()
+		local have = player:GetAttribute(crateType.Currency) or 0
+		local free = CR.FreeInStudio and RunService:IsStudio()
+		if not free and have < crateType.Cost then
+			Sfx.Play("CardHover", { Pitch = 0.6 })
+			if crateType.Currency == "Credits" then
+				Shop.Show("Credits") -- (get some credits first)
+			end
+			return
+		end
+		Sfx.Play("CardPick", { Pitch = 1.1 })
+		Shop.Close()
+		Remotes.Get("CrateOpen"):FireServer(typeName)
+	end)
+end
+
+local function buildCrates(page)
+	crateCard(page, "Standard", 0, Palette.UIAccent,
+		("Earn keys by playing: %d for a win, %d for a loss. Every rarity up to Legendary."):format(CR.KeysPerWin, CR.KeysPerLoss))
+	local elite = {}
+	for _, skin in ipairs(CR.Skins) do
+		if skin.Elite and skin.Rarity ~= "Secret" and #elite < 6 then
+			table.insert(elite, skin.Name)
+		end
+	end
+	crateCard(page, "Elite", 0.5, GOLD,
+		"Better odds and the only crate with Elite-only skins (" .. table.concat(elite, ", ") .. "...) and the SECRETS.")
+end
+
+local function buyButton(parent, text, price, onBuy)
+	local button = Theme.button({
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.fromScale(0, 1),
+		Size = UDim2.new(1, 0, 0, 44),
+		Text = ("%s  -  R$ %d"):format(text, price),
+		TextSize = 17,
+		BackgroundColor3 = GOLD,
+		Parent = parent,
+	})
+	button.Activated:Connect(onBuy)
+	return button
+end
+
+local function buildCredits(page)
+	local packs = {}
+	for _, pack in ipairs(SHOP.CreditPacks) do
+		table.insert(packs, { Pack = pack, Amount = pack.Credits, Unit = "CREDITS" })
+	end
+	for _, pack in ipairs(SHOP.KeyPacks) do
+		table.insert(packs, { Pack = pack, Amount = pack.Keys, Unit = "KEYS" })
+	end
+	local count = #packs
+	for i, entry in ipairs(packs) do
+		local pack = entry.Pack
+		local frame = card(page, {
+			Position = UDim2.new((i - 1) / count, 6, 0, 0),
+			Size = UDim2.new(1 / count, -12, 1, 0),
+			Color = entry.Unit == "KEYS" and Palette.UIAccent or GOLD,
+		})
+		Theme.label({
+			Size = UDim2.new(1, 0, 0, 22),
+			Text = pack.Name,
+			TextSize = 15,
+			TextColor3 = Palette.UISubText,
+			Parent = frame,
+		})
+		Theme.label({
+			Position = UDim2.fromOffset(0, 40),
+			Size = UDim2.new(1, 0, 0, 60),
+			Text = tostring(entry.Amount),
+			TextSize = 52,
+			TextColor3 = entry.Unit == "KEYS" and Palette.UIAccent or GOLD,
+			FontFace = Theme.Font(Enum.FontWeight.Heavy),
+			Parent = frame,
+		})
+		Theme.label({
+			Position = UDim2.fromOffset(0, 100),
+			Size = UDim2.new(1, 0, 0, 20),
+			Text = entry.Unit,
+			TextSize = 15,
+			Parent = frame,
+		})
+		if pack.Tag then
+			local tag = Theme.label({
+				Position = UDim2.fromOffset(0, 140),
+				Size = UDim2.new(1, 0, 0, 26),
+				Text = pack.Tag,
+				TextSize = 14,
+				TextColor3 = Palette.UIBackground,
+				BackgroundColor3 = GOLD,
+				BackgroundTransparency = 0,
+				Parent = frame,
+			})
+			Theme.corner(tag, 8)
+		end
+		buyButton(frame, "BUY", pack.Robux, function()
+			if pack.Id == 0 then
+				notSetUp()
+				return
+			end
+			MarketplaceService:PromptProductPurchase(player, pack.Id)
+		end)
+	end
+end
+
+local function buildVip(page)
+	local pass = SHOP.Passes.VIP
+	local frame = card(page, {
+		Position = UDim2.fromScale(0.2, 0),
+		Size = UDim2.fromScale(0.6, 1),
+		Color = GOLD,
+	})
+	Theme.label({
+		Size = UDim2.new(1, 0, 0, 60),
+		Text = "VIP",
+		TextSize = 56,
+		TextColor3 = GOLD,
+		FontFace = Theme.Font(Enum.FontWeight.Heavy),
+		Parent = frame,
+	})
+	Theme.label({
+		Position = UDim2.fromOffset(0, 80),
+		Size = UDim2.new(1, 0, 0, 120),
+		Text = pass.Perks,
+		TextSize = 20,
+		TextWrapped = true,
+		FontFace = Theme.Font(Enum.FontWeight.Medium),
+		Parent = frame,
+	})
+	local button = buyButton(frame, "GET VIP", pass.Robux, function()
+		if player:GetAttribute("VIP") then
+			return
+		end
+		if pass.Id == 0 then
+			notSetUp()
+			return
+		end
+		MarketplaceService:PromptGamePassPurchase(player, pass.Id)
+	end)
+	local function refresh()
+		if player:GetAttribute("VIP") then
+			button.Text = "OWNED"
+			button.AutoButtonColor = false
+		end
+	end
+	refresh()
+	player:GetAttributeChangedSignal("VIP"):Connect(refresh)
+end
+
+----------------------------------------------------------------------------
+-- Open / close
+----------------------------------------------------------------------------
+function Shop.Show(name)
+	current = name
+	for pageName, page in pairs(pages) do
+		page.Visible = pageName == name
+	end
+	for tabName, button in pairs(tabs) do
+		local on = tabName == name
+		button.BackgroundColor3 = on and Palette.UIAccent or Palette.UIPanelLight
+		button.TextColor3 = on and Palette.UIBackground or Palette.UIText
+	end
+end
+
+function Shop.Open(page)
+	if ClientState.InMatch() or (ClientState.MenuOpen and not isOpen) then
+		return
+	end
+	if not isOpen then
+		isOpen = true
+		gui.Enabled = true
+		unlocker.Visible = true
+		ClientState.SetMenu("Shop", true)
+		panel.Size = UDim2.fromOffset(W - 40, H - 40)
+		Theme.tween(panel, 0.2, { Size = UDim2.fromOffset(W, H) }, Enum.EasingStyle.Back)
+		Sfx.Play("CardPick", { Pitch = 1.05, Volume = 0.6 })
+	end
+	refreshBalance()
+	Shop.Show(page or current)
+end
+
+function Shop.Close()
+	if not isOpen then
+		return
+	end
+	isOpen = false
+	gui.Enabled = false
+	unlocker.Visible = false
+	ClientState.SetMenu("Shop", false)
+end
+
+function Shop.Toggle()
+	if isOpen then
+		Shop.Close()
+	else
+		Shop.Open()
+	end
+end
+
+function Shop.IsOpen()
+	return isOpen
+end
+
+function Shop.Init() end
+
+function Shop.Start(playerGui)
+	gui = Theme.screen("Shop", 9, playerGui)
+	gui.Enabled = false
+	Theme.new("Frame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Palette.UIBackground,
+		BackgroundTransparency = 0.35,
+		Parent = gui,
+	})
+	unlocker = Theme.mouseUnlocker(gui)
+	panel = Theme.panel({
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(W, H),
+		BackgroundTransparency = 0,
+		Parent = gui,
+	})
+	Theme.padding(panel, 20)
+	local scale = Theme.new("UIScale", { Parent = panel })
+	local function fit()
+		local view = workspace.CurrentCamera.ViewportSize
+		scale.Scale = math.min(1, (view.X - 40) / W, (view.Y - 40) / H)
+	end
+	fit()
+	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(fit)
+
+	Theme.label({
+		Size = UDim2.new(0.4, 0, 0, 34),
+		Text = "SHOP",
+		TextSize = 30,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		FontFace = Theme.Font(Enum.FontWeight.Heavy),
+		Parent = panel,
+	})
+	balance = Theme.label({
+		Position = UDim2.fromOffset(0, 36),
+		Size = UDim2.new(0.6, 0, 0, 20),
+		TextSize = 15,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextColor3 = GOLD,
+		Parent = panel,
+	})
+	tabs = {}
+	local names = { "Crates", "Credits", "VIP" }
+	for i, name in ipairs(names) do
+		local button = Theme.button({
+			AnchorPoint = Vector2.new(1, 0),
+			Position = UDim2.new(1, -(#names - i) * 128, 0, 4),
+			Size = UDim2.fromOffset(120, 36),
+			Text = string.upper(name),
+			TextSize = 16,
+			Parent = panel,
+		})
+		button.Activated:Connect(function()
+			Sfx.Play("CardHover", { Pitch = 1.2 })
+			Shop.Show(name)
+		end)
+		tabs[name] = button
+	end
+	pages = {}
+	for _, name in ipairs(names) do
+		pages[name] = Theme.new("Frame", {
+			Position = UDim2.fromOffset(0, 72),
+			Size = UDim2.new(1, 0, 1, -130),
+			BackgroundTransparency = 1,
+			Visible = false,
+			Parent = panel,
+		})
+	end
+	buildCrates(pages.Crates)
+	buildCredits(pages.Credits)
+	buildVip(pages.VIP)
+
+	Theme.label({
+		Name = "Note",
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, 0, 1, -8),
+		Size = UDim2.new(1, -180, 0, 32),
+		Text = "",
+		TextSize = 13,
+		TextWrapped = true,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextColor3 = Palette.UISubText,
+		Parent = panel,
+	})
+	local done = Theme.button({
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.fromScale(1, 1),
+		Size = UDim2.fromOffset(160, 42),
+		Text = "DONE",
+		TextSize = 18,
+		Parent = panel,
+	})
+	done.Activated:Connect(Shop.Close)
+	Shop.Show("Crates")
+
+	for _, name in ipairs({ "Keys", "Credits", "VIP" }) do
+		player:GetAttributeChangedSignal(name):Connect(refreshBalance)
+	end
+	ClientState.Changed:Connect(function(snapshot)
+		if snapshot.InMatch then
+			Shop.Close()
+		end
+	end)
+
+	local function onActionInput(input, processed)
+		if processed and UserInputService:GetFocusedTextBox() then
+			return
+		end
+		if require(script.Parent.SettingsMenu).IsOpen() then
+			return
+		end
+		if Keybinds.Matches("Shop", input) then
+			if isOpen then
+				Shop.Close()
+			elseif not ClientState.InMatch() then
+				Shop.Open()
+			end
+		end
+	end
+	UserInputService.InputBegan:Connect(onActionInput)
+	Keybinds.VirtualBegan:Connect(onActionInput)
+end
+
+return Shop
+]]></string>
+            </Properties>
+          </Item>
+          <Item class="ModuleScript" referent="76">
             <Properties>
               <string name="Name">Theme</string>
               <string name="Source"><![CDATA[--[[
@@ -24205,7 +25789,7 @@ return Theme
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="71">
+          <Item class="ModuleScript" referent="77">
             <Properties>
               <string name="Name">Toast</string>
               <string name="Source"><![CDATA[--[[
@@ -24292,7 +25876,7 @@ return Toast
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="72">
+          <Item class="ModuleScript" referent="78">
             <Properties>
               <string name="Name">VictoryScreen</string>
               <string name="Source"><![CDATA[--[[

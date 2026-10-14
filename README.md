@@ -35,7 +35,8 @@ src/server/                -> ServerScriptService.Server
   CrateService.lua            crate keys, server-side rolls, owned + equipped skins (DataStore)
   RankService.lua             ranked rating (Elo, DataStore) + the lobby leaderboard wall
   MapBuilder.lua              builds the lobby and the arena from parts
-  ArenaPolygon.lua            the default map: compact Rivals-style arena, tall walls + ramps
+  ArenaPolygon.lua            compact Rivals-style arena, tall walls + ramps
+  ArenaCanyon / Pillars / Bridges / Ziggurat / Quarry.lua   big simple movement maps (in the rotation)
   ArenaNuketown.lua           optional Nuketown cul-de-sac (Config.Match.Map = "Nuketown")
   ArenaCrossfire.lua          optional compact Rivals-style duel map
   ArenaSimple.lua             optional open ramps arena (Config.Match.Map = "Simple")
@@ -728,6 +729,25 @@ Spring Legs, Blink (press R).
 Momentum (speed) x Pinball (hops) x Marked. Headshots always kill instantly.
 
 Test them solo in the lobby with the **Power-Up Lab** (press B).
+
+## Maps and rotation
+
+Every match picks a random map from `Config.Match.Maps`, never the same
+twice in a row. The map's name shows on the "ROUND 1" banner. Set
+`Maps = false` to always play `Config.Match.Map`.
+
+Five big, simple maps are built for movement: wide floors, large walls,
+long ramps and wall-run walls.
+
+| Map | Layout |
+|---|---|
+| **Canyon** | two long raised ridges along the sides, a wide trench between them, a bridge across the middle |
+| **Pillars** | a grid of giant pillars: walkable platforms with ramps and bridges, tall towers in the middle row |
+| **Bridges** | two raised plateaus (the spawns) joined by three wide bridges over a low pit |
+| **Ziggurat** | a stepped pyramid in the middle with ramps on every tier, open corners with L-walls and a ledge |
+| **Quarry** | L-shaped blocks with walkable roofs, a tall centre wall that blocks spawn-to-spawn, overlooks |
+
+The older maps stay in the rotation: Polygon, Crossfire and Nuketown.
 
 ## The map: Polygon
 

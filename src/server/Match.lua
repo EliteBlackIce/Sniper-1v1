@@ -96,6 +96,7 @@ function Match:Snapshot()
 	return {
 		InMatch = true,
 		MatchId = self.Id,
+		MapName = self.Arena and self.Arena.MapName, -- (rotates every match)
 		Phase = self.Phase,
 		Round = self.Round,
 		RoundsToWin = Config.Match.RoundsToWin,

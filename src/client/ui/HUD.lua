@@ -832,7 +832,8 @@ function HUD.OnState(snapshot, old)
 	if phase ~= old.Phase or snapshot.Round ~= old.Round then
 		if phase == "Countdown" then
 			lastCountdownNumber = nil
-			showBanner("", "ROUND " .. tostring(snapshot.Round), Palette.UIText)
+			local map = snapshot.MapName and ("   -   " .. string.upper(snapshot.MapName)) or ""
+			showBanner("", "ROUND " .. tostring(snapshot.Round) .. map, Palette.UIText)
 		elseif phase == "Fight" then
 			Sfx.Play("Go")
 			showBanner("GO", nil, Palette.UIAccent, 0.7)

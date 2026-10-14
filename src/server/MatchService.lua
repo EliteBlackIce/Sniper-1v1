@@ -200,14 +200,7 @@ end
 -- Creates a match; its state snapshot also carries the map name (MapName)
 -- so the HUD can show it.
 local function newMatch(p1, p2, arena)
-	local match = Match.new(p1, p2, arena, onMatchFinished)
-	local baseSnapshot = match.Snapshot
-	function match:Snapshot()
-		local snapshot = baseSnapshot(self)
-		snapshot.MapName = self.Arena.MapName
-		return snapshot
-	end
-	return match
+	return Match.new(p1, p2, arena, onMatchFinished)
 end
 
 local function tryStartMatches()

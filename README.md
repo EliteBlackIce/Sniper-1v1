@@ -401,12 +401,12 @@ opens a Standard crate). Each one unlocks a rifle or knife skin.
 | | Standard crate | Elite crate |
 |---|---|---|
 | Costs | 10 **Keys** (earned by playing) | 100 **Credits** (bought with Robux) |
-| Common (grey) | 50% | - |
-| Uncommon (green) | 26% | - |
-| Rare (blue) | 15% | 45% |
-| Epic (purple) | 7% | 30% |
-| Legendary (gold) | 2% | 19% |
-| Secret (red) | - | 6% |
+| Common (grey) | 62% | - |
+| Uncommon (green) | 25% | - |
+| Rare (blue) | 9.5% | 70% |
+| Epic (purple) | 3% | 22% |
+| Legendary (gold) | 0.5% | 7.2% |
+| Secret (red) | - | 0.8% |
 | Elite-only skins | no | yes |
 
 What the rarities look like: Common = plain recolours; Uncommon = glossy,

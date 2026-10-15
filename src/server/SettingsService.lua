@@ -25,6 +25,8 @@ pcall(function()
 end)
 
 local lastSave = {}
+local pendingSave = {} -- [player] = the latest settings that arrived inside the rate-limit window
+local MAX_BINDS = 64 -- per device (there are ~25 actions)
 
 -- Only accept known keys with sane values from the client.
 local function sanitize(data)
@@ -54,10 +56,15 @@ local function sanitize(data)
 			local list = data.Binds[device]
 			if typeof(list) == "table" then
 				binds[device] = {}
+				local count = 0
 				for action, key in pairs(list) do
+					if count >= MAX_BINDS then
+						break -- (no padding the save with junk entries)
+					end
 					if typeof(action) == "string" and typeof(key) == "string" and #action <= 32 and #key <= 32 then
 						if key:match("^%w+$") and action:match("^%w+$") then
 							binds[device][action] = key
+							count += 1
 						end
 					end
 				end
@@ -71,14 +78,38 @@ end
 local function load(player)
 	local data
 	if store then
-		local ok, result = pcall(function()
-			return store:GetAsync("u" .. player.UserId)
-		end)
-		if ok then
-			data = result
+		-- a few tries: a failed load would send defaults, and the player's
+		-- next save would then overwrite their real settings with them
+		for attempt = 1, 3 do
+			local ok, result = pcall(function()
+				return store:GetAsync("u" .. player.UserId)
+			end)
+			if ok then
+				data = result
+				break
+			end
+			warn("[Settings] load failed for", player.Name, result)
+			if attempt < 3 then
+				task.wait(attempt * 2)
+			end
+			if not player.Parent then
+				return
+			end
 		end
 	end
 	Remotes.Get("SettingsLoad"):FireClient(player, sanitize(data))
+end
+
+local function save(player, data)
+	local clean = sanitize(data)
+	task.spawn(function()
+		local ok, err = pcall(function()
+			store:SetAsync("u" .. player.UserId, clean)
+		end)
+		if not ok then
+			warn("[Settings] save failed for", player.Name, err)
+		end
+	end)
 end
 
 function SettingsService.Init()
@@ -89,24 +120,39 @@ function SettingsService.Init()
 
 	Remotes.Get("SettingsSave").OnServerEvent:Connect(function(player, data)
 		-- simple rate limit: one save every 3 seconds per player
+		-- (a save inside the window isn't dropped: the latest one is written
+		-- when the window ends, so the last change always sticks)
+		if not store or typeof(data) ~= "table" then
+			return
+		end
 		local now = os.clock()
 		if lastSave[player] and now - lastSave[player] < 3 then
+			local waiting = pendingSave[player] ~= nil
+			pendingSave[player] = data
+			if not waiting then
+				task.delay(3 - (now - lastSave[player]), function()
+					local latest = pendingSave[player]
+					pendingSave[player] = nil
+					if latest ~= nil and player.Parent then
+						lastSave[player] = os.clock()
+						save(player, latest)
+					end
+				end)
+			end
 			return
 		end
 		lastSave[player] = now
-		if not store then
-			return
-		end
-		local clean = sanitize(data)
-		task.spawn(function()
-			pcall(function()
-				store:SetAsync("u" .. player.UserId, clean)
-			end)
-		end)
+		save(player, data)
 	end)
 
 	Players.PlayerRemoving:Connect(function(player)
+		-- a change still waiting out the rate limit is saved now
+		local latest = pendingSave[player]
+		pendingSave[player] = nil
 		lastSave[player] = nil
+		if latest ~= nil and store then
+			save(player, latest)
+		end
 	end)
 end
 

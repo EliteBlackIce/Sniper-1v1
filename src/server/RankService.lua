@@ -53,9 +53,12 @@ end
 ----------------------------------------------------------------------------
 -- Saving
 ----------------------------------------------------------------------------
-local function save(player)
-	local d = data[player]
-	if not store or not d or loadFailed[player] then
+local function save(player, d, failed)
+	d = d or data[player]
+	if failed == nil then
+		failed = loadFailed[player]
+	end
+	if not store or not d or failed then
 		return
 	end
 	local key = "u" .. player.UserId
@@ -93,6 +96,7 @@ local function load(player)
 		end
 	end
 	if not player.Parent then
+		loadFailed[player] = nil -- (they left while we were loading)
 		return
 	end
 	local d = { Rating = RK.StartRating, Wins = 0, Losses = 0, Peak = RK.StartRating }
@@ -352,13 +356,16 @@ function RankService.Init(matchService)
 		task.spawn(load, player)
 	end
 	Players.PlayerRemoving:Connect(function(player)
-		local d = data[player]
-		if d then
-			lastKnown[player.UserId] = { Rating = d.Rating, Played = d.Wins + d.Losses }
-		end
-		save(player)
+		-- forget them BEFORE the (yielding) save: a match that finishes during
+		-- the save then scores them through adjustOffline instead of
+		-- changing a table that's about to be thrown away
+		local d, failed = data[player], loadFailed[player]
 		data[player] = nil
 		loadFailed[player] = nil
+		if d then
+			lastKnown[player.UserId] = { Rating = d.Rating, Played = d.Wins + d.Losses }
+			save(player, d, failed == true)
+		end
 	end)
 	game:BindToClose(function()
 		for _, player in ipairs(Players:GetPlayers()) do

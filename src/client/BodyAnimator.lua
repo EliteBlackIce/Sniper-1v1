@@ -612,6 +612,7 @@ function BodyAnimator.Start()
 	player.CharacterAdded:Connect(function()
 		localState = WeaponAnim.New()
 		localState.EquipStart = now()
+		lastScoped = nil -- re-send the scope state: the new body's "Scoped" attribute starts unset
 	end)
 end
 

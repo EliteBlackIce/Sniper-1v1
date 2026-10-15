@@ -893,6 +893,7 @@ local function step(dt)
 		if grapple.Point then
 			grapple.Point = nil
 			Controllers.Effects.SetLocalGrapple(nil)
+			Remotes.Get("Ability"):FireServer("GrappleEnd", {}) -- (the enemy's view drops the rope too)
 		end
 		return
 	end
@@ -1022,9 +1023,16 @@ end
 -- Character setup
 ----------------------------------------------------------------------------
 local function onCharacterAdded(newCharacter)
+	-- drop the old body's references first: until the new one is set up
+	-- (WaitForChild yields) canMove() must not drive the old, destroyed body
 	character = newCharacter
-	humanoid = newCharacter:WaitForChild("Humanoid")
-	root = newCharacter:WaitForChild("HumanoidRootPart")
+	humanoid, root, linearVelocity = nil, nil, nil
+	local newHumanoid = newCharacter:WaitForChild("Humanoid")
+	local newRoot = newCharacter:WaitForChild("HumanoidRootPart")
+	if player.Character ~= newCharacter then
+		return -- replaced again while we waited
+	end
+	humanoid, root = newHumanoid, newRoot
 
 	humanoid.UseJumpPower = true
 	humanoid.JumpPower = 0 -- jumps are done by this script (so the Jump key can be rebound)
@@ -1055,7 +1063,12 @@ local function onCharacterAdded(newCharacter)
 	lastDrive = Vector3.zero
 	airJumpsLeft = stats().AirJumps
 	airDash.Left = stats().AirDashCharges
-	grapple.Point = nil
+	if grapple.Point then
+		-- respawned mid-grapple (a new round): drop the rope everywhere
+		grapple.Point = nil
+		Controllers.Effects.SetLocalGrapple(nil)
+		Remotes.Get("Ability"):FireServer("GrappleEnd", {})
+	end
 	speedBoost.Until = 0
 	bulletTime.Until = 0
 	slow.Until = 0

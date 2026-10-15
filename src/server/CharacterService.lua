@@ -356,12 +356,42 @@ end
 		PowerUps   { [id] = stacks } shown as attachments on the rifle
 		Shield     starting shield (Overshield); stored in the "Shield" attribute
 ]]
+-- Spawns can overlap (LoadCharacter and the avatar fetch yield): e.g. a
+-- Playground spawn still loading when a match starts, or a match spawn
+-- still loading when a cancelled match sends you back to the lobby. They
+-- run one at a time per player and only the NEWEST request goes ahead, so
+-- an old, slow spawn can never finish last and put you in the wrong place.
+local spawnSerial = setmetatable({}, { __mode = "k" }) -- [player] = number of the latest Spawn request
+local spawning = setmetatable({}, { __mode = "k" }) -- [player] = true while a Spawn is running
+
+local spawnCharacter
+
 function CharacterService.Spawn(player, cframe, options)
-	options = options or {}
 	if not player.Parent then
 		return nil
 	end
+	local serial = (spawnSerial[player] or 0) + 1
+	spawnSerial[player] = serial
+	while spawning[player] do
+		task.wait()
+		if spawnSerial[player] ~= serial or not player.Parent then
+			return nil -- a newer spawn replaced this one
+		end
+	end
+	if spawnSerial[player] ~= serial then
+		return nil
+	end
+	spawning[player] = true
+	local ok, result = pcall(spawnCharacter, player, cframe, options or {})
+	spawning[player] = nil
+	if not ok then
+		warn("[CharacterService] spawn failed:", result)
+		return nil
+	end
+	return result
+end
 
+function spawnCharacter(player, cframe, options)
 	CharacterService.LoadCharacter(player)
 	local character = player.Character
 	if not character then
@@ -552,6 +582,8 @@ function CharacterService.Init()
 	Players.CharacterAutoLoads = false
 	Players.PlayerRemoving:Connect(function(player)
 		descriptions[player] = nil
+		spawnSerial[player] = nil
+		spawning[player] = nil
 	end)
 
 	-- Void check: anything that falls below its KillY dies.

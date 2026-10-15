@@ -32,6 +32,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local PowerUps = require(ReplicatedStorage.Shared.PowerUps)
+local Util = require(ReplicatedStorage.Shared.Util)
 local CharacterService = require(script.Parent.CharacterService)
 
 local B = Config.Bot
@@ -146,22 +147,7 @@ end
 
 -- Smoke Grenade clouds don't block raycasts (bullets go through them),
 -- so the bot checks its line of sight against the puffs itself.
-local function smokeBlocks(fromPos, toPos)
-	local folder = workspace:FindFirstChild("Smoke")
-	for _, cloud in ipairs(folder and folder:GetChildren() or {}) do
-		for _, puff in ipairs(cloud:GetChildren()) do
-			if puff:IsA("BasePart") and puff.Transparency < 0.6 then
-				local a, b, p = fromPos, toPos, puff.Position
-				local ab = b - a
-				local t = math.clamp((p - a):Dot(ab) / math.max(ab:Dot(ab), 1e-6), 0, 1)
-				if (a + ab * t - p).Magnitude < puff.Size.X * 0.45 then
-					return true
-				end
-			end
-		end
-	end
-	return false
-end
+local smokeBlocks = Util.smokeBlocks
 
 -- Returns the target part we can see (head first), or nil.
 local function findVisiblePart(fromPos, character, targetCharacter)

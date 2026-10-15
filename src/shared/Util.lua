@@ -61,6 +61,28 @@ function Util.distanceToSegment(p, a, b)
 	return (p - (a + ab * t)).Magnitude
 end
 
+-- Smoke Grenade clouds (workspace.Smoke) are CanQuery = false so bullets
+-- fly through them, which means raycasts can't see them either. Anything
+-- that needs real line of sight (the bot's eyes, controller aim assist)
+-- checks the segment a-b against the puffs with this. Fading puffs
+-- (Transparency >= 0.6) no longer block.
+function Util.smokeBlocks(a, b)
+	local folder = workspace:FindFirstChild("Smoke")
+	if not folder then
+		return false
+	end
+	for _, cloud in ipairs(folder:GetChildren()) do
+		for _, puff in ipairs(cloud:GetChildren()) do
+			if puff:IsA("BasePart") and puff.Transparency < 0.6 then
+				if Util.distanceToSegment(puff.Position, a, b) < puff.Size.X * 0.45 then
+					return true
+				end
+			end
+		end
+	end
+	return false
+end
+
 -- Finds the character model a part belongs to (a Model containing a Humanoid).
 function Util.getCharacterFromPart(part)
 	local model = part and part:FindFirstAncestorOfClass("Model")

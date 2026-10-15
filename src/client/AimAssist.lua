@@ -22,6 +22,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
+local Util = require(Shared.Util)
 local ClientState = require(script.Parent.ClientState)
 
 local A = Config.AimAssist
@@ -80,7 +81,12 @@ local function canSee(origin, target)
 		end
 	end
 	params.FilterDescendantsInstances = exclude
-	return workspace:Raycast(origin, target.Point - origin, params) == nil
+	if workspace:Raycast(origin, target.Point - origin, params) ~= nil then
+		return false
+	end
+	-- smoke puffs are CanQuery = false (bullets pass through), so the ray
+	-- above can't see them: check the cloud the same way the bot does
+	return not Util.smokeBlocks(origin, target.Point)
 end
 
 -- Angle in radians between two unit vectors.

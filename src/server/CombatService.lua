@@ -238,7 +238,11 @@ end
 
 --[[
 	Deals damage from `attacker` to the player `victim` inside `match`.
-	info = { Headshot = bool, Splash = bool }
+	info = { Headshot = bool, Splash = bool, Melee, Backstab, Position,
+	         Dot = bool, DotSource = the bleed / acid pool record }
+	Damage over time (Serrated bleed, Acid pool ticks) sets Dot: the
+	HitConfirm / Damaged messages carry Dot = true so the client can keep
+	the feedback subtle, and Fight or Flight only triggers once per DoT.
 	Returns true if the victim died.
 ]]
 function CombatService.Damage(match, attacker, victim, amount, info)
@@ -301,7 +305,15 @@ function CombatService.Damage(match, attacker, victim, amount, info)
 	if dealt > 0 then
 		lastHurt[victim] = os.clock()
 		-- FIGHT OR FLIGHT: getting hurt gives a burst of speed
-		if after > 0 and victimStats.HurtSpeedTime > 0 then
+		local boost = after > 0 and victimStats.HurtSpeedTime > 0
+		if boost and info.Dot and info.DotSource then
+			-- (once per bleed / pool, not on every tick)
+			local boosted = info.DotSource.Boosted or {}
+			info.DotSource.Boosted = boosted
+			boost = not boosted[victim]
+			boosted[victim] = true
+		end
+		if boost then
 			Remotes.Get("Buff"):FireClient(victim, {
 				Type = "SpeedBoost",
 				Multiplier = victimStats.HurtSpeedBoost,
@@ -326,6 +338,7 @@ function CombatService.Damage(match, attacker, victim, amount, info)
 			Position = info.Position,
 			Melee = info.Melee == true,
 			Backstab = info.Backstab == true,
+			Dot = info.Dot == true, -- (bleed / acid tick: no full hitmarker + sound)
 		})
 	end
 
@@ -348,6 +361,7 @@ function CombatService.Damage(match, attacker, victim, amount, info)
 		From = attackerRoot and attackerRoot.Position or nil,
 		Damage = dealt,
 		Killed = after <= 0,
+		Dot = info.Dot == true,
 	})
 	return after <= 0
 end
@@ -396,6 +410,7 @@ local function damageTarget(match, attacker, stats, target, amount, info)
 			Position = info.Position,
 			Melee = info.Melee == true,
 			Backstab = info.Backstab == true,
+			Dot = info.Dot == true, -- (bleed / acid tick: no full hitmarker + sound)
 		})
 		if killed and torso then
 			sendFx(nil, {
@@ -408,7 +423,7 @@ local function damageTarget(match, attacker, stats, target, amount, info)
 		end
 	end
 
-	if stats.MarkBonus > 0 then
+	if stats.MarkBonus > 0 and not info.Dot then -- (a bleed / acid tick isn't a hit: it doesn't keep them marked)
 		markedUntil[key] = os.clock() + PU.Marked.Duration
 		Remotes.Get("Effect"):FireClient(attacker, {
 			Type = "Mark",
@@ -746,6 +761,8 @@ local function updatePools(now)
 						damageTarget(pool.Match, pool.Owner, pool.Stats, target, cfg.TickDamage * pool.Mult, {
 							Splash = true,
 							Position = torso.Position,
+							Dot = true,
+							DotSource = pool,
 						})
 					end
 				end
@@ -767,6 +784,8 @@ local function updateBleeds(now)
 			damageTarget(bleed.Match, bleed.Attacker, bleed.Stats, bleed.Target, damage, {
 				Splash = true,
 				Position = torso and torso.Position or nil,
+				Dot = true,
+				DotSource = bleed,
 			})
 		end
 	end

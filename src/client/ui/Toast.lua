@@ -42,7 +42,8 @@ local function dismiss(toast)
 	end)
 end
 
-function Toast.Show(text)
+-- `color` (optional) tints the dot: e.g. Palette.UIDanger for a warning.
+function Toast.Show(text, color)
 	if not holder then
 		return
 	end
@@ -71,7 +72,7 @@ function Toast.Show(text)
 	})
 	local dot = Theme.new("Frame", {
 		Size = UDim2.fromOffset(6, 6),
-		BackgroundColor3 = Palette.UIAccent,
+		BackgroundColor3 = typeof(color) == "Color3" and color or Palette.UIAccent,
 		BackgroundTransparency = 1,
 		LayoutOrder = 1,
 		Parent = card,
@@ -131,7 +132,9 @@ function Toast.Start(playerGui)
 	if workspace.CurrentCamera then
 		workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(fit)
 	end
-	Remotes.Get("Notify").OnClientEvent:Connect(Toast.Show)
+	Remotes.Get("Notify").OnClientEvent:Connect(function(text, color)
+		Toast.Show(text, color)
+	end)
 end
 
 return Toast

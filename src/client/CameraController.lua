@@ -10,6 +10,10 @@
 	* Aim recoil (kicks your aim up a little each shot).
 	* Mouse sensitivity from settings (separate scoped sensitivity).
 	* Frees the mouse while a menu is open (pick screen, settings, victory).
+	* Screen shake + hit flinch are smooth (noise, not per-frame random) and
+	  RESTORATIVE: each frame only the change since last frame is applied,
+	  so when they settle your aim is exactly where it was. Scaled by
+	  Config.Effects.ScreenShake (number, 0 / false = off) if it is set.
 
 	Runs right AFTER Roblox's default camera each frame, so it only adds
 	small offsets on top of the normal first-person camera.
@@ -41,6 +45,9 @@ local currentDrop = 0
 local recoilLeft = 0 -- degrees of pitch still to apply
 local fovPunch = 0
 local shake = 0
+local flinchPitch, flinchYaw, flinchRoll = 0, 0, 0 -- degrees, decaying (hit flinch)
+local appliedPitch, appliedYaw = 0, 0 -- the view offset applied last frame
+local shakeSeed = math.random() * 100
 local bobTime = 0
 local bobAmount = 0
 local landDip = 0 -- current camera dip from landing (studs)
@@ -64,8 +71,28 @@ function CameraController.AddFovPunch(amount)
 	fovPunch = math.max(fovPunch, amount)
 end
 
+local function shakeScale()
+	local s = Config.Effects and Config.Effects.ScreenShake
+	if s == false then
+		return 0
+	end
+	return typeof(s) == "number" and math.max(s, 0) or 1
+end
+
 function CameraController.Shake(amount)
-	shake = math.max(shake, amount)
+	if typeof(amount) == "number" then
+		shake = math.max(shake, amount)
+	end
+end
+
+-- Getting hit: the view flinches a little away from the shot (side = -1 / 1)
+-- and settles back to the exact same aim.
+function CameraController.Flinch(side, amount)
+	amount = (typeof(amount) == "number" and amount or 1) * shakeScale()
+	side = typeof(side) == "number" and side or 0
+	flinchPitch += 0.9 * amount
+	flinchYaw += 0.7 * amount * side
+	flinchRoll += 2.2 * amount * side
 end
 
 -- Camera dips down on landing (bigger fall = bigger dip), then springs back.
@@ -150,6 +177,9 @@ local function update(dt)
 	local character = player.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	if not camera or suspended then
+		-- (someone else owns the camera: forget the offset, don't "undo" it later)
+		appliedPitch, appliedYaw = 0, 0
+		shake, flinchPitch, flinchYaw, flinchRoll = 0, 0, 0, 0
 		return
 	end
 
@@ -256,16 +286,25 @@ local function update(dt)
 		-- ROLL (wall run / slide / strafe tilt). Roll doesn't change the look
 		-- direction, so it never affects aim.
 		currentRoll = Util.lerp(currentRoll, hints.Roll, Util.smooth(C.TiltLerpSpeed, dt))
-		local shakeOffset = CFrame.identity
-		if shake > 0.01 then
-			shakeOffset = CFrame.Angles(
-				math.rad((math.random() - 0.5) * shake),
-				math.rad((math.random() - 0.5) * shake),
-				0
-			)
+		-- SHAKE + FLINCH: smooth noise; only the change since last frame is
+		-- applied to pitch / yaw (the default camera keeps it), so the aim
+		-- returns exactly when they settle. Roll is re-applied every frame.
+		local amp = shake * shakeScale()
+		local t = os.clock() * 24
+		local wantPitch = math.noise(t, shakeSeed) * amp + flinchPitch
+		local wantYaw = math.noise(shakeSeed, t) * amp + flinchYaw
+		local shakeRoll = math.noise(t * 0.8, shakeSeed + 7) * amp * 0.8 + flinchRoll
+		if shake > 0 then
 			shake = Util.approach(shake, 0, 12 * dt)
 		end
-		camera.CFrame *= CFrame.Angles(0, 0, math.rad(currentRoll)) * shakeOffset
+		local decay = math.exp(-dt * 11)
+		flinchPitch *= decay
+		flinchYaw *= decay
+		flinchRoll *= decay
+		local dPitch, dYaw = wantPitch - appliedPitch, wantYaw - appliedYaw
+		appliedPitch, appliedYaw = wantPitch, wantYaw
+		camera.CFrame *= CFrame.Angles(math.rad(dPitch), math.rad(dYaw), 0)
+			* CFrame.Angles(0, 0, math.rad(currentRoll + shakeRoll))
 
 		setBodyHidden(true)
 
@@ -278,6 +317,7 @@ local function update(dt)
 		end
 	else
 		currentRoll = 0
+		appliedPitch, appliedYaw = 0, 0
 		UserInputService.MouseIconEnabled = true
 	end
 end

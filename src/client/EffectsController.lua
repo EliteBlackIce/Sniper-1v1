@@ -19,6 +19,14 @@
 
 	Local effects live in a folder inside the camera so they never block
 	bullets or movement raycasts.
+
+	Short-lived glow parts (tracers, puffs, rings, bullet heads, impact
+	marks) come from a small part pool instead of being created and
+	destroyed every shot.
+
+	Extra toggles read from Config.Effects (all default on): ImpactMarks
+	(scorch + ember where a bullet hits the world), NearMiss (a whizz and a
+	tiny shake when an enemy bullet passes close to your head).
 ]]
 
 local Players = game:GetService("Players")
@@ -170,6 +178,69 @@ local function lightFlash(position, color, brightness, range, time)
 	TweenService:Create(light, TweenInfo.new(time, Enum.EasingStyle.Quad), { Brightness = 0 }):Play()
 end
 
+--[[
+	Part pool for short-lived effect parts. Only used by the local helpers
+	below (tracer / bulletHead / puff / ring / impactMark), which never hand
+	their parts to anyone else, so a part can't be reused while still in use.
+]]
+local POOL_MAX = 48 -- per shape
+local partPool = {} -- [shapeName] = { Part }
+local function acquire(size, cf, color, shape, glow)
+	local key = shape and shape.Name or "Block"
+	local list = partPool[key]
+	local part = list and table.remove(list)
+	if not part then
+		part = Instance.new("Part")
+		part.Anchored = true
+		part.CanCollide = false
+		part.CanQuery = false
+		part.CanTouch = false
+		part.CastShadow = false
+		if shape then
+			part.Shape = shape
+		end
+	end
+	part.Material = (glow and FX.NeonEffects) and Enum.Material.Neon or Enum.Material.SmoothPlastic
+	part.Transparency = 0
+	part.Size = size
+	part.CFrame = cf
+	part.Color = color
+	part.Parent = getFolder()
+	return part
+end
+
+local function release(part, key)
+	local list = partPool[key]
+	if not list then
+		list = {}
+		partPool[key] = list
+	end
+	if table.find(list, part) then
+		return -- already back
+	end
+	-- (a part whose folder was destroyed with an old camera can't be reparented)
+	if #list >= POOL_MAX or part.Parent == nil then
+		part:Destroy()
+		return
+	end
+	part.Parent = nil
+	table.insert(list, part)
+end
+
+-- fadeOut for pooled parts: back to the pool instead of Destroy.
+local function fadePooled(part, time, extraGoals, style, delayTime)
+	local goals = { Transparency = 1 }
+	if extraGoals then
+		for k, v in pairs(extraGoals) do
+			goals[k] = v
+		end
+	end
+	local key = part.Shape.Name
+	local info = TweenInfo.new(time, style or Enum.EasingStyle.Quad, Enum.EasingDirection.Out, 0, false, delayTime or 0)
+	TweenService:Create(part, info, goals):Play()
+	task.delay(time + (delayTime or 0) + 0.05, release, part, key)
+end
+
 -- A glowing tracer line from a to b (thin hot core + soft outer glow).
 local function tracer(a, b, color, thickness, life)
 	local length = (b - a).Magnitude
@@ -177,11 +248,11 @@ local function tracer(a, b, color, thickness, life)
 		return
 	end
 	local cf = CFrame.lookAt((a + b) / 2, b)
-	local core = fxPart(Vector3.new(thickness, thickness, length), cf, color:Lerp(Color3.new(1, 1, 1), 0.4), nil, true)
-	fadeOut(core, life, { Size = Vector3.new(0.02, 0.02, length) })
-	local glow = fxPart(Vector3.new(thickness * 3.5, thickness * 3.5, length), cf, color, nil, true)
+	local core = acquire(Vector3.new(thickness, thickness, length), cf, color:Lerp(Color3.new(1, 1, 1), 0.4), nil, true)
+	fadePooled(core, life, { Size = Vector3.new(0.02, 0.02, length) })
+	local glow = acquire(Vector3.new(thickness * 3.5, thickness * 3.5, length), cf, color, nil, true)
 	glow.Transparency = 0.82
-	fadeOut(glow, life * 0.6)
+	fadePooled(glow, life * 0.6)
 end
 
 -- A glowing ball that flies along a path (the "bullet").
@@ -189,28 +260,30 @@ local function bulletHead(points, color)
 	if #points < 2 then
 		return
 	end
-	local head = fxPart(Vector3.new(0.35, 0.35, 2.2), CFrame.lookAt(points[1], points[2]), color, nil, true)
+	local head = acquire(Vector3.new(0.35, 0.35, 2.2), CFrame.lookAt(points[1], points[2]), color, nil, true)
 	task.spawn(function()
 		for i = 1, #points - 1 do
 			local a, b = points[i], points[i + 1]
-			local time = math.min((b - a).Magnitude / 1400, 0.4)
-			head.CFrame = CFrame.lookAt(a, b)
-			local tween = TweenService:Create(head, TweenInfo.new(time, Enum.EasingStyle.Linear), { CFrame = CFrame.lookAt(b, b + (b - a)) })
-			tween:Play()
-			tween.Completed:Wait()
+			if (b - a).Magnitude > 0.01 then
+				local time = math.min((b - a).Magnitude / 1400, 0.4)
+				head.CFrame = CFrame.lookAt(a, b)
+				local tween = TweenService:Create(head, TweenInfo.new(time, Enum.EasingStyle.Linear), { CFrame = CFrame.lookAt(b, b + (b - a)) })
+				tween:Play()
+				tween.Completed:Wait()
+			end
 		end
-		head:Destroy()
+		release(head, "Block")
 	end)
 end
 
 local function puff(position, color, size, life, glow)
-	local ball = fxPart(Vector3.one * size, CFrame.new(position), color, Enum.PartType.Ball, glow)
+	local ball = acquire(Vector3.one * size, CFrame.new(position), color, Enum.PartType.Ball, glow)
 	ball.Transparency = 0.15
-	fadeOut(ball, life, { Size = Vector3.one * size * 3 })
+	fadePooled(ball, life, { Size = Vector3.one * size * 3 })
 end
 
 local function ring(position, color, radius, life, glow)
-	local disc = fxPart(
+	local disc = acquire(
 		Vector3.new(0.3, 2, 2),
 		CFrame.new(position) * CFrame.Angles(0, 0, math.rad(90)),
 		color,
@@ -218,7 +291,28 @@ local function ring(position, color, radius, life, glow)
 		glow
 	)
 	disc.Transparency = 0.25
-	fadeOut(disc, life, { Size = Vector3.new(0.1, radius * 2, radius * 2) }, Enum.EasingStyle.Quint)
+	fadePooled(disc, life, { Size = Vector3.new(0.1, radius * 2, radius * 2) }, Enum.EasingStyle.Quint)
+end
+
+-- Where a bullet hits the world: a dark scorch that lingers, a hot ember
+-- that cools in a moment, and a small ring along the surface.
+local function impactMark(position, normal)
+	if FX.ImpactMarks == false or typeof(normal) ~= "Vector3" or normal.Magnitude < 0.5 then
+		return
+	end
+	normal = normal.Unit
+	-- a cylinder's axis is its X: point X along the surface normal
+	local up = math.abs(normal.Y) > 0.95 and Vector3.new(1, 0, 0) or Vector3.new(0, 1, 0)
+	local basis = CFrame.fromMatrix(position + normal * 0.03, normal, up:Cross(normal).Unit)
+	local spin = CFrame.Angles(math.random() * math.pi * 2, 0, 0)
+	local scorch = acquire(Vector3.new(0.04, 0.7, 0.7), basis * spin, Color3.fromRGB(28, 28, 32), Enum.PartType.Cylinder, false)
+	scorch.Transparency = 0.15
+	fadePooled(scorch, 1.2, nil, Enum.EasingStyle.Quad, 3)
+	local ember = acquire(Vector3.new(0.05, 0.42, 0.42), basis * CFrame.new(0.01, 0, 0), Color3.fromRGB(255, 160, 70), Enum.PartType.Cylinder, true)
+	fadePooled(ember, 0.6, { Size = Vector3.new(0.05, 0.18, 0.18), Color = Color3.fromRGB(120, 40, 20) })
+	local wave = acquire(Vector3.new(0.05, 0.5, 0.5), basis, Color3.fromRGB(255, 235, 200), Enum.PartType.Cylinder, true)
+	wave.Transparency = 0.4
+	fadePooled(wave, 0.25, { Size = Vector3.new(0.05, 2.6, 2.6) }, Enum.EasingStyle.Quint)
 end
 
 ----------------------------------------------------------------------------
@@ -242,14 +336,14 @@ function Effects.DrawShot(segments, passes, endPosition, endNormal, startPos, op
 		end
 		table.insert(headPoints, from)
 		local color = options.Tracer or Palette.Tracer
-		local thickness = 0.1
+		local thickness = options.Enemy and 0.13 or 0.1 -- enemy shots read a bit stronger
 		if seg.Kind == "Bounce" then
 			color = Palette.TracerBounce
 			thickness = 0.16
 		elseif options.Explosive then
 			color = Palette.TracerExplosive
 		end
-		tracer(from, seg.To, color, thickness, seg.Kind == "Bounce" and 0.7 or 0.5)
+		tracer(from, seg.To, color, thickness, (seg.Kind == "Bounce" and 0.7 or 0.5) * (options.Enemy and 1.25 or 1))
 		-- ricochet flash
 		if segments[i + 1] and segments[i + 1].Kind == "Bounce" and (segments[i + 1].Hops or 0) > (seg.Hops or 0) then
 			puff(seg.To, Palette.TracerBounce, 0.9, 0.3, true)
@@ -268,6 +362,7 @@ function Effects.DrawShot(segments, passes, endPosition, endNormal, startPos, op
 	if endPosition then
 		if options.HitPlayer then
 			emit(endPosition, "Sparks", Color3.fromRGB(255, 120, 120), 16)
+			puff(endPosition, Color3.fromRGB(255, 90, 100), 0.7, 0.18, true)
 			lightFlash(endPosition, Color3.fromRGB(255, 120, 120), 3, 10, 0.2)
 		else
 			-- impact on the world: sparks bouncing off the surface + a dust puff
@@ -275,6 +370,7 @@ function Effects.DrawShot(segments, passes, endPosition, endNormal, startPos, op
 			emit(endPosition, "Dust", Palette.Light, 4)
 			puff(endPosition, Palette.Tracer, 0.5, 0.2, true)
 			lightFlash(endPosition, Color3.fromRGB(255, 220, 170), 2, 8, 0.15)
+			impactMark(endPosition, endNormal)
 		end
 	end
 end
@@ -292,8 +388,62 @@ function Effects.KnifeImpact(position, normal, flesh)
 end
 
 function Effects.MuzzleFlash(position, direction)
+	if typeof(position) ~= "Vector3" then
+		return
+	end
 	lightFlash(position, Palette.MuzzleFlash, 6, 16, 0.08)
 	emit(position, "Smoke", Color3.fromRGB(220, 220, 225), 3, direction)
+	if typeof(direction) == "Vector3" and direction.Magnitude > 0.01 then
+		-- a quick hot cone of flash just past the muzzle
+		puff(position + direction.Unit * 0.6, Palette.MuzzleFlash, 0.45, 0.06, true)
+	end
+end
+
+-- Closest point on segment a-b to p.
+local function closestOnSegment(a, b, p)
+	local ab = b - a
+	local lengthSq = ab:Dot(ab)
+	if lengthSq < 1e-6 then
+		return a
+	end
+	return a + ab * math.clamp((p - a):Dot(ab) / lengthSq, 0, 1)
+end
+
+-- An enemy bullet that passed close to your head (and didn't hit you):
+-- a whizz from where it passed and a tiny shake. Tension!
+local lastNearMiss = 0
+local function nearMiss(bullets)
+	if FX.NearMiss == false or not ClientState.InMatch() then
+		return
+	end
+	local camera = workspace.CurrentCamera
+	if not camera or os.clock() - lastNearMiss < 0.2 then
+		return
+	end
+	local eye = camera.CFrame.Position
+	local best, bestPoint = 7, nil
+	for _, bullet in ipairs(bullets) do
+		if not bullet.HitPlayer then
+			for _, seg in ipairs(bullet.Segments or {}) do
+				if typeof(seg.From) == "Vector3" and typeof(seg.To) == "Vector3" then
+					local point = closestOnSegment(seg.From, seg.To, eye)
+					local d = (point - eye).Magnitude
+					-- (ignore the very end: that's a bullet that hit the wall next to you)
+					if d < best and (point - seg.To).Magnitude > 1 then
+						best, bestPoint = d, point
+					end
+				end
+			end
+		end
+	end
+	if bestPoint then
+		lastNearMiss = os.clock()
+		local k = 1 - best / 7
+		Sfx.PlayAt("NearMiss", bestPoint, { Volume = 0.6 + k * 0.8, Vary = 0.08 })
+		if Controllers and Controllers.Camera then
+			Controllers.Camera.Shake(0.4 + k * 0.8)
+		end
+	end
 end
 
 -- Enemy shot from the server: start tracers at their gun's muzzle.
@@ -310,7 +460,11 @@ local function onEnemyShot(userId, bullets, explosive)
 			Explosive = explosive,
 			HitPlayer = bullet.HitPlayer,
 			Tracer = Cosmetics.TracerColor(shooter),
+			Enemy = true,
 		})
+	end
+	if typeof(bullets) == "table" and userId ~= player.UserId then
+		nearMiss(bullets)
 	end
 	if muzzleAttachment then
 		Sfx.Play("Fire", { Parent = muzzleAttachment, Volume = 1.4 })

@@ -21,6 +21,12 @@
 	    and their shot tracers are drawn again at the right moment.
 
 	Press Space / tap the screen to skip. Tune it in Config.KillCam.
+
+	Presentation: letterbox bars slide in, a cool colour grade (deeper in
+	the slow-motion part), a KILL CAM card with the killer's name in their
+	colour and a progress bar, the shots are heard again (deeper in slow
+	motion), and a white flash on the cut to the victory pose. Deaths from
+	damage over time (bleed / acid, Damaged.Dot) don't replay a shot.
 ]]
 
 local Players = game:GetService("Players")
@@ -34,6 +40,7 @@ local Remotes = require(Shared.Remotes)
 local PowerUps = require(Shared.PowerUps)
 local Cosmetics = require(Shared.Cosmetics)
 local ClientState = require(script.Parent.ClientState)
+local Sfx = require(script.Parent.Sfx)
 local Theme = require(script.Parent.ui.Theme)
 
 local K = Config.KillCam
@@ -49,6 +56,9 @@ local shots = {} -- { T, Bullets, Explosive }
 local playing = false
 local stopRequested = false
 local gui, banner, killerLabel, vignette
+local bars = {} -- letterbox bars
+local progressFill, slowLabel, skipLabel, cutFlash, tagPill
+local grade -- ColorCorrectionEffect while the replay plays
 local ghostTemplate -- a copy of you made at the start of each round (before you can die)
 local ghostAnims = {} -- { idle = id, run = id, fall = id, ... } from your character's Animate script
 
@@ -322,10 +332,41 @@ local function play(deathTime, killerName)
 	setCharacterHidden(enemy, true) -- we're inside their head
 	setCharacterHidden(player.Character, true)
 
-	killerLabel.Text = "KILLED BY " .. string.upper(killerName or "YOUR OPPONENT")
+	local killerColor = Palette.PlayerB
+	if entry and entry.Slot then
+		killerColor = ClientState.GetSlotColor(entry.Slot)
+	end
+	killerLabel.Text = string.upper(killerName or "YOUR OPPONENT")
+	killerLabel.TextColor3 = killerColor
+	killerLabel.TextSize = 24
+	tagPill.BackgroundColor3 = killerColor
+	banner:FindFirstChildOfClass("UIStroke").Color = killerColor
+	progressFill.BackgroundColor3 = killerColor
+	progressFill.Size = UDim2.fromScale(0, 1)
+	slowLabel.TextTransparency = 1
+	cutFlash.BackgroundTransparency = 1
+	local touch = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+	local pad = UserInputService:GetLastInputType().Name:find("Gamepad") ~= nil
+	skipLabel.Text = touch and "TAP TO SKIP" or (pad and "PRESS A TO SKIP" or "PRESS SPACE TO SKIP")
 	gui.Enabled = true
-	banner.Position = UDim2.new(0.5, 0, 0, -80)
-	Theme.tween(banner, 0.35, { Position = UDim2.new(0.5, 0, 0, 40) }, Enum.EasingStyle.Back)
+	banner.Position = UDim2.new(0.5, 0, 0, -90)
+	Theme.tween(banner, 0.35, { Position = UDim2.new(0.5, 0, 0.07, 14) }, Enum.EasingStyle.Back)
+	for _, bar in ipairs(bars) do
+		bar.Size = UDim2.new(1, 0, 0, 0)
+		Theme.tween(bar, 0.35, { Size = UDim2.new(1, 0, 0.07, 0) }, Enum.EasingStyle.Quint)
+	end
+	pcall(function()
+		if not grade or grade.Parent ~= camera then
+			grade = Instance.new("ColorCorrectionEffect")
+			grade.Name = "KillCamGrade"
+			grade.Parent = camera
+		end
+		grade.Enabled = true
+		grade.Saturation, grade.Contrast, grade.TintColor = 0, 0, Color3.new(1, 1, 1)
+		Theme.tween(grade, 0.3, { Saturation = -0.3, Contrast = 0.08, TintColor = Color3.fromRGB(225, 232, 255) })
+	end)
+	Sfx.Play("KillCamIn")
+	local wasSlow = false
 
 	-- the killer's weapon + knife swings, as recorded
 	local shownWeapon = Controllers.Viewmodel.GetWeapon() -- (you may have died holding the knife)
@@ -355,6 +396,9 @@ local function play(deathTime, killerName)
 		Controllers.Camera.SetSuspended(false)
 		playing = false
 		gui.Enabled = false
+		if grade then
+			grade.Enabled = false
+		end
 		if ghost then
 			Controllers.Viewmodel.Untrack(ghost)
 			ghost:Destroy()
@@ -397,6 +441,16 @@ local function play(deathTime, killerName)
 		Controllers.Viewmodel.PlayVictory(killerCopy, pose and pose.Style)
 		vignette.BackgroundTransparency = 0.8
 		killerLabel.Text = string.upper(killerName or "YOUR OPPONENT") .. " TAKES THE ROUND"
+		killerLabel.TextSize = 18
+		progressFill.Size = UDim2.fromScale(1, 1)
+		slowLabel.TextTransparency = 1
+		-- the cut: a white flash, colours come back
+		cutFlash.BackgroundTransparency = 0.25
+		Theme.tween(cutFlash, 0.35, { BackgroundTransparency = 1 })
+		if grade then
+			Theme.tween(grade, 0.4, { Saturation = 0, Contrast = 0.04, TintColor = Color3.new(1, 1, 1) })
+		end
+		Sfx.Play("CardFlip", { Pitch = 0.8 })
 	end
 
 	frame = function(dt)
@@ -418,6 +472,18 @@ local function play(deathTime, killerName)
 		rate = slow and K.SlowMoSpeed or 1
 		replayT += dt * rate
 		vignette.BackgroundTransparency = slow and 0.6 or 0.85
+		if slow ~= wasSlow then
+			wasSlow = slow
+			slowLabel.TextTransparency = slow and 0 or 1
+			if slow then
+				Theme.pop(slowLabel, 0.3)
+				Sfx.Play("SlowMo")
+				if grade then
+					Theme.tween(grade, 0.25, { Saturation = -0.55, Contrast = 0.15, TintColor = Color3.fromRGB(255, 225, 225) })
+				end
+			end
+		end
+		progressFill.Size = UDim2.fromScale(math.clamp((replayT - (deathTime - K.Length)) / (K.Length + 0.15), 0, 1), 1)
 		local at = math.min(replayT, deathTime)
 		local s = sampleAt(at)
 		current = s
@@ -452,6 +518,7 @@ local function play(deathTime, killerName)
 			if not drawn[i] and shot.T <= replayT and shot.T >= deathTime - K.Length then
 				drawn[i] = true
 				Controllers.Viewmodel.PlayFire(false)
+				Sfx.Play("Fire", { Pitch = rate < 1 and 0.7 or 1, Volume = 1.1, NoThrottle = true })
 				task.delay(0.12 / rate, function()
 					if playing then
 						Controllers.Viewmodel.PlayBolt(boltTime / rate)
@@ -496,49 +563,107 @@ function KillCam.Start()
 		BorderSizePixel = 0,
 		Parent = gui,
 	})
-	for _, y in ipairs({ 0, 1 }) do -- letterbox bars
-		Theme.new("Frame", {
+	for i, y in ipairs({ 0, 1 }) do -- letterbox bars
+		bars[i] = Theme.new("Frame", {
 			AnchorPoint = Vector2.new(0, y),
 			Position = UDim2.fromScale(0, y),
 			Size = UDim2.new(1, 0, 0.07, 0),
 			BackgroundColor3 = Color3.new(0, 0, 0),
 			BorderSizePixel = 0,
+			ZIndex = 2,
 			Parent = gui,
 		})
 	end
+	cutFlash = Theme.new("Frame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = 1,
+		ZIndex = 5,
+		Parent = gui,
+	})
 	banner = Theme.panel({
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 40),
-		Size = UDim2.fromOffset(420, 70),
-		BackgroundColor3 = Palette.UIPanel,
+		Position = UDim2.new(0.5, 0, 0.07, 14),
+		Size = UDim2.fromOffset(460, 76),
+		BackgroundColor3 = Palette.UIBackground,
+		BackgroundTransparency = 0.15,
+		ClipsDescendants = true,
+		ZIndex = 3,
 		Parent = gui,
 	})
-	Theme.stroke(banner, Palette.PlayerB, 2, 0.1)
-	Theme.label({
-		Size = UDim2.new(1, 0, 0, 24),
-		Position = UDim2.fromOffset(0, 8),
-		Text = "KILL CAM",
-		TextSize = 16,
-		TextColor3 = Palette.PlayerB,
-		FontFace = Theme.Font(Enum.FontWeight.Heavy),
+	banner:FindFirstChildOfClass("UICorner").CornerRadius = UDim.new(0, 14)
+	Theme.stroke(banner, Palette.PlayerB, 1.5, 0.3)
+	tagPill = Theme.new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 10),
+		Size = UDim2.fromOffset(84, 18),
+		BackgroundColor3 = Palette.PlayerB,
+		ZIndex = 4,
 		Parent = banner,
+	})
+	Theme.corner(tagPill, UDim.new(0.5, 0))
+	Theme.label({
+		Size = UDim2.fromScale(1, 1),
+		Text = "KILL CAM",
+		TextSize = 11,
+		FontFace = Theme.Font(Enum.FontWeight.Heavy),
+		ZIndex = 4,
+		Parent = tagPill,
 	})
 	killerLabel = Theme.label({
-		Size = UDim2.new(1, 0, 0, 30),
-		Position = UDim2.fromOffset(0, 30),
+		Size = UDim2.new(1, -24, 0, 30),
+		Position = UDim2.fromOffset(12, 32),
 		TextSize = 24,
+		TextTruncate = Enum.TextTruncate.AtEnd,
 		FontFace = Theme.Font(Enum.FontWeight.Heavy),
+		ZIndex = 4,
 		Parent = banner,
 	})
-	Theme.label({
-		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -16),
-		Size = UDim2.fromOffset(300, 20),
-		Text = "SPACE / TAP TO SKIP",
-		TextSize = 14,
-		TextColor3 = Palette.UISubText,
+	local track = Theme.new("Frame", {
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.fromScale(0, 1),
+		Size = UDim2.new(1, 0, 0, 3),
+		BackgroundColor3 = Palette.UIPanelLight,
+		ZIndex = 4,
+		Parent = banner,
+	})
+	progressFill = Theme.new("Frame", {
+		Size = UDim2.fromScale(0, 1),
+		BackgroundColor3 = Palette.PlayerB,
+		ZIndex = 4,
+		Parent = track,
+	})
+	slowLabel = Theme.label({
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0.07, 98),
+		Size = UDim2.fromOffset(200, 20),
+		Text = "SLOW MOTION",
+		TextSize = 13,
+		TextTransparency = 1,
+		TextColor3 = Palette.AccentB,
+		FontFace = Theme.Font(Enum.FontWeight.Heavy),
+		ZIndex = 3,
 		Parent = gui,
 	})
+	skipLabel = Theme.label({
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 0.93, -10),
+		Size = UDim2.fromOffset(300, 20),
+		Text = "PRESS SPACE TO SKIP",
+		TextSize = 13,
+		TextColor3 = Palette.UISubText,
+		FontFace = Theme.Font(Enum.FontWeight.Bold),
+		ZIndex = 3,
+		Parent = gui,
+	})
+	-- smaller on phones
+	local scale = Theme.scaleOf(banner)
+	local function fit()
+		local viewport = workspace.CurrentCamera.ViewportSize
+		scale.Scale = math.clamp(math.min(viewport.X / 1100, viewport.Y / 620), 0.7, 1.2)
+	end
+	fit()
+	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(fit)
 	-- crosshair dot: their aim
 	local dot = Theme.new("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0.5),
@@ -563,6 +688,13 @@ function KillCam.Start()
 	-- you died from a hit in a match -> play it back
 	Remotes.Get("Damaged").OnClientEvent:Connect(function(data)
 		if not K.Enabled or typeof(data) ~= "table" or not data.Killed or not ClientState.InMatch() then
+			return
+		end
+		if data.Dot then
+			-- bled out (bleed / acid tick): there's no killing shot to replay
+			if Controllers.HUD and Controllers.HUD.Callout then
+				Controllers.HUD.Callout("BLED OUT", Palette.AccentB)
+			end
 			return
 		end
 		local deathTime = now()

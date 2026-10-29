@@ -133,6 +133,7 @@ local function fire()
 	local homingTargets = ClientState.GetHomingTargets()
 	local exclude = buildExclude()
 
+	local charged = Weapon.GetDeadeyeCharge and Weapon.GetDeadeyeCharge() >= 1 -- (Deadeye: a charged shot looks different)
 	local muzzle = Controllers.Viewmodel.GetMuzzlePosition()
 	if scoped then
 		-- tracer starts slightly below the screen centre when scoped
@@ -163,6 +164,9 @@ local function fire()
 			Explosive = stats.Explosive,
 			HitPlayer = hitEnemy,
 			Tracer = Cosmetics.TracerColor(player),
+			Owned = ClientState.Owned,
+			Shooter = character,
+			Charged = charged,
 		})
 
 		-- ROCKET JUMP: shooting near your own feet launches you
@@ -174,6 +178,9 @@ local function fire()
 				local power = stats.RocketJumpPower
 				Controllers.Movement.ApplyImpulse((away * cfg.LaunchAway + Vector3.new(0, cfg.LaunchUp, 0)) * power)
 				Controllers.Camera.Shake(3)
+				if Controllers.PowerFx then
+					Controllers.PowerFx.RocketJump(sim.EndPosition)
+				end
 			end
 		end
 	end
@@ -263,6 +270,9 @@ function Weapon.Start()
 			else
 				boltReadyAt = math.min(boltReadyAt, os.clock() + 0.1)
 				Controllers.Viewmodel.PlayBolt(0.18)
+			end
+			if Controllers.PowerFx then
+				Controllers.PowerFx.Rechamber(buff.Quick == true)
 			end
 		end
 	end)

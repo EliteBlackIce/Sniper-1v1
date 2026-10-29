@@ -53,6 +53,7 @@ src/client/                -> StarterPlayerScripts.Client
   MovementController.lua      bhop, air control, sprint, slide, wall run, grapple...
   WeaponController.lua        scope + fire, local tracers, sends shots to the server
   EffectsController.lua       tracers, explosions, ropes, wallhack pulse, screen tints
+  PowerFx.lua                 a look for every power-up: shot styles, character auras, power-up gains
   LightingController.lua      blends arena / indoor lobby lighting (Config.Lighting)
   CrateController.lua         the lobby crate + its opening cinematic
   KnifeController.lua         the knife: switching, slashes, stabs, hit checks

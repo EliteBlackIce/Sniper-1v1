@@ -324,10 +324,16 @@ end
 	segments  list of { From, To, Kind }   (from Ballistics)
 	passes    points where the bullet went through a wall (Ghost Round)
 	startPos  where the tracer visually starts (gun muzzle)
-	options   { Explosive = bool, HitPlayer = bool, Tracer = Color3 (the shooter's tracer cosmetic) }
+	options   { Explosive = bool, HitPlayer = bool, Tracer = Color3 (the shooter's tracer cosmetic),
+	            Owned = { [powerUpId] = stacks } (the shooter's power-ups: PowerFx
+	            restyles the shot), Shooter = Model, Charged = bool (Deadeye) }
 ]]
 function Effects.DrawShot(segments, passes, endPosition, endNormal, startPos, options)
 	options = options or {}
+	local powerFx = Controllers and Controllers.PowerFx
+	if powerFx and options.Owned then
+		options.Tracer = powerFx.TracerColor(options.Owned, options) or options.Tracer
+	end
 	local headPoints = {}
 	for i, seg in ipairs(segments) do
 		local from = seg.From
@@ -372,6 +378,9 @@ function Effects.DrawShot(segments, passes, endPosition, endNormal, startPos, op
 			lightFlash(endPosition, Color3.fromRGB(255, 220, 170), 2, 8, 0.15)
 			impactMark(endPosition, endNormal)
 		end
+	end
+	if powerFx and options.Owned then
+		powerFx.DecorateShot(segments, endPosition, endNormal, startPos, options)
 	end
 end
 
@@ -461,6 +470,8 @@ local function onEnemyShot(userId, bullets, explosive)
 			HitPlayer = bullet.HitPlayer,
 			Tracer = Cosmetics.TracerColor(shooter),
 			Enemy = true,
+			Owned = Controllers.PowerFx and Controllers.PowerFx.OwnedOf(character) or nil,
+			Shooter = character,
 		})
 	end
 	if typeof(bullets) == "table" and userId ~= player.UserId then
@@ -1125,6 +1136,18 @@ local function pulseSkins()
 		end
 	end
 end
+
+-- Building blocks for other effect modules (PowerFx).
+Effects.Lib = {
+	FxPart = fxPart,
+	FadeOut = fadeOut,
+	Emit = emit,
+	LightFlash = lightFlash,
+	Tracer = tracer,
+	Puff = puff,
+	Ring = ring,
+	Folder = getFolder,
+}
 
 function Effects.Init(controllers)
 	Controllers = controllers

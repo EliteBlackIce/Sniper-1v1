@@ -96,6 +96,15 @@ local function addWorldGun(character, powerUps)
 	gun.Name = "WorldGun"
 	local built = Skins.Build("Rifle", gun, skinFor(character, "Rifle"), { Scale = scale, CastShadow = true, PowerUps = powerUps })
 	gunPowerUps[character] = powerUps
+	-- everyone's game reads this to draw power-up effects on this character (PowerFx)
+	local parts = {}
+	for id, stacks in pairs(powerUps or {}) do
+		if typeof(id) == "string" and typeof(stacks) == "number" and stacks > 0 then
+			table.insert(parts, id .. ":" .. math.floor(stacks))
+		end
+	end
+	table.sort(parts)
+	character:SetAttribute("PowerUps", table.concat(parts, ","))
 
 	local grip = hand.CFrame * CFrame.new(0, -0.15, 0) * CFrame.Angles(math.rad(-90), 0, 0)
 	GunModel.Place(built, grip, scale)

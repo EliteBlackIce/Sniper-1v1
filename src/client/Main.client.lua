@@ -33,6 +33,7 @@ local KillCamController = require(Client.KillCamController)
 local LightingController = require(Client.LightingController)
 local CrateController = require(Client.CrateController)
 local KnifeController = require(Client.KnifeController)
+local PowerFx = require(Client.PowerFx)
 
 local controllers = {
 	Camera = CameraController,
@@ -46,6 +47,7 @@ local controllers = {
 	Lighting = LightingController,
 	Crates = CrateController,
 	Knife = KnifeController,
+	PowerFx = PowerFx,
 }
 
 ClientState.Init()
@@ -61,6 +63,7 @@ local order = {
 	LightingController,
 	CrateController,
 	KnifeController,
+	PowerFx,
 }
 for _, controller in ipairs(order) do
 	controller.Init(controllers)

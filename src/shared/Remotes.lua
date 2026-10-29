@@ -43,6 +43,11 @@ Remotes.Names = {
 	"Equip", -- C->S  switch weapon: "Sniper" / "Knife"
 	"Melee", -- C->S  knife swing: kind ("Slash" / "Stab"), what it hit, look direction
 	"Anim", -- C->S  cosmetic animation events others should see ("Inspect", "Scope")
+	"MapVote", -- C->S  your favourite map for matchmaking (nil = any)
+	"Spectate", -- C->S  watch a live match (match id) / stop (nil)
+	"SpectateState", -- S->C  snapshot of the match you're watching (nil = stopped)
+	"Profile", -- S->C  your lifetime stats, challenges, season and tutorial state
+	"ProfileAction", -- C->S  "Get" / "TutorialDone"
 }
 
 local FOLDER_NAME = "Remotes"

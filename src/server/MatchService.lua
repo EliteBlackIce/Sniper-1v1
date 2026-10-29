@@ -3,8 +3,14 @@
 
 	Lobby + matchmaking:
 	  * Players spawn in the lobby (normal camera).
-	  * Pressing PLAY puts you in the queue; the first two queued players are
-	    matched into a free arena.
+	  * Pressing PLAY puts you in the queue. Players are paired by rating:
+	    each one accepts opponents within a window that widens the longer
+	    they wait, and after Config.Match.Matchmaking.AnyoneAfter seconds
+	    anyone will do (the oldest waiter is matched first).
+	  * Map vote: every player can pick a favourite map (or ANY). A match
+	    uses the map both picked, or one of their two picks at random.
+	  * Spectating: lobby players can watch any live match (its snapshots
+	    and shots are sent to them too).
 	  * When a match ends, both players come back to the lobby.
 	  * Admin commands: "/bot [easy|normal|hard]" (or N in the lobby) starts a
 	    match against a bot, "/endbot" ends it (see Config.Admin).
@@ -47,6 +53,9 @@ local inPlayground = {} -- [player] = true while free-roaming the Playground
 local invites = {} -- [target] = { [challenger] = { Until = os.clock() expiry, Stake = keys } }
 local rematches = {} -- [player] = { Opponent, BotDifficulty, Name, Until, Wants }
 local playground -- arena info for the Playground (built the first time someone enters)
+local queuedAt = {} -- [player] = os.clock() they joined the queue
+local mapVote = {} -- [player] = map name they'd like (nil = any)
+local spectating = {} -- [player] = the Match they're watching
 
 ----------------------------------------------------------------------------
 -- Helpers
@@ -69,7 +78,53 @@ function MatchService.GetPracticeStats(player)
 	return stats
 end
 
+local MM = Config.Match.Matchmaking or {}
+
+local function ratingOf(player)
+	return tonumber(player:GetAttribute("Rating")) or Config.Rank.StartRating
+end
+
+-- How far apart in rating this queued player accepts (math.huge = anyone).
+local function windowOf(player, now)
+	local waited = now - (queuedAt[player] or now)
+	if waited >= (MM.AnyoneAfter or 45) then
+		return math.huge
+	end
+	return (MM.BaseWindow or 150) + waited * (MM.GrowPerSecond or 12)
+end
+
+-- Every live match, for the lobby's WATCH list.
+local function liveMatches()
+	local list, seen = {}, {}
+	for _, match in pairs(matchByPlayer) do
+		if not seen[match] and not match.Finished then
+			seen[match] = true
+			local players = {}
+			for slot, p in ipairs(match.Players) do
+				players[slot] = { Name = p.DisplayName, Wins = match.Wins[p] or 0, Bot = Util.isBot(p) or nil }
+			end
+			local watchers = 0
+			for _ in pairs(match.Spectators or {}) do
+				watchers += 1
+			end
+			table.insert(list, {
+				Id = match.Id,
+				Map = match.Arena and match.Arena.MapName,
+				Round = match.Round,
+				Phase = match.Phase,
+				Players = players,
+				Watchers = watchers,
+			})
+		end
+	end
+	table.sort(list, function(a, b)
+		return a.Id < b.Id
+	end)
+	return list
+end
+
 local function lobbySnapshot(player)
+	local window = isQueued(player) and windowOf(player, os.clock()) or nil
 	return {
 		InMatch = false,
 		Phase = "Lobby",
@@ -78,6 +133,11 @@ local function lobbySnapshot(player)
 		PlayersOnline = #Players:GetPlayers(),
 		PowerUps = table.clone(practiceOwned[player] or {}),
 		Playground = inPlayground[player] == true,
+		SearchWindow = window and (window == math.huge and -1 or math.floor(window)) or nil,
+		MapVote = mapVote[player],
+		Maps = MapBuilder.GetMapList(),
+		LiveMatches = liveMatches(),
+		Spectating = spectating[player] and spectating[player].Id or nil,
 		Rematch = (function()
 			local r = rematches[player]
 			if not r or os.clock() > r.Until then
@@ -151,10 +211,13 @@ end
 -- is torn down and rebuilt with the new one.
 local lastMapName = nil
 
-local function getFreeArena()
+local function getFreeArena(preferred)
+	if preferred and not table.find(MapBuilder.GetMapList(), preferred) then
+		preferred = nil
+	end
 	for i = 1, Config.Match.MaxArenas do
 		if not arenaInUse[i] then
-			local mapName = MapBuilder.PickMap(lastMapName)
+			local mapName = preferred or MapBuilder.PickMap(lastMapName)
 			lastMapName = mapName
 			local arena = arenas[i]
 			if arena and arena.MapName ~= mapName then
@@ -169,6 +232,56 @@ local function getFreeArena()
 		end
 	end
 	return nil
+end
+
+-- The map two players get: the one they both voted for, else one of
+-- their votes at random, else nil (a random map).
+local function chooseMap(p1, p2)
+	local votes = {}
+	for _, p in ipairs({ p1, p2 }) do
+		if not Util.isBot(p) and mapVote[p] then
+			table.insert(votes, mapVote[p])
+		end
+	end
+	if #votes == 0 then
+		return nil
+	end
+	return votes[math.random(1, #votes)]
+end
+
+----------------------------------------------------------------------------
+-- Spectating
+----------------------------------------------------------------------------
+local function stopSpectating(player, quiet)
+	local match = spectating[player]
+	if match and match.Spectators then
+		match.Spectators[player] = nil
+	end
+	spectating[player] = nil
+	if match and not quiet and player.Parent then
+		Remotes.Get("SpectateState"):FireClient(player, nil)
+	end
+end
+
+local function startSpectating(player, matchId)
+	if matchByPlayer[player] or typeof(matchId) ~= "number" then
+		return
+	end
+	local target
+	for _, match in pairs(matchByPlayer) do
+		if match.Id == matchId and not match.Finished then
+			target = match
+			break
+		end
+	end
+	if not target or spectating[player] == target then
+		return
+	end
+	stopSpectating(player, true)
+	target.Spectators = target.Spectators or {}
+	target.Spectators[player] = true
+	spectating[player] = target
+	Remotes.Get("SpectateState"):FireClient(player, target:Snapshot())
 end
 
 ----------------------------------------------------------------------------
@@ -217,6 +330,9 @@ end
 
 local function onMatchFinished(match)
 	arenaInUse[match.Arena.Index] = nil
+	for watcher in pairs(match.Spectators or {}) do
+		stopSpectating(watcher)
+	end
 	onDecided(match) -- (normally already done by OnDecided)
 	MatchService.MatchFinished:Fire(match)
 	-- remember who you just played so you can ask for a rematch
@@ -249,6 +365,10 @@ end
 -- Creates a match; its state snapshot also carries the map name (MapName)
 -- so the HUD can show it.
 local function newMatch(p1, p2, arena)
+	for _, p in ipairs({ p1, p2 }) do
+		stopSpectating(p)
+		queuedAt[p] = nil
+	end
 	local match = Match.new(p1, p2, arena, onMatchFinished)
 	match.OnDecided = onDecided
 	return match
@@ -273,20 +393,47 @@ function MatchService.RefundAllWagers()
 	end
 end
 
-local function tryStartMatches()
+-- The next pair to match: the longest waiter with the closest rating that
+-- either player's window accepts. Returns two queue indexes (i < j) or nil.
+local function findPair()
+	local now = os.clock()
+	for i, a in ipairs(queue) do
+		local best, bestDiff
+		for j = i + 1, #queue do
+			local b = queue[j]
+			local diff = math.abs(ratingOf(a) - ratingOf(b))
+			if diff <= math.max(windowOf(a, now), windowOf(b, now)) and (not bestDiff or diff < bestDiff) then
+				best, bestDiff = j, diff
+			end
+		end
+		if best then
+			return i, best
+		end
+	end
+	return nil
+end
+
+-- quiet = only tell the lobby if a match started (the once-a-second retry)
+local function tryStartMatches(quiet)
 	-- drop anyone who left
 	for i = #queue, 1, -1 do
 		if not queue[i].Parent then
 			table.remove(queue, i)
 		end
 	end
+	local started = false
 	while #queue >= 2 do
-		local arena = getFreeArena()
+		local i, j = findPair()
+		if not i then
+			break
+		end
+		local arena = getFreeArena(chooseMap(queue[i], queue[j]))
 		if not arena then
 			break
 		end
-		local p1 = table.remove(queue, 1)
-		local p2 = table.remove(queue, 1)
+		local p2 = table.remove(queue, j)
+		local p1 = table.remove(queue, i)
+		started = true
 		local match = newMatch(p1, p2, arena)
 		inPlayground[p1] = nil
 		inPlayground[p2] = nil
@@ -294,7 +441,9 @@ local function tryStartMatches()
 		matchByPlayer[p2] = match
 		match:Start()
 	end
-	broadcastLobby()
+	if started or not quiet then
+		broadcastLobby()
+	end
 end
 
 ----------------------------------------------------------------------------
@@ -321,6 +470,8 @@ local function isAdmin(player)
 	return ok and rank >= 255 -- group owner
 end
 
+MatchService.IsAdmin = isAdmin
+
 -- "hard" -> "Hard" (falls back to the default difficulty)
 local function difficultyName(text)
 	if typeof(text) == "string" and #text > 0 then
@@ -337,7 +488,7 @@ function MatchService.StartBotMatch(player, difficulty)
 		notify(player, "Finish your current match first")
 		return
 	end
-	local arena = getFreeArena()
+	local arena = getFreeArena(mapVote[player])
 	if not arena then
 		notify(player, "All arenas are busy - try again soon")
 		return
@@ -431,7 +582,7 @@ local function startPrivateMatch(p1, p2, stake)
 	if matchByPlayer[p1] or matchByPlayer[p2] or not p1.Parent or not p2.Parent then
 		return false
 	end
-	local arena = getFreeArena()
+	local arena = getFreeArena(chooseMap(p1, p2))
 	if not arena then
 		notify(p1, "All arenas are busy - try again soon")
 		notify(p2, "All arenas are busy - try again soon")
@@ -580,8 +731,10 @@ local function onQueueToggle(player)
 	local index = table.find(queue, player)
 	if index then
 		table.remove(queue, index)
+		queuedAt[player] = nil
 	else
 		table.insert(queue, player)
+		queuedAt[player] = os.clock()
 	end
 	tryStartMatches()
 end
@@ -609,6 +762,40 @@ function MatchService.Init()
 	end
 
 	Remotes.Get("QueueToggle").OnServerEvent:Connect(onQueueToggle)
+	Remotes.Get("MapVote").OnServerEvent:Connect(function(player, mapName)
+		if mapName == nil or (typeof(mapName) == "string" and table.find(MapBuilder.GetMapList(), mapName)) then
+			mapVote[player] = mapName
+			sendLobbyState(player)
+		end
+	end)
+	Remotes.Get("Spectate").OnServerEvent:Connect(function(player, matchId)
+		if matchId == nil then
+			stopSpectating(player)
+		else
+			startSpectating(player, matchId)
+		end
+		sendLobbyState(player)
+	end)
+	-- windows widen while people wait, and the WATCH list follows live scores
+	task.spawn(function()
+		local lastLive = ""
+		while true do
+			task.wait(1)
+			if #queue >= 2 then
+				tryStartMatches(true)
+			end
+			local parts = {}
+			for _, m in ipairs(liveMatches()) do
+				table.insert(parts, ("%d:%s:%d:%d:%d"):format(m.Id, m.Phase, m.Round or 0, (m.Players[1] and m.Players[1].Wins or 0) * 10 + (m.Players[2] and m.Players[2].Wins or 0), m.Watchers))
+			end
+			local live = table.concat(parts, ",")
+			if live ~= lastLive or #queue > 0 then
+				-- (queued players also see their search window widen)
+				lastLive = live
+				broadcastLobby()
+			end
+		end
+	end)
 	Remotes.Get("AdminCommand").OnServerEvent:Connect(onAdminCommand)
 	Remotes.Get("Duel").OnServerEvent:Connect(onDuel)
 	setupChatCommands()
@@ -681,6 +868,9 @@ function MatchService.Init()
 		if index then
 			table.remove(queue, index)
 		end
+		queuedAt[player] = nil
+		mapVote[player] = nil
+		stopSpectating(player, true)
 		local match = matchByPlayer[player]
 		if match then
 			match:OnPlayerLeft(player)

@@ -39,9 +39,11 @@ function Match.new(p1, p2, arena, onFinished)
 	self.LastHit = {} -- [victim] = { Attacker, Headshot }
 	-- the end-of-match numbers (victory screen)
 	self.Tally = {
-		[p1] = { Shots = 0, Hits = 0, Headshots = 0, Damage = 0, Longest = 0 },
-		[p2] = { Shots = 0, Hits = 0, Headshots = 0, Damage = 0, Longest = 0 },
+		[p1] = { Shots = 0, Hits = 0, Headshots = 0, Damage = 0, Longest = 0, Kills = 0, KnifeKills = 0, LongHits = 0 },
+		[p2] = { Shots = 0, Hits = 0, Headshots = 0, Damage = 0, Longest = 0, Kills = 0, KnifeKills = 0, LongHits = 0 },
 	}
+	-- power-up telemetry: [id] = times offered / picked this match (ProfileService)
+	self.CardLog = { Offered = {}, Picked = {} }
 	-- [player] = { RatingDelta, Rating, Tier, TierChange, Keys, Wager } (filled
 	-- in by the services that pay out, when the result is decided)
 	self.Results = { [p1] = {}, [p2] = {} }
@@ -129,6 +131,13 @@ function Match:Broadcast()
 	for _, player in ipairs(self.Players) do
 		if player.Parent then
 			remote:FireClient(player, snapshot)
+		end
+	end
+	-- lobby players watching this match (MatchService spectating)
+	local watch = Remotes.Get("SpectateState")
+	for watcher in pairs(self.Spectators or {}) do
+		if watcher.Parent then
+			watch:FireClient(watcher, snapshot)
 		end
 	end
 end
@@ -222,6 +231,9 @@ function Match:NoteShot(player, hit, headshot, distance)
 	if hit then
 		tally.Hits += 1
 		tally.Longest = math.max(tally.Longest, math.floor(distance or 0))
+		if (distance or 0) >= (Config.Challenges and Config.Challenges.LongHitDistance or 300) then
+			tally.LongHits += 1
+		end
 	end
 	if headshot then
 		tally.Headshots += 1
@@ -233,6 +245,17 @@ function Match:NoteDamage(attacker, amount)
 	local tally = attacker and self.Tally[attacker]
 	if tally and amount > 0 then
 		tally.Damage += amount
+	end
+end
+
+-- A killing blow (knife = a melee kill).
+function Match:NoteKill(attacker, knife)
+	local tally = attacker and self.Tally[attacker]
+	if tally then
+		tally.Kills += 1
+		if knife then
+			tally.KnifeKills += 1
+		end
 	end
 end
 
@@ -358,6 +381,11 @@ function Match:Run()
 
 		-- POWER-UP PICK: the player who died picks 1 of 5
 		local cards = PowerUps.DrawCards(self.Owned[loser], Config.Match.CardsPerPick)
+		if not Util.isBot(loser) then
+			for _, id in ipairs(cards) do
+				self.CardLog.Offered[id] = (self.CardLog.Offered[id] or 0) + 1
+			end
+		end
 		if #cards > 0 then
 			self.Cards = cards
 			self.Picker = loser
@@ -381,6 +409,9 @@ function Match:Run()
 			end
 			local id = cards[self.PickedIndex]
 			self.Owned[loser][id] = (self.Owned[loser][id] or 0) + 1
+			if not Util.isBot(loser) then
+				self.CardLog.Picked[id] = (self.CardLog.Picked[id] or 0) + 1
+			end
 			self.StatsCache[loser] = nil
 			self:SetPhase("PickReveal", Config.Match.PickRevealTime)
 			if not self:Wait(Config.Match.PickRevealTime) then

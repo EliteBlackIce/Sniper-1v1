@@ -12,7 +12,7 @@
 		                accuracy / headshots / damage / longest hit (the better
 		                number of each pair is lit), the power-ups they ended with
 		rewards         rating change (+ tier, RANKED UP / DOWN), keys earned,
-		                wager won / lost; UNRANKED against the bot
+		                challenges finished, wager won / lost; UNRANKED against the bot
 		footer          "BACK TO LOBBY" + a bar that drains
 
 	ANIMATION
@@ -444,6 +444,13 @@ local function buildRewards(me)
 	end
 	if result.Keys then
 		table.insert(list, { rewardChip(2, signed(result.Keys), result.Keys == 1 and "KEY" or "KEYS", GOLD), false })
+	end
+	if typeof(result.Challenges) == "table" and (result.Challenges.Keys or 0) > 0 then
+		local n = result.Challenges.Count or 1
+		table.insert(list, {
+			rewardChip(4, signed(result.Challenges.Keys), n == 1 and "CHALLENGE DONE" or (n .. " CHALLENGES DONE"), Palette.UIAccent),
+			true,
+		})
 	end
 	if result.Wager then
 		local won = result.Wager > 0

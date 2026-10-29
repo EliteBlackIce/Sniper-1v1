@@ -475,6 +475,76 @@ Config.Rank = {
 	},
 }
 
+-- RANKED SEASONS: every season lasts LengthDays (from Epoch, a UTC unix
+-- time). When a new season starts, your next visit pays a key reward for
+-- the highest tier you reached last season, and your rating moves
+-- ResetFactor of the way back to StartRating (0.5 = halfway).
+Config.Rank.Season = {
+	Epoch = 1790812800, -- 2026-10-01 00:00 UTC = the start of season 1
+	LengthDays = 28,
+	ResetFactor = 0.5,
+	Rewards = { BRONZE = 5, SILVER = 10, GOLD = 20, PLATINUM = 35, DIAMOND = 50, CHAMPION = 80 }, -- keys
+}
+
+-- The season at unix time `now`: number, start time, end time.
+function Config.SeasonAt(now)
+	local S = Config.Rank.Season
+	local length = S.LengthDays * 86400
+	local index = math.max(0, math.floor((now - S.Epoch) / length))
+	local starts = S.Epoch + index * length
+	return index + 1, starts, starts + length
+end
+
+----------------------------------------------------------------------------
+-- CHALLENGES: daily and weekly goals that pay keys (ProfileService). Each
+-- player gets DailyCount random dailies every UTC day and WeeklyCount
+-- weeklies every week (Monday). Stat = what a finished match adds:
+--   Matches, Wins, RoundsWon, Kills, Headshots, KnifeKills, Damage,
+--   LongHits (hits from LongHitDistance studs or more), Flawless (5-0 wins)
+----------------------------------------------------------------------------
+Config.Challenges = {
+	DailyCount = 3,
+	WeeklyCount = 3,
+	LongHitDistance = 300,
+	Daily = {
+		{ Id = "D_Win1", Text = "Win a duel", Stat = "Wins", Goal = 1, Keys = 2 },
+		{ Id = "D_Play3", Text = "Finish 3 duels", Stat = "Matches", Goal = 3, Keys = 2 },
+		{ Id = "D_Head3", Text = "Land 3 headshots", Stat = "Headshots", Goal = 3, Keys = 2 },
+		{ Id = "D_Dmg600", Text = "Deal 600 damage", Stat = "Damage", Goal = 600, Keys = 2 },
+		{ Id = "D_Rounds6", Text = "Win 6 rounds", Stat = "RoundsWon", Goal = 6, Keys = 2 },
+		{ Id = "D_Knife1", Text = "Get a knife kill", Stat = "KnifeKills", Goal = 1, Keys = 3 },
+		{ Id = "D_Long1", Text = "Hit a shot from 300+ studs", Stat = "LongHits", Goal = 1, Keys = 3 },
+		{ Id = "D_Kills8", Text = "Get 8 kills", Stat = "Kills", Goal = 8, Keys = 2 },
+	},
+	Weekly = {
+		{ Id = "W_Win10", Text = "Win 10 duels", Stat = "Wins", Goal = 10, Keys = 12 },
+		{ Id = "W_Play20", Text = "Finish 20 duels", Stat = "Matches", Goal = 20, Keys = 10 },
+		{ Id = "W_Head25", Text = "Land 25 headshots", Stat = "Headshots", Goal = 25, Keys = 12 },
+		{ Id = "W_Dmg8000", Text = "Deal 8,000 damage", Stat = "Damage", Goal = 8000, Keys = 10 },
+		{ Id = "W_Knife5", Text = "Get 5 knife kills", Stat = "KnifeKills", Goal = 5, Keys = 15 },
+		{ Id = "W_Flawless", Text = "Win a duel 5-0", Stat = "Flawless", Goal = 1, Keys = 15 },
+		{ Id = "W_Long5", Text = "Hit 5 shots from 300+ studs", Stat = "LongHits", Goal = 5, Keys = 12 },
+	},
+}
+
+-- TUTORIAL: the guided first steps (Profile menu > Tutorial, or offered
+-- on the welcome card). Finishing it once pays RewardKeys.
+Config.Tutorial = { RewardKeys = 5 }
+
+-- MOVEMENT GUARD (server anti-cheat): characters that move further than
+-- they possibly could are put back where they were. Generous on purpose:
+-- abilities (Blink, Recall, dashes) grant a short grace.
+Config.AntiCheat = {
+	Enabled = true,
+	Interval = 0.25, -- seconds between checks
+	MaxSpeed = 160, -- studs/second (MaxSpeed 85 + boosts, grapple, knockback)
+	MaxRise = 140, -- upward studs/second
+	Slack = 12, -- extra studs allowed per check (lag)
+	Grace = 0.8, -- seconds after an ability / respawn where anything goes
+	StrikesToKick = 10, -- in StrikeWindow seconds (0 = never kick)
+	StrikeWindow = 60,
+}
+
 -- The tier for a rating.
 function Config.RankTier(rating)
 	local best = Config.Rank.Tiers[1]
@@ -498,6 +568,10 @@ Config.Match = {
 	VictoryTime = 9, -- victory screen length before returning to lobby
 	MaxRoundTime = 180, -- if nobody dies, higher health % wins the round (tie = replay)
 	CardsPerPick = 5,
+	-- Matchmaking: players accept opponents within BaseWindow rating points,
+	-- widening by GrowPerSecond while they wait; after AnyoneAfter seconds
+	-- anyone will do.
+	Matchmaking = { BaseWindow = 150, GrowPerSecond = 12, AnyoneAfter = 45 },
 	-- a random map each match (never the same twice in a row); false = always use Map
 	-- Duel wagers: how many keys each player can put up when challenging
 	-- someone (the winner takes both stakes; leaving the match forfeits yours)

@@ -8,6 +8,10 @@
 	  * When a match between two players ends, the winner gains and the
 	    loser loses rating (Elo: the bigger the upset, the bigger the swing).
 	    Leaving a match counts as a loss. Bot matches don't count.
+	  * Seasons (Config.Rank.Season): when a new season has started since
+	    your last visit, you get keys for the best tier you reached last
+	    season and your rating moves part of the way back to the start.
+	    Attributes "Season", "SeasonPeak" and "SeasonEnds" are for the UI.
 	  * The leaderboard wall in the lobby (LobbyBuilder's "Leaderboard"
 	    board) shows the top players, from an OrderedDataStore, refreshed
 	    every Config.Rank.LeaderboardRefresh seconds. Without DataStore
@@ -20,6 +24,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Util = require(ReplicatedStorage.Shared.Util)
+local Remotes = require(ReplicatedStorage.Shared.Remotes)
 
 local RankService = {}
 
@@ -32,7 +37,7 @@ pcall(function()
 	board = DataStoreService:GetOrderedDataStore("RankBoard_v1")
 end)
 
-local data = {} -- [player] = { Rating, Wins, Losses, Peak }
+local data = {} -- [player] = { Rating, Wins, Losses, Peak, Season, SeasonPeak }
 local loadFailed = {} -- [player] = true: never overwrite a save we couldn't read
 local names = {} -- [userId] = display name (cache for the board)
 
@@ -42,6 +47,10 @@ local function publish(player)
 		player:SetAttribute("Rating", d.Rating)
 		player:SetAttribute("RankWins", d.Wins)
 		player:SetAttribute("RankLosses", d.Losses)
+		local _, _, ends = Config.SeasonAt(os.time())
+		player:SetAttribute("Season", d.Season)
+		player:SetAttribute("SeasonPeak", d.SeasonPeak)
+		player:SetAttribute("SeasonEnds", ends)
 	end
 end
 
@@ -58,7 +67,14 @@ local function save(player, d, failed)
 	end
 	local key = "u" .. player.UserId
 	local ok, err = pcall(function()
-		store:SetAsync(key, { Rating = d.Rating, Wins = d.Wins, Losses = d.Losses, Peak = d.Peak })
+		store:SetAsync(key, {
+			Rating = d.Rating,
+			Wins = d.Wins,
+			Losses = d.Losses,
+			Peak = d.Peak,
+			Season = d.Season,
+			SeasonPeak = d.SeasonPeak,
+		})
 	end)
 	if not ok then
 		warn("[RankService] save failed for", player.Name, err)
@@ -94,15 +110,47 @@ local function load(player)
 		loadFailed[player] = nil -- (they left while we were loading)
 		return
 	end
-	local d = { Rating = RK.StartRating, Wins = 0, Losses = 0, Peak = RK.StartRating }
+	local season = Config.SeasonAt(os.time())
+	local d = { Rating = RK.StartRating, Wins = 0, Losses = 0, Peak = RK.StartRating, Season = season, SeasonPeak = RK.StartRating }
+	local reward
 	if typeof(saved) == "table" then
-		for _, field in ipairs({ "Rating", "Wins", "Losses", "Peak" }) do
+		for _, field in ipairs({ "Rating", "Wins", "Losses", "Peak", "SeasonPeak" }) do
 			if typeof(saved[field]) == "number" then
 				d[field] = math.max(0, math.floor(saved[field]))
 			end
 		end
+		if typeof(saved.SeasonPeak) ~= "number" then
+			d.SeasonPeak = d.Rating
+		end
+		-- a new season since the last visit: reward + soft reset
+		-- (older saves without a season just join the current one)
+		if typeof(saved.Season) == "number" and saved.Season < season then
+			local tier = Config.RankTier(math.max(d.SeasonPeak, d.Rating))
+			reward = { Keys = RK.Season.Rewards[tier.Name] or 0, Tier = tier.Name, Season = saved.Season }
+			d.Rating = math.floor(RK.StartRating + (d.Rating - RK.StartRating) * RK.Season.ResetFactor + 0.5)
+			d.SeasonPeak = d.Rating
+		end
 	end
 	data[player] = d
+	if reward and not loadFailed[player] then
+		task.spawn(save, player)
+		-- keys go through CrateService once its save has loaded too
+		task.spawn(function()
+			local CrateService = require(script.Parent.CrateService)
+			for _ = 1, 30 do
+				if not player.Parent then
+					return
+				end
+				if reward.Keys <= 0 or CrateService.GiveKeys(player, reward.Keys) then
+					Remotes.Get("Notify"):FireClient(player, ("SEASON %d OVER  -  %s  -  +%d KEYS  -  SEASON %d STARTS NOW"):format(
+						reward.Season, reward.Tier, reward.Keys, season
+					))
+					return
+				end
+				task.wait(1)
+			end
+		end)
+	end
 	names[player.UserId] = player.DisplayName
 	publish(player)
 end
@@ -194,6 +242,7 @@ local function onMatchFinished(match)
 			local before = Config.RankTier(d.Rating)
 			d.Rating = math.max(0, d.Rating + delta)
 			d.Peak = math.max(d.Peak, d.Rating)
+			d.SeasonPeak = math.max(d.SeasonPeak or d.Rating, d.Rating)
 			if won then
 				d.Wins += 1
 			else

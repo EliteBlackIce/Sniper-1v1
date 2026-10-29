@@ -66,6 +66,7 @@ local Util = require(ReplicatedStorage.Shared.Util)
 local CharacterService = require(script.Parent.CharacterService)
 local MatchService = require(script.Parent.MatchService)
 local DummyService = require(script.Parent.DummyService)
+local MovementGuard = require(script.Parent.MovementGuard)
 
 local W = Config.Weapon
 local PU = Config.PowerUps
@@ -104,6 +105,11 @@ local function sendToMatch(match, remoteName, ...)
 	for _, player in ipairs(match.Players) do
 		if player.Parent then
 			remote:FireClient(player, ...)
+		end
+	end
+	for watcher in pairs(match.Spectators or {}) do
+		if watcher.Parent then
+			remote:FireClient(watcher, ...)
 		end
 	end
 end
@@ -175,6 +181,7 @@ local function knockback(player, velocity)
 			player:SetAttribute("KnockedUntil", os.clock() + 0.35) -- the AI stops steering for a moment
 		end
 	elseif player.Parent then
+		MovementGuard.Grace(player, 1.2)
 		Remotes.Get("Knockback"):FireClient(player, velocity * Config.Movement.KnockbackScale)
 	end
 end
@@ -303,6 +310,9 @@ function CombatService.Damage(match, attacker, victim, amount, info)
 	match:NoteHit(attacker, victim, info.Headshot == true)
 	if attacker ~= victim then
 		match:NoteDamage(attacker, dealt)
+		if before > 0 and after <= 0 then
+			match:NoteKill(attacker, info.Melee == true)
+		end
 	end
 	humanoid.Health = after
 	if dealt > 0 then
@@ -892,6 +902,9 @@ local function onFire(player, origin, direction, claims)
 		return
 	end
 	lastFire[player] = now
+	if stats.RocketJump then
+		MovementGuard.Grace(player, 1.2) -- (shooting your feet launches you, on your client)
+	end
 
 	-- DEADEYE: scoped (and not firing) for the charge time = a charged shot
 	local deadeye = 1
@@ -1057,6 +1070,11 @@ local function onFire(player, origin, direction, claims)
 		local opponent = match:GetOpponent(player)
 		if opponent.Parent then
 			shotFx:FireClient(opponent, player.UserId, fx, stats.Explosive)
+		end
+		for watcher in pairs(match.Spectators or {}) do
+			if watcher.Parent then
+				shotFx:FireClient(watcher, player.UserId, fx, stats.Explosive)
+			end
 		end
 	else
 		for _, other in ipairs(Players:GetPlayers()) do
@@ -1347,6 +1365,15 @@ local function onAbility(player, name, data)
 	local root = character:FindFirstChild("HumanoidRootPart")
 	local stats = getStats(player, match)
 	local opponent = match and match:GetOpponent(player)
+	-- (Blink, Recall, dashes and the grapple move you further than running
+	-- can; only abilities you own count, so the events can't be spammed for cover)
+	if (name == "Blink" and stats.Blink) or (name == "Recall" and stats.Recall)
+		or (name == "AirDash" and stats.AirDash) or (name == "PhantomDash" and stats.PhantomDash)
+		or (name == "Shockwave" and stats.ShockwaveLanding) then
+		MovementGuard.Grace(player)
+	elseif name == "GrappleStart" and stats.Grapple then
+		MovementGuard.Grace(player, Config.Movement.GrappleMaxTime + 0.6)
+	end
 
 	if name == "PhantomDash" and stats.PhantomDash then
 		if useCooldown(player, name, 0.5) then

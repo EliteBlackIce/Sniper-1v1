@@ -145,7 +145,8 @@ licensed CC-BY-4.0. Keep this credit if you publish the game (e.g. in the
 game description).
 
 This file is a snapshot of the code. If you edit the `src/` files, rebuild it with
-`rojo build -o dist/SniperDuel.rbxlx`, or use the live Rojo setup below.
+`rojo build -o dist/SniperDuel.rbxlx`, or without Rojo with
+`python tools/build_place.py` (same file), or use the live Rojo setup below.
 
 ## Setup: Rojo + Roblox Studio
 

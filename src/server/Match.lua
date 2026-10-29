@@ -37,6 +37,14 @@ function Match.new(p1, p2, arena, onFinished)
 	self.StatsCache = {}
 	self.SecondWindUsed = {} -- reset every round
 	self.LastHit = {} -- [victim] = { Attacker, Headshot }
+	-- the end-of-match numbers (victory screen)
+	self.Tally = {
+		[p1] = { Shots = 0, Hits = 0, Headshots = 0, Damage = 0, Longest = 0 },
+		[p2] = { Shots = 0, Hits = 0, Headshots = 0, Damage = 0, Longest = 0 },
+	}
+	-- [player] = { RatingDelta, Rating, Tier, TierChange, Keys, Wager } (filled
+	-- in by the services that pay out, when the result is decided)
+	self.Results = { [p1] = {}, [p2] = {} }
 
 	self.Phase = "Starting"
 	self.Round = 0
@@ -92,6 +100,10 @@ function Match:Snapshot()
 			IsBot = Util.isBot(player) or nil,
 			CharacterName = Util.isBot(player) and player.Character and player.Character.Name or nil,
 		}
+		if self.Phase == "Victory" then
+			players[slot].Tally = self.Tally[player]
+			players[slot].Result = self.Results[player]
+		end
 	end
 	return {
 		InMatch = true,
@@ -198,6 +210,38 @@ end
 
 function Match:NoteHit(attacker, victim, headshot)
 	self.LastHit[victim] = { Attacker = attacker, Headshot = headshot }
+end
+
+-- One trigger pull: did any bullet hit them, was one a headshot, how far.
+function Match:NoteShot(player, hit, headshot, distance)
+	local tally = self.Tally[player]
+	if not tally or not self:IsFighting() then
+		return
+	end
+	tally.Shots += 1
+	if hit then
+		tally.Hits += 1
+		tally.Longest = math.max(tally.Longest, math.floor(distance or 0))
+	end
+	if headshot then
+		tally.Headshots += 1
+	end
+end
+
+-- Damage that landed (after shields, capped at the health they had).
+function Match:NoteDamage(attacker, amount)
+	local tally = attacker and self.Tally[attacker]
+	if tally and amount > 0 then
+		tally.Damage += amount
+	end
+end
+
+-- Lets a service add to the result shown on the victory screen.
+function Match:SetResult(player, key, value)
+	local result = self.Results[player]
+	if result then
+		result[key] = value
+	end
 end
 
 -- Ends the match straight away with no winner (e.g. "/endbot").

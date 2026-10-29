@@ -19,7 +19,6 @@ local DataStoreService = game:GetService("DataStoreService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
-local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Util = require(ReplicatedStorage.Shared.Util)
 
 local RankService = {}
@@ -36,10 +35,6 @@ end)
 local data = {} -- [player] = { Rating, Wins, Losses, Peak }
 local loadFailed = {} -- [player] = true: never overwrite a save we couldn't read
 local names = {} -- [userId] = display name (cache for the board)
-
-local function notify(player, text)
-	Remotes.Get("Notify"):FireClient(player, text)
-end
 
 local function publish(player)
 	local d = data[player]
@@ -206,12 +201,13 @@ local function onMatchFinished(match)
 			end
 			publish(player)
 			local after = Config.RankTier(d.Rating)
-			local text = ("%s%d RATING  -  %s %d"):format(delta >= 0 and "+" or "", delta, after.Name, d.Rating)
+			match:SetResult(player, "RatingDelta", delta)
+			match:SetResult(player, "Rating", d.Rating)
+			match:SetResult(player, "Tier", after.Name)
 			if after ~= before then
-				text = (after.Min > before.Min and "RANKED UP!  " or "RANKED DOWN  ") .. text
+				match:SetResult(player, "TierChange", after.Min > before.Min and "Up" or "Down")
 			end
 			if not loadFailed[player] then
-				notify(player, text)
 				task.spawn(save, player)
 			end
 		elseif not d then
@@ -349,7 +345,7 @@ end
 
 function RankService.Init(matchService)
 	MatchService = matchService
-	MatchService.MatchFinished:Connect(onMatchFinished)
+	MatchService.MatchDecided:Connect(onMatchFinished)
 
 	Players.PlayerAdded:Connect(load)
 	for _, player in ipairs(Players:GetPlayers()) do

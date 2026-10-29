@@ -301,6 +301,9 @@ function CombatService.Damage(match, attacker, victim, amount, info)
 	after = math.max(after, 0)
 	local dealt = before - after + absorbed
 	match:NoteHit(attacker, victim, info.Headshot == true)
+	if attacker ~= victim then
+		match:NoteDamage(attacker, dealt)
+	end
 	humanoid.Health = after
 	if dealt > 0 then
 		lastHurt[victim] = os.clock()
@@ -934,6 +937,7 @@ local function onFire(player, origin, direction, claims)
 	local shardSegments = {}
 	local zapped = {}
 	local anyHit = false
+	local anyHead, farthest = false, 0
 	local hitOnce = {} -- [model] = true: on-hit effects apply once per target per shot
 
 	local fx = {}
@@ -983,6 +987,8 @@ local function onFire(player, origin, direction, claims)
 		if hitTarget then
 			anyHit = true
 			local damage, headshot = bulletDamage(hitPart, hops, stats, mult, (hitPos - origin).Magnitude)
+			anyHead = anyHead or headshot
+			farthest = math.max(farthest, (hitPos - origin).Magnitude)
 			damageTarget(match, player, stats, hitTarget, damage, { Headshot = headshot, Position = hitPos })
 			if not hitOnce[hitTarget.Model] then
 				hitOnce[hitTarget.Model] = true
@@ -1019,6 +1025,9 @@ local function onFire(player, origin, direction, claims)
 
 	if #shardSegments > 0 then
 		sendFx(match, { Type = "Shards", Segments = shardSegments })
+	end
+	if match then
+		match:NoteShot(player, anyHit, anyHead, farthest)
 	end
 
 	-- HAIR TRIGGER: any hit re-chambers the rifle straight away

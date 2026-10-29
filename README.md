@@ -68,7 +68,7 @@ src/client/                -> StarterPlayerScripts.Client
     Icons.lua                 draws flat power-up icons from shape data
     HUD.lua                   crosshair, scope, scoreboard + power-up icons, health, banners
     PickScreen.lua            the 5-card power-up pick screen
-    VictoryScreen.lua         end of match screen
+    VictoryScreen.lua         end of match: score, both players' stats + power-ups, rating / keys / wager
     LobbyUI.lua               lobby screen: logo, player card + keys, find match and the other actions
     CrateReveal.lua           the crate opening overlay (rarity climb, flash, reveal card)
     SettingsMenu.lua          General / Keyboard / Controller tabs: sliders, toggles, keybinds

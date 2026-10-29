@@ -495,7 +495,7 @@ Config.Match = {
 	RoundEndTime = 6.5, -- pause after a kill before the pick screen (the loser watches the kill cam + victory pose)
 	PickTime = 15, -- seconds the loser has to pick a card
 	PickRevealTime = 1.6, -- how long the chosen card is shown before the next round
-	VictoryTime = 7, -- victory screen length before returning to lobby
+	VictoryTime = 9, -- victory screen length before returning to lobby
 	MaxRoundTime = 180, -- if nobody dies, higher health % wins the round (tie = replay)
 	CardsPerPick = 5,
 	-- a random map each match (never the same twice in a row); false = always use Map

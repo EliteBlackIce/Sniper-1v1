@@ -683,7 +683,7 @@ local function onMatchFinished(match)
 				data[player].PaidKeys = (data[player].PaidKeys or 0) + vipBonus
 				setKeys(player, data[player].Keys + gain)
 				player:SetAttribute("WagerKeys", data[player].Keys - (data[player].PaidKeys or 0))
-				notify(player, ("+%d KEY%s  -  open crates in the crate vault"):format(gain, gain == 1 and "" or "S"))
+				match:SetResult(player, "Keys", gain) -- (shown on the victory screen)
 				task.spawn(save, player)
 			end
 		end
@@ -758,7 +758,7 @@ function CrateService.Init(matchService, characterService)
 		end)
 	end
 
-	MatchService.MatchFinished:Connect(onMatchFinished)
+	MatchService.MatchDecided:Connect(onMatchFinished)
 
 	MarketplaceService.ProcessReceipt = processReceipt
 	MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passId, bought)

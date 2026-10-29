@@ -29,7 +29,12 @@ local Match = require(script.Parent.Match)
 local BotService = require(script.Parent.BotService)
 
 local MatchService = {}
-MatchService.MatchFinished = Signal.new() -- (match) after a match ends (crates hand out keys)
+MatchService.MatchFinished = Signal.new() -- (match) after a match ends and everyone is back in the lobby
+-- (match) the moment the result is known, before the victory screen: rating
+-- and keys are paid here and written into match.Results so the screen shows
+-- them. Handlers run straight away (Signal uses task.spawn) and must not
+-- yield before calling match:SetResult.
+MatchService.MatchDecided = Signal.new()
 
 local lobby
 local queue = {} -- ordered list of players waiting
@@ -184,12 +189,13 @@ local function settleWager(match)
 	local CrateService = require(script.Parent.CrateService)
 	local winner = match.MatchWinner or (match.Aborted and match.ForfeitWinner) or nil
 	if winner then
+		-- (both players see the wager on the victory screen)
 		if winner.Parent and CrateService.GiveKeys(winner, stake * 2) then
-			notify(winner, ("WAGER WON  -  +%d KEYS"):format(stake * 2))
+			match:SetResult(winner, "Wager", stake * 2)
 		end
 		local loser = match:GetOpponent(winner)
-		if loser and loser.Parent then
-			notify(loser, ("WAGER LOST  -  %d KEYS"):format(stake))
+		if loser then
+			match:SetResult(loser, "Wager", -stake)
 		end
 	else
 		for _, player in ipairs(match.Players) do
@@ -200,9 +206,18 @@ local function settleWager(match)
 	end
 end
 
+local function onDecided(match)
+	if match.DecidedFired then
+		return
+	end
+	match.DecidedFired = true
+	settleWager(match)
+	MatchService.MatchDecided:Fire(match)
+end
+
 local function onMatchFinished(match)
 	arenaInUse[match.Arena.Index] = nil
-	settleWager(match) -- (normally already done by OnDecided)
+	onDecided(match) -- (normally already done by OnDecided)
 	MatchService.MatchFinished:Fire(match)
 	-- remember who you just played so you can ask for a rematch
 	local a, b = match.Players[1], match.Players[2]
@@ -235,7 +250,7 @@ end
 -- so the HUD can show it.
 local function newMatch(p1, p2, arena)
 	local match = Match.new(p1, p2, arena, onMatchFinished)
-	match.OnDecided = settleWager
+	match.OnDecided = onDecided
 	return match
 end
 

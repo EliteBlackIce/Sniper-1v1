@@ -12,8 +12,8 @@
 	               ability buttons (Grapple / Blink / Decoy / Dome / Recall /
 	               Smoke / Dash, when you have them)
 	  top left     one MENU button under the lobby wordmark. In the lobby it
-	               opens a small list: SKINS (Locker), SHOP, DUEL, LAB and
-	               SETTINGS; in a match it opens Settings directly. Nothing
+	               opens a small list: SKINS (Locker), SHOP, DUEL, LAB,
+	               PROFILE and SETTINGS; in a match it opens Settings directly. Nothing
 	               sits near the thumbstick or the fire / jump buttons.
 
 	Buttons don't do anything themselves: they press the same actions as
@@ -290,7 +290,7 @@ function MobileControls.Start(playerGui)
 	end)
 	menuRoot = Theme.new("Frame", {
 		Name = "Menu",
-		Size = UDim2.fromOffset(150, 320),
+		Size = UDim2.fromOffset(150, 360),
 		BackgroundTransparency = 1,
 		Parent = menuGui,
 	})
@@ -352,7 +352,12 @@ function MobileControls.Start(playerGui)
 	end)
 	menuItem("Duel", "DUEL", "swords", 3, tap("DuelFriend"))
 	menuItem("Lab", "LAB", "flask", 4, tap("PowerUpLab"))
-	menuItem("Settings", "SETTINGS", "gear", 5, tap("Settings"))
+	menuItem("Profile", "PROFILE", "target", 5, function()
+		if Controllers and Controllers.Profile then
+			Controllers.Profile.Toggle()
+		end
+	end)
+	menuItem("Settings", "SETTINGS", "gear", 6, tap("Settings"))
 
 	local openSettings = tap("Settings")
 	menuButton.Activated:Connect(function()

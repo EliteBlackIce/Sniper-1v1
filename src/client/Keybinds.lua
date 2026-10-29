@@ -79,6 +79,10 @@ Keybinds.Actions = {
 	{ Id = "BotMatch", Name = "Play vs bot (admin)", Keyboard = "N", Gamepad = "None", Lobby = true }, -- (RB is the knife)
 	{ Id = "DuelFriend", Name = "Duel a player", Keyboard = "U", Gamepad = "ButtonR3", Lobby = true },
 	{ Id = "Rematch", Name = "Rematch", Keyboard = "T", Gamepad = "DPadUp", Lobby = true },
+	{ Id = "Profile", Name = "Profile (stats, challenges, season, watch)", Keyboard = "J", Gamepad = "None", Lobby = true },
+	{ Id = "MapVote", Name = "Change your map vote", Keyboard = "K", Gamepad = "None", Lobby = true },
+	{ Id = "StopWatching", Name = "Stop watching a duel", Keyboard = "Backspace", Gamepad = "ButtonB", Lobby = true },
+	{ Id = "WatchNext", Name = "Watch the other player", Keyboard = "H", Gamepad = "ButtonX", Lobby = true },
 	{ Id = "Settings", Name = "Settings", Keyboard = "P", Gamepad = "ButtonSelect" },
 }
 

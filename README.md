@@ -34,7 +34,9 @@ src/server/                -> ServerScriptService.Server
   Main.server.lua             entry point, starts every service
   LightingSetup.lua           Future lighting + post effects (arena profile)
   CrateService.lua            crate keys, server-side rolls, owned + equipped skins (DataStore)
-  RankService.lua             ranked rating (Elo, DataStore) + the lobby leaderboard wall
+  RankService.lua             ranked rating (Elo, DataStore), seasons + the lobby leaderboard wall
+  ProfileService.lua          lifetime stats, daily / weekly challenges, tutorial reward, power-up telemetry
+  MovementGuard.lua           server anti-cheat: impossible movement is put back
   MapBuilder.lua              builds the lobby and the arena from parts
   ArenaMesa / Glacier / Monolith / Temple / Neon / Islands.lua   the six huge maps in the rotation
   DummyService.lua            practice dummies on the lobby shooting range
@@ -53,6 +55,7 @@ src/client/                -> StarterPlayerScripts.Client
   MovementController.lua      bhop, air control, sprint, slide, wall run, grapple...
   WeaponController.lua        scope + fire, local tracers, sends shots to the server
   EffectsController.lua       tracers, explosions, ropes, wallhack pulse, screen tints
+  SpectateController.lua      the spectator camera + score bar when watching a live duel
   PowerFx.lua                 a look for every power-up: shot styles, character auras, power-up gains
   LightingController.lua      blends arena / indoor lobby lighting (Config.Lighting)
   CrateController.lua         the lobby crate + its opening cinematic
@@ -77,7 +80,9 @@ src/client/                -> StarterPlayerScripts.Client
     PowerUpLab.lua            try any power-up solo in the lobby (B)
     Locker.lua                pick your rifle and knife skins (L)
     Shop.lua                  crates, featured skins, credit packs (Robux), VIP pass (M)
-    Welcome.lua               the one-time welcome card for new players
+    Welcome.lua               the one-time welcome card for new players (+ the tutorial)
+    ProfileMenu.lua           PROFILE (J): stats, challenges, season, watch live duels
+    Tutorial.lua              the guided first steps (pays keys once)
 
 assets/SniperRifle.glb        PGM 338 rifle, ready for Studio's 3D Importer (CC-BY-4.0, see Quick start)
 
@@ -553,8 +558,7 @@ matches swing more. Leaving a match counts as a loss.
 | Champion | 1700+ |
 
 Your tier and rating show in the RANK chip at the top right of the lobby,
-and after each match you get a message with the change ("RANKED UP!" when
-you cross a tier). The **TOP SNIPERS** board on the south-west wall of the
+and the victory screen shows the change ("RANKED UP" when you cross a tier). The **TOP SNIPERS** board on the south-west wall of the
 lobby lists the 10 best players, refreshed every minute. Ratings are saved
 in a DataStore (`RankService.lua`, tune in `Config.Rank`).
 
@@ -921,6 +925,54 @@ Movement uses the Source-engine model (Half-Life / CS / TF2):
   (`rbxasset://sounds/...`). Swap any of them for `rbxassetid://<id>` from the
   Creator Store if you want different ones.
 
+### Matchmaking
+
+FIND MATCH pairs players by rating. Each queued player accepts opponents
+within 150 rating points, widening by 12 a second while they wait; after 45
+seconds anyone will do (`Config.Match.Matchmaking`). The searching button
+shows your current range.
+
+**Map vote** (the MAP VOTE button, key **K**): cycle through ANY and every
+map. A match is played on the map both players picked, or on one of the two
+picks at random.
+
+### Seasons
+
+A season lasts 28 days (`Config.Rank.Season`). The first time you play in a
+new season you get keys for the best tier you reached last season (Bronze 5
+up to Champion 80) and your rating moves halfway back to 1000. The PROFILE
+menu's SEASON tab shows the time left and the rewards.
+
+## Profile, challenges and watching
+
+**PROFILE** (key **J**, the PROFILE tile, or MENU on mobile):
+
+- **STATS**: duels, wins, rounds, kills, headshots, accuracy, damage, longest
+  hit, streaks, knife kills, flawless wins (saved by `ProfileService.lua`).
+- **CHALLENGES**: 3 dailies and 3 weeklies (new ones every UTC day / Monday),
+  each paying keys the moment you finish it; the victory screen shows them.
+  Edit the lists in `Config.Challenges`.
+- **SEASON**: see above.
+- **WATCH**: every live duel on the server. WATCH puts your camera behind
+  one of the players with a live score bar; **H** switches player,
+  **Backspace** stops (both are buttons too).
+- **TUTORIAL**: nine quick steps on the lobby range (move, bunny hop, slide,
+  scope, shoot, headshot, knife, try a power-up). The first time you finish
+  it pays 5 keys (`Config.Tutorial`). New players get it on the welcome card.
+
+### Power-up stats (admins)
+
+Every real duel records how often each power-up was offered, picked, held
+at the end and held by the winner (a DataStore, across all servers). Type
+**/pustats** in chat to print the pick and win rates in the server output,
+handy for balancing.
+
+### Sounds
+
+The sounds are Roblox's built-in ones (layered for the rifle, headshots and
+kills). To use your own, put an audio asset id in `Config.CustomSounds`
+(e.g. `Fire = "rbxassetid://123456"`): it replaces that sound everywhere.
+
 ## How hit detection works (anti-exploit)
 
 1. The client traces the bullet with `Ballistics` for instant tracers and sends
@@ -935,6 +987,11 @@ Movement uses the Source-engine model (Half-Life / CS / TF2):
    lies on the server's own bullet path **and** near where that body part
    actually is on the server. A cheater can't shoot through walls or hit
    someone who wasn't there.
+5. Movement (`MovementGuard.lua`): clients move their own characters, so the
+   server checks every quarter second that nobody moved further than is
+   possible (`Config.AntiCheat`). Anyone who did is put back and logged;
+   repeated strikes get a kick. Abilities that teleport or launch you grant
+   a short grace, so they never trip it.
 
 ## Design notes
 

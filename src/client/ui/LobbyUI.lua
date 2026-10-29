@@ -72,7 +72,8 @@ local TOP_H = 68 -- top bar row (brand, nav, profile)
 local BRAND_W = 260 -- wordmark block; the nav starts after it
 local TAB_W, TAB_H = 76, 60 -- nav tiles
 local NAV_PAD = 4
-local NAV_W = TAB_W * 5 + NAV_PAD * 4 + NAV_PAD * 2
+local NAV_COUNT = 6
+local NAV_W = TAB_W * NAV_COUNT + NAV_PAD * (NAV_COUNT - 1) + NAV_PAD * 2
 local PILL_H = 32
 local PROFILE_W = 160
 local PLAY_W = 340 -- bottom-left play cluster
@@ -83,7 +84,7 @@ local HERO_H = 76
 local HERO_ICON = 28
 local TIME_W = 64 -- searching timer on the hero (desktop)
 local COMPACT_H = 44 -- touch: one row of buttons
-local COMPACT_WIDTHS = { Rematch = 132, FindMatch = 210, Playground = 132, BotMatch = 76 }
+local COMPACT_WIDTHS = { Rematch = 132, FindMatch = 210, Playground = 132, BotMatch = 76, MapVote = 118 }
 
 -- nav tiles (desktop). Ids are Keybinds action ids.
 local NAV = {
@@ -91,6 +92,7 @@ local NAV = {
 	{ Id = "Shop", Text = "SHOP", Icon = "bag" },
 	{ Id = "DuelFriend", Text = "DUEL", Icon = "swords" },
 	{ Id = "PowerUpLab", Text = "LAB", Icon = "flask" },
+	{ Id = "Profile", Text = "PROFILE", Icon = "target" },
 	{ Id = "Settings", Text = "SETTINGS", Icon = "gear" },
 }
 
@@ -411,6 +413,7 @@ local function layoutStack()
 			table.insert(order, "Rematch")
 		end
 		table.insert(order, "FindMatch")
+		table.insert(order, "MapVote")
 		table.insert(order, "Playground")
 		if SHOW_BOT then
 			table.insert(order, "BotMatch")
@@ -438,6 +441,8 @@ local function layoutStack()
 			place(entries.Playground, 0, y, PLAY_W, MODE_H)
 			entries.BotMatch.Button.Visible = false
 		end
+		y += MODE_H + SP.S
+		place(entries.MapVote, 0, y, PLAY_W, MODE_H)
 		y += MODE_H + SP.M
 		if rematchOn then
 			place(entries.Rematch, 0, y, PLAY_W, REMATCH_H)
@@ -531,6 +536,7 @@ local function relayout()
 	entries.Rematch.Label.TextSize = compact and 13 or 15
 	entries.Playground.Label.TextSize = compact and 13 or 14
 	entries.BotMatch.Label.TextSize = compact and 13 or 14
+	entries.MapVote.Label.TextSize = compact and 13 or 14
 
 	layoutTop()
 	layoutStack()
@@ -548,7 +554,10 @@ local function updateSearchText()
 	if compact then
 		subLabel.Text = time .. "  ·  TAP TO CANCEL"
 	else
-		subLabel.Text = string.format("%d IN QUEUE  ·  PRESS TO CANCEL", lastSnapshot.QueueCount or 1)
+		local window = lastSnapshot.SearchWindow
+		local range = window == -1 and "ANY RATING" or (window and string.format("±%d RATING", window) or nil)
+		subLabel.Text = range and string.format("%s  ·  %d IN QUEUE  ·  PRESS TO CANCEL", range, lastSnapshot.QueueCount or 1)
+			or string.format("%d IN QUEUE  ·  PRESS TO CANCEL", lastSnapshot.QueueCount or 1)
 	end
 end
 
@@ -620,6 +629,9 @@ local function refreshModes(snapshot)
 	styleEntry(entries.Playground, inPlayground and "active" or "normal")
 	setEntry(entries.BotMatch, keyText("BotMatch"), "BOT", showKey, showIcon)
 	styleEntry(entries.BotMatch, "normal")
+	local map = snapshot.MapVote and string.upper(snapshot.MapVote) or "ANY"
+	setEntry(entries.MapVote, keyText("MapVote"), compact and map or ("MAP VOTE: " .. map), showKey, showIcon)
+	styleEntry(entries.MapVote, snapshot.MapVote and "active" or "normal")
 end
 
 local function refreshTabs()
@@ -1020,6 +1032,8 @@ local function buildStack()
 	-- PLAYGROUND / BOT (admins)
 	makeEntry("Playground", stack, { Icon = "flag", TextSize = 14 })
 	makeEntry("BotMatch", stack, { Icon = "bot", TextSize = 14 })
+	-- MAP VOTE: cycles ANY -> each map -> ANY
+	makeEntry("MapVote", stack, { Icon = "flag", TextSize = 14 })
 	playgroundButton = entries.Playground.Button
 
 	-- REMATCH (after a match, for a little while)
@@ -1173,6 +1187,17 @@ function LobbyUI.Start(playerGui)
 		Theme.pop(entries.BotMatch.Button, 0.06)
 		Remotes.Get("AdminCommand"):FireServer("bot")
 	end
+	local function cycleMap()
+		local maps = lastSnapshot.Maps or {}
+		if #maps == 0 then
+			return
+		end
+		Sfx.Play("CardHover", { Pitch = 1.2 })
+		Theme.pop(entries.MapVote.Button, 0.06)
+		local index = lastSnapshot.MapVote and table.find(maps, lastSnapshot.MapVote) or 0
+		Remotes.Get("MapVote"):FireServer(maps[index + 1]) -- (past the last map: nil = ANY)
+	end
+	entries.MapVote.Button.Activated:Connect(cycleMap)
 	rematchButton.Activated:Connect(requestRematch)
 	playButton.Activated:Connect(toggleQueue)
 	playgroundButton.Activated:Connect(togglePlayground)
@@ -1204,6 +1229,11 @@ function LobbyUI.Start(playerGui)
 				Controllers.Settings.Toggle()
 			end
 		end,
+		Profile = function()
+			if Controllers and Controllers.Profile then
+				Controllers.Profile.Toggle()
+			end
+		end,
 	}
 	for _, item in ipairs(NAV) do
 		local t = tabs[item.Id]
@@ -1232,6 +1262,8 @@ function LobbyUI.Start(playerGui)
 			botMatch()
 		elseif Keybinds.Matches("Rematch", input) and rematchButton.Visible then
 			requestRematch()
+		elseif Keybinds.Matches("MapVote", input) and not ClientState.MenuOpen then
+			cycleMap()
 		end
 	end
 	UserInputService.InputBegan:Connect(onActionInput)

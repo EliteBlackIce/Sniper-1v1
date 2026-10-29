@@ -15,6 +15,8 @@
 		Toast         short server messages (admin commands)
 		DuelUI        challenge a player, duel / rematch invites
 		MobileControls on-screen buttons + look pad for touch screens
+		ProfileMenu   stats, challenges, season, watch live duels (J)
+		Tutorial      the guided first steps
 ]]
 
 local Players = game:GetService("Players")
@@ -34,6 +36,8 @@ local Welcome = require(ui.Welcome)
 local Toast = require(ui.Toast)
 local DuelUI = require(ui.DuelUI)
 local MobileControls = require(ui.MobileControls)
+local ProfileMenu = require(ui.ProfileMenu)
+local Tutorial = require(ui.Tutorial)
 
 local UIController = {}
 
@@ -46,6 +50,11 @@ function UIController.Init(controllers)
 	controllers.Duel = DuelUI
 	controllers.Locker = Locker
 	controllers.Shop = Shop
+	controllers.Profile = ProfileMenu
+	controllers.Tutorial = Tutorial
+	ProfileMenu.Init(controllers)
+	Welcome.Init(controllers)
+	Tutorial.Init(controllers)
 	MobileControls.Init(controllers)
 	HUD.Init(controllers)
 	LobbyUI.Init(controllers)
@@ -85,6 +94,8 @@ function UIController.Start()
 	Toast.Start(playerGui)
 	DuelUI.Start(playerGui)
 	MobileControls.Start(playerGui)
+	ProfileMenu.Start(playerGui)
+	Tutorial.Build(playerGui)
 
 	ClientState.Changed:Connect(function(snapshot, old)
 		HUD.OnState(snapshot, old)

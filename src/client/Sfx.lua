@@ -12,6 +12,10 @@
 	Options: Volume, Pitch (multipliers), Parent (3D), Vary (random pitch
 	+-fraction), NoThrottle (allow the same 2D sound twice in one frame).
 
+	Config.Sounds entries can have Layers (extra sounds stacked on the main
+	one); Config.CustomSounds[name] (an asset id) replaces a sound and its
+	layers with your own audio.
+
 	2D sounds are pooled (a few Sound objects per name, reused), and the same
 	2D sound fired several times within THROTTLE seconds (split shot hits,
 	shrapnel) plays once, so volume never stacks into a spike.
@@ -164,7 +168,25 @@ function Sfx.Play(name, options)
 	if options.Vary then
 		pitch *= 1 + (math.random() * 2 - 1) * options.Vary
 	end
+	local custom = Config.CustomSounds and Config.CustomSounds[name]
+	if typeof(custom) == "string" and custom ~= "" then
+		return playOne(custom, (def and def.Volume or 0.5) * volume, pitch, parent)
+	elseif typeof(custom) == "table" and typeof(custom.Id) == "string" then
+		return playOne(custom.Id, (custom.Volume or 0.5) * volume, (custom.Pitch or 1) * pitch, parent)
+	end
 	if def then
+		for _, layer in ipairs(def.Layers or {}) do
+			local id, v, p, delay = layer[1], layer[2] * volume, layer[3] * pitch, layer[4] or 0
+			if delay > 0 then
+				task.delay(delay, function()
+					if not parent or parent.Parent then
+						playOne(id, v, p, parent)
+					end
+				end)
+			else
+				playOne(id, v, p, parent)
+			end
+		end
 		return playOne(def.Id, (def.Volume or 0.5) * volume, (def.Pitch or 1) * pitch, parent)
 	end
 	local first

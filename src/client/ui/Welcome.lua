@@ -19,6 +19,11 @@ local Palette = Config.Palette
 local player = Players.LocalPlayer
 
 local Welcome = {}
+local Controllers
+
+function Welcome.Init(controllers)
+	Controllers = controllers
+end
 
 local LINES = {
 	{ "F", "Find a 1v1 match (U: challenge someone, bet keys if you like)" },
@@ -27,6 +32,7 @@ local LINES = {
 	{ "M", "Shop: open crates with keys you earn by playing" },
 	{ "L", "Locker: skins, tracers, kill effects, poses, titles" },
 	{ "G", "Playground: free roam with practice dummies" },
+	{ "J", "Profile: stats, daily challenges, the ranked season, watch live duels" },
 }
 
 function Welcome.Show(playerGui)
@@ -46,14 +52,14 @@ function Welcome.Show(playerGui)
 	local card = Theme.panel({
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromOffset(620, 470),
+		Size = UDim2.fromOffset(620, 514),
 		BackgroundTransparency = 0,
 		Parent = gui,
 	})
 	Theme.padding(card, 28)
 	local scale = Theme.new("UIScale", { Parent = card })
 	local view = workspace.CurrentCamera.ViewportSize
-	scale.Scale = math.min(1, (view.X - 40) / 620, (view.Y - 40) / 470)
+	scale.Scale = math.min(1, (view.X - 40) / 620, (view.Y - 40) / 514)
 	Theme.label({
 		Size = UDim2.new(1, 0, 0, 40),
 		RichText = true,
@@ -98,18 +104,35 @@ function Welcome.Show(playerGui)
 		})
 	end
 	local go = Theme.button({
-		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.fromScale(0.5, 1),
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.new(0.5, -8, 1, 0),
 		Size = UDim2.fromOffset(220, 48),
 		Text = "LET'S GO",
 		TextSize = 20,
+		BackgroundColor3 = Palette.UIPanelLight,
+		TextColor3 = Palette.UIText,
+		Parent = card,
+	})
+	local tutorial = Theme.button({
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0.5, 8, 1, 0),
+		Size = UDim2.fromOffset(240, 48),
+		Text = ("TUTORIAL  ·  +%d KEYS"):format(Config.Tutorial.RewardKeys),
+		TextSize = 18,
 		Parent = card,
 	})
 	Theme.pop(card, 0.08)
-	go.Activated:Connect(function()
+	local function close()
 		Sfx.Play("CardPick", { Pitch = 1.1 })
 		ClientState.SetMenu("Welcome", false)
 		gui:Destroy()
+	end
+	go.Activated:Connect(close)
+	tutorial.Activated:Connect(function()
+		close()
+		if Controllers and Controllers.Tutorial then
+			Controllers.Tutorial.Start()
+		end
 	end)
 end
 

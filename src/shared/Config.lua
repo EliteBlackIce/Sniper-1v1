@@ -983,13 +983,54 @@ Config.PowerUps = {
 -- These use sounds that ship with the Roblox client (rbxasset://). If one
 -- doesn't play on your machine, swap it for any rbxassetid://<id> from the
 -- Creator Store.
+-- Layers = extra sounds played with the main one: { Id, Volume, Pitch, Delay }
+-- (built-in sounds stacked so a shot has a crack, a body and a tail).
 ----------------------------------------------------------------------------
+-- YOUR OWN SOUNDS: put an audio asset id here and it replaces the built-in
+-- sound of that name everywhere (layers included). Find sounds in the
+-- Creator Store (Toolbox > Audio) and paste the number, e.g.
+--   Fire = "rbxassetid://1234567890",
+-- Optional table form: Fire = { Id = "rbxassetid://...", Volume = 0.8, Pitch = 1 }
+Config.CustomSounds = {
+	Fire = nil, -- the rifle shot (the most important one)
+	Bolt = nil, -- the bolt being worked after a shot
+	Hit = nil, -- your bullet hit the body
+	Headshot = nil,
+	Kill = nil,
+	Hurt = nil, -- you got hit
+	Explosion = nil,
+	Victory = nil,
+	CardPick = nil, -- UI clicks
+}
+
 Config.Sounds = {
-	Fire = { Id = "rbxasset://sounds/Rocket shot.wav", Volume = 0.6, Pitch = 1.6 },
+	Fire = {
+		Id = "rbxasset://sounds/Rocket shot.wav",
+		Volume = 0.6,
+		Pitch = 1.6,
+		Layers = {
+			{ "rbxasset://sounds/collide.wav", 0.55, 0.42, 0 }, -- low body
+			{ "rbxasset://sounds/Rocket shot.wav", 0.25, 0.8, 0.02 }, -- deeper echo
+			{ "rbxasset://sounds/swordlunge.wav", 0.18, 0.55, 0.05 }, -- air tail
+		},
+	},
 	Bolt = { Id = "rbxasset://sounds/clickfast.wav", Volume = 0.6, Pitch = 0.8 },
 	Hit = { Id = "rbxasset://sounds/electronicpingshort.wav", Volume = 0.5, Pitch = 1.4 },
-	Headshot = { Id = "rbxasset://sounds/electronicpingshort.wav", Volume = 0.7, Pitch = 1.9 },
-	Kill = { Id = "rbxasset://sounds/electronicpingshort.wav", Volume = 0.9, Pitch = 0.75 },
+	Headshot = {
+		Id = "rbxasset://sounds/electronicpingshort.wav",
+		Volume = 0.7,
+		Pitch = 1.9,
+		Layers = { { "rbxasset://sounds/collide.wav", 0.45, 1.3, 0 } }, -- a hard knock under the ping
+	},
+	Kill = {
+		Id = "rbxasset://sounds/electronicpingshort.wav",
+		Volume = 0.9,
+		Pitch = 0.75,
+		Layers = {
+			{ "rbxasset://sounds/collide.wav", 0.5, 0.6, 0 },
+			{ "rbxasset://sounds/electronicpingshort.wav", 0.4, 1.5, 0.08 },
+		},
+	},
 	HitTick = { Id = "rbxasset://sounds/clickfast.wav", Volume = 0.55, Pitch = 2.3 }, -- the crisp tick layered on every hit
 	Ding = { Id = "rbxasset://sounds/electronicpingshort.wav", Volume = 0.55, Pitch = 2.7 }, -- headshots ring
 	KillThump = { Id = "rbxasset://sounds/collide.wav", Volume = 0.6, Pitch = 0.55 }, -- the low punch under a kill
